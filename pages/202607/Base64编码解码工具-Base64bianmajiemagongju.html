@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Base64编码解码工具</title>
+  <style>
+    :root {
+      --bg: #ffffff;
+      --text: #1a1a1a;
+      --muted: #6b7280;
+      --card: #f7fafc;
+      --border: #e5e7eb;
+      --accent: #2563eb;
+      --accent-contrast: #ffffff;
+      --danger: #dc2626;
+      color-scheme: light;
+    }
+    body[data-theme="dark"] {
+      --bg: #0f172a;
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+      --card: #0b1220;
+      --border: #1f2937;
+      --accent: #60a5fa;
+      --accent-contrast: #0b1220;
+      --danger: #f87171;
+      color-scheme: dark;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
+      line-height: 1.5;
+    }
+
+    .app {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 16px;
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .title {
+      font-size: 20px;
+      font-weight: 600;
+    }
+    .theme-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid var(--border);
+      background: var(--card);
+      color: var(--text);
+      padding: 8px 12px;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background .15s ease, border-color .15s ease;
+    }
+    .theme-toggle:hover { border-color: var(--muted); }
+
+    .panel {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+    @media (min-width: 840px) {
+      .grid { grid-template-columns: 1fr 1fr; }
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 180px;
+      resize: vertical;
+      padding: 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      outline: none;
+    }
+    textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent), transparent 80%); }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .btn {
+      appearance: none;
+      padding: 10px 14px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      cursor: pointer;
+      transition: background .15s ease, border-color .15s ease, transform .02s ease;
+    }
+    .btn:hover { border-color: var(--muted); }
+    .btn:active { transform: translateY(1px); }
+    .btn.primary {
+      background: var(--accent);
+      color: var(--accent-contrast);
+      border-color: color-mix(in srgb, var(--accent), black 20%);
+    }
+    .btn.danger { border-color: var(--danger); color: var(--danger); }
+
+    .status {
+      margin-top: 10px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .status.error { color: var(--danger); }
+    .status.ok { color: #16a34a; }
+
+    .footer {
+      margin-top: 18px;
+      font-size: 12px;
+      color: var(--muted);
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="header">
+      <div class="title">Base64编码解码工具</div>
+      <button id="themeToggle" class="theme-toggle" aria-label="切换主题">🌞 浅色</button>
+    </div>
+
+    <div class="panel">
+      <div class="grid">
+        <div>
+          <label for="input">输入内容（待编码或待解码）</label>
+          <textarea id="input" placeholder="在此粘贴或输入文本..."></textarea>
+        </div>
+        <div>
+          <label for="output">输出结果</label>
+          <textarea id="output" placeholder="结果将显示在这里" readonly></textarea>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="encodeBtn" class="btn primary">编码为Base64</button>
+        <button id="decodeBtn" class="btn primary">从Base64解码</button>
+        <button id="swapBtn" class="btn">交换输入与输出</button>
+        <button id="copyBtn" class="btn">复制输出</button>
+        <button id="clearBtn" class="btn danger">清空</button>
+      </div>
+
+      <div id="status" class="status">支持UTF-8字符与URL安全Base64（-/_），自动补齐缺失的填充。</div>
+      <div id="testStatus" class="status"></div>
+    </div>
+
+    <div class="footer">提示：Base64不是加密，只是编码。请勿用于敏感信息的安全保护。</div>
+  </div>
+
+  <script>
+    // 主题切换与持久化
+    (function themeInit() {
+      const key = 'base64_tool_theme';
+      const toggle = document.getElementById('themeToggle');
+      const preferDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const saved = localStorage.getItem(key);
+      let theme = saved || (preferDark ? 'dark' : 'light');
+
+      function apply(themeName) {
+        document.body.setAttribute('data-theme', themeName);
+        document.documentElement.style.colorScheme = themeName === 'dark' ? 'dark' : 'light';
+        toggle.textContent = themeName === 'dark' ? '🌙 深色' : '🌞 浅色';
+      }
+      apply(theme);
+
+      toggle.addEventListener('click', () => {
+        theme = theme === 'dark' ? 'light' : 'dark';
+        localStorage.setItem(key, theme);
+        apply(theme);
+      });
+    })();
+
+    // Base64工具（UTF-8安全 + URL安全支持）
+    function utf8ToBase64(str) {
+      const bytes = new TextEncoder().encode(str);
+      let binary = '';
+      for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+      return btoa(binary);
+    }
+
+    function base64ToUtf8(b64) {
+      // 兼容URL安全变体：-/_ -> +/
+      let normalized = b64.replace(/-/g, '+').replace(/_/g, '/');
+      // 自动补齐缺失的填充=
+      const pad = normalized.length % 4;
+      if (pad === 2) normalized += '==';
+      else if (pad === 3) normalized += '=';
+      else if (pad === 1) throw new Error('非法的Base64长度');
+
+      const binary = atob(normalized);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      return new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+    }
+
+    // UI交互
+    const $in = document.getElementById('input');
+    const $out = document.getElementById('output');
+    const $status = document.getElementById('status');
+    const $test = document.getElementById('testStatus');
+
+    function setStatus(msg, kind = 'info') {
+      $status.textContent = msg;
+      $status.className = 'status' + (kind === 'error' ? ' error' : kind === 'ok' ? ' ok' : '');
+    }
+
+    document.getElementById('encodeBtn').addEventListener('click', () => {
+      const text = $in.value || '';
+      try {
+        const encoded = utf8ToBase64(text);
+        $out.value = encoded;
+        setStatus('已编码为Base64。', 'ok');
+      } catch (e) {
+        setStatus('编码失败：' + e.message, 'error');
+      }
+    });
+
+    document.getElementById('decodeBtn').addEventListener('click', () => {
+      const b64 = $in.value || '';
+      try {
+        const decoded = base64ToUtf8(b64);
+        $out.value = decoded;
+        setStatus('已从Base64解码。', 'ok');
+      } catch (e) {
+        setStatus('解码失败：' + e.message + '（请确认输入为有效的Base64）', 'error');
+      }
+    });
+
+    document.getElementById('swapBtn').addEventListener('click', () => {
+      const a = $in.value;
+      $in.value = $out.value;
+      $out.value = a;
+      setStatus('已交换输入与输出。');
+    });
+
+    document.getElementById('copyBtn').addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText($out.value || '');
+        setStatus('输出内容已复制到剪贴板。', 'ok');
+      } catch (e) {
+        setStatus('复制失败：' + e.message, 'error');
+      }
+    });
+
+    document.getElementById('clearBtn').addEventListener('click', () => {
+      $in.value = '';
+      $out.value = '';
+      setStatus('已清空输入与输出。');
+    });
+
+    // 简单自测（编码-解码往返与URL安全变体）
+    (function selfTest() {
+      const cases = [
+        'Hello, world!',
+        '你好，世界',
+        '😊🚀 Base64 / 测试'
+      ];
+      let ok = true;
+      let details = [];
+      for (const s of cases) {
+        try {
+          const b64 = utf8ToBase64(s);
+          const back = base64ToUtf8(b64);
+          if (back !== s) { ok = false; details.push('往返失败: ' + s); }
+          // URL安全：去掉填充并替换字符
+          const urlSafe = b64.replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+          const back2 = base64ToUtf8(urlSafe);
+          if (back2 !== s) { ok = false; details.push('URL安全失败: ' + s); }
+        } catch (e) {
+          ok = false; details.push('异常: ' + s + ' -> ' + e.message);
+        }
+      }
+      if (ok) {
+        $test.textContent = '自测通过：核心编码/解码与URL安全兼容正常。';
+        $test.className = 'status ok';
+      } else {
+        $test.textContent = '自测未通过：' + details.join('；');
+        $test.className = 'status error';
+      }
+    })();
+  </script>
+</body>
+</html>

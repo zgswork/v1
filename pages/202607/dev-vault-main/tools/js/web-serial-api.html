@@ -1,0 +1,1285 @@
+<!DOCTYPE html>
+<html tk="title_web_serial_api_playground" lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Web Serial API Playground</title>
+<meta name="description" content="Interactive playground for the Web Serial API. Connect to serial devices, send/receive data, and explore serial communication in the browser.">
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --surface: #141414;
+    --surface-2: #1e1e1e;
+    --surface-3: #282828;
+    --border: #333;
+    --text: #e0e0e0;
+    --text-dim: #888;
+    --accent: #4fc3f7;
+    --accent-dim: #29698a;
+    --green: #66bb6a;
+    --red: #ef5350;
+    --yellow: #ffd54f;
+    --orange: #ffa726;
+    --purple: #ab47bc;
+    --radius: 8px;
+    --font-mono: 'SF Mono', 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 1.5rem 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+
+  header h1 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .api-badge {
+    font-size: 0.7rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: 99px;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+
+  .badge-supported { background: var(--green); color: #000; }
+  .badge-unsupported { background: var(--red); color: #fff; }
+
+  .main-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    padding: 1.5rem 2rem;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  @media (max-width: 900px) {
+    .main-grid { grid-template-columns: 1fr; }
+    header { padding: 1rem; }
+    .main-grid { padding: 1rem; }
+  }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  .panel-header {
+    background: var(--surface-2);
+    padding: 0.75rem 1rem;
+    font-weight: 600;
+    font-size: 0.9rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .panel-body {
+    padding: 1rem;
+  }
+
+  .form-group {
+    margin-bottom: 1rem;
+  }
+
+  .form-group label {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    margin-bottom: 0.3rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  input, select, textarea {
+    width: 100%;
+    background: var(--surface-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.5rem 0.75rem;
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  input:focus, select:focus, textarea:focus {
+    border-color: var(--accent);
+  }
+
+  button {
+    background: var(--accent);
+    color: #000;
+    border: none;
+    border-radius: var(--radius);
+    padding: 0.5rem 1rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s;
+    font-family: var(--font-sans);
+  }
+
+  button:hover { opacity: 0.85; }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .btn-danger { background: var(--red); color: #fff; }
+  .btn-secondary { background: var(--surface-3); color: var(--text); border: 1px solid var(--border); }
+  .btn-success { background: var(--green); color: #000; }
+  .btn-small { padding: 0.3rem 0.6rem; font-size: 0.75rem; }
+
+  .btn-row {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 0.5rem;
+  }
+
+  .dot-disconnected { background: var(--red); }
+  .dot-connected { background: var(--green); animation: pulse 2s infinite; }
+  .dot-connecting { background: var(--yellow); animation: pulse 1s infinite; }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  .terminal {
+    background: #000;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.75rem;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    height: 300px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+
+  .terminal-line { margin-bottom: 0.15rem; }
+  .terminal-rx { color: var(--green); }
+  .terminal-tx { color: var(--accent); }
+  .terminal-sys { color: var(--yellow); }
+  .terminal-err { color: var(--red); }
+
+  .terminal-input-row {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+  }
+
+  .terminal-input-row input {
+    flex: 1;
+  }
+
+  .signal-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 0.5rem;
+  }
+
+  .signal-card {
+    background: var(--surface-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.75rem;
+    text-align: center;
+  }
+
+  .signal-name {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    margin-bottom: 0.3rem;
+  }
+
+  .signal-value {
+    font-family: var(--font-mono);
+    font-size: 1.1rem;
+    font-weight: 700;
+  }
+
+  .signal-on { color: var(--green); }
+  .signal-off { color: var(--red); }
+
+  .signal-toggle {
+    margin-top: 0.5rem;
+  }
+
+  .baud-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 0.4rem;
+  }
+
+  .baud-btn {
+    background: var(--surface-3);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 0.4rem;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .baud-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .baud-btn.active { border-color: var(--accent); background: var(--accent-dim); color: #fff; }
+
+  .state-machine {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 1rem 0;
+    flex-wrap: wrap;
+  }
+
+  .state-node {
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius);
+    font-size: 0.8rem;
+    font-weight: 600;
+    border: 2px solid var(--border);
+    color: var(--text-dim);
+    transition: all 0.3s;
+  }
+
+  .state-node.active {
+    border-color: var(--accent);
+    color: var(--accent);
+    box-shadow: 0 0 12px rgba(79, 195, 247, 0.3);
+  }
+
+  .state-arrow {
+    color: var(--text-dim);
+    font-size: 1.2rem;
+  }
+
+  .hex-view {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    line-height: 1.4;
+  }
+
+  .hex-offset { color: var(--text-dim); }
+  .hex-byte { color: var(--accent); }
+  .hex-ascii { color: var(--green); }
+
+  .ref-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+  }
+
+  .ref-table th {
+    text-align: left;
+    padding: 0.5rem;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-dim);
+    font-size: 0.7rem;
+    text-transform: uppercase;
+  }
+
+  .ref-table td {
+    padding: 0.5rem;
+    border-bottom: 1px solid var(--surface-3);
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+  }
+
+  .mode-toggle {
+    display: flex;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  .mode-toggle button {
+    border-radius: 0;
+    background: var(--surface-3);
+    color: var(--text-dim);
+    flex: 1;
+    padding: 0.4rem 0.8rem;
+    font-size: 0.75rem;
+  }
+
+  .mode-toggle button.active {
+    background: var(--accent);
+    color: #000;
+  }
+
+  .stats-row {
+    display: flex;
+    gap: 1.5rem;
+    padding: 0.5rem 0;
+    flex-wrap: wrap;
+  }
+
+  .stat-item {
+    text-align: center;
+  }
+
+  .stat-value {
+    font-family: var(--font-mono);
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--accent);
+  }
+
+  .stat-label {
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+  }
+
+  .code-block {
+    background: var(--surface-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.75rem;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    overflow-x: auto;
+    white-space: pre;
+    color: var(--text);
+    line-height: 1.5;
+  }
+
+  .tab-bar {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .tab-btn {
+    background: transparent;
+    color: var(--text-dim);
+    border: none;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    padding: 0.5rem 1rem;
+    font-size: 0.8rem;
+    cursor: pointer;
+  }
+
+  .tab-btn.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+  }
+
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  .unsupported-overlay {
+    background: rgba(10, 10, 10, 0.9);
+    border: 1px solid var(--red);
+    border-radius: var(--radius);
+    padding: 2rem;
+    text-align: center;
+    margin: 1rem 0;
+  }
+
+  .unsupported-overlay h2 {
+    color: var(--red);
+    margin-bottom: 0.5rem;
+  }
+
+  .info-box {
+    background: var(--surface-3);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 var(--radius) var(--radius) 0;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+    font-size: 0.85rem;
+  }
+
+  .full-width {
+    grid-column: 1 / -1;
+  }
+
+  .scroll-x {
+    overflow-x: auto;
+  }
+</style>
+</head>
+<body>
+
+
+
+<header>
+  <h1>
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"/><path d="M9 9h6v6H9z"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 14h3M1 9h3M1 14h3"/></svg>
+    Web Serial API Playground
+  </h1>
+  <span class="api-badge" id="supportBadge">Checking...</span>
+</header>
+
+<div class="main-grid">
+
+  <!-- Connection Panel -->
+  <div class="panel">
+    <div class="panel-header">
+      <span><span class="status-dot dot-disconnected" id="statusDot"></span>Connection</span>
+      <span id="portInfo" style="font-size:0.75rem;color:var(--text-dim)">No port selected</span>
+    </div>
+    <div class="panel-body">
+
+      <div class="info-box" id="unsupportedMsg" style="display:none;border-left-color:var(--red)">
+        Web Serial API is not supported in this browser. Use Chrome, Edge, or Opera on desktop.
+        The playground will run in simulation mode.
+      </div>
+
+      <div class="form-group">
+        <label>Baud Rate</label>
+        <div class="baud-grid" id="baudGrid"></div>
+      </div>
+
+      <div class="form-group">
+        <label ti="label_data_bits">Data Bits</label>
+        <select id="dataBits">
+          <option value="8" selected>8</option>
+          <option value="7">7</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label ti="label_stop_bits">Stop Bits</label>
+        <select id="stopBits">
+          <option value="1" selected>1</option>
+          <option value="2">2</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label ti="label_parity">Parity</label>
+        <select id="parity">
+          <option value="none" selected>None</option>
+          <option value="even">Even</option>
+          <option value="odd">Odd</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label ti="label_flow_control">Flow Control</label>
+        <select id="flowControl">
+          <option value="none" selected>None</option>
+          <option value="hardware">Hardware (RTS/CTS)</option>
+        </select>
+      </div>
+
+      <div class="btn-row">
+        <button id="connectBtn" onclick="handleConnect()" ti="btn_request_port">Request Port</button>
+        <button id="disconnectBtn" class="btn-danger" onclick="handleDisconnect()" disabled ti="btn_disconnect">Disconnect</button>
+      </div>
+
+      <!-- Connection State Machine -->
+      <div class="state-machine" style="margin-top:1rem">
+        <div class="state-node active" id="stateIdle">Idle</div>
+        <span class="state-arrow">&rarr;</span>
+        <div class="state-node" id="stateRequesting">Requesting</div>
+        <span class="state-arrow">&rarr;</span>
+        <div class="state-node" id="stateOpening">Opening</div>
+        <span class="state-arrow">&rarr;</span>
+        <div class="state-node" id="stateConnected">Connected</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Signal Control Panel -->
+  <div class="panel">
+    <div class="panel-header">
+      <span>Signal Control</span>
+    </div>
+    <div class="panel-body">
+      <div class="signal-grid">
+        <div class="signal-card">
+          <div class="signal-name">DTR (Data Terminal Ready)</div>
+          <div class="signal-value" id="dtrValue"><span class="signal-off">LOW</span></div>
+          <button class="btn-small btn-secondary signal-toggle" id="dtrBtn" onclick="toggleSignal('dtr')" disabled ti="btn_toggle" ti="btn_toggle_2">Toggle</button>
+        </div>
+        <div class="signal-card">
+          <div class="signal-name">RTS (Request To Send)</div>
+          <div class="signal-value" id="rtsValue"><span class="signal-off">LOW</span></div>
+          <button class="btn-small btn-secondary signal-toggle" id="rtsBtn" onclick="toggleSignal('rts')" disabled>Toggle</button>
+        </div>
+        <div class="signal-card">
+          <div class="signal-name">CTS (Clear To Send)</div>
+          <div class="signal-value" id="ctsValue"><span class="signal-off">LOW</span></div>
+        </div>
+        <div class="signal-card">
+          <div class="signal-name">DSR (Data Set Ready)</div>
+          <div class="signal-value" id="dsrValue"><span class="signal-off">LOW</span></div>
+        </div>
+        <div class="signal-card">
+          <div class="signal-name">DCD (Data Carrier Detect)</div>
+          <div class="signal-value" id="dcdValue"><span class="signal-off">LOW</span></div>
+        </div>
+        <div class="signal-card">
+          <div class="signal-name">RI (Ring Indicator)</div>
+          <div class="signal-value" id="riValue"><span class="signal-off">LOW</span></div>
+        </div>
+      </div>
+
+      <div style="margin-top:1rem">
+        <button class="btn-small btn-secondary" id="readSignalsBtn" onclick="readSignals()" disabled ti="btn_read_input_signals">Read Input Signals</button>
+      </div>
+
+      <!-- Stats -->
+      <div class="stats-row" style="margin-top:1rem">
+        <div class="stat-item">
+          <div class="stat-value" id="txBytes">0</div>
+          <div class="stat-label">TX Bytes</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value" id="rxBytes">0</div>
+          <div class="stat-label">RX Bytes</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value" id="txPackets">0</div>
+          <div class="stat-label">TX Packets</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value" id="rxPackets">0</div>
+          <div class="stat-label">RX Packets</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Terminal Panel -->
+  <div class="panel full-width">
+    <div class="panel-header">
+      <span>Terminal</span>
+      <div style="display:flex;gap:0.5rem;align-items:center">
+        <div class="mode-toggle">
+          <button class="active" id="modeAscii" onclick="setMode('ascii')" ti="btn_ascii">ASCII</button>
+          <button id="modeHex" onclick="setMode('hex')" ti="btn_hex">HEX</button>
+        </div>
+        <label style="font-size:0.75rem;color:var(--text-dim);display:flex;align-items:center;gap:0.3rem">
+          <input type="checkbox" id="localEcho" checked> Echo
+        </label>
+        <label style="font-size:0.75rem;color:var(--text-dim);display:flex;align-items:center;gap:0.3rem">
+          <input type="checkbox" id="autoScroll" checked> Auto-scroll
+        </label>
+        <label style="font-size:0.75rem;color:var(--text-dim);display:flex;align-items:center;gap:0.3rem">
+          <input type="checkbox" id="appendNewline" checked> +\n
+        </label>
+        <button class="btn-small btn-secondary" onclick="clearTerminal()" ti="btn_clear" ti="btn_clear_2">Clear</button>
+      </div>
+    </div>
+    <div class="panel-body">
+      <div class="terminal" id="terminal"></div>
+      <div class="terminal-input-row">
+        <input type="text" id="terminalInput" tp="placeholder_type_command_and_press_en" placeholder="Type command and press Enter..." onkeydown="if(event.key==='Enter')sendData()">
+        <button onclick="sendData()" id="sendBtn" disabled ti="btn_send" ti="btn_send_2" ti="btn_send_3" ti="btn_send_4" ti="btn_send_5" ti="btn_send_6" ti="btn_send_7" ti="btn_send_8" ti="btn_send_9" ti="btn_send_10" ti="btn_send_11" ti="btn_send_12" ti="btn_send_13">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hex View Panel -->
+  <div class="panel">
+    <div class="panel-header">
+      <span>Hex Inspector</span>
+      <button class="btn-small btn-secondary" onclick="clearHexView()">Clear</button>
+    </div>
+    <div class="panel-body">
+      <div class="hex-view" id="hexView" style="height:200px;overflow-y:auto;background:#000;padding:0.5rem;border-radius:var(--radius)">
+        <span class="hex-offset">No data yet</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stream Visualization -->
+  <div class="panel">
+    <div class="panel-header">
+      <span>Read/Write Streams</span>
+    </div>
+    <div class="panel-body">
+      <div style="display:flex;flex-direction:column;gap:1rem">
+        <div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem">
+            <span style="font-size:0.8rem;color:var(--accent)">WritableStream (TX)</span>
+            <span style="font-size:0.7rem;color:var(--text-dim)" id="txStreamStatus">Closed</span>
+          </div>
+          <div style="background:var(--surface-3);border-radius:var(--radius);height:8px;overflow:hidden">
+            <div id="txBar" style="width:0%;height:100%;background:var(--accent);transition:width 0.3s"></div>
+          </div>
+        </div>
+        <div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem">
+            <span style="font-size:0.8rem;color:var(--green)">ReadableStream (RX)</span>
+            <span style="font-size:0.7rem;color:var(--text-dim)" id="rxStreamStatus">Closed</span>
+          </div>
+          <div style="background:var(--surface-3);border-radius:var(--radius);height:8px;overflow:hidden">
+            <div id="rxBar" style="width:0%;height:100%;background:var(--green);transition:width 0.3s"></div>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:1.5rem">
+        <div style="font-size:0.8rem;color:var(--text-dim);margin-bottom:0.5rem">Stream Pipeline</div>
+        <div class="code-block">
+port.readable
+  .pipeThrough(new TextDecoderStream())
+  .pipeTo(writableStream)
+
+port.writable
+  .getWriter()
+  .write(encodedData)</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Arduino/ESP32 Reference -->
+  <div class="panel full-width">
+    <div class="panel-header">
+      <span>Quick Reference</span>
+    </div>
+    <div class="tab-bar">
+      <button class="tab-btn active" onclick="showTab('tabArduino',this)" ti="btn_arduino_commands">Arduino Commands</button>
+      <button class="tab-btn" onclick="showTab('tabEsp32',this)" ti="btn_esp32_commands">ESP32 Commands</button>
+      <button class="tab-btn" onclick="showTab('tabApi',this)" ti="btn_api_reference">API Reference</button>
+      <button class="tab-btn" onclick="showTab('tabBaudRef',this)" ti="btn_baud_rates">Baud Rates</button>
+    </div>
+    <div class="panel-body">
+      <div class="tab-content active" id="tabArduino">
+        <div class="scroll-x">
+          <table class="ref-table">
+            <thead><tr><th ti="th_command" ti="th_command_2">Command</th><th ti="th_description" ti="th_description_2">Description</th><th ti="th_try_it" ti="th_try_it_2">Try It</th></tr></thead>
+            <tbody>
+              <tr><td>AT</td><td>Basic attention test (responds OK)</td><td><button class="btn-small btn-secondary" onclick="quickSend('AT')">Send</button></td></tr>
+              <tr><td>LED_ON</td><td>Turn on built-in LED</td><td><button class="btn-small btn-secondary" onclick="quickSend('LED_ON')">Send</button></td></tr>
+              <tr><td>LED_OFF</td><td>Turn off built-in LED</td><td><button class="btn-small btn-secondary" onclick="quickSend('LED_OFF')">Send</button></td></tr>
+              <tr><td>HELLO</td><td>Echo test</td><td><button class="btn-small btn-secondary" onclick="quickSend('HELLO')">Send</button></td></tr>
+              <tr><td>STATUS</td><td>Get device status</td><td><button class="btn-small btn-secondary" onclick="quickSend('STATUS')">Send</button></td></tr>
+              <tr><td>RESET</td><td>Software reset</td><td><button class="btn-small btn-secondary" onclick="quickSend('RESET')">Send</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="tab-content" id="tabEsp32">
+        <div class="scroll-x">
+          <table class="ref-table">
+            <thead><tr><th>Command</th><th>Description</th><th>Try It</th></tr></thead>
+            <tbody>
+              <tr><td>AT</td><td>Test (responds OK)</td><td><button class="btn-small btn-secondary" onclick="quickSend('AT')">Send</button></td></tr>
+              <tr><td>AT+GMR</td><td>Firmware version</td><td><button class="btn-small btn-secondary" onclick="quickSend('AT+GMR')">Send</button></td></tr>
+              <tr><td>AT+RST</td><td>Restart module</td><td><button class="btn-small btn-secondary" onclick="quickSend('AT+RST')">Send</button></td></tr>
+              <tr><td>AT+CWMODE?</td><td>Query WiFi mode</td><td><button class="btn-small btn-secondary" onclick="quickSend('AT+CWMODE?')">Send</button></td></tr>
+              <tr><td>AT+CIFSR</td><td>Get local IP</td><td><button class="btn-small btn-secondary" onclick="quickSend('AT+CIFSR')">Send</button></td></tr>
+              <tr><td>AT+CWLAP</td><td>List WiFi networks</td><td><button class="btn-small btn-secondary" onclick="quickSend('AT+CWLAP')">Send</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="tab-content" id="tabApi">
+        <div class="code-block">// Request a serial port
+const port = await navigator.serial.requestPort();
+
+// Open with configuration
+await port.open({
+  baudRate: 115200,
+  dataBits: 8,
+  stopBits: 1,
+  parity: 'none',
+  flowControl: 'none'
+});
+
+// Read data
+const reader = port.readable.getReader();
+while (true) {
+  const { value, done } = await reader.read();
+  if (done) break;
+  console.log(new TextDecoder().decode(value));
+}
+
+// Write data
+const writer = port.writable.getWriter();
+await writer.write(new TextEncoder().encode('Hello\n'));
+writer.releaseLock();
+
+// Set output signals
+await port.setSignals({ dataTerminalReady: true, requestToSend: true });
+
+// Get input signals
+const signals = await port.getSignals();
+// { dataCarrierDetect, clearToSend, ringIndicator, dataSetReady }
+
+// Close port
+await port.close();</div>
+      </div>
+
+      <div class="tab-content" id="tabBaudRef">
+        <div class="scroll-x">
+          <table class="ref-table">
+            <thead><tr><th ti="th_baud_rate" ti="label_baud_rate">Baud Rate</th><th ti="th_common_use">Common Use</th><th ti="th_bytes_sec">Bytes/sec</th></tr></thead>
+            <tbody>
+              <tr><td>300</td><td>Legacy modems</td><td>~30</td></tr>
+              <tr><td>1200</td><td>Old serial devices</td><td>~120</td></tr>
+              <tr><td>2400</td><td>GPS modules (NMEA default)</td><td>~240</td></tr>
+              <tr><td>4800</td><td>Marine AIS</td><td>~480</td></tr>
+              <tr><td>9600</td><td>Arduino default, many sensors</td><td>~960</td></tr>
+              <tr><td>19200</td><td>RS-485 networks</td><td>~1,920</td></tr>
+              <tr><td>38400</td><td>Higher-speed sensors</td><td>~3,840</td></tr>
+              <tr><td>57600</td><td>Bluetooth serial</td><td>~5,760</td></tr>
+              <tr><td>115200</td><td>ESP32 default, fast serial</td><td>~11,520</td></tr>
+              <tr><td>230400</td><td>High-speed serial</td><td>~23,040</td></tr>
+              <tr><td>460800</td><td>ESP32 programming</td><td>~46,080</td></tr>
+              <tr><td>921600</td><td>Maximum common rate</td><td>~92,160</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+
+<script>var _LANG={'title_web_serial_api_playground':["Web Serial API Playground", "Web Serial API 演示平台"],'metadesc_interactive_playground_fo':["Interactive playground for the Web Serial API. Connect to serial devices, send/receive data, and explore serial communication in the browser.", "Web Serial API 的交互式演示环境。连接到串口设备，发送/接收数据，并在浏览器中探索串口通信。"],'btn_request_port':["Request Port", "请求端口"],'btn_disconnect':["Disconnect", "断开"],'btn_toggle':["Toggle", "切换"],'btn_toggle_2':["Toggle", "切换"],'btn_read_input_signals':["Read Input Signals", "读取输入信号"],'btn_ascii':["ASCII", "ASCII"],'btn_hex':["HEX", "六边形"],'btn_clear':["Clear", "清除"],'btn_send':["Send", "发送"],'btn_clear_2':["Clear", "清除"],'btn_arduino_commands':["Arduino Commands", "Arduino 命令"],'btn_esp32_commands':["ESP32 Commands", "ESP32 命令"],'btn_api_reference':["API Reference", "API 参考"],'btn_baud_rates':["Baud Rates", "波特率"],'btn_send_2':["Send", "发送"],'btn_send_3':["Send", "发送"],'btn_send_4':["Send", "发送"],'btn_send_5':["Send", "发送"],'btn_send_6':["Send", "发送"],'btn_send_7':["Send", "发送"],'btn_send_8':["Send", "发送"],'btn_send_9':["Send", "发送"],'btn_send_10':["Send", "发送"],'btn_send_11':["Send", "发送"],'btn_send_12':["Send", "发送"],'btn_send_13':["Send", "发送"],'placeholder_type_command_and_press_en':["Type command and press Enter...", "输入命令并按回车键……"],'th_command':["Command", "命令"],'th_description':["Description", "描述"],'th_try_it':["Try It", "试试看"],'th_command_2':["Command", "命令"],'th_description_2':["Description", "描述"],'th_try_it_2':["Try It", "试试看"],'th_baud_rate':["Baud Rate", "波特率"],'th_common_use':["Common Use", "常用"],'th_bytes_sec':["Bytes/sec", "字节/秒"],'label_baud_rate':["Baud Rate", "波特率"],'label_data_bits':["Data Bits", "数据位"],'label_stop_bits':["Stop Bits", "停止位"],'label_parity':["Parity", "平价"],'label_flow_control':["Flow Control", "流量控制"],'jtc_supported':["Supported", "支持"],'jtc_not_supported':["Not Supported", "不支持。"],'jtc_simulated_port_com3':["Simulated Port (COM3)", "模拟端口（COM3）"],'jtc_no_port_selected':["No port selected", "未选择端口"],'jtc_no_port_selected_2':["No port selected", "未选择端口"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>
+  // State
+  let port = null;
+  let reader = null;
+  let writer = null;
+  let readLoop = null;
+  let currentMode = 'ascii';
+  let selectedBaud = 115200;
+  let signals = { dtr: false, rts: false };
+  let stats = { txBytes: 0, rxBytes: 0, txPackets: 0, rxPackets: 0 };
+  let hexBuffer = [];
+  const isSupported = 'serial' in navigator;
+  const simulationMode = !isSupported;
+
+  // Baud rates
+  const baudRates = [300, 1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600];
+
+  // Init
+  function init() {
+    const badge = document.getElementById('supportBadge');
+    if (isSupported) {
+      badge.textContent=T("jtc_supported");
+      badge.className = 'api-badge badge-supported';
+    } else {
+      badge.textContent=T("jtc_not_supported");
+      badge.className = 'api-badge badge-unsupported';
+      document.getElementById('unsupportedMsg').style.display = 'block';
+    }
+
+    // Populate baud grid
+    const grid = document.getElementById('baudGrid');
+    baudRates.forEach(rate => {
+      const btn = document.createElement('button');
+      btn.className = 'baud-btn' + (rate === selectedBaud ? ' active' : '');
+      btn.textContent = rate.toLocaleString();
+      btn.onclick = () => {
+        selectedBaud = rate;
+        grid.querySelectorAll('.baud-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+      };
+      grid.appendChild(btn);
+    });
+
+    termLog('sys', 'Web Serial API Playground initialized');
+    if (simulationMode) {
+      termLog('sys', 'Running in SIMULATION mode (API not available)');
+      termLog('sys', 'Connect to try simulated serial communication');
+    }
+  }
+
+  // Connection state management
+  function setState(state) {
+    const states = ['stateIdle', 'stateRequesting', 'stateOpening', 'stateConnected'];
+    const stateMap = { idle: 0, requesting: 1, opening: 2, connected: 3 };
+    states.forEach((s, i) => {
+      document.getElementById(s).classList.toggle('active', i === stateMap[state]);
+    });
+
+    const dot = document.getElementById('statusDot');
+    dot.className = 'status-dot';
+    if (state === 'connected') dot.classList.add('dot-connected');
+    else if (state === 'requesting' || state === 'opening') dot.classList.add('dot-connecting');
+    else dot.classList.add('dot-disconnected');
+  }
+
+  // Connect
+  async function handleConnect() {
+    if (simulationMode) {
+      simulateConnect();
+      return;
+    }
+
+    try {
+      setState('requesting');
+      document.getElementById('connectBtn').disabled = true;
+
+      port = await navigator.serial.requestPort();
+      document.getElementById('portInfo').textContent = formatPortInfo(port);
+
+      setState('opening');
+      await port.open({
+        baudRate: selectedBaud,
+        dataBits: parseInt(document.getElementById('dataBits').value),
+        stopBits: parseInt(document.getElementById('stopBits').value),
+        parity: document.getElementById('parity').value,
+        flowControl: document.getElementById('flowControl').value
+      });
+
+      setState('connected');
+      enableControls(true);
+      termLog('sys', `Connected at ${selectedBaud} baud`);
+      updateStreamStatus(true);
+
+      startReading();
+    } catch (err) {
+      setState('idle');
+      document.getElementById('connectBtn').disabled = false;
+      termLog('err', `Connection failed: ${err.message}`);
+    }
+  }
+
+  // Simulation mode
+  let simConnected = false;
+  function simulateConnect() {
+    setState('requesting');
+    document.getElementById('connectBtn').disabled = true;
+
+    setTimeout(() => {
+      setState('opening');
+      document.getElementById('portInfo').textContent=T("jtc_simulated_port_com3");
+
+      setTimeout(() => {
+        setState('connected');
+        simConnected = true;
+        enableControls(true);
+        updateStreamStatus(true);
+        termLog('sys', `[SIM] Connected at ${selectedBaud} baud`);
+        termLog('sys', '[SIM] Simulated device ready. Try sending commands.');
+      }, 500);
+    }, 500);
+  }
+
+  function simulateDisconnect() {
+    simConnected = false;
+    setState('idle');
+    enableControls(false);
+    updateStreamStatus(false);
+    document.getElementById('portInfo').textContent=T("jtc_no_port_selected");
+    termLog('sys', '[SIM] Disconnected');
+  }
+
+  function simulateResponse(cmd) {
+    const responses = {
+      'AT': 'OK',
+      'HELLO': 'Hello from simulated device!',
+      'LED_ON': 'LED: ON (pin 13 HIGH)',
+      'LED_OFF': 'LED: OFF (pin 13 LOW)',
+      'STATUS': 'Device: Arduino Uno | Uptime: 42s | Temp: 23.5C | Free RAM: 1847 bytes',
+      'RESET': 'Resetting... OK',
+      'AT+GMR': 'AT version: 2.2.0.0\nSDK version: v5.0.2\ncompile time: Mar 10 2026',
+      'AT+RST': 'OK\nRestarting...\nready',
+      'AT+CWMODE?': '+CWMODE:1\nOK',
+      'AT+CIFSR': '+CIFSR:STAIP,"192.168.1.42"\n+CIFSR:STAMAC,"A4:CF:12:XX:XX:XX"\nOK',
+      'AT+CWLAP': '+CWLAP:(3,"HomeNetwork",-45)\n+CWLAP:(4,"OfficeWiFi",-62)\n+CWLAP:(2,"Guest",-78)\nOK'
+    };
+
+    const upper = cmd.trim().toUpperCase();
+    const response = responses[upper] || `Unknown command: ${cmd}`;
+
+    setTimeout(() => {
+      const data = new TextEncoder().encode(response + '\n');
+      stats.rxBytes += data.length;
+      stats.rxPackets++;
+      updateStats();
+
+      if (currentMode === 'hex') {
+        addToHexBuffer(data, 'rx');
+      }
+
+      termLog('rx', response);
+      flashBar('rx');
+    }, 100 + Math.random() * 200);
+  }
+
+  // Disconnect
+  async function handleDisconnect() {
+    if (simulationMode) {
+      simulateDisconnect();
+      return;
+    }
+
+    try {
+      if (reader) {
+        await reader.cancel();
+        reader = null;
+      }
+      if (writer) {
+        writer.releaseLock();
+        writer = null;
+      }
+      if (port) {
+        await port.close();
+        port = null;
+      }
+      setState('idle');
+      enableControls(false);
+      updateStreamStatus(false);
+      document.getElementById('portInfo').textContent=T("jtc_no_port_selected");
+      termLog('sys', 'Disconnected');
+    } catch (err) {
+      termLog('err', `Disconnect error: ${err.message}`);
+    }
+  }
+
+  // Read loop
+  async function startReading() {
+    while (port && port.readable) {
+      reader = port.readable.getReader();
+      try {
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          if (value) {
+            stats.rxBytes += value.length;
+            stats.rxPackets++;
+            updateStats();
+            flashBar('rx');
+
+            if (currentMode === 'hex') {
+              addToHexBuffer(value, 'rx');
+              termLog('rx', formatHexLine(value));
+            } else {
+              termLog('rx', new TextDecoder().decode(value));
+            }
+          }
+        }
+      } catch (err) {
+        termLog('err', `Read error: ${err.message}`);
+      } finally {
+        reader.releaseLock();
+        reader = null;
+      }
+    }
+  }
+
+  // Send data
+  async function sendData() {
+    const input = document.getElementById('terminalInput');
+    let text = input.value;
+    if (!text) return;
+
+    if (document.getElementById('appendNewline').checked) {
+      text += '\n';
+    }
+
+    const displayText = text.replace(/\n$/, '');
+
+    if (document.getElementById('localEcho').checked) {
+      termLog('tx', displayText);
+    }
+
+    if (simulationMode && simConnected) {
+      const data = new TextEncoder().encode(text);
+      stats.txBytes += data.length;
+      stats.txPackets++;
+      updateStats();
+      flashBar('tx');
+      if (currentMode === 'hex') addToHexBuffer(data, 'tx');
+      simulateResponse(displayText);
+      input.value = '';
+      return;
+    }
+
+    if (!port || !port.writable) return;
+
+    try {
+      writer = port.writable.getWriter();
+      let data;
+      if (currentMode === 'hex') {
+        data = hexStringToBytes(text);
+      } else {
+        data = new TextEncoder().encode(text);
+      }
+
+      await writer.write(data);
+      stats.txBytes += data.length;
+      stats.txPackets++;
+      updateStats();
+      flashBar('tx');
+
+      if (currentMode === 'hex') addToHexBuffer(data, 'tx');
+    } catch (err) {
+      termLog('err', `Write error: ${err.message}`);
+    } finally {
+      if (writer) {
+        writer.releaseLock();
+        writer = null;
+      }
+    }
+
+    input.value = '';
+  }
+
+  function quickSend(cmd) {
+    document.getElementById('terminalInput').value = cmd;
+    sendData();
+  }
+
+  // Signal control
+  async function toggleSignal(sig) {
+    signals[sig] = !signals[sig];
+    updateSignalDisplay(sig);
+
+    if (simulationMode) {
+      termLog('sys', `[SIM] ${sig.toUpperCase()} = ${signals[sig] ? 'HIGH' : 'LOW'}`);
+      return;
+    }
+
+    if (!port) return;
+    try {
+      const opts = {};
+      if (sig === 'dtr') opts.dataTerminalReady = signals.dtr;
+      if (sig === 'rts') opts.requestToSend = signals.rts;
+      await port.setSignals(opts);
+      termLog('sys', `${sig.toUpperCase()} = ${signals[sig] ? 'HIGH' : 'LOW'}`);
+    } catch (err) {
+      termLog('err', `Signal error: ${err.message}`);
+    }
+  }
+
+  async function readSignals() {
+    if (simulationMode) {
+      // Simulate reading signals
+      const simSignals = {
+        clearToSend: Math.random() > 0.5,
+        dataSetReady: Math.random() > 0.5,
+        dataCarrierDetect: Math.random() > 0.3,
+        ringIndicator: false
+      };
+      updateInputSignals(simSignals);
+      termLog('sys', '[SIM] Input signals read');
+      return;
+    }
+
+    if (!port) return;
+    try {
+      const sigs = await port.getSignals();
+      updateInputSignals(sigs);
+    } catch (err) {
+      termLog('err', `Read signals error: ${err.message}`);
+    }
+  }
+
+  function updateInputSignals(sigs) {
+    setSignalEl('ctsValue', sigs.clearToSend);
+    setSignalEl('dsrValue', sigs.dataSetReady);
+    setSignalEl('dcdValue', sigs.dataCarrierDetect);
+    setSignalEl('riValue', sigs.ringIndicator);
+  }
+
+  function setSignalEl(id, value) {
+    const el = document.getElementById(id);
+    el.innerHTML = value
+      ? '<span class="signal-on">HIGH</span>'
+      : '<span class="signal-off">LOW</span>';
+  }
+
+  function updateSignalDisplay(sig) {
+    const el = document.getElementById(sig + 'Value');
+    el.innerHTML = signals[sig]
+      ? '<span class="signal-on">HIGH</span>'
+      : '<span class="signal-off">LOW</span>';
+  }
+
+  // Terminal
+  function termLog(type, message) {
+    const terminal = document.getElementById('terminal');
+    const line = document.createElement('div');
+    line.className = 'terminal-line terminal-' + type;
+    const prefix = { rx: '< ', tx: '> ', sys: '# ', err: '! ' };
+    const ts = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    line.textContent = `[${ts}] ${prefix[type] || ''}${message}`;
+    terminal.appendChild(line);
+
+    if (document.getElementById('autoScroll').checked) {
+      terminal.scrollTop = terminal.scrollHeight;
+    }
+  }
+
+  function clearTerminal() {
+    document.getElementById('terminal').innerHTML = '';
+    termLog('sys', 'Terminal cleared');
+  }
+
+  // Mode toggle
+  function setMode(mode) {
+    currentMode = mode;
+    document.getElementById('modeAscii').classList.toggle('active', mode === 'ascii');
+    document.getElementById('modeHex').classList.toggle('active', mode === 'hex');
+    termLog('sys', `Mode: ${mode.toUpperCase()}`);
+  }
+
+  // Hex utilities
+  function formatHexLine(data) {
+    return Array.from(data).map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
+  }
+
+  function hexStringToBytes(str) {
+    const clean = str.replace(/\s+/g, '');
+    const bytes = [];
+    for (let i = 0; i < clean.length; i += 2) {
+      bytes.push(parseInt(clean.substr(i, 2), 16));
+    }
+    return new Uint8Array(bytes);
+  }
+
+  function addToHexBuffer(data, direction) {
+    for (const b of data) {
+      hexBuffer.push({ byte: b, dir: direction });
+    }
+    renderHexView();
+  }
+
+  function renderHexView() {
+    const view = document.getElementById('hexView');
+    let html = '';
+    for (let i = 0; i < hexBuffer.length; i += 16) {
+      const chunk = hexBuffer.slice(i, i + 16);
+      const offset = i.toString(16).padStart(8, '0').toUpperCase();
+      const hexPart = chunk.map(c => {
+        const color = c.dir === 'tx' ? 'var(--accent)' : 'var(--green)';
+        return `<span style="color:${color}">${c.byte.toString(16).padStart(2, '0').toUpperCase()}</span>`;
+      }).join(' ');
+      const padding = '   '.repeat(16 - chunk.length);
+      const asciiPart = chunk.map(c => {
+        const ch = c.byte >= 32 && c.byte < 127 ? String.fromCharCode(c.byte) : '.';
+        const color = c.dir === 'tx' ? 'var(--accent)' : 'var(--green)';
+        return `<span style="color:${color}">${ch}</span>`;
+      }).join('');
+
+      html += `<span class="hex-offset">${offset}</span>  ${hexPart}${padding}  |${asciiPart}|\n`;
+    }
+    view.innerHTML = html || '<span class="hex-offset">No data yet</span>';
+    view.scrollTop = view.scrollHeight;
+  }
+
+  function clearHexView() {
+    hexBuffer = [];
+    renderHexView();
+  }
+
+  // UI helpers
+  function enableControls(enabled) {
+    document.getElementById('connectBtn').disabled = enabled;
+    document.getElementById('disconnectBtn').disabled = !enabled;
+    document.getElementById('sendBtn').disabled = !enabled;
+    document.getElementById('dtrBtn').disabled = !enabled;
+    document.getElementById('rtsBtn').disabled = !enabled;
+    document.getElementById('readSignalsBtn').disabled = !enabled;
+  }
+
+  function updateStreamStatus(open) {
+    document.getElementById('txStreamStatus').textContent = open ? 'Open' : 'Closed';
+    document.getElementById('rxStreamStatus').textContent = open ? 'Open' : 'Closed';
+    document.getElementById('txStreamStatus').style.color = open ? 'var(--green)' : 'var(--text-dim)';
+    document.getElementById('rxStreamStatus').style.color = open ? 'var(--green)' : 'var(--text-dim)';
+  }
+
+  function updateStats() {
+    document.getElementById('txBytes').textContent = stats.txBytes.toLocaleString();
+    document.getElementById('rxBytes').textContent = stats.rxBytes.toLocaleString();
+    document.getElementById('txPackets').textContent = stats.txPackets.toLocaleString();
+    document.getElementById('rxPackets').textContent = stats.rxPackets.toLocaleString();
+  }
+
+  function flashBar(dir) {
+    const bar = document.getElementById(dir === 'tx' ? 'txBar' : 'rxBar');
+    bar.style.width = '100%';
+    setTimeout(() => { bar.style.width = '0%'; }, 300);
+  }
+
+  function formatPortInfo(p) {
+    const info = p.getInfo();
+    if (info.usbVendorId) {
+      return `USB ${info.usbVendorId.toString(16)}:${info.usbProductId.toString(16)}`;
+    }
+    return 'Serial Port';
+  }
+
+  // Tabs
+  function showTab(tabId, btn) {
+    btn.closest('.panel').querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    btn.closest('.panel').querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById(tabId).classList.add('active');
+    btn.classList.add('active');
+  }
+
+  // Init on load
+  init();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+</body>
+</html>

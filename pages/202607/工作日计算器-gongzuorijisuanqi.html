@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>工作日计算器</title>
+  <style>
+    :root {
+      --bg: #f7f8fb;
+      --text: #1a1a1b;
+      --card: #ffffff;
+      --muted: #6b7280;
+      --accent: #3a7afe;
+      --border: #e5e7eb;
+      --input-bg: #ffffff;
+      --danger: #ef4444;
+      --success: #10b981;
+    }
+    html[data-theme="dark"] {
+      --bg: #0f1318;
+      --text: #e8eaed;
+      --card: #151b23;
+      --muted: #9aa0a6;
+      --accent: #4c8dff;
+      --border: #2a2f36;
+      --input-bg: #1a2029;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      background: var(--bg); color: var(--text);
+    }
+    .container { max-width: 980px; margin: 0 auto; padding: 20px; }
+    header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom: 16px; }
+    h1 { font-size: 24px; margin: 0; }
+    .theme-toggle { border:1px solid var(--border); background: var(--card); color: var(--text); padding:8px 12px; border-radius:10px; cursor:pointer; display:flex; align-items:center; gap:8px; }
+    .card {
+      background: var(--card); border:1px solid var(--border); border-radius:14px; padding:16px; margin-top:12px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    }
+    .grid { display:grid; grid-template-columns: 1fr 1fr; gap:16px; }
+    .grid-1 { display:grid; grid-template-columns: 1fr; gap:12px; }
+    @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+    label { font-size: 13px; color: var(--muted); }
+    .field { display:flex; flex-direction:column; gap:6px; }
+    input[type="date"], input[type="number"], input[type="text"], textarea, select {
+      width: 100%; padding: 10px 12px; border:1px solid var(--border); border-radius:10px; background: var(--input-bg); color: var(--text);
+    }
+    .row { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+    .btn { background: var(--accent); color:#fff; border:none; border-radius:10px; padding:10px 16px; cursor:pointer; }
+    .btn.secondary { background: transparent; color: var(--text); border:1px solid var(--border); }
+    .result { margin-top: 8px; padding: 10px; border-radius:10px; background: rgba(58,122,254,0.09); border:1px solid var(--border); }
+    .muted { color: var(--muted); font-size: 12px; }
+    .section-title { display:flex; align-items:center; justify-content:space-between; }
+    .chips { font-size:12px; color: var(--muted); }
+    footer { margin-top: 20px; text-align:center; color: var(--muted); font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>工作日计算器</h1>
+      <button id="themeBtn" class="theme-toggle" title="切换浅/深主题">🌞 / 🌙 主题</button>
+    </header>
+
+    <div class="card" id="rangeCard">
+      <div class="section-title"><h2 style="margin:0;font-size:18px;">区间工作日统计</h2><span class="chips">支持节假日与调休</span></div>
+      <div class="grid">
+        <div class="field">
+          <label for="rangeStart">起始日期</label>
+          <input type="date" id="rangeStart">
+        </div>
+        <div class="field">
+          <label for="rangeEnd">结束日期</label>
+          <input type="date" id="rangeEnd">
+        </div>
+      </div>
+      <div class="grid">
+        <div class="field">
+          <label>选项</label>
+          <div class="row">
+            <label class="row"><input type="checkbox" id="includeStart"> 包含起始日</label>
+            <label class="row"><input type="checkbox" id="includeEnd" checked> 包含结束日</label>
+            <label class="row"><input type="checkbox" id="excludeWeekend" checked> 排除周末</label>
+            <label class="row"><input type="checkbox" id="singleRest"> 单休（仅周日为周末）</label>
+            <label class="row"><input type="checkbox" id="showList"> 显示工作日列表</label>
+          </div>
+          <div class="muted">默认周末(周六/周日)不计为工作日，可在下方调休。
+          </div>
+        </div>
+        <div class="field">
+          <label for="holidays">节假日 (逗号分隔 YYYY-MM-DD)</label>
+          <input type="text" id="holidays" placeholder="例如：2025-01-01,2025-02-01">
+          <label for="workdays" style="margin-top:8px;">调休为工作日 (逗号分隔 YYYY-MM-DD)</label>
+          <input type="text" id="workdays" placeholder="例如：2025-02-08">
+          <div class="row" style="margin-top:8px; gap:8px;">
+            <select id="holidayYear" title="模板年份">
+              <option value="2024">2024 年</option>
+              <option value="2025" selected>2025 年</option>
+            </select>
+            <label class="row"><input type="checkbox" id="holidayMerge" checked> 合并到当前设置</label>
+            <button id="applyHolidayChina" class="btn secondary">应用中国法定节日</button>
+          </div>
+        </div>
+      </div>
+      <div class="row" style="margin-top:8px;">
+        <button id="rangeCalc" class="btn">计算区间工作日</button>
+        <button id="rangeClear" class="btn secondary">清空</button>
+        <button id="rangeCopy" class="btn secondary">复制结果</button>
+      </div>
+      <div id="rangeResult" class="result" style="display:none;"></div>
+      <div id="rangeDetails" class="result" style="display:none;font-size:12px;"></div>
+    </div>
+
+    <div class="card" id="addCard">
+      <div class="section-title"><h2 style="margin:0;font-size:18px;">加 N 个工作日后日期</h2><span class="chips">跳过周末与节假日</span></div>
+      <div class="grid">
+        <div class="field">
+          <label for="addStart">起始日期</label>
+          <input type="date" id="addStart">
+        </div>
+        <div class="field">
+          <label for="addCount">添加的工作日数量</label>
+          <input type="number" id="addCount" min="0" value="0" inputmode="numeric" pattern="[0-9]*">
+        </div>
+      </div>
+      <div class="grid">
+        <div class="field">
+          <label>选项</label>
+          <div class="row">
+            <label class="row"><input type="checkbox" id="addIncludeStart"> 将起始日计入第1个工作日</label>
+            <label class="row"><input type="checkbox" id="addExcludeWeekend" checked> 排除周末</label>
+            <label class="row"><input type="checkbox" id="addSingleRest"> 单休（仅周日为周末）</label>
+          </div>
+        </div>
+        <div class="field">
+          <label for="addHolidays">节假日 (逗号分隔 YYYY-MM-DD)</label>
+          <input type="text" id="addHolidays" placeholder="留空则沿用上方设置">
+          <label for="addWorkdays" style="margin-top:8px;">调休为工作日 (逗号分隔 YYYY-MM-DD)</label>
+          <input type="text" id="addWorkdays" placeholder="留空则沿用上方设置">
+        </div>
+      </div>
+      <div class="row" style="margin-top:8px;">
+        <button id="addCalc" class="btn">计算到期日期</button>
+        <button id="addClear" class="btn secondary">清空</button>
+        <button id="addCopy" class="btn secondary">复制结果</button>
+      </div>
+      <div id="addResult" class="result" style="display:none;"></div>
+    </div>
+
+    <footer>© 工作日计算器 · 自适应 · 浅/深主题</footer>
+  </div>
+
+<script>
+(function(){
+  const html = document.documentElement;
+  const themeBtn = document.getElementById('themeBtn');
+  const storageKey = 'workday_theme';
+  const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const saved = localStorage.getItem(storageKey);
+  html.setAttribute('data-theme', saved ? saved : (prefersDark ? 'dark':'light'));
+  themeBtn.addEventListener('click', () => {
+    const cur = html.getAttribute('data-theme');
+    const next = cur === 'dark' ? 'light' : 'dark';
+    html.setAttribute('data-theme', next);
+    localStorage.setItem(storageKey, next);
+  });
+
+  const $ = (id) => document.getElementById(id);
+  const persist = {
+    set(id, val){ try{ localStorage.setItem('wd_'+id, JSON.stringify(val)); }catch(e){} },
+    get(id, def){ try{ const v = localStorage.getItem('wd_'+id); return v===null?def:JSON.parse(v); }catch(e){ return def; } }
+  };
+  function applyToEl(el,type,val){ if(type==='checkbox'){ el.checked=!!val; } else { el.value = type==='number' ? String(val ?? '') : (val ?? ''); } }
+  function readFromEl(el,type){ if(type==='checkbox'){ return el.checked; } else if(type==='number'){ return Number(el.value||0); } else { return el.value; } }
+  function bindPersist(id,type,def){ const el = $(id); if(!el) return; const v = persist.get(id, undefined); if(v !== undefined){ applyToEl(el,type,v); } else if(def !== undefined){ applyToEl(el,type,def); } const ev = type==='checkbox' ? 'change' : 'input'; el.addEventListener(ev, ()=> persist.set(id, readFromEl(el,type))); }
+  const ymd = (d) => {
+    const dt = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const y = dt.getFullYear();
+    const m = String(dt.getMonth()+1).padStart(2,'0');
+    const da = String(dt.getDate()).padStart(2,'0');
+    return `${y}-${m}-${da}`;
+  };
+  const parseDate = (str) => {
+    if(!str) return null;
+    const m = str.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (m) {
+      const y = parseInt(m[1], 10);
+      const mo = parseInt(m[2], 10) - 1;
+      const da = parseInt(m[3], 10);
+      const d = new Date(y, mo, da);
+      return (d && d.getFullYear() === y && d.getMonth() === mo && d.getDate() === da) ? d : null;
+    }
+    const d = new Date(str);
+    return isNaN(d) ? null : new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  };
+  const parseList = (txt) => {
+    if(!txt) return new Set();
+    return new Set(txt.split(/[，,\s]+/).map(s=>s.trim()).filter(s=>/^\d{4}-\d{2}-\d{2}$/.test(s)));
+  };
+  const isWeekend = (d) => {
+    const day = d.getDay();
+    return day === 0 || day === 6; // 周日/周六
+  };
+  function isWorkingDay(d, excludeWeekend, singleRest, holidays, workdays){
+    const key = ymd(d);
+    if(workdays.has(key)) return true; // 调休强制为工作日
+    if(holidays.has(key)) return false; // 节假日强制为非工作日
+    if(excludeWeekend){
+      const day = d.getDay();
+      const isWknd = singleRest ? (day === 0) : (day === 0 || day === 6);
+      return !isWknd;
+    }
+    return true;
+  }
+  function daysBetween(start, end, includeStart, includeEnd, excludeWeekend, singleRest, holidays, workdays){
+    if(end < start){ const t = start; start = end; end = t; }
+    let cur = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+    let last = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+    let total = 0, work = 0;
+    const adjustStart = includeStart ? 0 : 1;
+    const adjustEnd = includeEnd ? 0 : -1;
+    cur.setDate(cur.getDate() + adjustStart);
+    last.setDate(last.getDate() + adjustEnd);
+    while(cur <= last){
+      total++;
+      if(isWorkingDay(cur, excludeWeekend, singleRest, holidays, workdays)) work++;
+      cur.setDate(cur.getDate() + 1);
+    }
+    return { totalDays: Math.max(total, 0), workingDays: Math.max(work, 0) };
+  }
+  function addWorkingDays(start, count, includeStart, excludeWeekend, singleRest, holidays, workdays){
+    let cur = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+    let done = 0;
+    if(includeStart && isWorkingDay(cur, excludeWeekend, singleRest, holidays, workdays)){
+      done++;
+      if(done >= count) return new Date(cur);
+    }
+    while(done < count){
+      cur.setDate(cur.getDate() + 1);
+      if(isWorkingDay(cur, excludeWeekend, singleRest, holidays, workdays)) done++;
+    }
+    return new Date(cur);
+  }
+  function formatResultRange(res){
+    return `区间总天数：${res.totalDays} 天\n工作日：${res.workingDays} 天`;
+  }
+  function show(el, text){ el.style.display='block'; el.textContent = text; }
+  function clear(el){ el.style.display='none'; el.textContent=''; }
+
+  // 复制到剪贴板
+  function fallbackCopy(text){
+    const ta = document.createElement('textarea');
+    ta.value = text; document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); } catch(e) {}
+    ta.remove();
+  }
+  function copyFrom(el, btn){
+    const text = (el.textContent||'').trim();
+    if(!text){ show(el, '请先计算结果'); return; }
+    const flash = () => { const old=btn.textContent; btn.textContent='已复制'; btn.disabled=true; setTimeout(()=>{btn.textContent=old; btn.disabled=false;}, 1000); };
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(flash).catch(()=>{ fallbackCopy(text); flash(); });
+    } else { fallbackCopy(text); flash(); }
+  }
+
+  // 工作日列表
+  function listWorkingDays(start, end, includeStart, includeEnd, excludeWeekend, singleRest, holidays, workdays){
+    if(end < start){ const t = start; start = end; end = t; }
+    let cur = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+    let last = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+    const adjustStart = includeStart ? 0 : 1;
+    const adjustEnd = includeEnd ? 0 : -1;
+    cur.setDate(cur.getDate() + adjustStart);
+    last.setDate(last.getDate() + adjustEnd);
+    const list = [];
+    while(cur <= last){
+      if(isWorkingDay(cur, excludeWeekend, singleRest, holidays, workdays)) list.push(ymd(cur));
+      cur.setDate(cur.getDate() + 1);
+    }
+    return list;
+  }
+
+  // 默认日期设为今天
+  const todayStr = () => ymd(new Date());
+  (function initDefaultDates(){
+    const rs = $('rangeStart');
+    const as = $('addStart');
+    if (rs && !rs.value) rs.value = todayStr();
+    if (as && !as.value) as.value = todayStr();
+  })();
+
+  // 输入持久化绑定
+  bindPersist('rangeStart','text', todayStr());
+  bindPersist('rangeEnd','text','');
+  bindPersist('includeStart','checkbox', false);
+  bindPersist('includeEnd','checkbox', true);
+  bindPersist('excludeWeekend','checkbox', true);
+  bindPersist('singleRest','checkbox', false);
+  bindPersist('showList','checkbox', false);
+  bindPersist('holidays','text','');
+  bindPersist('workdays','text','');
+  bindPersist('addStart','text', todayStr());
+  bindPersist('addCount','number', 0);
+  bindPersist('addIncludeStart','checkbox', false);
+  bindPersist('addExcludeWeekend','checkbox', true);
+  bindPersist('addSingleRest','checkbox', false);
+  bindPersist('addHolidays','text','');
+  bindPersist('addWorkdays','text','');
+  // 预置模板控件持久化
+  bindPersist('holidayYear','text','2025');
+  bindPersist('holidayMerge','checkbox', true);
+  // 应用模板事件绑定
+  const applyBtn = document.getElementById('applyHolidayChina');
+  if(applyBtn){
+    applyBtn.addEventListener('click', () => {
+      const year = document.getElementById('holidayYear').value;
+      const merge = document.getElementById('holidayMerge').checked;
+      applyChinaHoliday(year, merge);
+    });
+  }
+  $('rangeCalc').addEventListener('click', () => {
+    const s = parseDate($('rangeStart').value);
+    const e = parseDate($('rangeEnd').value);
+    if(!s || !e){ show($('rangeResult'), '请先选择起始和结束日期'); return; }
+    const includeStart = $('includeStart').checked;
+    const includeEnd = $('includeEnd').checked;
+    const excludeWeekend = $('excludeWeekend').checked;
+    const singleRest = $('singleRest').checked;
+    const holidays = parseList($('holidays').value);
+    const workdays = parseList($('workdays').value);
+    const res = daysBetween(s, e, includeStart, includeEnd, excludeWeekend, singleRest, holidays, workdays);
+    show($('rangeResult'), formatResultRange(res));
+    if ($('showList').checked) {
+      const list = listWorkingDays(s, e, includeStart, includeEnd, excludeWeekend, singleRest, holidays, workdays);
+      if (list.length) { show($('rangeDetails'), '工作日列表：' + list.join('、')); } else { clear($('rangeDetails')); }
+    } else { clear($('rangeDetails')); }
+  });
+  $('rangeCopy').addEventListener('click', () => copyFrom($('rangeResult'), $('rangeCopy')));
+  $('rangeClear').addEventListener('click', () => {
+    $('rangeStart').value = '';
+    $('rangeEnd').value = '';
+    $('includeStart').checked = false;
+    $('includeEnd').checked = true;
+    $('excludeWeekend').checked = true;
+    $('singleRest').checked = false;
+    $('showList').checked = false;
+    $('holidays').value = '';
+    $('workdays').value = '';
+    persist.set('rangeStart','');
+    persist.set('rangeEnd','');
+    persist.set('includeStart', false);
+    persist.set('includeEnd', true);
+    persist.set('excludeWeekend', true);
+    persist.set('singleRest', false);
+    persist.set('showList', false);
+    persist.set('holidays','');
+    persist.set('workdays','');
+    clear($('rangeResult'));
+    clear($('rangeDetails'));
+   });
+
+  $('addCalc').addEventListener('click', () => {
+    const s = parseDate($('addStart').value);
+    const n = Number($('addCount').value || 0);
+    if(!s){ show($('addResult'), '请先选择起始日期'); return; }
+    if(n <= 0){ show($('addResult'), '请填写大于 0 的工作日数量'); return; }
+    const includeStart = $('addIncludeStart').checked;
+    const excludeWeekend = $('addExcludeWeekend').checked;
+    const singleRest = $('addSingleRest').checked;
+    const holidaysTxt = $('addHolidays').value || $('holidays').value;
+    const workdaysTxt = $('addWorkdays').value || $('workdays').value;
+    const holidays = parseList(holidaysTxt);
+    const workdays = parseList(workdaysTxt);
+    const due = addWorkingDays(s, n, includeStart, excludeWeekend, singleRest, holidays, workdays);
+    show($('addResult'), `到期日期：${ymd(due)}`);
+  });
+  $('addCopy').addEventListener('click', () => copyFrom($('addResult'), $('addCopy')));
+  $('addClear').addEventListener('click', () => {
+    $('addStart').value = '';
+    $('addCount').value = 0;
+    $('addIncludeStart').checked = false;
+    $('addExcludeWeekend').checked = true;
+    $('addSingleRest').checked = false;
+    $('addHolidays').value = '';
+    $('addWorkdays').value = '';
+    persist.set('addStart','');
+    persist.set('addCount', 0);
+    persist.set('addIncludeStart', false);
+    persist.set('addExcludeWeekend', true);
+    persist.set('addSingleRest', false);
+    persist.set('addHolidays','');
+    persist.set('addWorkdays','');
+    clear($('addResult'));
+  });
+
+  // 预置节假日模板（中国法定节日）
+  const chinaHolidayTemplates = {
+    '2024': {
+      holidays: [
+        '2024-01-01',
+        '2024-02-10','2024-02-11','2024-02-12','2024-02-13','2024-02-14','2024-02-15','2024-02-16','2024-02-17',
+        '2024-04-04','2024-04-05','2024-04-06',
+        '2024-05-01','2024-05-02','2024-05-03','2024-05-04','2024-05-05',
+        '2024-06-10',
+        '2024-09-15','2024-09-16','2024-09-17',
+        '2024-10-01','2024-10-02','2024-10-03','2024-10-04','2024-10-05','2024-10-06','2024-10-07'
+      ],
+      workdays: [
+        '2024-02-04','2024-02-18','2024-04-07','2024-04-28','2024-05-11','2024-09-14','2024-09-29','2024-10-12'
+      ]
+    },
+    '2025': {
+      holidays: [
+        '2025-01-01',
+        '2025-01-28','2025-01-29','2025-01-30','2025-01-31',
+        '2025-02-01','2025-02-02','2025-02-03','2025-02-04',
+        '2025-04-04','2025-04-05','2025-04-06',
+        '2025-05-01','2025-05-02','2025-05-03','2025-05-04','2025-05-05',
+        '2025-05-31','2025-06-01','2025-06-02',
+        '2025-10-01','2025-10-02','2025-10-03','2025-10-04','2025-10-05','2025-10-06','2025-10-07','2025-10-08'
+      ],
+      workdays: [
+        '2025-01-26','2025-02-08','2025-04-27','2025-09-28','2025-10-11'
+      ]
+    }
+  };
+  function applyChinaHoliday(year, merge){
+    const tpl = chinaHolidayTemplates[year];
+    if(!tpl) return;
+    const curH = parseList($('holidays').value);
+    const curW = parseList($('workdays').value);
+    if(merge){
+      tpl.holidays.forEach(d => curH.add(d));
+      tpl.workdays.forEach(d => curW.add(d));
+    }else{
+      curH.clear(); tpl.holidays.forEach(d => curH.add(d));
+      curW.clear(); tpl.workdays.forEach(d => curW.add(d));
+    }
+    const hStr = Array.from(curH).sort().join(',');
+    const wStr = Array.from(curW).sort().join(',');
+    $('holidays').value = hStr;
+    $('workdays').value = wStr;
+    persist.set('holidays', hStr);
+    persist.set('workdays', wStr);
+  }
+
+  // 回车快捷键：在各模块内触发计算
+  document.addEventListener('keydown', (e) => {
+    if(e.key === 'Enter'){
+      const ae = document.activeElement;
+      if(ae && $('rangeCard').contains(ae)) { e.preventDefault(); $('rangeCalc').click(); return; }
+      if(ae && $('addCard').contains(ae)) { e.preventDefault(); $('addCalc').click(); return; }
+    }
+  });
+})();
+</script>
+</body>
+</html>

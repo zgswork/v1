@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能发票信息提取工具</title>
+    <!-- 引入Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入Font Awesome -->
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <!-- 引入Tesseract.js -->
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.1.1/dist/tesseract.min.js"></script>
+    
+    <!-- 配置Tailwind -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#2563EB',
+                        secondary: '#10B981',
+                        accent: '#F59E0B',
+                        neutral: {
+                            100: '#F3F4F6',
+                            200: '#E5E7EB',
+                            300: '#D1D5DB',
+                            700: '#374151',
+                            800: '#1F2937',
+                            900: '#111827'
+                        }
+                    },
+                    fontFamily: {
+                        inter: ['Inter', 'system-ui', 'sans-serif'],
+                    }
+                },
+            }
+        }
+    </script>
+    
+    <!-- 自定义样式 -->
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .text-shadow {
+                text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
+            .transition-custom {
+                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            }
+            .drop-shadow-hover {
+                transition: all 0.3s ease;
+            }
+            .drop-shadow-hover:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            }
+        }
+    </style>
+</head>
+<body class="font-inter bg-neutral-50 text-neutral-800 min-h-screen flex flex-col">
+    <!-- 顶部导航栏 -->
+    <header class="bg-white shadow-md sticky top-0 z-50 transition-custom">
+        <div class="container mx-auto px-4 py-4 flex justify-between items-center">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-lg bg-primary flex items-center justify-center">
+                    <i class="fa fa-file-text-o text-white text-xl"></i>
+                </div>
+                <h1 class="text-xl md:text-2xl font-bold">智能发票信息提取工具</h1>
+            </div>
+            <nav class="hidden md:flex items-center space-x-6">
+                <a href="#" class="text-primary font-medium">首页</a>
+                <a href="#features" class="text-neutral-700 hover:text-primary transition-custom">功能</a>
+                <a href="#history" class="text-neutral-700 hover:text-primary transition-custom">历史记录</a>
+                <button class="bg-primary/10 text-primary px-4 py-2 rounded-lg hover:bg-primary/20 transition-custom">
+                    <i class="fa fa-question-circle mr-1"></i> 使用帮助
+                </button>
+            </nav>
+            <button class="md:hidden text-neutral-700 text-xl">
+                <i class="fa fa-bars"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- 主要内容 -->
+    <main class="flex-grow container mx-auto px-4 py-8">
+        <!-- 介绍部分 -->
+        <section class="text-center mb-12 max-w-3xl mx-auto">
+            <h2 class="text-[clamp(1.5rem,3vw,2.5rem)] font-bold text-neutral-800 mb-4 text-shadow">自动提取发票关键信息，告别手动录入</h2>
+            <p class="text-neutral-600 text-lg mb-8">上传发票图片，一键识别金额、日期、发票号等信息，生成结构化表格，大幅降低报销录入错误率</p>
+            <div class="flex flex-wrap justify-center gap-6 text-sm">
+                <div class="flex items-center bg-white px-4 py-2 rounded-full shadow-sm">
+                    <i class="fa fa-check-circle text-secondary mr-2"></i>
+                    <span>自动识别金额</span>
+                </div>
+                <div class="flex items-center bg-white px-4 py-2 rounded-full shadow-sm">
+                    <i class="fa fa-check-circle text-secondary mr-2"></i>
+                    <span>提取日期信息</span>
+                </div>
+                <div class="flex items-center bg-white px-4 py-2 rounded-full shadow-sm">
+                    <i class="fa fa-check-circle text-secondary mr-2"></i>
+                    <span>识别发票号码</span>
+                </div>
+                <div class="flex items-center bg-white px-4 py-2 rounded-full shadow-sm">
+                    <i class="fa fa-check-circle text-secondary mr-2"></i>
+                    <span>生成报销表格</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- 主要功能区 -->
+        <section class="grid grid-cols-1 lg:grid-cols-5 gap-8 mb-16">
+            <!-- 左侧：上传和预览区 -->
+            <div class="lg:col-span-2 bg-white rounded-xl shadow-lg p-6 drop-shadow-hover">
+                <h3 class="text-xl font-bold mb-6 flex items-center">
+                    <i class="fa fa-upload text-primary mr-2"></i> 上传发票图片
+                </h3>
+                
+                <!-- 上传区域 -->
+                <div id="upload-area" class="border-2 border-dashed border-neutral-300 rounded-lg p-8 text-center mb-6 cursor-pointer hover:border-primary hover:bg-primary/5 transition-custom">
+                    <input type="file" id="image-upload" accept="image/*" class="hidden" multiple>
+                    <i class="fa fa-file-image-o text-5xl text-neutral-400 mb-4"></i>
+                    <p class="text-neutral-600 mb-2">点击或拖拽发票图片到此处</p>
+                    <p class="text-xs text-neutral-500">支持 JPG, PNG, WEBP 格式，可批量上传</p>
+                </div>
+                
+                <!-- 预览区域 -->
+                <div id="preview-container" class="hidden">
+                    <h4 class="font-medium text-neutral-700 mb-3 flex items-center">
+                        <i class="fa fa-eye text-neutral-500 mr-2"></i> 预览
+                        <span id="preview-count" class="ml-2 text-sm bg-primary/10 text-primary px-2 py-0.5 rounded-full">0张图片</span>
+                    </h4>
+                    <div id="image-previews" class="grid grid-cols-2 gap-3 mb-4 max-h-64 overflow-y-auto p-2">
+                        <!-- 图片预览将动态添加到这里 -->
+                    </div>
+                    <div class="flex justify-center">
+                        <button id="start-extraction" class="bg-primary hover:bg-primary/90 text-white px-6 py-2.5 rounded-lg shadow hover:shadow-md transition-custom flex items-center">
+                            <i class="fa fa-magic mr-2"></i> 开始提取信息
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- 处理中状态 -->
+                <div id="processing-container" class="hidden text-center py-8">
+                    <div class="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mb-4"></div>
+                    <p class="text-neutral-700 mb-2">正在提取信息，请稍候...</p>
+                    <div class="w-full bg-neutral-200 rounded-full h-2.5 mt-4">
+                        <div id="processing-progress" class="bg-primary h-2.5 rounded-full" style="width: 0%"></div>
+                    </div>
+                    <p id="processing-status" class="text-sm text-neutral-500 mt-2">准备中...</p>
+                </div>
+            </div>
+            
+            <!-- 右侧：结果展示区 -->
+            <div class="lg:col-span-3 bg-white rounded-xl shadow-lg p-6 drop-shadow-hover">
+                <h3 class="text-xl font-bold mb-6 flex items-center">
+                    <i class="fa fa-table text-primary mr-2"></i> 提取结果
+                </h3>
+                
+                <!-- 初始状态 -->
+                <div id="result-initial" class="text-center py-16 text-neutral-500 border-2 border-dashed border-neutral-200 rounded-lg">
+                    <i class="fa fa-file-text-o text-5xl mb-4"></i>
+                    <p class="mb-2">发票信息将显示在这里</p>
+                    <p class="text-sm">上传发票并点击"开始提取信息"按钮</p>
+                </div>
+                
+                <!-- 结果表格 -->
+                <div id="result-container" class="hidden">
+                    <div class="mb-4 flex flex-wrap justify-between items-center gap-4">
+                        <div class="flex items-center text-sm">
+                            <span id="extraction-stats" class="bg-primary/10 text-primary px-3 py-1 rounded-full">
+                                已提取 <span id="result-count">0</span> 张发票信息
+                            </span>
+                        </div>
+                        <div class="flex space-x-3">
+                            <button id="edit-results" class="bg-neutral-100 hover:bg-neutral-200 text-neutral-800 px-4 py-2 rounded-lg transition-custom text-sm flex items-center">
+                                <i class="fa fa-pencil mr-1.5"></i> 编辑
+                            </button>
+                            <button id="export-csv" class="bg-secondary hover:bg-secondary/90 text-white px-4 py-2 rounded-lg transition-custom text-sm flex items-center">
+                                <i class="fa fa-download mr-1.5"></i> 导出CSV
+                            </button>
+                            <button id="clear-results" class="bg-neutral-100 hover:bg-neutral-200 text-neutral-800 px-4 py-2 rounded-lg transition-custom text-sm flex items-center">
+                                <i class="fa fa-trash mr-1.5"></i> 清空
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-neutral-200">
+                            <thead class="bg-neutral-50">
+                                <tr>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">序号</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">发票号</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">日期</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">金额(元)</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="results-table-body" class="bg-white divide-y divide-neutral-200">
+                                <!-- 结果将动态添加到这里 -->
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- 识别详情（点击某行时显示） -->
+                    <div id="recognition-details" class="hidden mt-6 p-4 bg-neutral-50 rounded-lg border border-neutral-200">
+                        <h4 class="font-medium text-neutral-800 mb-3 flex items-center">
+                            <i class="fa fa-info-circle text-primary mr-2"></i> 识别详情
+                        </h4>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <img id="detail-image" src="" alt="发票详情图片" class="w-full max-h-64 object-contain rounded">
+                            </div>
+                            <div>
+                                <div class="mb-3">
+                                    <label class="block text-sm font-medium text-neutral-700 mb-1">原始识别文本</label>
+                                    <div class="bg-white p-3 rounded border border-neutral-200 h-40 overflow-y-auto text-sm text-neutral-600" id="raw-text"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- 功能特点 -->
+        <section id="features" class="mb-16">
+            <h3 class="text-2xl font-bold mb-8 text-center">为什么选择我们的发票提取工具</h3>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div class="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-custom">
+                    <div class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                        <i class="fa fa-check-circle text-primary text-xl"></i>
+                    </div>
+                    <h4 class="font-bold text-lg mb-2">降低错误率</h4>
+                    <p class="text-neutral-600 text-sm">自动提取信息，减少手动录入带来的错误，提高报销效率</p>
+                </div>
+                
+                <div class="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-custom">
+                    <div class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                        <i class="fa fa-bolt text-primary text-xl"></i>
+                    </div>
+                    <h4 class="font-bold text-lg mb-2">快速高效</h4>
+                    <p class="text-neutral-600 text-sm">批量处理多张发票，几秒内完成信息提取，节省大量时间</p>
+                </div>
+                
+                <div class="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-custom">
+                    <div class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                        <i class="fa fa-table text-primary text-xl"></i>
+                    </div>
+                    <h4 class="font-bold text-lg mb-2">结构化输出</h4>
+                    <p class="text-neutral-600 text-sm">提取结果以表格形式展示，支持导出为CSV，方便财务处理</p>
+                </div>
+                
+                <div class="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-custom">
+                    <div class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                        <i class="fa fa-lock text-primary text-xl"></i>
+                    </div>
+                    <h4 class="font-bold text-lg mb-2">隐私保护</h4>
+                    <p class="text-neutral-600 text-sm">本地处理所有数据，无需上传至服务器，保障发票信息安全</p>
+                </div>
+            </div>
+        </section>
+        
+        <!-- 使用步骤 -->
+        <section class="mb-16 bg-white rounded-xl shadow-lg p-8">
+            <h3 class="text-2xl font-bold mb-8 text-center">简单三步，完成发票信息提取</h3>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div class="text-center">
+                    <div class="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                        <span class="text-primary font-bold text-xl">1</span>
+                    </div>
+                    <h4 class="font-bold text-lg mb-3">上传发票图片</h4>
+                    <p class="text-neutral-600">点击上传区域或直接拖拽发票图片，可以同时上传多张发票</p>
+                </div>
+                
+                <div class="text-center">
+                    <div class="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                        <span class="text-primary font-bold text-xl">2</span>
+                    </div>
+                    <h4 class="font-bold text-lg mb-3">自动提取信息</h4>
+                    <p class="text-neutral-600">点击"开始提取信息"按钮，系统将自动识别并提取关键信息</p>
+                </div>
+                
+                <div class="text-center">
+                    <div class="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                        <span class="text-primary font-bold text-xl">3</span>
+                    </div>
+                    <h4 class="font-bold text-lg mb-3">导出结果</h4>
+                    <p class="text-neutral-600">检查提取结果，必要时进行编辑，然后导出为CSV文件用于报销</p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- 页脚 -->
+    <footer class="bg-neutral-800 text-white py-8">
+        <div class="container mx-auto px-4">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
+                <div>
+                    <div class="flex items-center space-x-3 mb-4">
+                        <div class="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
+                            <i class="fa fa-file-text-o text-white"></i>
+                        </div>
+                        <h3 class="text-lg font-bold">智能发票信息提取工具</h3>
+                    </div>
+                    <p class="text-neutral-400 text-sm">自动化提取发票关键信息，简化报销流程，提高工作效率</p>
+                </div>
+                
+                <div>
+                    <h4 class="font-bold mb-4">快速链接</h4>
+                    <ul class="space-y-2 text-neutral-400">
+                        <li><a href="#" class="hover:text-primary transition-custom">首页</a></li>
+                        <li><a href="#features" class="hover:text-primary transition-custom">功能特点</a></li>
+                        <li><a href="#" class="hover:text-primary transition-custom">使用教程</a></li>
+                        <li><a href="#" class="hover:text-primary transition-custom">常见问题</a></li>
+                    </ul>
+                </div>
+                
+                <div>
+                    <h4 class="font-bold mb-4">联系我们</h4>
+                    <ul class="space-y-2 text-neutral-400">
+                        <li class="flex items-center"><i class="fa fa-envelope-o mr-2 text-primary"></i> <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="2b585e5b5b44595f6b42455d4442484e065f44444705484446">[email&#160;protected]</a></li>
+                        <li class="flex items-center"><i class="fa fa-github mr-2 text-primary"></i> github.com/invoice-tool</li>
+                    </ul>
+                    <div class="mt-4 flex space-x-4">
+                        <a href="#" class="w-8 h-8 rounded-full bg-neutral-700 hover:bg-primary flex items-center justify-center transition-custom">
+                            <i class="fa fa-twitter"></i>
+                        </a>
+                        <a href="#" class="w-8 h-8 rounded-full bg-neutral-700 hover:bg-primary flex items-center justify-center transition-custom">
+                            <i class="fa fa-github"></i>
+                        </a>
+                        <a href="#" class="w-8 h-8 rounded-full bg-neutral-700 hover:bg-primary flex items-center justify-center transition-custom">
+                            <i class="fa fa-linkedin"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="border-t border-neutral-700 pt-6 text-center text-neutral-500 text-sm">
+                <p>&copy; 2023 智能发票信息提取工具 - 保留所有权利</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- 通知提示 -->
+    <div id="notification" class="fixed bottom-4 right-4 bg-neutral-800 text-white px-4 py-3 rounded-lg shadow-lg transform translate-y-20 opacity-0 transition-all duration-300 flex items-center z-50 max-w-xs">
+        <i id="notification-icon" class="fa fa-check-circle mr-2 text-green-400"></i>
+        <span id="notification-message"></span>
+    </div>
+
+    <!-- JavaScript -->
+    <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+        // DOM元素
+        const uploadArea = document.getElementById('upload-area');
+        const imageUpload = document.getElementById('image-upload');
+        const previewContainer = document.getElementById('preview-container');
+        const previewCount = document.getElementById('preview-count');
+        const imagePreviews = document.getElementById('image-previews');
+        const startExtraction = document.getElementById('start-extraction');
+        const processingContainer = document.getElementById('processing-container');
+        const processingProgress = document.getElementById('processing-progress');
+        const processingStatus = document.getElementById('processing-status');
+        const resultInitial = document.getElementById('result-initial');
+        const resultContainer = document.getElementById('result-container');
+        const resultCount = document.getElementById('result-count');
+        const resultsTableBody = document.getElementById('results-table-body');
+        const editResults = document.getElementById('edit-results');
+        const exportCsv = document.getElementById('export-csv');
+        const clearResults = document.getElementById('clear-results');
+        const recognitionDetails = document.getElementById('recognition-details');
+        const detailImage = document.getElementById('detail-image');
+        const rawText = document.getElementById('raw-text');
+        const notification = document.getElementById('notification');
+        const notificationIcon = document.getElementById('notification-icon');
+        const notificationMessage = document.getElementById('notification-message');
+        
+        // 存储上传的图片和提取的结果
+        let uploadedImages = [];
+        let extractionResults = [];
+        let editMode = false;
+        
+        // 上传区域点击事件
+        uploadArea.addEventListener('click', () => {
+            imageUpload.click();
+        });
+        
+        // 拖拽事件
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('border-primary');
+            uploadArea.classList.add('bg-primary/5');
+        });
+        
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('border-primary');
+            uploadArea.classList.remove('bg-primary/5');
+        });
+        
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('border-primary');
+            uploadArea.classList.remove('bg-primary/5');
+            
+            if (e.dataTransfer.files.length) {
+                handleFiles(e.dataTransfer.files);
+            }
+        });
+        
+        // 图片上传处理
+        imageUpload.addEventListener('change', (e) => {
+            handleFiles(e.target.files);
+        });
+        
+        // 处理上传的文件
+        function handleFiles(files) {
+            // 过滤非图片文件
+            const imageFiles = Array.from(files).filter(file => file.type.startsWith('image/'));
+            
+            if (imageFiles.length === 0) {
+                showNotification('请上传图片文件', 'error');
+                return;
+            }
+            
+            // 预览图片
+            imageFiles.forEach(file => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const imageData = {
+                        id: Date.now() + Math.floor(Math.random() * 1000),
+                        file: file,
+                        src: e.target.result
+                    };
+                    uploadedImages.push(imageData);
+                    addImagePreview(imageData);
+                };
+                reader.readAsDataURL(file);
+            });
+            
+            // 显示预览区域
+            previewContainer.classList.remove('hidden');
+            uploadArea.classList.add('hidden');
+            updatePreviewCount();
+        }
+        
+        // 添加图片预览
+        function addImagePreview(imageData) {
+            const previewItem = document.createElement('div');
+            previewItem.className = 'relative group';
+            previewItem.dataset.id = imageData.id;
+            
+            previewItem.innerHTML = `
+                <img src="${imageData.src}" alt="发票预览" class="w-full h-32 object-cover rounded-lg border border-neutral-200">
+                <button class="absolute top-1 right-1 bg-white/80 hover:bg-white text-neutral-700 p-1 rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-custom delete-preview" data-id="${imageData.id}">
+                    <i class="fa fa-times"></i>
+                </button>
+            `;
+            
+            imagePreviews.appendChild(previewItem);
+            
+            // 添加删除事件
+            previewItem.querySelector('.delete-preview').addEventListener('click', (e) => {
+                const id = parseInt(e.target.closest('.delete-preview').dataset.id);
+                uploadedImages = uploadedImages.filter(img => img.id !== id);
+                previewItem.remove();
+                updatePreviewCount();
+                
+                if (uploadedImages.length === 0) {
+                    previewContainer.classList.add('hidden');
+                    uploadArea.classList.remove('hidden');
+                }
+            });
+        }
+        
+        // 更新预览计数
+        function updatePreviewCount() {
+            previewCount.textContent = `${uploadedImages.length}张图片`;
+        }
+        
+        // 开始提取信息
+        startExtraction.addEventListener('click', startInfoExtraction);
+        
+        async function startInfoExtraction() {
+            if (uploadedImages.length === 0) return;
+            
+            // 重置结果
+            extractionResults = [];
+            
+            // 显示处理状态
+            previewContainer.classList.add('hidden');
+            processingContainer.classList.remove('hidden');
+            processingProgress.style.width = '0%';
+            processingStatus.textContent = `正在处理第1/${uploadedImages.length}张发票`;
+            
+            // 逐一处理每张图片
+            for (let i = 0; i < uploadedImages.length; i++) {
+                const imageData = uploadedImages[i];
+                try {
+                    // 更新进度
+                    const progress = ((i + 1) / uploadedImages.length) * 100;
+                    processingProgress.style.width = `${progress}%`;
+                    processingStatus.textContent = `正在处理第${i + 1}/${uploadedImages.length}张发票`;
+                    
+                    // 使用Tesseract.js进行OCR识别
+                    const result = await Tesseract.recognize(
+                        imageData.src,
+                        'chi_sim+eng', // 识别中文和英文
+                        {
+                            logger: (m) => console.log(m),
+                        }
+                    );
+                    
+                    // 提取关键信息
+                    const extractedInfo = extractInvoiceInfo(result.data.text);
+                    
+                    // 保存结果
+                    extractionResults.push({
+                        id: imageData.id,
+                        src: imageData.src,
+                        rawText: result.data.text,
+                        ...extractedInfo
+                    });
+                } catch (err) {
+                    console.error('识别错误:', err);
+                    // 即使出错也保存基本信息
+                    extractionResults.push({
+                        id: imageData.id,
+                        src: imageData.src,
+                        rawText: '识别失败',
+                        invoiceNumber: '无法识别',
+                        date: '无法识别',
+                        amount: '无法识别'
+                    });
+                }
+            }
+            
+            // 处理完成，显示结果
+            processingContainer.classList.add('hidden');
+            resultInitial.classList.add('hidden');
+            resultContainer.classList.remove('hidden');
+            
+            // 更新结果表格
+            updateResultsTable();
+            
+            // 显示通知
+            showNotification(`成功提取${extractionResults.length}张发票信息`, 'success');
+        }
+        
+        // 提取发票关键信息
+        function extractInvoiceInfo(text) {
+            // 清理文本
+            const cleanedText = text.replace(/\s+/g, ' ').trim();
+            
+            // 正则表达式匹配
+            const amountRegex = /(?:金额|合计|总计)\D*(\d+\.\d{2})/i;
+            const dateRegex = /(?:日期|开票日期)\D*(\d{4}[年/-]\d{2}[月/-]\d{2}[日]?)/i;
+            const invoiceNumberRegex = /(?:发票代码|发票号码|票号)\D*([A-Z0-9]+)/i;
+            
+            // 提取信息
+            let amount = '未识别';
+            let date = '未识别';
+            let invoiceNumber = '未识别';
+            
+            const amountMatch = cleanedText.match(amountRegex);
+            if (amountMatch && amountMatch[1]) {
+                amount = amountMatch[1];
+            } else {
+                // 尝试直接匹配金额格式
+                const directAmount = cleanedText.match(/\b\d+\.\d{2}\b/);
+                if (directAmount) {
+                    amount = directAmount[0];
+                }
+            }
+            
+            const dateMatch = cleanedText.match(dateRegex);
+            if (dateMatch && dateMatch[1]) {
+                // 统一日期格式为yyyy-mm-dd
+                date = dateMatch[1]
+                    .replace('年', '-')
+                    .replace('月', '-')
+                    .replace('日', '')
+                    .replace(/\//g, '-');
+            } else {
+                // 尝试直接匹配日期格式
+                const directDate = cleanedText.match(/\b\d{4}-\d{2}-\d{2}\b/);
+                if (directDate) {
+                    date = directDate[0];
+                }
+            }
+            
+            const invoiceNumberMatch = cleanedText.match(invoiceNumberRegex);
+            if (invoiceNumberMatch && invoiceNumberMatch[1]) {
+                invoiceNumber = invoiceNumberMatch[1];
+            }
+            
+            return {
+                invoiceNumber,
+                date,
+                amount
+            };
+        }
+        
+        // 更新结果表格
+        function updateResultsTable() {
+            resultsTableBody.innerHTML = '';
+            resultCount.textContent = extractionResults.length;
+            
+            extractionResults.forEach((result, index) => {
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-neutral-50 transition-custom cursor-pointer';
+                row.dataset.id = result.id;
+                
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-neutral-500">${index + 1}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-neutral-900">
+                        <span class="${result.invoiceNumber === '未识别' ? 'text-red-500' : ''} ${editMode ? 'invoice-number' : ''}" data-field="invoiceNumber" data-id="${result.id}">${result.invoiceNumber}</span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-neutral-900">
+                        <span class="${result.date === '未识别' ? 'text-red-500' : ''} ${editMode ? 'invoice-date' : ''}" data-field="date" data-id="${result.id}">${result.date}</span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-neutral-900">
+                        <span class="${result.amount === '未识别' ? 'text-red-500' : ''} ${editMode ? 'invoice-amount' : ''}" data-field="amount" data-id="${result.id}">${result.amount}</span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-neutral-500">
+                        <button class="text-primary hover:text-primary/80 view-details" data-id="${result.id}">
+                            <i class="fa fa-eye"></i>
+                        </button>
+                    </td>
+                `;
+                
+                resultsTableBody.appendChild(row);
+                
+                // 行点击事件 - 显示详情
+                row.addEventListener('click', (e) => {
+                    if (!e.target.closest('.view-details') && !editMode) {
+                        showRecognitionDetails(result.id);
+                    }
+                });
+                
+                // 查看详情按钮事件
+                row.querySelector('.view-details').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    showRecognitionDetails(result.id);
+                });
+            });
+            
+            // 如果是编辑模式，使字段可编辑
+            if (editMode) {
+                makeFieldsEditable();
+            }
+        }
+        
+        // 显示识别详情
+        function showRecognitionDetails(id) {
+            const result = extractionResults.find(item => item.id === id);
+            if (!result) return;
+            
+            detailImage.src = result.src;
+            rawText.textContent = result.rawText;
+            
+            recognitionDetails.classList.remove('hidden');
+            
+            // 平滑滚动到详情区域
+            recognitionDetails.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+        
+        // 编辑结果按钮
+        editResults.addEventListener('click', () => {
+            if (extractionResults.length === 0) return;
+            
+            editMode = !editMode;
+            
+            if (editMode) {
+                editResults.innerHTML = '<i class="fa fa-check mr-1.5"></i> 保存编辑';
+                editResults.classList.remove('bg-neutral-100', 'hover:bg-neutral-200', 'text-neutral-800');
+                editResults.classList.add('bg-green-500', 'hover:bg-green-600', 'text-white');
+                makeFieldsEditable();
+                showNotification('进入编辑模式，点击字段即可修改', 'info');
+            } else {
+                editResults.innerHTML = '<i class="fa fa-pencil mr-1.5"></i> 编辑';
+                editResults.classList.remove('bg-green-500', 'hover:bg-green-600', 'text-white');
+                editResults.classList.add('bg-neutral-100', 'hover:bg-neutral-200', 'text-neutral-800');
+                updateResultsTable(); // 刷新表格以取消编辑状态
+                showNotification('已保存编辑', 'success');
+            }
+        });
+        
+        // 使字段可编辑
+        function makeFieldsEditable() {
+            const fields = document.querySelectorAll('.invoice-number, .invoice-date, .invoice-amount');
+            
+            fields.forEach(field => {
+                field.contentEditable = true;
+                field.classList.add('bg-yellow-50', 'px-1', 'rounded', 'hover:bg-yellow-100');
+                
+                // 保存编辑后的值
+                field.addEventListener('blur', (e) => {
+                    const id = parseInt(e.target.dataset.id);
+                    const fieldName = e.target.dataset.field;
+                    const value = e.target.textContent.trim();
+                    
+                    const resultIndex = extractionResults.findIndex(item => item.id === id);
+                    if (resultIndex !== -1) {
+                        extractionResults[resultIndex][fieldName] = value;
+                    }
+                });
+            });
+        }
+        
+        // 导出CSV
+        exportCsv.addEventListener('click', () => {
+            if (extractionResults.length === 0) {
+                showNotification('没有可导出的信息', 'error');
+                return;
+            }
+            
+            // 准备CSV内容
+            let csvContent = "序号,发票号,日期,金额(元)\n";
+            
+            extractionResults.forEach((result, index) => {
+                csvContent += `${index + 1},${result.invoiceNumber},${result.date},${result.amount}\n`;
+            });
+            
+            // 创建并下载CSV文件
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `发票信息_${new Date().toLocaleDateString()}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            showNotification('CSV文件已导出', 'success');
+        });
+        
+        // 清空结果
+        clearResults.addEventListener('click', () => {
+            if (confirm('确定要清空所有结果吗？')) {
+                uploadedImages = [];
+                extractionResults = [];
+                editMode = false;
+                
+                imagePreviews.innerHTML = '';
+                resultsTableBody.innerHTML = '';
+                recognitionDetails.classList.add('hidden');
+                
+                resultContainer.classList.add('hidden');
+                resultInitial.classList.remove('hidden');
+                previewContainer.classList.add('hidden');
+                uploadArea.classList.remove('hidden');
+                
+                // 重置编辑按钮
+                editResults.innerHTML = '<i class="fa fa-pencil mr-1.5"></i> 编辑';
+                editResults.classList.remove('bg-green-500', 'hover:bg-green-600', 'text-white');
+                editResults.classList.add('bg-neutral-100', 'hover:bg-neutral-200', 'text-neutral-800');
+                
+                showNotification('已清空所有结果', 'success');
+            }
+        });
+        
+        // 显示通知
+        function showNotification(message, type = 'success') {
+            notificationMessage.textContent = message;
+            
+            if (type === 'success') {
+                notificationIcon.className = 'fa fa-check-circle mr-2 text-green-400';
+            } else if (type === 'error') {
+                notificationIcon.className = 'fa fa-exclamation-circle mr-2 text-red-400';
+            } else if (type === 'info') {
+                notificationIcon.className = 'fa fa-info-circle mr-2 text-blue-400';
+            }
+            
+            // 显示通知
+            notification.classList.remove('translate-y-20', 'opacity-0');
+            notification.classList.add('translate-y-0', 'opacity-100');
+            
+            // 3秒后隐藏
+            setTimeout(() => {
+                notification.classList.remove('translate-y-0', 'opacity-100');
+                notification.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+        
+        // 页面滚动时改变导航栏样式
+        window.addEventListener('scroll', () => {
+            const header = document.querySelector('header');
+            if (window.scrollY > 10) {
+                header.classList.add('py-2', 'shadow-lg');
+                header.classList.remove('py-4', 'shadow-md');
+            } else {
+                header.classList.add('py-4', 'shadow-md');
+                header.classList.remove('py-2', 'shadow-lg');
+            }
+        });
+    </script>
+</body>
+</html>

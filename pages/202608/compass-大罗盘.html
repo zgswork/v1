@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>玄学罗盘 · 多层挂盘</title>
+<style>
+  :root{
+    --bg:#1b1410; --paper:#fbf6ec; --ink:#2a2018; --line:#7a6a55;
+    --red:#c0392b; --gold:#b8893b; --accent:#3a6ea5;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:radial-gradient(circle at 30% 20%, #2a201a, #120d09 70%);
+    color:#e8dcc8; font-family:"KaiTi","STKaiti","Songti SC","SimSun",serif;
+    padding:18px;
+  }
+  h1{font-size:22px; margin:0 0 4px; letter-spacing:2px; color:var(--gold);
+     text-shadow:0 1px 2px #000;}
+  .sub{font-size:13px; color:#b7a98f; margin-bottom:14px;}
+  .wrap{display:flex; gap:18px; align-items:flex-start; flex-wrap:wrap;}
+  .dial-box{
+    flex:1 1 420px; min-width:320px; background:#0e0a07; border:1px solid #3a2c1d;
+    border-radius:10px; padding:10px; display:flex; justify-content:center;
+  }
+  #dial svg{max-width:100%; height:auto; display:block; touch-action:none; cursor:grab;}
+  #dial.grabbing svg{cursor:grabbing;}
+  #dial.zoom svg{cursor:zoom-in;}
+  .side{flex:0 0 320px; max-width:100%; display:flex; flex-direction:column; gap:14px;}
+  .card{background:#241b12; border:1px solid #3a2c1d; border-radius:10px; padding:12px 14px;}
+  .card h3{margin:0 0 10px; font-size:15px; color:var(--gold); letter-spacing:1px;
+    border-bottom:1px dashed #4a3826; padding-bottom:6px;}
+  .switch{display:flex; align-items:center; gap:8px; font-size:14px; cursor:pointer;}
+  .switch input{width:16px; height:16px; accent-color:var(--gold);}
+  .step{margin-top:10px; font-size:13px; color:#cdb89a;}
+  .step select{background:#2f2418; color:#e8dcc8; border:1px solid #4a3826;
+    border-radius:5px; padding:3px 6px; font-family:inherit;}
+  .global{margin-top:12px; display:flex; align-items:center; gap:8px; font-size:14px;}
+  .global .deg{color:var(--red); min-width:46px; text-align:center; font-weight:bold;}
+  button{
+    background:#3a2c1d; color:#e8dcc8; border:1px solid #5a4530; border-radius:6px;
+    padding:4px 10px; cursor:pointer; font-family:inherit; font-size:13px; transition:.15s;
+  }
+  button:hover{background:#4a3826; border-color:var(--gold);}
+  .rings{margin-top:12px; display:flex; flex-direction:column; gap:5px;
+    max-height:340px; overflow:auto; padding-right:4px;}
+  .ringrow{display:flex; align-items:center; gap:8px; font-size:13.5px;
+    padding:4px 6px; border-radius:6px; background:#1f160e;}
+  .ringrow.off{opacity:.45;}
+  .ringrow input{accent-color:var(--gold);}
+  .ringrow .rname{flex:1; color:#e8dcc8;}
+  .ringrow .cnt{color:#9a8a6e; font-size:11px;}
+  .ringrow .deg{color:var(--red); min-width:42px; text-align:center; font-size:12px;}
+  .actions{margin-top:10px; text-align:right;}
+  #readout ul{list-style:none; margin:0; padding:0; font-size:14px;}
+  #readout li{display:flex; justify-content:space-between; padding:4px 2px;
+    border-bottom:1px dotted #3a2c1d;}
+  #readout li .val{color:var(--gold); font-weight:bold;}
+  #readout li.angle{color:#9a8a6e; font-style:italic;}
+  .legend{font-size:12px; color:#9a8a6e; line-height:1.6; margin-top:8px;}
+  .tip{font-size:12px; color:#b7a98f; margin-top:10px; line-height:1.6;}
+</style>
+</head>
+<body>
+  <h1>玄学罗盘 · 多层挂盘</h1>
+  <div class="sub">阴阳 · 四象 · 五行 · 八卦 · 九宫 · 十天干 · 十二地支 · 24山向 · 28星宿 · 64卦 · 及更多玄学环层</div>
+
+  <div class="wrap">
+    <div class="dial-box"><div id="dial"></div></div>
+    <div class="side">
+      <div class="card" id="panel"></div>
+      <div class="card" id="readout"></div>
+    </div>
+  </div>
+
+<script>
+/* ============ 环层数据（由内向外） ============ */
+const RINGS = [
+  { id:'yinyang', name:'阴阳', items:['阳','阴'] },
+  { id:'sixiang', name:'四象', items:['青龙','朱雀','白虎','玄武'] },
+  { id:'wuxing',  name:'五行', items:['木','火','土','金','水'] },
+  { id:'bagua',   name:'八卦', items:['乾','兑','离','震','巽','坎','艮','坤'] },
+  { id:'jiugong', name:'九宫', items:['一','二','三','四','五','六','七','八','九'] },
+  { id:'tiangan', name:'十天干', items:['甲','乙','丙','丁','戊','己','庚','辛','壬','癸'] },
+  { id:'dizhi',   name:'十二地支', items:['子','丑','寅','卯','辰','巳','午','未','申','酉','戌','亥'] },
+  { id:'24shan',  name:'24山向', items:['子','癸','丑','艮','寅','甲','卯','乙','辰','巽','巳','丙','午','丁','未','坤','申','庚','酉','辛','戌','乾','亥','壬'] },
+  { id:'28xiu',   name:'28星宿', items:['角','亢','氐','房','心','尾','箕','斗','牛','女','虚','危','室','壁','奎','娄','胃','昴','毕','觜','参','井','鬼','柳','星','张','翼','轸'] },
+  { id:'64gua',   name:'64卦', items:['乾','坤','屯','蒙','需','讼','师','比','小畜','履','泰','否','同人','大有','谦','豫','随','蛊','临','观','噬嗑','贲','剥','复','无妄','大畜','颐','大过','坎','离','咸','恒','遯','大壮','晋','明夷','家人','睽','蹇','解','损','益','夬','姤','萃','升','困','井','革','鼎','震','艮','渐','归妹','丰','旅','巽','兑','涣','节','中孚','小过','既济','未济'] },
+  { id:'24jieqi', name:'二十四节气', items:['立春','雨水','惊蛰','春分','清明','谷雨','立夏','小满','芒种','夏至','小暑','大暑','立秋','处暑','白露','秋分','寒露','霜降','立冬','小雪','大雪','冬至','小寒','大寒'] },
+  { id:'60jiazi', name:'六十甲子', items:(()=>{const tg='甲乙丙丁戊己庚辛壬癸'.split('');const dz='子丑寅卯辰巳午未申酉戌亥'.split('');const a=[];for(let i=0;i<60;i++)a.push(tg[i%10]+dz[i%12]);return a;})() },
+  { id:'beidou',  name:'北斗九星', items:['贪狼','巨门','禄存','文曲','廉贞','武曲','破军','左辅','右弼'] },
+  { id:'bamen',   name:'奇门八门', items:['休','生','伤','杜','景','死','惊','开'] },
+  { id:'12changsheng', name:'十二长生', items:['长生','沐浴','冠带','临官','帝旺','衰','病','死','墓','绝','胎','养'] },
+  { id:'qizheng', name:'七政', items:['日','月','木','火','土','金','水'] },
+  { id:'jiufei',  name:'九宫飞星', items:['一白','二黑','三碧','四绿','五黄','六白','七赤','八白','九紫'] },
+];
+
+/* 由内向外：按项数（字数）由少到多排序（稳定排序，同项数保持原序） */
+RINGS.sort((a,b)=> a.items.length - b.items.length);
+
+/* ============ 状态 ============ */
+const state = { linked:true, step:5, rot:{}, visible:{}, zoom:false, zoomX:null, zoomY:null, rayRot:0 };
+RINGS.forEach(r=>{ state.rot[r.id]=0; state.visible[r.id]=true; });
+
+/* 当前几何信息（供拖拽换算使用） */
+let GEO = {cx:0, cy:0, outerR:0, size:0, N:0};
+
+/* ============ 几何常量 ============ */
+const rCompass = 72;   // 指南针半径（固定）
+const W = 30;          // 每环等宽
+const W_angle = 26;    // 角度环宽度
+const pad = 14;
+
+function norm(v){ return ((Math.round(v)%360)+360)%360; }
+
+/* 由顶部起、顺时针的角度 -> 坐标 */
+function polar(cx,cy,r,deg){
+  const a = deg*Math.PI/180;
+  return [cx + r*Math.sin(a), cy - r*Math.cos(a)];
+}
+
+/* ============ 渲染 ============ */
+function render(){
+  const visibleRings = RINGS.filter(r=>state.visible[r.id]);
+  const N = visibleRings.length;
+  const outerR = rCompass + N*W + W_angle;
+  const size = 2*(outerR + pad);
+  const cx = size/2, cy = size/2;
+  GEO = {cx, cy, outerR, size, N};
+  const maxN = Math.max(1, ...visibleRings.map(r=>r.items.length));
+
+  let svg = `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" xmlns="http://www.w3.org/2000/svg">`;
+  let body = '';
+  // 背景盘
+  body += `<circle cx="${cx}" cy="${cy}" r="${outerR+2}" fill="#fbf6ec" stroke="#6a5535" stroke-width="2"/>`;
+  body += `<circle cx="${cx}" cy="${cy}" r="${outerR}" fill="none" stroke="#caa45a" stroke-width="1"/>`;
+  // 各环
+  visibleRings.forEach((r,idx)=>{ body += ringSVG(r,idx,cx,cy); });
+  // 角度环（固定参考）
+  body += angleRingSVG(cx,cy,rCompass+N*W,W_angle);
+  // 射线扇形 + 射线（随 rayRot 旋转）
+  body += `<g transform="rotate(${state.rayRot||0} ${cx} ${cy})">`;
+  body += wedge(cx,cy,rCompass,outerR,180/maxN);
+  body += raySVG(cx,cy,outerR);
+  body += `</g>`;
+  // 指南针
+  body += compassSVG(cx,cy,rCompass);
+  svg += `<g id="dialcontent">${body}</g>`;
+  // 放大显示：以指针为中心的 5× 放大镜
+  if(state.zoom){
+    if(state.zoomX == null){ state.zoomX = cx; state.zoomY = cy; }
+    svg += `<g id="lensWrap">${lensSVG(state.zoomX, state.zoomY)}</g>`;
+  }
+  svg += `</svg>`;
+  document.getElementById('dial').innerHTML = svg;
+
+  renderPanel();
+  renderReadout(visibleRings);
+}
+
+/* 环形（annulus）路径，配合 fill-rule:evenodd 填充两半径之间区域 */
+function annulus(cx,cy,rIn,rOut){
+  const c = r => `M ${cx} ${cy-r} A ${r} ${r} 0 1 0 ${cx} ${cy+r} A ${r} ${r} 0 1 0 ${cx} ${cy-r} Z`;
+  return c(rOut) + ' ' + c(rIn);
+}
+
+function wedge(cx,cy,rIn,rOut,half){
+  const [x1,y1]=polar(cx,cy,rIn,-half);
+  const [x2,y2]=polar(cx,cy,rOut,-half);
+  const [x3,y3]=polar(cx,cy,rOut,half);
+  const [x4,y4]=polar(cx,cy,rIn,half);
+  const d=`M ${x1} ${y1} L ${x2} ${y2} A ${rOut} ${rOut} 0 0 1 ${x3} ${y3} L ${x4} ${y4} A ${rIn} ${rIn} 0 0 0 ${x1} ${y1} Z`;
+  return `<path d="${d}" fill="#c0392b" opacity="0.12"/>`;
+}
+
+function ringSVG(ring,idx,cx,cy){
+  const n = ring.items.length;
+  const step = 360/n;
+  const inner = rCompass + idx*W;
+  const outer = inner + W;
+  const mid = inner + W/2;
+  const rot = state.rot[ring.id]||0;
+  const fill = (idx%2===0) ? '#fdf9f0' : '#efe3ca';
+  let g = `<path d="${annulus(cx,cy,inner,outer)}" fill="${fill}" fill-rule="evenodd" stroke="none"/>`;
+  g += `<g transform="rotate(${rot} ${cx} ${cy})">`;
+  const fs = (()=>{ const circ=2*Math.PI*mid; const per=circ/n;
+    return Math.max(5, Math.min(W*0.62, per*0.62)).toFixed(1); })();
+  for(let i=0;i<n;i++){
+    const th = i*step;
+    // 分隔线
+    const [bx1,by1]=polar(cx,cy,inner, th-step/2);
+    const [bx2,by2]=polar(cx,cy,outer, th-step/2);
+    g += `<line x1="${bx1.toFixed(2)}" y1="${by1.toFixed(2)}" x2="${bx2.toFixed(2)}" y2="${by2.toFixed(2)}" stroke="#b6a684" stroke-width="0.5"/>`;
+    // 文字
+    const [lx,ly]=polar(cx,cy,mid,th);
+    let rot2 = th; if(th>90 && th<270) rot2 = th+180;
+    g += `<text x="${lx.toFixed(2)}" y="${ly.toFixed(2)}" font-size="${fs}" text-anchor="middle" dominant-baseline="central" transform="rotate(${rot2} ${lx.toFixed(2)} ${ly.toFixed(2)})" fill="#2a2018" font-family="'KaiTi','STKaiti','SimSun',serif">${ring.items[i]}</text>`;
+  }
+  g += `</g>`;
+  // 环边界
+  g += `<circle cx="${cx}" cy="${cy}" r="${inner}" fill="none" stroke="#7a6a55" stroke-width="1"/>`;
+  g += `<circle cx="${cx}" cy="${cy}" r="${outer}" fill="none" stroke="#7a6a55" stroke-width="1"/>`;
+  return g;
+}
+
+function angleRingSVG(cx,cy,inner,Wa){
+  const outer = inner+Wa;
+  const mid = (inner+outer)/2;
+  let s = `<circle cx="${cx}" cy="${cy}" r="${inner}" fill="none" stroke="#5a4530" stroke-width="1.5"/>`;
+  s += `<circle cx="${cx}" cy="${cy}" r="${outer}" fill="none" stroke="#5a4530" stroke-width="1.5"/>`;
+  for(let d=0; d<360; d++){
+    const major=d%30===0, med=d%10===0, minor=d%5===0;
+    if(!minor) continue;
+    const rEnd = major? outer : (med? inner+Wa*0.55 : inner+Wa*0.78);
+    const [x1,y1]=polar(cx,cy,inner,d);
+    const [x2,y2]=polar(cx,cy,rEnd,d);
+    s += `<line x1="${x1.toFixed(2)}" y1="${y1.toFixed(2)}" x2="${x2.toFixed(2)}" y2="${y2.toFixed(2)}" stroke="#5a4530" stroke-width="${major?1.4:0.6}"/>`;
+    if(major){
+      const [lx,ly]=polar(cx,cy,mid,d);
+      let rot=d; if(d>90&&d<270) rot=d+180;
+      s += `<text x="${lx.toFixed(2)}" y="${ly.toFixed(2)}" font-size="${Math.min(Wa*0.5,13)}" text-anchor="middle" dominant-baseline="central" transform="rotate(${rot} ${lx.toFixed(2)} ${ly.toFixed(2)})" fill="#5a4530" font-family="serif">${d}</text>`;
+    }
+  }
+  return s;
+}
+
+function raySVG(cx,cy,outerR){
+  const [tx,ty]=polar(cx,cy,outerR,0);
+  let s = `<line x1="${cx}" y1="${cy}" x2="${tx.toFixed(2)}" y2="${ty.toFixed(2)}" stroke="#c0392b" stroke-width="2.5"/>`;
+  // 箭头
+  const ax=cx, ay=ty;
+  s += `<polygon points="${ax-6},${ay+13} ${ax+6},${ay+13} ${ax},${ay-2}" fill="#c0392b"/>`;
+  return s;
+}
+
+function compassSVG(cx,cy,r){
+  const sc = r;
+  let s = `<g transform="translate(${cx},${cy})">`;
+  s += `<circle r="${sc}" fill="#fff" stroke="#5a4530" stroke-width="2"/>`;
+  // 阴阳
+  s += `<path d="M0,${-sc} A ${sc} ${sc} 0 0 1 0,${sc} A ${sc/2} ${sc/2} 0 0 1 0,0 A ${sc/2} ${sc/2} 0 0 0 0,${-sc} Z" fill="#2a2018"/>`;
+  s += `<circle cx="0" cy="${-sc/2}" r="${sc/8}" fill="#fff"/>`;
+  s += `<circle cx="0" cy="${sc/2}" r="${sc/8}" fill="#2a2018"/>`;
+  // 指针（上方红=指向射线方向）
+  s += `<path d="M0,${-sc*0.9} L ${-sc*0.13},0 L ${sc*0.13},0 Z" fill="#c0392b"/>`;
+  s += `<path d="M0,${sc*0.9} L ${-sc*0.13},0 L ${sc*0.13},0 Z" fill="#3a6ea5"/>`;
+  s += `<circle r="${sc*0.08}" fill="#2a2018"/>`;
+  s += `</g>`;
+  return s;
+}
+
+/* ============ 控制面板 ============ */
+function renderPanel(){
+  const linked = state.linked;
+  const dis = state.zoom ? 'disabled' : '';   // 放大时禁用旋转相关控件
+  let h = `<h3>环层控制</h3>`;
+  h += `<label class="switch"><input type="checkbox" ${linked?'checked':''} ${dis} onchange="setLinked(this.checked)"> 联动旋转（选中则除指南针外各环同步）</label>`;
+  h += `<label class="switch"><input type="checkbox" ${isDefault()?'checked':''} ${dis} onchange="setDefault(this.checked)"> 默认位置（选中则联动并复位各环到 0°）</label>`;
+  h += `<label class="switch"><input type="checkbox" ${state.zoom?'checked':''} onchange="setZoom(this.checked)"> 放大显示（选中则锁定不可旋转，指针处 5× 放大）</label>`;
+  h += `<div class="step">旋转步长：<select ${dis} onchange="setStep(+this.value)">`+
+       [1,5,15,30].map(v=>`<option ${state.step===v?'selected':''} value="${v}">${v}°</option>`).join('')+`</select></div>`;
+  if(linked && !state.zoom){
+    const deg = norm(state.rot[RINGS[0].id]);
+    h += `<div class="global">全局旋转：<button onclick="rotateAll(-1)">◀ 逆</button><span class="deg">${deg}°</span><button onclick="rotateAll(1)">顺 ▶</button></div>`;
+  }
+  h += `<div class="ringrow"><span class="rname">指南针射线</span><span class="cnt">(独立旋转)</span><button ${dis} onclick="rotateRay(-1)">◀</button><span class="deg">${norm(state.rayRot||0)}°</span><button ${dis} onclick="rotateRay(1)">▶</button></div>`;
+  h += `<div class="rings">`;
+  RINGS.forEach(r=>{
+    const vis = state.visible[r.id];
+    h += `<div class="ringrow ${vis?'':'off'}">`;
+    h += `<input type="checkbox" ${vis?'checked':''} onchange="toggleVisible('${r.id}')">`;
+    h += `<span class="rname">${r.name}</span>`;
+    h += `<span class="cnt">(${r.items.length})</span>`;
+    if(!linked && !state.zoom){
+      h += `<button ${dis} onclick="rotate('${r.id}',-1)">◀</button><span class="deg">${norm(state.rot[r.id])}°</span><button ${dis} onclick="rotate('${r.id}',1)">▶</button>`;
+    }
+    h += `</div>`;
+  });
+  h += `</div>`;
+  h += `<div class="actions"><button onclick="resetAll()">重置全部</button></div>`;
+  document.getElementById('panel').innerHTML = h;
+}
+
+function renderReadout(visibleRings){
+  const ray = norm(state.rayRot||0);
+  let h = `<h3>射线读数（指向 ${ray}°）</h3><ul>`;
+  visibleRings.forEach(r=>{
+    h += `<li><span>${r.name}</span><span class="val">${topItem(r)}</span></li>`;
+  });
+  h += `<li class="angle"><span>角度环</span><span>${ray}°</span></li>`;
+  h += `</ul>`;
+  document.getElementById('readout').innerHTML = h;
+}
+
+function topItem(ring){
+  const n=ring.items.length;
+  const rot=state.rot[ring.id]||0;
+  const f=((state.rayRot||0) - rot)*n/360;
+  const i=((Math.round(f))%n+n)%n;
+  return ring.items[i];
+}
+
+/* ============ 交互 ============ */
+function rotate(id,dir){ if(state.zoom) return; state.rot[id]=(state.rot[id]||0)+dir*state.step; render(); }
+function rotateAll(dir){ if(state.zoom) return; RINGS.forEach(r=> state.rot[r.id]=(state.rot[r.id]||0)+dir*state.step); render(); }
+function setLinked(v){ state.linked=v; render(); }
+function setStep(v){ state.step=v; render(); }
+function toggleVisible(id){ state.visible[id]=!state.visible[id]; render(); }
+function resetAll(){ RINGS.forEach(r=>{ state.rot[r.id]=0; state.visible[r.id]=true; }); state.linked=true; state.step=5; state.zoom=false; state.rayRot=0; render(); }
+function isDefault(){ return state.linked && (state.rayRot||0)===0 && RINGS.every(r=> (state.rot[r.id]||0)===0 ); }
+function setDefault(v){ if(v){ state.linked=true; state.rayRot=0; RINGS.forEach(r=> state.rot[r.id]=0); } render(); }
+function rotateRay(dir){ if(state.zoom) return; state.rayRot=(state.rayRot||0)+dir*state.step; render(); }
+function setZoom(v){ state.zoom=v; if(v){ state.zoomX=GEO.cx; state.zoomY=GEO.cy; } else { dialEl.classList.remove('grabbing'); } render(); }
+
+/* ============ 鼠标 / 触摸笔 ============ */
+const dialEl = document.getElementById('dial');
+let drag = null; // { ringIdx, lastAngle }
+const ZOOM_FACTOR = 5;
+
+function centerOf(){
+  const rect = dialEl.getBoundingClientRect();
+  return { cx: rect.left + rect.width/2, cy: rect.top + rect.height/2 };
+}
+/* 指针相对中心的角度（自正上方起、顺时针为正，单位°） */
+function angleOf(e){
+  const c = centerOf();
+  return Math.atan2(e.clientX - c.cx, -(e.clientY - c.cy)) * 180/Math.PI;
+}
+/* 指针到中心的半径（换算回 SVG 坐标） */
+function radiusOf(e){
+  const c = centerOf();
+  const d = Math.hypot(e.clientX - c.cx, e.clientY - c.cy);
+  const rect = dialEl.getBoundingClientRect();
+  const scale = rect.width / GEO.size;
+  return d / (scale || 1);
+}
+/* 屏幕指针 -> SVG 坐标 */
+function pointOf(e){
+  const rect = dialEl.getBoundingClientRect();
+  const scale = GEO.size / (rect.width || 1);
+  return { x:(e.clientX-rect.left)*scale, y:(e.clientY-rect.top)*scale };
+}
+/* 未联动时：根据指针位置返回所在环的索引（不在环上返回 null） */
+function ringAtPointer(e){
+  const rr = radiusOf(e);
+  if(rr < rCompass) return null;                 // 指南针
+  if(rr > rCompass + GEO.N*W) return null;        // 角度环
+  const vis = RINGS.filter(r=>state.visible[r.id]);
+  let idx = Math.floor((rr - rCompass)/W);
+  if(idx < 0 || idx >= vis.length) return null;
+  return RINGS.indexOf(vis[idx]);
+}
+
+/* 放大镜 SVG：以 (px,py) 为中心、半径 R（画布 5%）圆形范围内 5× 放大 */
+function lensSVG(px,py){
+  const R = GEO.size * 0.05;
+  return `<clipPath id="lensClip"><circle id="lensClipC" cx="${px}" cy="${py}" r="${R}"/></clipPath>`+
+    `<g clip-path="url(#lensClip)">`+
+      `<g id="lensUse" transform="translate(${px} ${py}) scale(${ZOOM_FACTOR}) translate(${-px} ${-py})">`+
+        `<use href="#dialcontent"/>`+
+      `</g>`+
+      `<circle id="lensBorder" cx="${px}" cy="${py}" r="${R}" fill="none" stroke="#caa45a" stroke-width="2"/>`+
+    `</g>`;
+}
+/* 实时移动放大镜（不整体重绘，直接改 DOM） */
+function updateLens(e){
+  const svg = dialEl.querySelector('svg'); if(!svg) return;
+  const wrap = svg.querySelector('#lensWrap'); if(!wrap) return;
+  wrap.style.display = '';
+  const p = pointOf(e);
+  const clipC = svg.querySelector('#lensClipC');
+  const border = svg.querySelector('#lensBorder');
+  const useG = svg.querySelector('#lensUse');
+  if(clipC){ clipC.setAttribute('cx', p.x); clipC.setAttribute('cy', p.y); }
+  if(border){ border.setAttribute('cx', p.x); border.setAttribute('cy', p.y); }
+  if(useG){ useG.setAttribute('transform', `translate(${p.x} ${p.y}) scale(${ZOOM_FACTOR}) translate(${-p.x} ${-p.y})`); }
+  state.zoomX = p.x; state.zoomY = p.y;
+}
+
+function onDown(e){
+  if(state.zoom){
+    e.preventDefault();
+    updateLens(e);
+    if(e.pointerId != null && dialEl.setPointerCapture) dialEl.setPointerCapture(e.pointerId);
+    return;
+  }
+  e.preventDefault();
+  dialEl.classList.add('grabbing');
+  let target;
+  const rr = radiusOf(e);
+  if(rr < rCompass){ target = 'ray'; }            // 拖动中心指南针 → 旋转射线
+  else if(state.linked){ target = 'all'; }        // 联动 → 整体旋转
+  else { const idx = ringAtPointer(e); target = (idx==null) ? null : 'ring:'+idx; }
+  drag = { target, lastAngle: angleOf(e) };
+  if(e.pointerId != null && dialEl.setPointerCapture) dialEl.setPointerCapture(e.pointerId);
+}
+function onMove(e){
+  if(state.zoom){ e.preventDefault(); updateLens(e); return; }
+  if(!drag || !drag.target) return;
+  e.preventDefault();
+  const a = angleOf(e);
+  let d = a - drag.lastAngle;
+  while(d > 180) d -= 360;
+  while(d < -180) d += 360;
+  if(drag.target === 'all'){
+    RINGS.forEach(r=> state.rot[r.id] = (state.rot[r.id]||0) + d);
+  } else if(drag.target === 'ray'){
+    state.rayRot = (state.rayRot||0) + d;
+  } else if(drag.target.startsWith('ring:')){
+    const id = drag.target.slice(5);
+    state.rot[id] = (state.rot[id]||0) + d;
+  }
+  drag.lastAngle = a;
+  render();
+}
+function onUp(e){
+  dialEl.classList.remove('grabbing');
+  if(!drag) return;
+  drag = null;
+  if(e.pointerId != null && dialEl.releasePointerCapture) dialEl.releasePointerCapture(e.pointerId);
+}
+function onLeave(){
+  if(!state.zoom) return;
+  const svg = dialEl.querySelector('svg');
+  const wrap = svg && svg.querySelector('#lensWrap');
+  if(wrap) wrap.style.display = 'none';
+}
+
+dialEl.addEventListener('pointerdown', onDown);
+dialEl.addEventListener('pointermove', onMove);
+dialEl.addEventListener('pointerup', onUp);
+dialEl.addEventListener('pointercancel', onUp);
+dialEl.addEventListener('pointerleave', onLeave);
+
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,1230 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能日历 - 事件管理系统</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .calendar-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .calendar-header {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .calendar-title {
+            font-size: 24px;
+            font-weight: 600;
+        }
+
+        .calendar-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .view-buttons {
+            display: flex;
+            background: rgba(255,255,255,0.2);
+            border-radius: 25px;
+            padding: 4px;
+        }
+
+        .view-btn {
+            padding: 8px 16px;
+            border: none;
+            background: transparent;
+            color: white;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 14px;
+        }
+
+        .view-btn.active {
+            background: white;
+            color: #4facfe;
+        }
+
+        .nav-btn {
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+
+        .nav-btn:hover {
+            background: rgba(255,255,255,0.3);
+        }
+
+        .calendar-body {
+            padding: 30px;
+        }
+
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 1px;
+            background: #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .day-header {
+            background: #f8f9fa;
+            padding: 15px 10px;
+            text-align: center;
+            font-weight: 600;
+            color: #333;
+            border-bottom: 2px solid #e0e0e0;
+        }
+
+        .day-cell {
+            background: white;
+            min-height: 120px;
+            padding: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .day-cell:hover {
+            background: #f8f9fa;
+        }
+
+        .day-cell.other-month {
+            background: #f8f9fa;
+            color: #999;
+        }
+
+        .day-cell.today {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+        }
+
+        .day-cell.today .day-number {
+            background: rgba(255,255,255,0.3);
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 8px;
+        }
+
+        .day-number {
+            font-weight: 600;
+            margin-bottom: 8px;
+            text-align: center;
+        }
+
+        .event {
+            background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+            color: white;
+            padding: 4px 8px;
+            margin: 2px 0;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .event:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+
+        .event.work { background: linear-gradient(135deg, #3742fa, #2f3542); }
+        .event.personal { background: linear-gradient(135deg, #2ed573, #1e90ff); }
+        .event.meeting { background: linear-gradient(135deg, #ffa502, #ff6348); }
+        .event.other { background: linear-gradient(135deg, #a4b0be, #57606f); }
+
+        /* 甘特图样式 - 重新设计 */
+        .gantt-container {
+            background: #f8f9fa;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid #e0e0e0;
+        }
+
+        .gantt-header {
+            display: grid;
+            grid-template-columns: 120px repeat(23, 1fr);
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+        }
+
+        .gantt-corner {
+            padding: 15px;
+            font-weight: 600;
+            border-right: 1px solid rgba(255,255,255,0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .gantt-time-header {
+            padding: 10px 5px;
+            text-align: center;
+            font-size: 12px;
+            font-weight: 600;
+            border-right: 1px solid rgba(255,255,255,0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .gantt-time-header:last-child {
+            border-right: none;
+        }
+
+        .gantt-body {
+            display: grid;
+            grid-template-columns: 120px repeat(23, 1fr);
+        }
+
+        .gantt-day-label {
+            padding: 15px 10px;
+            background: #f8f9fa;
+            border-right: 1px solid #e0e0e0;
+            border-bottom: 1px solid #e0e0e0;
+            font-weight: 600;
+            color: #333;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .gantt-time-cell {
+            background: white;
+            border-right: 1px solid #e0e0e0;
+            border-bottom: 1px solid #e0e0e0;
+            min-height: 60px;
+            position: relative;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        .gantt-time-cell:hover {
+            background: #f0f8ff;
+        }
+
+        .gantt-time-cell:last-child {
+            border-right: none;
+        }
+
+        .gantt-event {
+            position: absolute;
+            top: 5px;
+            left: 5px;
+            right: 5px;
+            background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+            color: white;
+            padding: 6px 8px;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            z-index: 10;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .gantt-event:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            z-index: 20;
+        }
+
+        .gantt-event.work { background: linear-gradient(135deg, #3742fa, #2f3542); }
+        .gantt-event.personal { background: linear-gradient(135deg, #2ed573, #1e90ff); }
+        .gantt-event.meeting { background: linear-gradient(135deg, #ffa502, #ff6348); }
+        .gantt-event.other { background: linear-gradient(135deg, #a4b0be, #57606f); }
+
+        .day-view {
+            display: grid;
+            grid-template-columns: 80px 1fr;
+            gap: 1px;
+            background: #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .day-time-slot {
+            background: #f8f9fa;
+            padding: 15px 5px;
+            text-align: center;
+            font-size: 12px;
+            color: #666;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .day-hour-cell {
+            background: white;
+            min-height: 80px;
+            padding: 8px;
+            position: relative;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .modal-content {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            width: 90%;
+            max-width: 500px;
+            animation: slideIn 0.3s ease;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .modal-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #999;
+            transition: color 0.3s ease;
+        }
+
+        .close-btn:hover {
+            color: #333;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .form-input, .form-select, .form-textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-input:focus, .form-select:focus, .form-textarea:focus {
+            outline: none;
+            border-color: #4facfe;
+        }
+
+        .form-textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .form-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(79, 172, 254, 0.4);
+        }
+
+        .btn-secondary {
+            background: #f8f9fa;
+            color: #333;
+            border: 2px solid #e0e0e0;
+        }
+
+        .btn-secondary:hover {
+            background: #e9ecef;
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(255, 107, 107, 0.4);
+        }
+
+        .event-details {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .event-detail-item {
+            margin-bottom: 12px;
+        }
+
+        .event-detail-label {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 4px;
+        }
+
+        .event-detail-value {
+            color: #666;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes slideIn {
+            from { transform: translate(-50%, -60%); opacity: 0; }
+            to { transform: translate(-50%, -50%); opacity: 1; }
+        }
+
+        .dragging {
+            opacity: 0.5;
+            cursor: grabbing;
+        }
+
+        .resize-handle {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: rgba(255,255,255,0.5);
+            cursor: ns-resize;
+        }
+
+        @media (max-width: 768px) {
+            .calendar-container {
+                margin: 10px;
+                border-radius: 15px;
+            }
+            
+            .calendar-header {
+                flex-direction: column;
+                gap: 15px;
+                text-align: center;
+            }
+            
+            .calendar-body {
+                padding: 15px;
+            }
+            
+            .modal-content {
+                width: 95%;
+                padding: 20px;
+            }
+
+            .gantt-header, .gantt-body {
+                grid-template-columns: 80px repeat(23, 1fr);
+            }
+
+            .gantt-time-header {
+                font-size: 10px;
+                padding: 8px 2px;
+            }
+
+            .gantt-event {
+                font-size: 10px;
+                padding: 4px 6px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="calendar-container">
+        <div class="calendar-header">
+            <div class="calendar-title" id="calendarTitle">2024年1月</div>
+            <div class="calendar-controls">
+                <button class="nav-btn" id="prevBtn">‹</button>
+                <button class="nav-btn" id="todayBtn">今天</button>
+                <button class="nav-btn" id="nextBtn">›</button>
+                <div class="view-buttons">
+                    <button class="view-btn active" data-view="month">月</button>
+                    <button class="view-btn" data-view="week">周</button>
+                    <button class="view-btn" data-view="day">日</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="calendar-body">
+            <div id="calendarGrid"></div>
+        </div>
+    </div>
+
+    <!-- 事件创建/编辑模态框 -->
+    <div class="modal" id="eventModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title" id="modalTitle">创建新事件</h2>
+                <button class="close-btn" id="closeModal">&times;</button>
+            </div>
+            
+            <div id="eventDetails" class="event-details" style="display: none;">
+                <div class="event-detail-item">
+                    <div class="event-detail-label">标题</div>
+                    <div class="event-detail-value" id="detailTitle"></div>
+                </div>
+                <div class="event-detail-item">
+                    <div class="event-detail-label">时间</div>
+                    <div class="event-detail-value" id="detailTime"></div>
+                </div>
+                <div class="event-detail-item">
+                    <div class="event-detail-label">类型</div>
+                    <div class="event-detail-value" id="detailType"></div>
+                </div>
+                <div class="event-detail-item">
+                    <div class="event-detail-label">描述</div>
+                    <div class="event-detail-value" id="detailDescription"></div>
+                </div>
+                <div class="event-detail-item">
+                    <div class="event-detail-label">参与人</div>
+                    <div class="event-detail-value" id="detailParticipants"></div>
+                </div>
+            </div>
+            
+            <form id="eventForm" style="display: none;">
+                <div class="form-group">
+                    <label class="form-label">事件标题</label>
+                    <input type="text" class="form-input" id="eventTitle" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">开始时间</label>
+                    <input type="datetime-local" class="form-input" id="eventStart" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">结束时间</label>
+                    <input type="datetime-local" class="form-input" id="eventEnd" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">事件类型</label>
+                    <select class="form-select" id="eventType">
+                        <option value="work">工作</option>
+                        <option value="personal">个人</option>
+                        <option value="meeting">会议</option>
+                        <option value="other">其他</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">描述</label>
+                    <textarea class="form-textarea" id="eventDescription" placeholder="添加事件描述..."></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">参与人</label>
+                    <input type="text" class="form-input" id="eventParticipants" placeholder="输入参与人邮箱，用逗号分隔">
+                </div>
+                
+                <div class="form-buttons">
+                    <button type="button" class="btn btn-secondary" id="cancelBtn">取消</button>
+                    <button type="button" class="btn btn-danger" id="deleteBtn" style="display: none;">删除</button>
+                    <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+            </form>
+            
+            <div class="form-buttons" id="detailButtons" style="display: none;">
+                <button type="button" class="btn btn-secondary" id="closeDetailBtn">关闭</button>
+                <button type="button" class="btn btn-primary" id="editBtn">编辑</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class Calendar {
+            constructor() {
+                this.currentDate = new Date();
+                this.currentView = 'month';
+                this.events = JSON.parse(localStorage.getItem('calendarEvents')) || [];
+                this.selectedEvent = null;
+                this.isDragging = false;
+                this.isResizing = false;
+                
+                this.init();
+            }
+
+            init() {
+                this.bindEvents();
+                this.render();
+            }
+
+            bindEvents() {
+                // 视图切换
+                document.querySelectorAll('.view-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
+                        e.target.classList.add('active');
+                        this.currentView = e.target.dataset.view;
+                        this.render();
+                    });
+                });
+
+                // 导航按钮
+                document.getElementById('prevBtn').addEventListener('click', () => {
+                    this.navigate(-1);
+                });
+
+                document.getElementById('nextBtn').addEventListener('click', () => {
+                    this.navigate(1);
+                });
+
+                document.getElementById('todayBtn').addEventListener('click', () => {
+                    this.currentDate = new Date();
+                    this.render();
+                });
+
+                // 模态框事件
+                document.getElementById('closeModal').addEventListener('click', () => {
+                    this.closeModal();
+                });
+
+                document.getElementById('cancelBtn').addEventListener('click', () => {
+                    this.closeModal();
+                });
+
+                document.getElementById('closeDetailBtn').addEventListener('click', () => {
+                    this.closeModal();
+                });
+
+                document.getElementById('editBtn').addEventListener('click', () => {
+                    this.showEditForm();
+                });
+
+                document.getElementById('deleteBtn').addEventListener('click', () => {
+                    this.deleteEvent();
+                });
+
+                document.getElementById('eventForm').addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    this.saveEvent();
+                });
+
+                // 点击模态框外部关闭
+                document.getElementById('eventModal').addEventListener('click', (e) => {
+                    if (e.target.id === 'eventModal') {
+                        this.closeModal();
+                    }
+                });
+            }
+
+            navigate(direction) {
+                switch (this.currentView) {
+                    case 'month':
+                        this.currentDate.setMonth(this.currentDate.getMonth() + direction);
+                        break;
+                    case 'week':
+                        this.currentDate.setDate(this.currentDate.getDate() + (direction * 7));
+                        break;
+                    case 'day':
+                        this.currentDate.setDate(this.currentDate.getDate() + direction);
+                        break;
+                }
+                this.render();
+            }
+
+            render() {
+                this.updateTitle();
+                const grid = document.getElementById('calendarGrid');
+                grid.innerHTML = '';
+
+                switch (this.currentView) {
+                    case 'month':
+                        this.renderMonthView(grid);
+                        break;
+                    case 'week':
+                        this.renderGanttView(grid);
+                        break;
+                    case 'day':
+                        this.renderDayView(grid);
+                        break;
+                }
+            }
+
+            updateTitle() {
+                const title = document.getElementById('calendarTitle');
+                const options = { year: 'numeric', month: 'long' };
+                
+                switch (this.currentView) {
+                    case 'month':
+                        title.textContent = this.currentDate.toLocaleDateString('zh-CN', options);
+                        break;
+                    case 'week':
+                        const weekStart = this.getWeekStart(this.currentDate);
+                        const weekEnd = new Date(weekStart);
+                        weekEnd.setDate(weekEnd.getDate() + 6);
+                        title.textContent = `${weekStart.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })} - ${weekEnd.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })}`;
+                        break;
+                    case 'day':
+                        title.textContent = this.currentDate.toLocaleDateString('zh-CN', { 
+                            year: 'numeric', 
+                            month: 'long', 
+                            day: 'numeric',
+                            weekday: 'long'
+                        });
+                        break;
+                }
+            }
+
+            renderMonthView(grid) {
+                grid.className = 'calendar-grid';
+                
+                // 添加星期标题
+                const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
+                weekdays.forEach(day => {
+                    const header = document.createElement('div');
+                    header.className = 'day-header';
+                    header.textContent = day;
+                    grid.appendChild(header);
+                });
+
+                // 获取月份第一天和最后一天
+                const firstDay = new Date(this.currentDate.getFullYear(), this.currentDate.getMonth(), 1);
+                const lastDay = new Date(this.currentDate.getFullYear(), this.currentDate.getMonth() + 1, 0);
+                const startDate = new Date(firstDay);
+                startDate.setDate(startDate.getDate() - firstDay.getDay());
+
+                // 渲染日期格子
+                for (let i = 0; i < 42; i++) {
+                    const cellDate = new Date(startDate);
+                    cellDate.setDate(startDate.getDate() + i);
+                    
+                    const cell = document.createElement('div');
+                    cell.className = 'day-cell';
+                    
+                    if (cellDate.getMonth() !== this.currentDate.getMonth()) {
+                        cell.classList.add('other-month');
+                    }
+                    
+                    if (this.isToday(cellDate)) {
+                        cell.classList.add('today');
+                    }
+                    
+                    const dayNumber = document.createElement('div');
+                    dayNumber.className = 'day-number';
+                    dayNumber.textContent = cellDate.getDate();
+                    cell.appendChild(dayNumber);
+                    
+                    // 添加事件
+                    this.addEventsToCell(cell, cellDate);
+                    
+                    // 点击事件
+                    cell.addEventListener('click', (e) => {
+                        if (e.target === cell || e.target === dayNumber) {
+                            this.createEvent(cellDate);
+                        }
+                    });
+                    
+                    grid.appendChild(cell);
+                }
+            }
+
+            renderGanttView(grid) {
+                grid.innerHTML = '';
+                grid.className = 'gantt-container';
+                
+                // 创建甘特图头部（时间轴）
+                const header = document.createElement('div');
+                header.className = 'gantt-header';
+                
+                // 左上角空白
+                const corner = document.createElement('div');
+                corner.className = 'gantt-corner';
+                corner.textContent = '星期';
+                header.appendChild(corner);
+                
+                // 时间标题 (1:00 到 23:00)
+                for (let hour = 1; hour <= 23; hour++) {
+                    const timeHeader = document.createElement('div');
+                    timeHeader.className = 'gantt-time-header';
+                    timeHeader.textContent = `${hour}:00`;
+                    header.appendChild(timeHeader);
+                }
+                
+                grid.appendChild(header);
+                
+                // 创建甘特图主体
+                const body = document.createElement('div');
+                body.className = 'gantt-body';
+                
+                // 获取当前周的日期
+                const weekStart = this.getWeekStart(this.currentDate);
+                const weekDays = [];
+                for (let i = 0; i < 7; i++) {
+                    const day = new Date(weekStart);
+                    day.setDate(weekStart.getDate() + i);
+                    weekDays.push(day);
+                }
+                
+                // 星期标签
+                const dayLabels = ['星期一', '星期二', '星期三', '星期四', '星期五', '星期六', '星期日'];
+                
+                weekDays.forEach((day, dayIndex) => {
+                    // 星期标签
+                    const dayLabel = document.createElement('div');
+                    dayLabel.className = 'gantt-day-label';
+                    dayLabel.innerHTML = `${dayLabels[dayIndex]}<br><small>${day.getMonth() + 1}/${day.getDate()}</small>`;
+                    body.appendChild(dayLabel);
+                    
+                    // 为每个小时创建单元格
+                    for (let hour = 1; hour <= 23; hour++) {
+                        const cell = document.createElement('div');
+                        cell.className = 'gantt-time-cell';
+                        
+                        // 设置单元格的日期和时间
+                        const cellDateTime = new Date(day);
+                        cellDateTime.setHours(hour, 0, 0, 0);
+                        cell.dataset.datetime = cellDateTime.toISOString();
+                        
+                        // 添加事件
+                        this.addGanttEvents(cell, cellDateTime);
+                        
+                        // 点击创建事件
+                        cell.addEventListener('click', () => {
+                            this.createEvent(cellDateTime);
+                        });
+                        
+                        body.appendChild(cell);
+                    }
+                });
+                
+                grid.appendChild(body);
+            }
+
+            addGanttEvents(cell, cellDateTime) {
+                const cellEvents = this.events.filter(event => {
+                    const eventStart = new Date(event.start);
+                    const eventEnd = new Date(event.end);
+                    
+                    // 检查事件是否在这个单元格的时间范围内
+                    return eventStart <= cellDateTime && eventEnd > cellDateTime &&
+                           eventStart.toDateString() === cellDateTime.toDateString();
+                });
+
+                cellEvents.forEach(event => {
+                    const eventEl = document.createElement('div');
+                    eventEl.className = `gantt-event ${event.type}`;
+                    eventEl.textContent = event.title;
+                    eventEl.dataset.eventId = event.id;
+                    
+                    // 点击查看详情
+                    eventEl.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        this.showEventDetails(event);
+                    });
+                    
+                    cell.appendChild(eventEl);
+                });
+            }
+
+            renderDayView(grid) {
+                grid.className = 'day-view';
+                
+                // 添加时间列标题
+                const timeHeader = document.createElement('div');
+                timeHeader.className = 'day-header';
+                timeHeader.textContent = '时间';
+                grid.appendChild(timeHeader);
+                
+                // 添加日期标题
+                const dateHeader = document.createElement('div');
+                dateHeader.className = 'day-header';
+                dateHeader.textContent = this.currentDate.toLocaleDateString('zh-CN', { 
+                    month: 'long', 
+                    day: 'numeric',
+                    weekday: 'long'
+                });
+                grid.appendChild(dateHeader);
+                
+                // 添加时间槽
+                for (let hour = 0; hour < 24; hour++) {
+                    const timeSlot = document.createElement('div');
+                    timeSlot.className = 'day-time-slot';
+                    timeSlot.textContent = `${hour.toString().padStart(2, '0')}:00`;
+                    grid.appendChild(timeSlot);
+                    
+                    const cellDate = new Date(this.currentDate);
+                    cellDate.setHours(hour, 0, 0, 0);
+                    
+                    const cell = document.createElement('div');
+                    cell.className = 'day-hour-cell';
+                    
+                    // 添加事件
+                    this.addEventsToCell(cell, cellDate, true);
+                    
+                    // 点击事件
+                    cell.addEventListener('click', () => {
+                        this.createEvent(cellDate);
+                    });
+                    
+                    grid.appendChild(cell);
+                }
+            }
+
+            addEventsToCell(cell, cellDate, isTimeSlot = false) {
+                const cellEvents = this.getEventsForDate(cellDate, isTimeSlot);
+                
+                cellEvents.forEach(event => {
+                    const eventEl = document.createElement('div');
+                    eventEl.className = `event ${event.type}`;
+                    eventEl.textContent = event.title;
+                    eventEl.dataset.eventId = event.id;
+                    
+                    // 添加调整时长手柄
+                    if (isTimeSlot) {
+                        const resizeHandle = document.createElement('div');
+                        resizeHandle.className = 'resize-handle';
+                        eventEl.appendChild(resizeHandle);
+                        
+                        // 调整时长事件
+                        resizeHandle.addEventListener('mousedown', (e) => {
+                            e.stopPropagation();
+                            this.startResize(event, e);
+                        });
+                    }
+                    
+                    // 拖拽事件
+                    eventEl.addEventListener('mousedown', (e) => {
+                        if (e.target === resizeHandle) return;
+                        this.startDrag(event, e);
+                    });
+                    
+                    // 点击查看详情
+                    eventEl.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        this.showEventDetails(event);
+                    });
+                    
+                    cell.appendChild(eventEl);
+                });
+            }
+
+            getEventsForDate(date, isTimeSlot = false) {
+                return this.events.filter(event => {
+                    const eventStart = new Date(event.start);
+                    const eventEnd = new Date(event.end);
+                    
+                    if (isTimeSlot) {
+                        // 时间槽视图：检查事件是否在这个小时
+                        return date.getHours() >= eventStart.getHours() && 
+                               date.getHours() <= eventEnd.getHours() &&
+                               date.toDateString() === eventStart.toDateString();
+                    } else {
+                        // 日期视图：检查事件是否在这一天
+                        return date >= new Date(eventStart.toDateString()) && 
+                               date <= new Date(eventEnd.toDateString());
+                    }
+                });
+            }
+
+            getWeekStart(date) {
+                const d = new Date(date);
+                const day = d.getDay();
+                const diff = d.getDate() - day + (day === 0 ? -6 : 1); // 调整为周一开始
+                return new Date(d.setDate(diff));
+            }
+
+            isToday(date) {
+                const today = new Date();
+                return date.toDateString() === today.toDateString();
+            }
+
+            createEvent(date) {
+                this.selectedEvent = null;
+                document.getElementById('modalTitle').textContent = '创建新事件';
+                document.getElementById('eventDetails').style.display = 'none';
+                document.getElementById('detailButtons').style.display = 'none';
+                document.getElementById('eventForm').style.display = 'block';
+                document.getElementById('deleteBtn').style.display = 'none';
+                
+                // 设置默认时间 - 修复日期问题
+                const startInput = document.getElementById('eventStart');
+                const endInput = document.getElementById('eventEnd');
+                
+                // 确保使用正确的日期
+                const eventDate = new Date(date);
+                const startDate = new Date(eventDate);
+                startDate.setHours(9, 0, 0, 0); // 默认上午9点开始
+                
+                const endDate = new Date(eventDate);
+                endDate.setHours(10, 0, 0, 0); // 默认上午10点结束
+                
+                startInput.value = this.formatDateTimeLocal(startDate);
+                endInput.value = this.formatDateTimeLocal(endDate);
+                
+                // 重置表单其他字段
+                document.getElementById('eventTitle').value = '';
+                document.getElementById('eventType').value = 'work';
+                document.getElementById('eventDescription').value = '';
+                document.getElementById('eventParticipants').value = '';
+                
+                document.getElementById('eventModal').style.display = 'block';
+            }
+
+            showEventDetails(event) {
+                this.selectedEvent = event;
+                document.getElementById('modalTitle').textContent = '事件详情';
+                document.getElementById('eventDetails').style.display = 'block';
+                document.getElementById('detailButtons').style.display = 'flex';
+                document.getElementById('eventForm').style.display = 'none';
+                
+                // 填充详情
+                document.getElementById('detailTitle').textContent = event.title;
+                document.getElementById('detailTime').textContent = `${new Date(event.start).toLocaleString('zh-CN')} - ${new Date(event.end).toLocaleString('zh-CN')}`;
+                document.getElementById('detailType').textContent = this.getTypeLabel(event.type);
+                document.getElementById('detailDescription').textContent = event.description || '无描述';
+                document.getElementById('detailParticipants').textContent = event.participants || '无参与人';
+                
+                document.getElementById('eventModal').style.display = 'block';
+            }
+
+            showEditForm() {
+                document.getElementById('modalTitle').textContent = '编辑事件';
+                document.getElementById('eventDetails').style.display = 'none';
+                document.getElementById('detailButtons').style.display = 'none';
+                document.getElementById('eventForm').style.display = 'block';
+                document.getElementById('deleteBtn').style.display = 'inline-block';
+                
+                // 填充表单
+                document.getElementById('eventTitle').value = this.selectedEvent.title;
+                document.getElementById('eventStart').value = this.formatDateTimeLocal(new Date(this.selectedEvent.start));
+                document.getElementById('eventEnd').value = this.formatDateTimeLocal(new Date(this.selectedEvent.end));
+                document.getElementById('eventType').value = this.selectedEvent.type;
+                document.getElementById('eventDescription').value = this.selectedEvent.description || '';
+                document.getElementById('eventParticipants').value = this.selectedEvent.participants || '';
+            }
+
+            saveEvent() {
+                const eventData = {
+                    id: this.selectedEvent ? this.selectedEvent.id : Date.now().toString(),
+                    title: document.getElementById('eventTitle').value,
+                    start: document.getElementById('eventStart').value,
+                    end: document.getElementById('eventEnd').value,
+                    type: document.getElementById('eventType').value,
+                    description: document.getElementById('eventDescription').value,
+                    participants: document.getElementById('eventParticipants').value
+                };
+
+                if (this.selectedEvent) {
+                    // 编辑现有事件
+                    const index = this.events.findIndex(e => e.id === this.selectedEvent.id);
+                    this.events[index] = eventData;
+                } else {
+                    // 创建新事件
+                    this.events.push(eventData);
+                }
+
+                this.saveToStorage();
+                this.closeModal();
+                this.render();
+            }
+
+            deleteEvent() {
+                if (confirm('确定要删除这个事件吗？')) {
+                    this.events = this.events.filter(e => e.id !== this.selectedEvent.id);
+                    this.saveToStorage();
+                    this.closeModal();
+                    this.render();
+                }
+            }
+
+            startDrag(event, e) {
+                this.isDragging = true;
+                this.draggedEvent = event;
+                this.dragOffset = { x: e.clientX, y: e.clientY };
+                
+                document.addEventListener('mousemove', this.handleDrag);
+                document.addEventListener('mouseup', this.stopDrag);
+                
+                e.preventDefault();
+            }
+
+            handleDrag = (e) => {
+                if (!this.isDragging) return;
+                
+                // 这里可以添加拖拽视觉反馈
+                document.body.style.cursor = 'grabbing';
+            };
+
+            stopDrag = (e) => {
+                if (!this.isDragging) return;
+                
+                this.isDragging = false;
+                document.body.style.cursor = 'default';
+                
+                // 计算新的时间位置
+                const newDate = this.getDateFromPosition(e.clientX, e.clientY);
+                if (newDate) {
+                    const duration = new Date(this.draggedEvent.end) - new Date(this.draggedEvent.start);
+                    const newStart = new Date(newDate);
+                    const newEnd = new Date(newStart.getTime() + duration);
+                    
+                    this.draggedEvent.start = newStart.toISOString();
+                    this.draggedEvent.end = newEnd.toISOString();
+                    
+                    this.saveToStorage();
+                    this.render();
+                }
+                
+                document.removeEventListener('mousemove', this.handleDrag);
+                document.removeEventListener('mouseup', this.stopDrag);
+            };
+
+            startResize(event, e) {
+                this.isResizing = true;
+                this.resizedEvent = event;
+                this.resizeStartY = e.clientY;
+                this.originalDuration = new Date(event.end) - new Date(event.start);
+                
+                document.addEventListener('mousemove', this.handleResize);
+                document.addEventListener('mouseup', this.stopResize);
+                
+                e.preventDefault();
+            }
+
+            handleResize = (e) => {
+                if (!this.isResizing) return;
+                
+                const deltaY = e.clientY - this.resizeStartY;
+                const newDuration = this.originalDuration + (deltaY * 60000); // 每像素对应1分钟
+                
+                if (newDuration > 0) {
+                    const newEnd = new Date(new Date(this.resizedEvent.start).getTime() + newDuration);
+                    this.resizedEvent.end = newEnd.toISOString();
+                }
+            };
+
+            stopResize = () => {
+                if (!this.isResizing) return;
+                
+                this.isResizing = false;
+                this.saveToStorage();
+                this.render();
+                
+                document.removeEventListener('mousemove', this.handleResize);
+                document.removeEventListener('mouseup', this.stopResize);
+            };
+
+            getDateFromPosition(x, y) {
+                // 简化的位置到日期转换，实际应用中需要更复杂的计算
+                return new Date();
+            }
+
+            getTypeLabel(type) {
+                const labels = {
+                    work: '工作',
+                    personal: '个人',
+                    meeting: '会议',
+                    other: '其他'
+                };
+                return labels[type] || '其他';
+            }
+
+            formatDateTimeLocal(date) {
+                const d = new Date(date);
+                const year = d.getFullYear();
+                const month = (d.getMonth() + 1).toString().padStart(2, '0');
+                const day = d.getDate().toString().padStart(2, '0');
+                const hours = d.getHours().toString().padStart(2, '0');
+                const minutes = d.getMinutes().toString().padStart(2, '0');
+                return `${year}-${month}-${day}T${hours}:${minutes}`;
+            }
+
+            closeModal() {
+                document.getElementById('eventModal').style.display = 'none';
+                this.selectedEvent = null;
+            }
+
+            saveToStorage() {
+                localStorage.setItem('calendarEvents', JSON.stringify(this.events));
+            }
+        }
+
+        // 初始化日历
+        const calendar = new Calendar();
+    </script>
+</body>
+</html>

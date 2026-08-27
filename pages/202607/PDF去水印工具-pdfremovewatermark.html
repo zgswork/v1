@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PDF 去水印工具</title>
+  <style>
+    :root {
+      --bg: #f6f8fb;
+      --panel: #ffffff;
+      --line: #d8deeb;
+      --text: #19253a;
+      --muted: #5b6b85;
+      --brand: #0b7285;
+      --brand-soft: #e6f4f7;
+      --danger: #b42318;
+      --warning: #b54708;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 24px;
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: var(--text);
+      background: radial-gradient(circle at 20% 10%, #edf7fa 0%, var(--bg) 40%, #f3f4f9 100%);
+      min-height: 100vh;
+    }
+
+    .app {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: 16px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      box-shadow: 0 4px 20px rgba(13, 34, 71, 0.06);
+    }
+
+    .controls {
+      padding: 16px;
+      display: grid;
+      gap: 12px;
+      align-content: start;
+      max-height: calc(100vh - 48px);
+      overflow: auto;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 20px;
+      letter-spacing: 0.2px;
+    }
+
+    h2 {
+      margin: 10px 0 6px;
+      font-size: 14px;
+      color: var(--muted);
+    }
+
+    .muted {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .row > * {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .row.tight > * {
+      flex: initial;
+    }
+
+    input[type="file"],
+    input[type="text"],
+    input[type="number"] {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 9px 10px;
+      font-size: 13px;
+      color: var(--text);
+      background: #fff;
+    }
+
+    input[type="range"] {
+      width: 100%;
+    }
+
+    button {
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--text);
+      border-radius: 10px;
+      padding: 9px 10px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: 120ms ease;
+    }
+
+    button:hover:not(:disabled) {
+      transform: translateY(-1px);
+      border-color: #b8c2d8;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    button.brand {
+      background: var(--brand);
+      color: #fff;
+      border-color: var(--brand);
+    }
+
+    button.soft {
+      background: var(--brand-soft);
+      border-color: #b8e0e8;
+      color: #07465a;
+    }
+
+    button.warn {
+      color: var(--warning);
+      border-color: #ffd8b0;
+      background: #fff8f0;
+    }
+
+    button.danger {
+      color: var(--danger);
+      border-color: #ffc9c5;
+      background: #fff5f5;
+    }
+
+    .check {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+    }
+
+    .viewer {
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      min-height: calc(100vh - 48px);
+    }
+
+    .toolbar {
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+      background: #fbfcfe;
+    }
+
+    .viewer-area {
+      flex: 1;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: repeating-linear-gradient(
+        -45deg,
+        #f8fafc,
+        #f8fafc 8px,
+        #f2f5fa 8px,
+        #f2f5fa 16px
+      );
+      display: grid;
+      place-items: center;
+      padding: 18px;
+    }
+
+    .empty-state {
+      max-width: 420px;
+      text-align: center;
+      color: var(--muted);
+      line-height: 1.7;
+      padding: 28px 24px;
+      border: 1px dashed #c7d3e5;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.72);
+    }
+
+    .empty-state strong {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 16px;
+      color: var(--text);
+    }
+
+    .canvas-wrap {
+      position: relative;
+      display: inline-block;
+      line-height: 0;
+      background: #fff;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+    }
+
+    .canvas-wrap[hidden],
+    .empty-state[hidden] {
+      display: none !important;
+    }
+
+    #pdfCanvas,
+    #overlayCanvas {
+      display: block;
+      max-width: 100%;
+      touch-action: none;
+    }
+
+    #overlayCanvas {
+      position: absolute;
+      left: 0;
+      top: 0;
+      cursor: crosshair;
+    }
+
+    .status {
+      min-height: 20px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .kbd {
+      border: 1px solid var(--line);
+      border-bottom-width: 2px;
+      border-radius: 6px;
+      padding: 0 6px;
+      font-size: 12px;
+      background: #fff;
+      color: #41506a;
+    }
+
+    .yujian-aigc-footer {
+      margin: 20px auto 0;
+      max-width: 1200px;
+      padding: 16px 20px 28px;
+      border-top: 1px solid #dbe4ef;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.7;
+      text-align: center;
+    }
+
+    .yujian-aigc-footer p {
+      margin: 0;
+    }
+
+    @media (max-width: 980px) {
+      .app {
+        grid-template-columns: 1fr;
+      }
+
+      .controls,
+      .viewer {
+        min-height: auto;
+        max-height: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="panel controls">
+      <h1>PDF 去水印工具</h1>
+      <div class="muted">
+        纯前端本地处理，不上传文件。支持手动框选去除（推荐）和实验性文字水印自动识别。
+      </div>
+
+      <h2>1) 选择文件</h2>
+      <input id="fileInput" type="file" accept="application/pdf" />
+
+      <h2>2) 去水印区域设置</h2>
+      <label class="check">
+        <input id="globalMode" type="checkbox" checked />
+        所有页面使用同一批区域
+      </label>
+      <div class="row tight">
+        <button id="drawToggleBtn" class="soft">开启框选模式</button>
+        <button id="undoBtn">撤销上一个区域</button>
+      </div>
+      <div class="row tight">
+        <button id="copyToAllBtn">当前页区域复制到全部页</button>
+        <button id="clearPageBtn" class="warn">清空当前页区域</button>
+      </div>
+      <button id="clearAllBtn" class="danger">清空所有区域</button>
+      <div class="muted">
+        开启框选模式后，在预览上拖拽鼠标绘制区域。导出时会用白色覆盖这些区域。<br />
+        快捷键 <span class="kbd">Delete</span> / <span class="kbd">Backspace</span> 可撤销一个区域。
+      </div>
+
+      <h2>3) 实验性自动识别（文字）</h2>
+      <input id="keywordInput" type="text" value="confidential,draft,watermark,仅供参考,机密" />
+      <button id="autoDetectBtn">按关键词自动识别当前页文字水印</button>
+      <div class="muted">
+        自动识别通过文本关键词匹配，适合常见重复文字水印。图片/Logo 水印建议手动框选。
+      </div>
+
+      <h2>4) 导出</h2>
+      <button id="exportBtn" class="brand">导出去水印 PDF</button>
+      <div class="status" id="statusText">等待选择 PDF 文件</div>
+    </aside>
+
+    <section class="panel viewer">
+      <div class="toolbar">
+        <button id="prevBtn">上一页</button>
+        <button id="nextBtn">下一页</button>
+        <span id="pageInfo">页码：- / -</span>
+        <span style="margin-left: 8px;">缩放</span>
+        <input id="zoomRange" type="range" min="50" max="250" step="10" value="100" style="max-width: 180px;" />
+        <span id="zoomText">100%</span>
+      </div>
+      <div class="viewer-area" id="viewerArea">
+        <div class="empty-state" id="emptyState">
+          <strong>等待加载 PDF</strong>
+          选择一个 PDF 文件后，这里会显示页面预览。<br />
+          预览加载完成后即可框选要去除的水印区域。
+        </div>
+        <div class="canvas-wrap" id="canvasWrap" hidden>
+          <canvas id="pdfCanvas"></canvas>
+          <canvas id="overlayCanvas"></canvas>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <footer class="yujian-aigc-footer">
+    <p>本工具由 遇见AIGC 制作</p>
+    <p>微信 yujianaigc</p>
+    <p>QQ邮箱 <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="a49594909693979494969ce4d5d58ac7cbc9">[email&#160;protected]</a></p>
+  </footer>
+
+  <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+  <script>
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+    const state = {
+      pdfJsDoc: null,
+      pdfBytes: null,
+      currentPage: 1,
+      totalPages: 0,
+      zoom: 1,
+      isDrawingMode: false,
+      isPointerDown: false,
+      drawStart: null,
+      draftRect: null,
+      globalMode: true,
+      globalRegions: [],
+      regionsByPage: new Map(),
+      currentRenderTask: null,
+      renderNonce: 0
+    };
+
+    const el = {
+      fileInput: document.getElementById("fileInput"),
+      globalMode: document.getElementById("globalMode"),
+      drawToggleBtn: document.getElementById("drawToggleBtn"),
+      undoBtn: document.getElementById("undoBtn"),
+      copyToAllBtn: document.getElementById("copyToAllBtn"),
+      clearPageBtn: document.getElementById("clearPageBtn"),
+      clearAllBtn: document.getElementById("clearAllBtn"),
+      keywordInput: document.getElementById("keywordInput"),
+      autoDetectBtn: document.getElementById("autoDetectBtn"),
+      exportBtn: document.getElementById("exportBtn"),
+      statusText: document.getElementById("statusText"),
+      prevBtn: document.getElementById("prevBtn"),
+      nextBtn: document.getElementById("nextBtn"),
+      pageInfo: document.getElementById("pageInfo"),
+      zoomRange: document.getElementById("zoomRange"),
+      zoomText: document.getElementById("zoomText"),
+      emptyState: document.getElementById("emptyState"),
+      canvasWrap: document.getElementById("canvasWrap"),
+      pdfCanvas: document.getElementById("pdfCanvas"),
+      overlayCanvas: document.getElementById("overlayCanvas")
+    };
+
+    const pdfCtx = el.pdfCanvas.getContext("2d", { alpha: false });
+    const overlayCtx = el.overlayCanvas.getContext("2d");
+
+    function setStatus(text, isError) {
+      el.statusText.textContent = text;
+      el.statusText.style.color = isError ? "var(--danger)" : "var(--muted)";
+    }
+
+    function clamp(v, min, max) {
+      return Math.min(max, Math.max(min, v));
+    }
+
+    function setPreviewLoaded(loaded) {
+      el.canvasWrap.hidden = !loaded;
+      el.emptyState.hidden = loaded;
+    }
+
+    function toNormalizedRect(x1, y1, x2, y2, w, h) {
+      const left = clamp(Math.min(x1, x2), 0, w);
+      const top = clamp(Math.min(y1, y2), 0, h);
+      const right = clamp(Math.max(x1, x2), 0, w);
+      const bottom = clamp(Math.max(y1, y2), 0, h);
+      const rw = right - left;
+      const rh = bottom - top;
+      if (rw < 2 || rh < 2) return null;
+      return {
+        x: left / w,
+        y: top / h,
+        w: rw / w,
+        h: rh / h
+      };
+    }
+
+    function getPageRegions(pageNum) {
+      return state.regionsByPage.get(pageNum) || [];
+    }
+
+    function setPageRegions(pageNum, regions) {
+      state.regionsByPage.set(pageNum, regions);
+    }
+
+    function getActiveRegions(pageNum) {
+      return state.globalMode ? state.globalRegions : getPageRegions(pageNum);
+    }
+
+    function pushRegionForCurrentPage(region) {
+      if (state.globalMode) {
+        state.globalRegions.push(region);
+      } else {
+        const pageRegions = getPageRegions(state.currentPage).slice();
+        pageRegions.push(region);
+        setPageRegions(state.currentPage, pageRegions);
+      }
+    }
+
+    function popRegionForCurrentPage() {
+      if (state.globalMode) {
+        state.globalRegions.pop();
+      } else {
+        const pageRegions = getPageRegions(state.currentPage).slice();
+        pageRegions.pop();
+        setPageRegions(state.currentPage, pageRegions);
+      }
+    }
+
+    function clearRegionsForCurrentPage() {
+      if (state.globalMode) {
+        state.globalRegions = [];
+      } else {
+        state.regionsByPage.delete(state.currentPage);
+      }
+    }
+
+    function clearAllRegions() {
+      state.globalRegions = [];
+      state.regionsByPage.clear();
+    }
+
+    function drawOverlay() {
+      const w = el.overlayCanvas.width;
+      const h = el.overlayCanvas.height;
+      overlayCtx.clearRect(0, 0, w, h);
+
+      const regions = getActiveRegions(state.currentPage);
+      overlayCtx.lineWidth = 2;
+      regions.forEach((r, i) => {
+        const x = r.x * w;
+        const y = r.y * h;
+        const rw = r.w * w;
+        const rh = r.h * h;
+        overlayCtx.fillStyle = "rgba(11, 114, 133, 0.16)";
+        overlayCtx.strokeStyle = "rgba(11, 114, 133, 0.95)";
+        overlayCtx.fillRect(x, y, rw, rh);
+        overlayCtx.strokeRect(x, y, rw, rh);
+        overlayCtx.fillStyle = "#0b7285";
+        overlayCtx.font = "12px sans-serif";
+        overlayCtx.fillText(String(i + 1), x + 6, y + 14);
+      });
+
+      if (state.draftRect) {
+        const x = state.draftRect.x * w;
+        const y = state.draftRect.y * h;
+        const rw = state.draftRect.w * w;
+        const rh = state.draftRect.h * h;
+        overlayCtx.fillStyle = "rgba(181, 71, 8, 0.16)";
+        overlayCtx.strokeStyle = "rgba(181, 71, 8, 1)";
+        overlayCtx.setLineDash([6, 4]);
+        overlayCtx.fillRect(x, y, rw, rh);
+        overlayCtx.strokeRect(x, y, rw, rh);
+        overlayCtx.setLineDash([]);
+      }
+    }
+
+    function applyCanvasDisplaySize(width, height) {
+      const cssW = Math.max(1, Math.round(width));
+      const cssH = Math.max(1, Math.round(height));
+      el.pdfCanvas.style.width = cssW + "px";
+      el.pdfCanvas.style.height = cssH + "px";
+      el.overlayCanvas.style.width = cssW + "px";
+      el.overlayCanvas.style.height = cssH + "px";
+    }
+
+    async function renderCurrentPage() {
+      if (!state.pdfJsDoc) return;
+      const nonce = ++state.renderNonce;
+      const page = await state.pdfJsDoc.getPage(state.currentPage);
+      const viewport = page.getViewport({ scale: state.zoom });
+      const outputScale = window.devicePixelRatio || 1;
+
+      el.pdfCanvas.width = Math.max(1, Math.floor(viewport.width * outputScale));
+      el.pdfCanvas.height = Math.max(1, Math.floor(viewport.height * outputScale));
+      el.overlayCanvas.width = Math.max(1, Math.floor(viewport.width * outputScale));
+      el.overlayCanvas.height = Math.max(1, Math.floor(viewport.height * outputScale));
+      applyCanvasDisplaySize(viewport.width, viewport.height);
+
+      if (state.currentRenderTask) {
+        try {
+          state.currentRenderTask.cancel();
+        } catch (e) {
+          // ignore
+        }
+      }
+      state.currentRenderTask = page.render({
+        canvasContext: pdfCtx,
+        viewport,
+        transform: outputScale === 1 ? null : [outputScale, 0, 0, outputScale, 0, 0]
+      });
+      try {
+        await state.currentRenderTask.promise;
+      } catch (err) {
+        if (err && err.name === "RenderingCancelledException") {
+          return;
+        }
+        throw err;
+      }
+      if (nonce !== state.renderNonce) return;
+      drawOverlay();
+      el.pageInfo.textContent = "页码：" + state.currentPage + " / " + state.totalPages;
+    }
+
+    async function loadPdf(file) {
+      const buffer = await file.arrayBuffer();
+      state.pdfBytes = new Uint8Array(buffer);
+      const loadingTask = pdfjsLib.getDocument({ data: state.pdfBytes });
+      state.pdfJsDoc = await loadingTask.promise;
+      state.totalPages = state.pdfJsDoc.numPages;
+      state.currentPage = 1;
+      state.globalRegions = [];
+      state.regionsByPage.clear();
+      setPreviewLoaded(true);
+      await renderCurrentPage();
+      setStatus("已加载 PDF，开始框选水印区域。");
+    }
+
+    function getPointerPos(evt) {
+      const rect = el.overlayCanvas.getBoundingClientRect();
+      return {
+        x: (evt.clientX - rect.left) * (el.overlayCanvas.width / rect.width),
+        y: (evt.clientY - rect.top) * (el.overlayCanvas.height / rect.height)
+      };
+    }
+
+    async function autoDetectTextWatermarkForCurrentPage() {
+      if (!state.pdfJsDoc) return;
+      const raw = el.keywordInput.value
+        .split(",")
+        .map((s) => s.trim().toLowerCase())
+        .filter(Boolean);
+      if (!raw.length) {
+        setStatus("请先输入关键词（逗号分隔）。", true);
+        return;
+      }
+
+      const page = await state.pdfJsDoc.getPage(state.currentPage);
+      const viewport = page.getViewport({ scale: 1 });
+      const textContent = await page.getTextContent();
+      let hit = 0;
+      const found = [];
+
+      textContent.items.forEach((item) => {
+        const text = (item.str || "").toLowerCase();
+        if (!raw.some((k) => text.includes(k))) return;
+        const tx = pdfjsLib.Util.transform(viewport.transform, item.transform);
+        const x = tx[4];
+        const yBase = tx[5];
+        const width = Math.max(4, Math.abs(item.width * tx[0]));
+        const fontHeight = Math.max(8, Math.abs(tx[3]));
+        const yTop = yBase - fontHeight;
+        const rect = toNormalizedRect(
+          x - 4,
+          yTop - 3,
+          x + width + 4,
+          yTop + fontHeight + 3,
+          viewport.width,
+          viewport.height
+        );
+        if (rect) {
+          found.push(rect);
+          hit++;
+        }
+      });
+
+      if (!hit) {
+        setStatus("当前页未检测到匹配关键词的文本水印。");
+        return;
+      }
+
+      if (state.globalMode) {
+        state.globalRegions = state.globalRegions.concat(found);
+      } else {
+        const pageRegions = getPageRegions(state.currentPage).concat(found);
+        setPageRegions(state.currentPage, pageRegions);
+      }
+      drawOverlay();
+      setStatus("自动识别完成，新增区域 " + hit + " 个。");
+    }
+
+    async function exportPdf() {
+      if (!state.pdfBytes || !state.pdfJsDoc) return;
+      setStatus("正在导出，请稍候...");
+      let bytes;
+      try {
+        const pdfDoc = await PDFLib.PDFDocument.load(state.pdfBytes, {
+          ignoreEncryption: true,
+          updateMetadata: false
+        });
+        const pages = pdfDoc.getPages();
+
+        for (let i = 0; i < pages.length; i++) {
+          const pageNum = i + 1;
+          const page = pages[i];
+          const pw = page.getWidth();
+          const ph = page.getHeight();
+          const regions = state.globalMode ? state.globalRegions : getPageRegions(pageNum);
+
+          regions.forEach((r) => {
+            const x = clamp(r.x, 0, 1) * pw;
+            const w = clamp(r.w, 0, 1) * pw;
+            const h = clamp(r.h, 0, 1) * ph;
+            const top = clamp(r.y, 0, 1) * ph;
+            const y = ph - top - h;
+            page.drawRectangle({
+              x,
+              y,
+              width: w,
+              height: h,
+              color: PDFLib.rgb(1, 1, 1)
+            });
+          });
+        }
+        bytes = await pdfDoc.save();
+      } catch (primaryErr) {
+        console.warn("主导出失败，进入栅格化兜底：", primaryErr);
+        const rasterDoc = await PDFLib.PDFDocument.create();
+        for (let i = 1; i <= state.totalPages; i++) {
+          const page = await state.pdfJsDoc.getPage(i);
+          const viewport = page.getViewport({ scale: 1.8 });
+          const tCanvas = document.createElement("canvas");
+          tCanvas.width = Math.max(1, Math.floor(viewport.width));
+          tCanvas.height = Math.max(1, Math.floor(viewport.height));
+          const tCtx = tCanvas.getContext("2d", { alpha: false });
+          await page.render({ canvasContext: tCtx, viewport }).promise;
+
+          const regions = state.globalMode ? state.globalRegions : getPageRegions(i);
+          tCtx.fillStyle = "#ffffff";
+          regions.forEach((r) => {
+            const x = clamp(r.x, 0, 1) * tCanvas.width;
+            const y = clamp(r.y, 0, 1) * tCanvas.height;
+            const w = clamp(r.w, 0, 1) * tCanvas.width;
+            const h = clamp(r.h, 0, 1) * tCanvas.height;
+            tCtx.fillRect(x, y, w, h);
+          });
+
+          const pngDataUrl = tCanvas.toDataURL("image/png");
+          const png = await rasterDoc.embedPng(pngDataUrl);
+          const outPage = rasterDoc.addPage([viewport.width, viewport.height]);
+          outPage.drawImage(png, { x: 0, y: 0, width: viewport.width, height: viewport.height });
+        }
+        bytes = await rasterDoc.save();
+        setStatus("已使用兼容模式导出（图片化 PDF）。");
+      }
+
+      const blob = new Blob([bytes], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const baseName = (el.fileInput.files && el.fileInput.files[0] && el.fileInput.files[0].name) || "output.pdf";
+      const cleanName = baseName.replace(/\.pdf$/i, "");
+      a.href = url;
+      a.download = cleanName + "_removed_watermark.pdf";
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1500);
+      if (!el.statusText.textContent.includes("兼容模式")) {
+        setStatus("导出完成。");
+      }
+    }
+
+    el.fileInput.addEventListener("change", async (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      if (file.type !== "application/pdf" && !/\.pdf$/i.test(file.name)) {
+        setStatus("请选择 PDF 文件。", true);
+        return;
+      }
+      try {
+        setStatus("正在加载 PDF...");
+        await loadPdf(file);
+      } catch (err) {
+        console.error(err);
+        setStatus("PDF 加载失败，请检查文件。", true);
+      }
+    });
+
+    el.prevBtn.addEventListener("click", async () => {
+      if (!state.pdfJsDoc || state.currentPage <= 1) return;
+      state.currentPage--;
+      await renderCurrentPage();
+    });
+
+    el.nextBtn.addEventListener("click", async () => {
+      if (!state.pdfJsDoc || state.currentPage >= state.totalPages) return;
+      state.currentPage++;
+      await renderCurrentPage();
+    });
+
+    el.zoomRange.addEventListener("input", async () => {
+      if (!state.pdfJsDoc) return;
+      state.zoom = Number(el.zoomRange.value) / 100;
+      el.zoomText.textContent = el.zoomRange.value + "%";
+      await renderCurrentPage();
+    });
+
+    el.globalMode.addEventListener("change", () => {
+      state.globalMode = el.globalMode.checked;
+      drawOverlay();
+      setStatus(state.globalMode ? "当前为全页统一区域模式。" : "当前为按页独立区域模式。");
+    });
+
+    el.drawToggleBtn.addEventListener("click", () => {
+      state.isDrawingMode = !state.isDrawingMode;
+      el.drawToggleBtn.textContent = state.isDrawingMode ? "关闭框选模式" : "开启框选模式";
+      el.drawToggleBtn.classList.toggle("brand", state.isDrawingMode);
+      el.overlayCanvas.style.cursor = state.isDrawingMode ? "crosshair" : "default";
+      setStatus(state.isDrawingMode ? "框选模式已开启。" : "框选模式已关闭。");
+    });
+
+    el.undoBtn.addEventListener("click", () => {
+      popRegionForCurrentPage();
+      drawOverlay();
+      setStatus("已撤销上一个区域。");
+    });
+
+    el.copyToAllBtn.addEventListener("click", () => {
+      if (!state.pdfJsDoc) return;
+      const current = getPageRegions(state.currentPage).slice();
+      if (!current.length && !state.globalRegions.length) {
+        setStatus("当前没有可复制的区域。");
+        return;
+      }
+
+      const source = state.globalMode ? state.globalRegions.slice() : current;
+      for (let i = 1; i <= state.totalPages; i++) {
+        setPageRegions(i, source.slice());
+      }
+      state.globalMode = false;
+      el.globalMode.checked = false;
+      drawOverlay();
+      setStatus("已复制到全部页，并切换为按页独立模式。");
+    });
+
+    el.clearPageBtn.addEventListener("click", () => {
+      clearRegionsForCurrentPage();
+      drawOverlay();
+      setStatus(state.globalMode ? "已清空全局区域。" : "已清空当前页区域。");
+    });
+
+    el.clearAllBtn.addEventListener("click", () => {
+      clearAllRegions();
+      drawOverlay();
+      setStatus("已清空所有区域。");
+    });
+
+    el.autoDetectBtn.addEventListener("click", async () => {
+      try {
+        await autoDetectTextWatermarkForCurrentPage();
+      } catch (err) {
+        console.error(err);
+        setStatus("自动识别失败，请尝试手动框选。", true);
+      }
+    });
+
+    el.exportBtn.addEventListener("click", async () => {
+      try {
+        await exportPdf();
+      } catch (err) {
+        console.error(err);
+        setStatus("导出失败：" + (err && err.message ? err.message : "未知错误"), true);
+      }
+    });
+
+    el.overlayCanvas.addEventListener("pointerdown", (evt) => {
+      if (!state.isDrawingMode || !state.pdfJsDoc) return;
+      state.isPointerDown = true;
+      state.drawStart = getPointerPos(evt);
+      state.draftRect = null;
+    });
+
+    el.overlayCanvas.addEventListener("pointermove", (evt) => {
+      if (!state.isPointerDown || !state.drawStart || !state.isDrawingMode) return;
+      const p = getPointerPos(evt);
+      state.draftRect = toNormalizedRect(
+        state.drawStart.x,
+        state.drawStart.y,
+        p.x,
+        p.y,
+        el.overlayCanvas.width,
+        el.overlayCanvas.height
+      );
+      drawOverlay();
+    });
+
+    function finishDraw() {
+      if (!state.isPointerDown) return;
+      state.isPointerDown = false;
+      if (state.draftRect) {
+        pushRegionForCurrentPage(state.draftRect);
+      }
+      state.drawStart = null;
+      state.draftRect = null;
+      drawOverlay();
+    }
+
+    el.overlayCanvas.addEventListener("pointerup", finishDraw);
+    el.overlayCanvas.addEventListener("pointercancel", finishDraw);
+    el.overlayCanvas.addEventListener("pointerleave", finishDraw);
+
+    window.addEventListener("keydown", (evt) => {
+      if (evt.key === "Delete" || evt.key === "Backspace") {
+        popRegionForCurrentPage();
+        drawOverlay();
+      }
+    });
+
+    setPreviewLoaded(false);
+  </script>
+</body>
+</html>

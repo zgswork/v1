@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html tk="title_image_crop_tool_crop_imag" lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Image Crop Tool — Crop Images in Your Browser</title>
+<meta name="description" content="Crop images in your browser. Drag to select area, aspect ratio presets (1:1, 16:9, 4:3, 3:2). Download PNG/JPEG. No upload to server.">
+<link rel="canonical" href="https://gokuscraper.github.io/dev-vault/image-crop/">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebApplication","name":"Image Crop Tool","description":"Crop images in your browser with drag selection and aspect ratio presets. No server upload.","url":"https://gokuscraper.github.io/dev-vault/image-crop/","applicationCategory":"DeveloperApplication","operatingSystem":"Any","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"author":{"@type":"Organization","name":"gokuscraper","url":"https://github.com/gokuscraper"}}
+</script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0a0a;color:#e6e6e6;min-height:100vh}
+.container{max-width:900px;margin:0 auto;padding:20px 16px}
+h1{text-align:center;font-size:1.6rem;margin-bottom:4px;color:#fff}
+.sub{text-align:center;color:#888;font-size:0.85rem;margin-bottom:16px}
+.drop-zone{border:2px dashed #333;border-radius:10px;padding:40px;text-align:center;cursor:pointer;margin-bottom:14px;transition:border-color 0.2s}
+.drop-zone:hover,.drop-zone.drag{border-color:#3b82f6}
+.drop-zone p{color:#888;font-size:0.9rem}
+.drop-zone input{display:none}
+.editor{display:none;margin-bottom:14px}
+.canvas-area{position:relative;background:#161616;border:1px solid #222;border-radius:10px;padding:8px;overflow:hidden;display:inline-block;margin:0 auto}
+.canvas-container{text-align:center}
+canvas{display:block;margin:0 auto;cursor:crosshair}
+.section{background:#161616;border:1px solid #222;border-radius:10px;padding:16px;margin-bottom:14px}
+.section h3{font-size:0.9rem;color:#4da6ff;margin-bottom:10px}
+.ratios{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.ratio{padding:7px 14px;border-radius:8px;border:1px solid #333;background:#161616;color:#888;font-size:0.8rem;cursor:pointer;font-weight:600}
+.ratio:hover{border-color:#3b82f6;color:#4da6ff}
+.ratio.active{background:#1a2744;color:#4da6ff;border-color:#2a4a7a}
+.row{display:flex;gap:12px;margin-bottom:10px;flex-wrap:wrap;align-items:end}
+.col{flex:1;min-width:100px}
+label{display:block;font-size:0.8rem;color:#aaa;margin-bottom:4px;font-weight:600}
+input[type=number]{width:100%;padding:8px 10px;border-radius:6px;border:1px solid #333;background:#161616;color:#fff;font-size:0.85rem;outline:none;font-family:'Fira Code',monospace}
+input:focus{border-color:#3b82f6}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.btn{padding:8px 16px;border-radius:6px;border:1px solid #333;background:#161616;color:#ccc;font-size:0.85rem;cursor:pointer;font-weight:600}
+.btn:hover{border-color:#3b82f6;color:#4da6ff}
+.btn-primary{background:#1a2744;color:#4da6ff;border-color:#2a4a7a}
+.btn-primary:hover{background:#234080}
+.info{font-size:0.78rem;color:#666;text-align:center;margin-top:8px}
+.crop-info{font-size:0.8rem;color:#888;text-align:center;margin-top:8px;font-family:'Fira Code',monospace}
+.toast{position:fixed;bottom:20px;right:20px;background:#238636;color:#fff;padding:10px 20px;border-radius:8px;font-size:0.85rem;display:none;z-index:99}
+.footer{text-align:center;margin-top:24px;padding:16px 0;border-top:1px solid #222}
+.footer a{color:#4da6ff;text-decoration:none;font-size:0.8rem}
+.related{margin-top:20px;text-align:center;font-size:0.8rem;color:#666}
+.related a{color:#4da6ff;text-decoration:none;margin:0 8px}
+</style>
+</head>
+<body>
+
+
+<div class="container" style="position:relative">
+<h1 ti="h1_image_crop_tool">Image Crop Tool</h1>
+<p class="sub" ti="subtitle_drag_to_crop_everything_s">Drag to crop — everything stays in your browser</p>
+
+<div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+<p>Drop an image here or click to select</p>
+<input type="file" id="fileInput" accept="image/*">
+</div>
+
+<div class="editor" id="editor">
+<div class="section">
+<h3 ti="h3_aspect_ratio" ti="link_aspect_ratio">Aspect Ratio</h3>
+<div class="ratios">
+<div class="ratio active" onclick="setRatio(0,'free')">Free</div>
+<div class="ratio" onclick="setRatio(1,'1:1')">1:1</div>
+<div class="ratio" onclick="setRatio(16/9,'16:9')">16:9</div>
+<div class="ratio" onclick="setRatio(4/3,'4:3')">4:3</div>
+<div class="ratio" onclick="setRatio(3/2,'3:2')">3:2</div>
+<div class="ratio" onclick="setRatio(9/16,'9:16')">9:16</div>
+<div class="ratio" onclick="setRatio(2/3,'2:3')">2:3</div>
+<div class="ratio" onclick="setRatio(1200/630,'OG Image')">OG (1200x630)</div>
+</div>
+</div>
+
+<div class="canvas-container">
+<div class="canvas-area">
+<canvas id="canvas"></canvas>
+</div>
+</div>
+<div class="crop-info" id="cropInfo">Click and drag to select crop area</div>
+
+<div class="section" style="margin-top:14px">
+<h3 ti="h3_manual_input">Manual Input</h3>
+<div class="row">
+<div class="col"><label>X</label><input type="number" id="cropX" value="0" min="0" onchange="manualCrop()"></div>
+<div class="col"><label>Y</label><input type="number" id="cropY" value="0" min="0" onchange="manualCrop()"></div>
+<div class="col"><label ti="label_width">Width</label><input type="number" id="cropW" value="0" min="1" onchange="manualCrop()"></div>
+<div class="col"><label ti="label_height">Height</label><input type="number" id="cropH" value="0" min="1" onchange="manualCrop()"></div>
+</div>
+</div>
+
+<div class="actions">
+<button class="btn" onclick="resetCrop()" ti="btn_reset_selection">Reset Selection</button>
+<button class="btn" onclick="selectAll()" ti="btn_select_all">Select All</button>
+<button class="btn btn-primary" onclick="downloadPNG()" ti="btn_download_png">Download PNG</button>
+<button class="btn" onclick="downloadJPG()" ti="btn_download_jpeg">Download JPEG</button>
+<button class="btn" onclick="newImage()" ti="btn_new_image">New Image</button>
+</div>
+<div class="info">All processing happens locally in your browser.</div>
+</div>
+
+<div class="footer"><a href="https://gokuscraper.github.io/dev-vault/" ti="link_dev_vault">Dev Vault</a></div>
+<div class="related">Related: <a href="https://gokuscraper.github.io/dev-vault/image-resize/" ti="link_image_resize">Image Resize</a> | <a href="https://gokuscraper.github.io/dev-vault/image-filter/" ti="link_image_filter">Image Filter</a> | <a href="https://gokuscraper.github.io/dev-vault/aspect-ratio/">Aspect Ratio</a></div>
+</div>
+<div class="toast" id="toast">Downloaded!</div>
+
+
+<script>var _LANG={'title_image_crop_tool_crop_imag':["Image Crop Tool — Crop Images in Your Browser", "图片裁剪工具 — 在浏览器中裁剪图片"],'metadesc_crop_images_in_your_brows':["Crop images in your browser. Drag to select area, aspect ratio presets (1:1, 16:9, 4:3, 3:2). Download PNG/JPEG. No upload to server.", "在浏览器中裁剪图片。拖动选择区域，预设宽高比（1:1、16:9、4:3、3:2）。下载 PNG/JPEG 文件。无需上传到服务器。"],'h1_image_crop_tool':["Image Crop Tool", "图像裁剪工具"],'h3_aspect_ratio':["Aspect Ratio", "宽高比"],'h3_manual_input':["Manual Input", "手动输入"],'subtitle_drag_to_crop_everything_s':["Drag to crop — everything stays in your browser", "拖动即可裁剪——所有内容都将保留在浏览器中"],'btn_reset_selection':["Reset Selection", "重置选择"],'btn_select_all':["Select All", "全选"],'btn_download_png':["Download PNG", "下载PNG"],'btn_download_jpeg':["Download JPEG", "下载JPEG"],'btn_new_image':["New Image", "新形象"],'label_width':["Width", "宽度"],'label_height':["Height", "高度"],'link_dev_vault':["Dev Vault", "开发者宝库"],'link_image_resize':["Image Resize", "图片调整大小"],'link_image_filter':["Image Filter", "图像滤波器"],'link_aspect_ratio':["Aspect Ratio", "宽高比"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>
+const canvas=document.getElementById('canvas');
+const ctx=canvas.getContext('2d');
+let img=null;
+let scale=1;
+let aspectRatio=0; // 0 = free
+let crop={x:0,y:0,w:0,h:0};
+let dragging=false;
+let startX=0,startY=0;
+
+// File handling
+const dropZone=document.getElementById('dropZone');
+const fileInput=document.getElementById('fileInput');
+
+dropZone.addEventListener('dragover',e=>{e.preventDefault();dropZone.classList.add('drag')});
+dropZone.addEventListener('dragleave',()=>dropZone.classList.remove('drag'));
+dropZone.addEventListener('drop',e=>{
+  e.preventDefault();dropZone.classList.remove('drag');
+  if(e.dataTransfer.files.length)loadImage(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change',e=>{if(e.target.files.length)loadImage(e.target.files[0])});
+
+function loadImage(file){
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const image=new Image();
+    image.onload=()=>{
+      img=image;
+      // Scale to fit container
+      const maxW=Math.min(800,window.innerWidth-64);
+      const maxH=500;
+      scale=Math.min(maxW/img.width,maxH/img.height,1);
+      canvas.width=Math.round(img.width*scale);
+      canvas.height=Math.round(img.height*scale);
+      crop={x:0,y:0,w:0,h:0};
+      draw();
+      document.getElementById('editor').style.display='block';
+      dropZone.style.display='none';
+      updateInfo();
+    };
+    image.src=e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function draw(){
+  if(!img)return;
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.drawImage(img,0,0,canvas.width,canvas.height);
+
+  if(crop.w>0&&crop.h>0){
+    // Dim outside crop
+    ctx.fillStyle='rgba(0,0,0,0.5)';
+    ctx.fillRect(0,0,canvas.width,crop.y);
+    ctx.fillRect(0,crop.y,crop.x,crop.h);
+    ctx.fillRect(crop.x+crop.w,crop.y,canvas.width-crop.x-crop.w,crop.h);
+    ctx.fillRect(0,crop.y+crop.h,canvas.width,canvas.height-crop.y-crop.h);
+
+    // Border
+    ctx.strokeStyle='#4da6ff';
+    ctx.lineWidth=2;
+    ctx.setLineDash([6,3]);
+    ctx.strokeRect(crop.x,crop.y,crop.w,crop.h);
+    ctx.setLineDash([]);
+
+    // Rule of thirds
+    ctx.strokeStyle='rgba(255,255,255,0.2)';
+    ctx.lineWidth=1;
+    for(let i=1;i<3;i++){
+      ctx.beginPath();
+      ctx.moveTo(crop.x+crop.w*i/3,crop.y);
+      ctx.lineTo(crop.x+crop.w*i/3,crop.y+crop.h);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(crop.x,crop.y+crop.h*i/3);
+      ctx.lineTo(crop.x+crop.w,crop.y+crop.h*i/3);
+      ctx.stroke();
+    }
+
+    // Corner handles
+    const hs=6;
+    ctx.fillStyle='#4da6ff';
+    [[crop.x,crop.y],[crop.x+crop.w,crop.y],[crop.x,crop.y+crop.h],[crop.x+crop.w,crop.y+crop.h]].forEach(([cx,cy])=>{
+      ctx.fillRect(cx-hs/2,cy-hs/2,hs,hs);
+    });
+  }
+}
+
+function updateInfo(){
+  const el=document.getElementById('cropInfo');
+  if(crop.w>0&&crop.h>0){
+    const rw=Math.round(crop.w/scale);
+    const rh=Math.round(crop.h/scale);
+    el.textContent=`Selection: ${rw} × ${rh}px (original scale)`;
+    document.getElementById('cropX').value=Math.round(crop.x/scale);
+    document.getElementById('cropY').value=Math.round(crop.y/scale);
+    document.getElementById('cropW').value=rw;
+    document.getElementById('cropH').value=rh;
+  } else {
+    el.textContent=`Image: ${img?img.width:0} × ${img?img.height:0}px — click and drag to select`;
+  }
+}
+
+function setRatio(r,label){
+  aspectRatio=r;
+  document.querySelectorAll('.ratio').forEach(el=>el.classList.toggle('active',el.textContent===label));
+  if(crop.w>0&&crop.h>0&&r>0){
+    // Adjust existing crop to match ratio
+    const newH=crop.w/r;
+    if(crop.y+newH<=canvas.height){
+      crop.h=newH;
+    } else {
+      crop.h=canvas.height-crop.y;
+      crop.w=crop.h*r;
+    }
+    draw();updateInfo();
+  }
+}
+
+// Mouse events
+canvas.addEventListener('mousedown',e=>{
+  const rect=canvas.getBoundingClientRect();
+  startX=e.clientX-rect.left;
+  startY=e.clientY-rect.top;
+  dragging=true;
+  crop={x:startX,y:startY,w:0,h:0};
+});
+
+canvas.addEventListener('mousemove',e=>{
+  if(!dragging)return;
+  const rect=canvas.getBoundingClientRect();
+  let curX=Math.max(0,Math.min(e.clientX-rect.left,canvas.width));
+  let curY=Math.max(0,Math.min(e.clientY-rect.top,canvas.height));
+
+  let w=curX-startX;
+  let h=curY-startY;
+
+  if(aspectRatio>0){
+    // Enforce aspect ratio
+    h=Math.abs(w)/aspectRatio*(h<0?-1:1);
+    if(startY+h<0){h=-startY;w=Math.abs(h)*aspectRatio*(w<0?-1:1);}
+    if(startY+h>canvas.height){h=canvas.height-startY;w=Math.abs(h)*aspectRatio*(w<0?-1:1);}
+  }
+
+  crop.x=w>=0?startX:startX+w;
+  crop.y=h>=0?startY:startY+h;
+  crop.w=Math.abs(w);
+  crop.h=Math.abs(h);
+
+  // Clamp
+  crop.x=Math.max(0,crop.x);
+  crop.y=Math.max(0,crop.y);
+  if(crop.x+crop.w>canvas.width) crop.w=canvas.width-crop.x;
+  if(crop.y+crop.h>canvas.height) crop.h=canvas.height-crop.y;
+
+  draw();updateInfo();
+});
+
+canvas.addEventListener('mouseup',()=>{dragging=false});
+canvas.addEventListener('mouseleave',()=>{dragging=false});
+
+// Touch events
+canvas.addEventListener('touchstart',e=>{
+  e.preventDefault();
+  const t=e.touches[0];
+  const rect=canvas.getBoundingClientRect();
+  startX=t.clientX-rect.left;startY=t.clientY-rect.top;
+  dragging=true;crop={x:startX,y:startY,w:0,h:0};
+},{passive:false});
+
+canvas.addEventListener('touchmove',e=>{
+  e.preventDefault();
+  if(!dragging)return;
+  const t=e.touches[0];
+  const rect=canvas.getBoundingClientRect();
+  let curX=Math.max(0,Math.min(t.clientX-rect.left,canvas.width));
+  let curY=Math.max(0,Math.min(t.clientY-rect.top,canvas.height));
+  let w=curX-startX,h=curY-startY;
+  if(aspectRatio>0){h=Math.abs(w)/aspectRatio*(h<0?-1:1);}
+  crop.x=w>=0?startX:startX+w;crop.y=h>=0?startY:startY+h;
+  crop.w=Math.abs(w);crop.h=Math.abs(h);
+  crop.x=Math.max(0,crop.x);crop.y=Math.max(0,crop.y);
+  if(crop.x+crop.w>canvas.width)crop.w=canvas.width-crop.x;
+  if(crop.y+crop.h>canvas.height)crop.h=canvas.height-crop.y;
+  draw();updateInfo();
+},{passive:false});
+
+canvas.addEventListener('touchend',()=>{dragging=false});
+
+function manualCrop(){
+  if(!img)return;
+  const x=+document.getElementById('cropX').value;
+  const y=+document.getElementById('cropY').value;
+  const w=+document.getElementById('cropW').value;
+  const h=+document.getElementById('cropH').value;
+  crop.x=x*scale;crop.y=y*scale;crop.w=w*scale;crop.h=h*scale;
+  // Clamp
+  crop.x=Math.max(0,Math.min(crop.x,canvas.width));
+  crop.y=Math.max(0,Math.min(crop.y,canvas.height));
+  if(crop.x+crop.w>canvas.width)crop.w=canvas.width-crop.x;
+  if(crop.y+crop.h>canvas.height)crop.h=canvas.height-crop.y;
+  draw();updateInfo();
+}
+
+function resetCrop(){crop={x:0,y:0,w:0,h:0};draw();updateInfo()}
+
+function selectAll(){
+  if(!img)return;
+  crop={x:0,y:0,w:canvas.width,h:canvas.height};
+  draw();updateInfo();
+}
+
+function getCroppedCanvas(){
+  if(!img||crop.w<=0||crop.h<=0)return null;
+  const sx=crop.x/scale,sy=crop.y/scale;
+  const sw=crop.w/scale,sh=crop.h/scale;
+  const out=document.createElement('canvas');
+  out.width=Math.round(sw);out.height=Math.round(sh);
+  const octx=out.getContext('2d');
+  octx.drawImage(img,sx,sy,sw,sh,0,0,out.width,out.height);
+  return out;
+}
+
+function downloadPNG(){
+  const c=getCroppedCanvas();
+  if(!c){showToast('Select an area first');return}
+  const a=document.createElement('a');
+  a.href=c.toDataURL('image/png');
+  a.download='cropped.png';a.click();
+  showToast('Downloaded!');
+}
+
+function downloadJPG(){
+  const c=getCroppedCanvas();
+  if(!c){showToast('Select an area first');return}
+  const out=document.createElement('canvas');
+  out.width=c.width;out.height=c.height;
+  const octx=out.getContext('2d');
+  octx.fillStyle='#fff';octx.fillRect(0,0,out.width,out.height);
+  octx.drawImage(c,0,0);
+  const a=document.createElement('a');
+  a.href=out.toDataURL('image/jpeg',0.92);
+  a.download='cropped.jpg';a.click();
+  showToast('Downloaded!');
+}
+
+function newImage(){
+  img=null;crop={x:0,y:0,w:0,h:0};
+  document.getElementById('editor').style.display='none';
+  dropZone.style.display='block';
+  fileInput.value='';
+}
+
+function showToast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg||'Downloaded!';
+  t.style.display='block';
+  setTimeout(()=>t.style.display='none',1500);
+}
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+</body>
+</html>

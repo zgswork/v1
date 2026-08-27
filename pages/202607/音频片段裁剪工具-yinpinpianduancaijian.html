@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>音频片段裁剪工具</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <!-- 引入lamejs库用于MP3编码 -->
+    <script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.0/lame.min.js"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3B82F6',
+                        secondary: '#10B981',
+                        accent: '#8B5CF6',
+                        dark: '#1E293B',
+                        light: '#F8FAFC'
+                    },
+                    fontFamily: {
+                        inter: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .file-drop-active {
+                @apply border-primary bg-blue-50;
+            }
+            .slider-thumb {
+                @apply appearance-none w-5 h-5 rounded-full bg-primary cursor-pointer shadow-md;
+            }
+            .audio-wave {
+                @apply w-full h-24 bg-gray-100 rounded-lg overflow-hidden relative;
+            }
+        }
+    </style>
+    
+    <style>
+        /* 自定义滑块样式 */
+        input[type="range"] {
+            -webkit-appearance: none;
+            height: 6px;
+            border-radius: 5px;
+            background: #ddd;
+            outline: none;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #3B82F6;
+            cursor: pointer;
+            box-shadow: 0 0 5px rgba(0,0,0,0.2);
+            transition: all 0.15s ease;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.1);
+        }
+        
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #3B82F6;
+            cursor: pointer;
+            box-shadow: 0 0 5px rgba(0,0,0,0.2);
+            border: none;
+            transition: all 0.15s ease;
+        }
+        
+        input[type="range"]::-moz-range-thumb:hover {
+            transform: scale(1.1);
+        }
+        
+        /* 音频波形样式 */
+        .waveform {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .waveform-bar {
+            background: rgba(59, 130, 246, 0.6);
+            margin: 0 1px;
+            border-radius: 2px;
+            transition: height 0.2s ease;
+        }
+        
+        /* 选择区域样式 */
+        .selection-area {
+            position: absolute;
+            height: 100%;
+            background: rgba(59, 130, 246, 0.15);
+            pointer-events: none;
+            z-index: 1;
+        }
+        
+        .selection-handle {
+            position: absolute;
+            width: 4px;
+            height: 100%;
+            background: #3B82F6;
+            cursor: ew-resize;
+            z-index: 2;
+        }
+        
+        .selection-handle::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #3B82F6;
+            margin-left: -2px;
+        }
+        
+        /* 动画效果 */
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        
+        .animate-pulse-slow {
+            animation: pulse 2s infinite;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 font-inter text-dark min-h-screen flex flex-col">
+    <!-- 顶部导航 -->
+    <header class="bg-white shadow-sm sticky top-0 z-50 transition-all duration-300">
+        <div class="container mx-auto px-4 py-4 flex justify-between items-center">
+            <div class="flex items-center space-x-3">
+                <i class="fa fa-scissors text-primary text-2xl"></i>
+                <h1 class="text-xl md:text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">音频片段裁剪工具</h1>
+            </div>
+            <div class="hidden md:flex items-center space-x-6">
+                <a href="#" class="text-gray-600 hover:text-primary transition-colors flex items-center">
+                    <i class="fa fa-question-circle mr-1"></i>使用帮助
+                </a>
+                <a href="#" class="text-gray-600 hover:text-primary transition-colors flex items-center">
+                    <i class="fa fa-info-circle mr-1"></i>支持格式
+                </a>
+            </div>
+            <button class="md:hidden text-gray-600 hover:text-primary transition-colors">
+                <i class="fa fa-bars text-xl"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- 主内容区 -->
+    <main class="container mx-auto px-4 py-8 flex-grow max-w-4xl">
+        <!-- 介绍部分 -->
+        <section class="mb-10 text-center">
+            <h2 class="text-[clamp(1.5rem,3vw,2.2rem)] font-bold mb-4 bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">简单高效的音频片段裁剪</h2>
+            <p class="text-gray-600 text-[clamp(1rem,1.5vw,1.1rem)] max-w-2xl mx-auto">
+                上传音频文件，通过滑块直观选择需要保留的片段，一键裁剪并导出为MP3格式。所有操作在浏览器中完成，无需安装任何软件。
+            </p>
+        </section>
+
+        <!-- 裁剪工具主体 -->
+        <section class="bg-white rounded-xl shadow-md overflow-hidden card-shadow mb-10">
+            <div class="p-6 md:p-8">
+                <!-- 上传区域 -->
+                <div id="upload-section" class="mb-8">
+                    <div id="file-drop-area" class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center transition-all duration-300 cursor-pointer hover:border-primary/70">
+                        <i class="fa fa-cloud-upload text-5xl text-primary/60 mb-4"></i>
+                        <h3 class="text-xl font-medium mb-2">拖放音频文件到此处</h3>
+                        <p class="text-gray-500 mb-6">或点击选择文件</p>
+                        <label class="bg-primary hover:bg-primary/90 text-white px-6 py-3 rounded-lg inline-flex items-center transition-all transform hover:scale-105 cursor-pointer">
+                            <i class="fa fa-file-audio-o mr-2"></i>
+                            <span>选择音频文件</span>
+                            <input type="file" id="file-input" accept="audio/*" class="hidden">
+                        </label>
+                        <p class="text-xs text-gray-400 mt-6">支持格式：MP3, WAV, OGG, FLAC, AAC等</p>
+                    </div>
+                </div>
+                
+                <!-- 音频处理区域 (默认隐藏) -->
+                <div id="audio-processing-section" class="hidden space-y-8">
+                    <!-- 音频信息 -->
+                    <div class="bg-gray-50 p-4 rounded-lg flex items-center">
+                        <i class="fa fa-file-text-o text-primary mr-3 text-xl"></i>
+                        <div class="flex-grow">
+                            <h4 id="audio-file-name" class="font-medium truncate"></h4>
+                            <p id="audio-file-info" class="text-sm text-gray-500"></p>
+                        </div>
+                        <button id="replace-file" class="text-primary hover:text-primary/80 transition-colors flex items-center text-sm">
+                            <i class="fa fa-refresh mr-1"></i>
+                            <span>更换文件</span>
+                        </button>
+                    </div>
+                    
+                    <!-- 音频播放器 -->
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <audio id="audio-player" controls class="w-full mb-4"></audio>
+                        <div class="flex justify-between text-sm text-gray-500">
+                            <span id="current-time">00:00</span>
+                            <span id="duration">00:00</span>
+                        </div>
+                    </div>
+                    
+                    <!-- 波形可视化和选择区域 -->
+                    <div>
+                        <h3 class="text-lg font-medium mb-3">选择裁剪区域</h3>
+                        <div class="audio-wave relative mb-6" id="waveform-container">
+                            <div class="waveform" id="waveform"></div>
+                            <div class="selection-area" id="selection-area"></div>
+                            <div class="selection-handle" id="start-handle" style="left: 0%"></div>
+                            <div class="selection-handle" id="end-handle" style="left: 100%"></div>
+                        </div>
+                        
+                        <!-- 时间选择滑块 -->
+                        <div class="mb-2 flex justify-between text-sm">
+                            <span>开始: <span id="start-time-display" class="font-medium text-primary">00:00</span></span>
+                            <span>结束: <span id="end-time-display" class="font-medium text-primary">00:00</span></span>
+                            <span>长度: <span id="selection-duration" class="font-medium text-accent">00:00</span></span>
+                        </div>
+                        
+                        <input type="range" id="start-slider" min="0" max="100" value="0" class="w-full mb-4">
+                        <input type="range" id="end-slider" min="0" max="100" value="100" class="w-full">
+                    </div>
+                    
+                    <!-- 控制按钮 -->
+                    <div class="flex flex-col sm:flex-row gap-4 justify-center pt-4 border-t border-gray-100">
+                        <button id="play-selection" class="bg-accent hover:bg-accent/90 text-white px-6 py-3 rounded-lg inline-flex items-center transition-all transform hover:scale-105">
+                            <i class="fa fa-play mr-2"></i>
+                            <span>预览选中片段</span>
+                        </button>
+                        <button id="trim-button" class="bg-secondary hover:bg-secondary/90 text-white px-6 py-3 rounded-lg inline-flex items-center transition-all transform hover:scale-105">
+                            <i class="fa fa-scissors mr-2"></i>
+                            <span>裁剪并下载</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- 加载状态 (默认隐藏) -->
+                <div id="loading-section" class="hidden text-center py-12">
+                    <div class="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                    <h3 class="text-xl font-medium mb-2">正在处理音频...</h3>
+                    <p class="text-gray-500">请稍候，正在准备音频文件</p>
+                </div>
+                
+                <!-- 处理完成状态 (默认隐藏) -->
+                <div id="result-section" class="hidden text-center py-8">
+                    <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <i class="fa fa-check text-2xl text-green-500"></i>
+                    </div>
+                    <h3 class="text-xl font-medium mb-2">裁剪完成！</h3>
+                    <p class="text-gray-500 mb-6">您的音频片段已成功裁剪</p>
+                    
+                    <div class="bg-gray-50 p-4 rounded-lg max-w-md mx-auto mb-6">
+                        <div class="flex items-center">
+                            <i class="fa fa-file-audio-o text-primary mr-3 text-xl"></i>
+                            <div class="flex-grow">
+                                <h4 id="result-file-name" class="font-medium truncate"></h4>
+                                <p id="result-file-info" class="text-sm text-gray-500"></p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="flex flex-col sm:flex-row gap-3 justify-center">
+                        <a id="download-result" href="#" download class="bg-primary hover:bg-primary/90 text-white px-6 py-3 rounded-lg inline-flex items-center transition-all transform hover:scale-105">
+                            <i class="fa fa-download mr-2"></i>
+                            <span>下载音频片段</span>
+                        </a>
+                        <button id="trim-another" class="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg inline-flex items-center transition-all hover:bg-gray-50">
+                            <i class="fa fa-refresh mr-2"></i>
+                            <span>裁剪另一个片段</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 特性介绍 -->
+        <section class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="bg-white p-6 rounded-xl shadow-sm text-center card-shadow">
+                <div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fa fa-sliders text-primary text-xl"></i>
+                </div>
+                <h3 class="font-semibold mb-2">精确裁剪</h3>
+                <p class="text-gray-600 text-sm">通过滑块精确选择需要保留的音频片段，可视化操作更直观</p>
+            </div>
+            
+            <div class="bg-white p-6 rounded-xl shadow-sm text-center card-shadow">
+                <div class="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fa fa-desktop text-secondary text-xl"></i>
+                </div>
+                <h3 class="font-semibold mb-2">无需安装</h3>
+                <p class="text-gray-600 text-sm">在线使用，无需安装任何软件，随时随地裁剪音频片段</p>
+            </div>
+            
+            <div class="bg-white p-6 rounded-xl shadow-sm text-center card-shadow">
+                <div class="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fa fa-lock text-accent text-xl"></i>
+                </div>
+                <h3 class="font-semibold mb-2">隐私保护</h3>
+                <p class="text-gray-600 text-sm">所有处理在本地完成，音频文件不会上传到服务器，保护隐私</p>
+            </div>
+        </section>
+    </main>
+
+    <!-- 页脚 -->
+    <footer class="bg-dark text-white py-6 mt-16">
+        <div class="container mx-auto px-4">
+            <div class="text-center">
+                <p class="text-gray-300">
+                    邓文涛(AI版) | <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="b2858285878685868683f2c3c39cd1dddf">[email&#160;protected]</a> | VX：707547441 | 更多点击➡️
+                    <a href="https://dkfile.com/Dx25214" target="_blank" rel="noopener" class="text-secondary hover:underline inline-flex items-center">
+                        🌌
+                    </a>
+                </p>
+                <p class="text-gray-500 text-sm mt-2">© 2023 音频片段裁剪工具 - 简单高效的音频处理解决方案</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- 通知提示框 -->
+    <div id="notification" class="fixed bottom-5 right-5 px-4 py-3 rounded-lg shadow-lg transform translate-y-20 opacity-0 transition-all duration-300 flex items-center z-50 max-w-xs">
+        <i id="notification-icon" class="mr-2 text-xl"></i>
+        <span id="notification-text"></span>
+    </div>
+
+    <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+        // 全局变量
+        let audioContext;
+        let audioBuffer;
+        let sourceNode;
+        let selectedFile = null;
+        let audioDuration = 0;
+        let isDraggingStart = false;
+        let isDraggingEnd = false;
+        let resultBlob = null;
+        
+        // DOM 元素
+        const fileDropArea = document.getElementById('file-drop-area');
+        const fileInput = document.getElementById('file-input');
+        const uploadSection = document.getElementById('upload-section');
+        const audioProcessingSection = document.getElementById('audio-processing-section');
+        const loadingSection = document.getElementById('loading-section');
+        const resultSection = document.getElementById('result-section');
+        const audioFileName = document.getElementById('audio-file-name');
+        const audioFileInfo = document.getElementById('audio-file-info');
+        const replaceFileBtn = document.getElementById('replace-file');
+        const audioPlayer = document.getElementById('audio-player');
+        const currentTimeDisplay = document.getElementById('current-time');
+        const durationDisplay = document.getElementById('duration');
+        const waveform = document.getElementById('waveform');
+        const waveformContainer = document.getElementById('waveform-container');
+        const selectionArea = document.getElementById('selection-area');
+        const startHandle = document.getElementById('start-handle');
+        const endHandle = document.getElementById('end-handle');
+        const startSlider = document.getElementById('start-slider');
+        const endSlider = document.getElementById('end-slider');
+        const startTimeDisplay = document.getElementById('start-time-display');
+        const endTimeDisplay = document.getElementById('end-time-display');
+        const selectionDurationDisplay = document.getElementById('selection-duration');
+        const playSelectionBtn = document.getElementById('play-selection');
+        const trimButton = document.getElementById('trim-button');
+        const downloadResultBtn = document.getElementById('download-result');
+        const trimAnotherBtn = document.getElementById('trim-another');
+        const resultFileName = document.getElementById('result-file-name');
+        const resultFileInfo = document.getElementById('result-file-info');
+        
+        // 通知元素
+        const notification = document.getElementById('notification');
+        const notificationIcon = document.getElementById('notification-icon');
+        const notificationText = document.getElementById('notification-text');
+        
+        // 显示通知
+        function showNotification(message, isSuccess = true) {
+            notificationText.textContent = message;
+            notificationIcon.className = isSuccess 
+                ? "fa fa-check-circle mr-2 text-xl text-green-500" 
+                : "fa fa-exclamation-circle mr-2 text-xl text-red-500";
+            notification.classList.remove('translate-y-20', 'opacity-0');
+            notification.classList.add(isSuccess ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800');
+            
+            setTimeout(() => {
+                notification.classList.add('translate-y-20', 'opacity-0');
+                notification.classList.remove('bg-green-50', 'text-green-800', 'bg-red-50', 'text-red-800');
+            }, 3000);
+        }
+        
+        // 格式化时间（秒 -> MM:SS）
+        function formatTime(seconds) {
+            const minutes = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
+        
+        // 初始化音频上下文
+        function initAudioContext() {
+            try {
+                window.AudioContext = window.AudioContext || window.webkitAudioContext;
+                audioContext = new AudioContext();
+            } catch (e) {
+                console.error('Web Audio API is not supported in this browser');
+                showNotification('您的浏览器不支持音频处理功能', false);
+            }
+        }
+        
+        // 绘制波形
+        function drawWaveform(buffer) {
+            waveform.innerHTML = '';
+            const channelData = buffer.getChannelData(0);
+            const barCount = Math.min(500, buffer.length / 1000);
+            const step = Math.floor(channelData.length / barCount);
+            
+            for (let i = 0; i < barCount; i++) {
+                const bar = document.createElement('div');
+                bar.className = 'waveform-bar';
+                
+                // 找到该段的最大振幅
+                let maxAmplitude = 0;
+                for (let j = 0; j < step; j++) {
+                    const index = i * step + j;
+                    const amplitude = Math.abs(channelData[index]);
+                    if (amplitude > maxAmplitude) {
+                        maxAmplitude = amplitude;
+                    }
+                }
+                
+                // 设置柱形高度（基于振幅）
+                const height = Math.max(2, maxAmplitude * 100);
+                bar.style.height = `${height}%`;
+                bar.style.width = `${100 / barCount}%`;
+                
+                waveform.appendChild(bar);
+            }
+        }
+        
+        // 更新选择区域
+        function updateSelection() {
+            const startPercent = parseFloat(startSlider.value);
+            const endPercent = parseFloat(endSlider.value);
+            
+            // 确保开始位置不超过结束位置
+            if (startPercent >= endPercent) {
+                startSlider.value = Math.max(0, endPercent - 1);
+                return;
+            }
+            
+            // 更新手柄和选择区域位置
+            startHandle.style.left = `${startPercent}%`;
+            endHandle.style.left = `${endPercent}%`;
+            selectionArea.style.left = `${startPercent}%`;
+            selectionArea.style.width = `${endPercent - startPercent}%`;
+            
+            // 计算时间
+            const startTime = (audioDuration * startPercent) / 100;
+            const endTime = (audioDuration * endPercent) / 100;
+            const duration = endTime - startTime;
+            
+            // 更新显示
+            startTimeDisplay.textContent = formatTime(startTime);
+            endTimeDisplay.textContent = formatTime(endTime);
+            selectionDurationDisplay.textContent = formatTime(duration);
+        }
+        
+        // 加载音频文件
+        function loadAudioFile(file) {
+            if (!file.type.startsWith('audio/')) {
+                showNotification('请选择音频文件', false);
+                return;
+            }
+            
+            selectedFile = file;
+            
+            // 显示加载状态
+            uploadSection.classList.add('hidden');
+            loadingSection.classList.remove('hidden');
+            
+            // 初始化音频上下文
+            if (!audioContext) {
+                initAudioContext();
+                if (!audioContext) return;
+            }
+            
+            // 读取文件并解码
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                audioContext.decodeAudioData(event.target.result)
+                    .then(function(buffer) {
+                        audioBuffer = buffer;
+                        audioDuration = buffer.duration;
+                        
+                        // 显示音频信息
+                        audioFileName.textContent = file.name;
+                        audioFileInfo.textContent = `${formatFileSize(file.size)} · ${formatTime(audioDuration)} · ${file.type}`;
+                        
+                        // 设置音频播放器
+                        audioPlayer.src = URL.createObjectURL(file);
+                        durationDisplay.textContent = formatTime(audioDuration);
+                        
+                        // 绘制波形
+                        drawWaveform(buffer);
+                        
+                        // 重置选择
+                        startSlider.value = 0;
+                        endSlider.value = 100;
+                        updateSelection();
+                        
+                        // 切换到处理界面
+                        loadingSection.classList.add('hidden');
+                        audioProcessingSection.classList.remove('hidden');
+                        
+                        showNotification('音频加载成功');
+                    })
+                    .catch(function(error) {
+                        console.error('Error decoding audio:', error);
+                        loadingSection.classList.add('hidden');
+                        uploadSection.classList.remove('hidden');
+                        showNotification('无法处理该音频文件', false);
+                    });
+            };
+            
+            reader.onerror = function() {
+                loadingSection.classList.add('hidden');
+                uploadSection.classList.remove('hidden');
+                showNotification('读取文件时出错', false);
+            };
+            
+            reader.readAsArrayBuffer(file);
+        }
+        
+        // 格式化文件大小
+        function formatFileSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            else if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+            else return (bytes / 1048576).toFixed(1) + ' MB';
+        }
+        
+        // 播放选中的片段
+        function playSelection() {
+            if (!audioContext || !audioBuffer) return;
+            
+            // 确保音频上下文处于运行状态
+            if (audioContext.state === 'suspended') {
+                audioContext.resume();
+            }
+            
+            // 停止任何正在播放的音频
+            if (sourceNode) {
+                sourceNode.stop();
+            }
+            
+            // 计算选择的时间范围
+            const startPercent = parseFloat(startSlider.value);
+            const endPercent = parseFloat(endSlider.value);
+            const startTime = (audioDuration * startPercent) / 100;
+            const endTime = (audioDuration * endPercent) / 100;
+            const duration = endTime - startTime;
+            
+            // 创建新的音源并播放
+            sourceNode = audioContext.createBufferSource();
+            sourceNode.buffer = audioBuffer;
+            sourceNode.connect(audioContext.destination);
+            sourceNode.start(0, startTime, duration);
+            
+            // 播放结束后更新按钮状态
+            sourceNode.onended = function() {
+                playSelectionBtn.innerHTML = '<i class="fa fa-play mr-2"></i><span>预览选中片段</span>';
+            };
+            
+            // 更新按钮状态
+            playSelectionBtn.innerHTML = '<i class="fa fa-stop mr-2"></i><span>停止预览</span>';
+        }
+        
+        // 裁剪音频并导出为MP3
+        function trimAudio() {
+            if (!audioContext || !audioBuffer) return;
+            
+            // 显示加载状态
+            audioProcessingSection.classList.add('hidden');
+            loadingSection.classList.remove('hidden');
+            
+            try {
+                // 计算选择的时间范围
+                const startPercent = parseFloat(startSlider.value);
+                const endPercent = parseFloat(endSlider.value);
+                const startTime = (audioDuration * startPercent) / 100;
+                const endTime = (audioDuration * endPercent) / 100;
+                const duration = endTime - startTime;
+                
+                // 计算样本范围
+                const sampleRate = audioBuffer.sampleRate;
+                const startSample = Math.floor(startTime * sampleRate);
+                const endSample = Math.floor(endTime * sampleRate);
+                const sampleCount = endSample - startSample;
+                
+                // 创建新的缓冲区
+                const newBuffer = audioContext.createBuffer(
+                    audioBuffer.numberOfChannels,
+                    sampleCount,
+                    sampleRate
+                );
+                
+                // 复制选中的样本到新缓冲区
+                for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
+                    const oldData = audioBuffer.getChannelData(channel);
+                    const newData = newBuffer.getChannelData(channel);
+                    
+                    for (let i = 0; i < sampleCount; i++) {
+                        newData[i] = oldData[startSample + i];
+                    }
+                }
+                
+                // 将音频缓冲区转换为MP3
+                encodeToMP3(newBuffer)
+                    .then(blob => {
+                        resultBlob = blob;
+                        
+                        // 更新结果信息
+                        const baseName = selectedFile.name.substring(0, selectedFile.name.lastIndexOf('.')) || selectedFile.name;
+                        const resultName = `${baseName}_trimmed.mp3`;
+                        resultFileName.textContent = resultName;
+                        resultFileInfo.textContent = `audio/mpeg · ${formatTime(duration)} · ${formatFileSize(blob.size)}`;
+                        
+                        // 设置下载链接
+                        downloadResultBtn.href = URL.createObjectURL(blob);
+                        downloadResultBtn.download = resultName;
+                        
+                        // 切换到结果界面
+                        loadingSection.classList.add('hidden');
+                        resultSection.classList.remove('hidden');
+                        
+                        showNotification('音频裁剪成功');
+                    })
+                    .catch(error => {
+                        console.error('MP3 encoding error:', error);
+                        loadingSection.classList.add('hidden');
+                        audioProcessingSection.classList.remove('hidden');
+                        showNotification('音频裁剪失败', false);
+                    });
+            } catch (error) {
+                console.error('Audio trimming error:', error);
+                loadingSection.classList.add('hidden');
+                audioProcessingSection.classList.remove('hidden');
+                showNotification('音频裁剪失败', false);
+            }
+        }
+        
+        // 使用lamejs将音频缓冲区编码为MP3
+        function encodeToMP3(audioBuffer) {
+            return new Promise((resolve, reject) => {
+                try {
+                    const sampleRate = audioBuffer.sampleRate;
+                    const channels = audioBuffer.numberOfChannels;
+                    
+                    // 转换为16位PCM
+                    const result = interleave(audioBuffer.getChannelData(0), 
+                                            channels > 1 ? audioBuffer.getChannelData(1) : null);
+                    
+                    // 初始化lame编码器
+                    const mp3Encoder = new lamejs.Mp3Encoder(channels, sampleRate, 128);
+                    const mp3Data = [];
+                    
+                    // 分块编码
+                    const blockSize = 1152;
+                    for (let i = 0; i < result.length; i += blockSize) {
+                        const block = result.subarray(i, i + blockSize);
+                        const mp3buf = mp3Encoder.encodeBuffer(block);
+                        if (mp3buf.length > 0) {
+                            mp3Data.push(mp3buf);
+                        }
+                    }
+                    
+                    // 完成编码
+                    const endBuf = mp3Encoder.flush();
+                    if (endBuf.length > 0) {
+                        mp3Data.push(endBuf);
+                    }
+                    
+                    // 创建Blob并返回
+                    const blob = new Blob(mp3Data, { type: 'audio/mpeg' });
+                    resolve(blob);
+                } catch (error) {
+                    reject(error);
+                }
+            });
+        }
+        
+        // 交错立体声通道并转换为16位整数
+        function interleave(leftChannel, rightChannel) {
+            const length = leftChannel.length;
+            const result = new Int16Array(length * (rightChannel ? 2 : 1));
+            
+            for (let i = 0; i < length; i++) {
+                // 转换为16位整数（-32768到32767）
+                let sample = Math.max(-1, Math.min(1, leftChannel[i]));
+                result[i * 2] = sample < 0 ? sample * 32768 : sample * 32767;
+                
+                // 如果是立体声，添加右声道
+                if (rightChannel) {
+                    sample = Math.max(-1, Math.min(1, rightChannel[i]));
+                    result[i * 2 + 1] = sample < 0 ? sample * 32768 : sample * 32767;
+                }
+            }
+            
+            return result;
+        }
+        
+        // 重置应用状态
+        function resetApp() {
+            // 停止任何正在播放的音频
+            if (sourceNode) {
+                sourceNode.stop();
+                sourceNode = null;
+            }
+            
+            // 释放URL对象
+            if (audioPlayer.src) {
+                URL.revokeObjectURL(audioPlayer.src);
+                audioPlayer.src = '';
+            }
+            
+            if (resultBlob && downloadResultBtn.href) {
+                URL.revokeObjectURL(downloadResultBtn.href);
+                downloadResultBtn.href = '';
+                resultBlob = null;
+            }
+            
+            // 重置界面
+            resultSection.classList.add('hidden');
+            audioProcessingSection.classList.add('hidden');
+            uploadSection.classList.remove('hidden');
+            
+            // 重置播放按钮
+            playSelectionBtn.innerHTML = '<i class="fa fa-play mr-2"></i><span>预览选中片段</span>';
+        }
+        
+        // 事件监听 - 文件拖放
+        fileDropArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            fileDropArea.classList.add('file-drop-active');
+        });
+        
+        fileDropArea.addEventListener('dragleave', () => {
+            fileDropArea.classList.remove('file-drop-active');
+        });
+        
+        fileDropArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            fileDropArea.classList.remove('file-drop-active');
+            
+            if (e.dataTransfer.files.length) {
+                loadAudioFile(e.dataTransfer.files[0]);
+            }
+        });
+        
+        // 事件监听 - 文件选择
+        fileDropArea.addEventListener('click', () => {
+            fileInput.click();
+        });
+        
+        fileInput.addEventListener('change', () => {
+            if (fileInput.files.length) {
+                loadAudioFile(fileInput.files[0]);
+            }
+        });
+        
+        // 事件监听 - 更换文件
+        replaceFileBtn.addEventListener('click', () => {
+            resetApp();
+            fileInput.click();
+        });
+        
+        // 事件监听 - 音频播放器
+        audioPlayer.addEventListener('timeupdate', () => {
+            currentTimeDisplay.textContent = formatTime(audioPlayer.currentTime);
+        });
+        
+        // 事件监听 - 滑块
+        startSlider.addEventListener('input', updateSelection);
+        endSlider.addEventListener('input', updateSelection);
+        
+        // 事件监听 - 选择手柄拖动
+        startHandle.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            isDraggingStart = true;
+        });
+        
+        endHandle.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            isDraggingEnd = true;
+        });
+        
+        document.addEventListener('mousemove', (e) => {
+            if (!isDraggingStart && !isDraggingEnd) return;
+            
+            const rect = waveformContainer.getBoundingClientRect();
+            const width = rect.width;
+            const offsetX = e.clientX - rect.left;
+            let percent = (offsetX / width) * 100;
+            percent = Math.max(0, Math.min(100, percent));
+            
+            if (isDraggingStart) {
+                startSlider.value = percent;
+                updateSelection();
+            } else if (isDraggingEnd) {
+                endSlider.value = percent;
+                updateSelection();
+            }
+        });
+        
+        document.addEventListener('mouseup', () => {
+            isDraggingStart = false;
+            isDraggingEnd = false;
+        });
+        
+        // 触摸设备支持
+        startHandle.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            isDraggingStart = true;
+        });
+        
+        endHandle.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            isDraggingEnd = true;
+        });
+        
+        document.addEventListener('touchmove', (e) => {
+            if (!isDraggingStart && !isDraggingEnd) return;
+            
+            const rect = waveformContainer.getBoundingClientRect();
+            const width = rect.width;
+            const touch = e.touches[0];
+            const offsetX = touch.clientX - rect.left;
+            let percent = (offsetX / width) * 100;
+            percent = Math.max(0, Math.min(100, percent));
+            
+            if (isDraggingStart) {
+                startSlider.value = percent;
+                updateSelection();
+            } else if (isDraggingEnd) {
+                endSlider.value = percent;
+                updateSelection();
+            }
+        });
+        
+        document.addEventListener('touchend', () => {
+            isDraggingStart = false;
+            isDraggingEnd = false;
+        });
+        
+        // 事件监听 - 播放/停止选中片段
+        playSelectionBtn.addEventListener('click', () => {
+            if (playSelectionBtn.innerHTML.includes('fa-play')) {
+                playSelection();
+            } else {
+                if (sourceNode) {
+                    sourceNode.stop();
+                    sourceNode = null;
+                    playSelectionBtn.innerHTML = '<i class="fa fa-play mr-2"></i><span>预览选中片段</span>';
+                }
+            }
+        });
+        
+        // 事件监听 - 裁剪按钮
+        trimButton.addEventListener('click', trimAudio);
+        
+        // 事件监听 - 下载结果
+        downloadResultBtn.addEventListener('click', () => {
+            showNotification('音频片段开始下载');
+        });
+        
+        // 事件监听 - 裁剪另一个片段
+        trimAnotherBtn.addEventListener('click', () => {
+            resultSection.classList.add('hidden');
+            audioProcessingSection.classList.remove('hidden');
+        });
+        
+        // 事件监听 - 页面关闭时清理
+        window.addEventListener('beforeunload', () => {
+            if (audioPlayer.src) {
+                URL.revokeObjectURL(audioPlayer.src);
+            }
+            
+            if (resultBlob && downloadResultBtn.href) {
+                URL.revokeObjectURL(downloadResultBtn.href);
+            }
+        });
+        
+        // 滚动效果
+        window.addEventListener('scroll', function() {
+            const header = document.querySelector('header');
+            if (window.scrollY > 10) {
+                header.classList.add('py-2', 'shadow');
+                header.classList.remove('py-4', 'shadow-sm');
+            } else {
+                header.classList.add('py-4', 'shadow-sm');
+                header.classList.remove('py-2', 'shadow');
+            }
+        });
+    </script>
+</body>
+</html>
+    

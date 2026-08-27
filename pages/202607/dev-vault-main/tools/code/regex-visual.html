@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html tk="title_regex_visualizer_visual_r" lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Regex Visualizer — Visual Regular Expression Explainer</title>
+<meta name="description" content="Visualize and explain regular expressions. Match highlighting, group capture, replace mode. Quick reference. Email, URL, date presets.">
+<link rel="canonical" href="https://gokuscraper.github.io/dev-vault/regex-visual/">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebApplication","name":"Regex Visualizer","url":"https://gokuscraper.github.io/dev-vault/regex-visual/","description":"Visualize and explain regular expressions step by step. Match highlighting, group capture, replace mode with backreferences.","applicationCategory":"DeveloperApplication","operatingSystem":"Any","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}}
+</script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0a0a;color:#e6e6e6;min-height:100vh}
+.container{max-width:960px;margin:0 auto;padding:20px 16px}
+h1{text-align:center;font-size:1.6rem;margin-bottom:4px;color:#fff}
+.sub{text-align:center;color:#888;font-size:0.85rem;margin-bottom:16px}
+.layout{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:700px){.layout{grid-template-columns:1fr}}
+.section{background:#161616;border:1px solid #222;border-radius:10px;padding:16px;margin-bottom:14px}
+.section h3{font-size:0.9rem;color:#4da6ff;margin-bottom:10px}
+.field{margin-bottom:10px}
+.field label{display:block;font-size:0.78rem;color:#888;margin-bottom:4px;font-weight:600}
+.field input,.field select,.field textarea{width:100%;background:#0d0d0d;border:1px solid #333;border-radius:6px;padding:6px 10px;color:#e6e6e6;font-size:0.82rem}
+.field textarea{min-height:100px;resize:vertical;font-family:'Fira Code',monospace;font-size:0.8rem}
+.check-row{display:flex;align-items:center;gap:6px;margin-bottom:6px}
+.check-row label{font-size:0.78rem;color:#aaa}
+.presets{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.preset{padding:5px 12px;border-radius:6px;border:1px solid #333;background:#161616;color:#888;font-size:0.75rem;cursor:pointer;font-weight:600}
+.preset:hover{border-color:#3b82f6;color:#4da6ff}
+.btn{padding:6px 14px;border-radius:6px;border:1px solid #333;background:#161616;color:#ccc;font-size:0.8rem;cursor:pointer;font-weight:600}
+.btn:hover{border-color:#3b82f6;color:#4da6ff}
+.btn-primary{background:#1a2744;color:#4da6ff;border-color:#2a4a7a}
+.toast{position:fixed;bottom:20px;right:20px;background:#238636;color:#fff;padding:10px 20px;border-radius:8px;font-size:0.85rem;display:none;z-index:99}
+.footer{text-align:center;margin-top:24px;padding:16px 0;border-top:1px solid #222}
+.footer a{color:#4da6ff;text-decoration:none;font-size:0.8rem}
+.related{margin-top:20px;text-align:center;font-size:0.8rem;color:#666}
+.related a{color:#4da6ff;text-decoration:none;margin:0 8px}
+
+/* Regex input area */
+.regex-row{display:flex;gap:8px;align-items:center}
+.regex-row input{flex:1;font-family:'Fira Code',monospace;font-size:0.9rem}
+.flags-row{display:flex;gap:12px;margin-top:8px;flex-wrap:wrap}
+.flags-row label{display:flex;align-items:center;gap:4px;font-size:0.78rem;color:#aaa;cursor:pointer}
+.flags-row input[type=checkbox]{accent-color:#4da6ff}
+
+/* Highlighted test string */
+.highlight-area{font-family:'Fira Code',monospace;font-size:0.82rem;line-height:1.6;padding:10px;background:#0d0d0d;border:1px solid #333;border-radius:6px;min-height:60px;white-space:pre-wrap;word-break:break-all}
+.hl-match{border-radius:3px;padding:1px 0}
+.hl-0{background:rgba(77,166,255,0.3);border-bottom:2px solid #4da6ff}
+.hl-1{background:rgba(166,77,255,0.3);border-bottom:2px solid #a64dff}
+.hl-2{background:rgba(77,255,166,0.3);border-bottom:2px solid #4dffaa}
+.hl-3{background:rgba(255,166,77,0.3);border-bottom:2px solid #ffa64d}
+.hl-4{background:rgba(255,77,166,0.3);border-bottom:2px solid #ff4da6}
+
+/* Explanation tokens */
+.token-table{width:100%;border-collapse:collapse;font-size:0.78rem}
+.token-table th{text-align:left;padding:4px 8px;border-bottom:1px solid #333;color:#888;font-weight:600}
+.token-table td{padding:4px 8px;border-bottom:1px solid #1a1a1a;vertical-align:top}
+.tok-charclass{color:#4da6ff}
+.tok-quantifier{color:#4dff88}
+.tok-group{color:#b44dff}
+.tok-anchor{color:#ff8c4d}
+.tok-alternation{color:#ff4d4d}
+.tok-escape{color:#4dfff0}
+.tok-literal{color:#e6e6e6}
+
+/* Match list */
+.match-item{background:#0d0d0d;border:1px solid #222;border-radius:6px;padding:8px 10px;margin-bottom:6px;font-size:0.78rem}
+.match-header{display:flex;justify-content:space-between;align-items:center;cursor:pointer}
+.match-header .idx{color:#4da6ff;font-weight:600}
+.match-header .val{color:#e6e6e6;font-family:'Fira Code',monospace}
+.match-groups{margin-top:6px;padding-top:6px;border-top:1px solid #222;display:none}
+.match-groups.open{display:block}
+.group-row{display:flex;gap:8px;padding:2px 0;font-size:0.75rem}
+.group-row .gn{color:#b44dff;min-width:60px}
+.group-row .gv{color:#e6e6e6;font-family:'Fira Code',monospace}
+
+/* Replace output */
+.replace-output{font-family:'Fira Code',monospace;font-size:0.82rem;padding:10px;background:#0d0d0d;border:1px solid #333;border-radius:6px;min-height:40px;white-space:pre-wrap;word-break:break-all;color:#4dff88}
+
+/* Quick reference */
+.ref-toggle{cursor:pointer;display:flex;justify-content:space-between;align-items:center}
+.ref-toggle .arrow{transition:transform 0.2s}
+.ref-toggle .arrow.open{transform:rotate(180deg)}
+.ref-content{display:none;margin-top:10px}
+.ref-content.open{display:block}
+.ref-group{margin-bottom:10px}
+.ref-group h4{font-size:0.78rem;color:#4da6ff;margin-bottom:4px}
+.ref-row{display:flex;gap:8px;padding:2px 0;font-size:0.75rem}
+.ref-row code{color:#4dfff0;background:#0d0d0d;padding:1px 4px;border-radius:3px;font-family:'Fira Code',monospace}
+.ref-row span{color:#aaa}
+
+/* Warning */
+.perf-warn{background:#2a1a00;border:1px solid #664400;border-radius:6px;padding:8px 12px;margin-bottom:10px;font-size:0.78rem;color:#ffaa44;display:none}
+
+/* Match count badge */
+.match-count{display:inline-block;background:#1a2744;color:#4da6ff;padding:2px 8px;border-radius:10px;font-size:0.75rem;font-weight:600;margin-left:8px}
+.error-msg{color:#ff4d4d;font-size:0.78rem;margin-top:4px}
+</style>
+</head>
+<body>
+
+
+
+
+<div class="container" style="position:relative">
+<h1 ti="h1_regex_visualizer" ti="h1_regex_visualizer">Regex Visualizer</h1>
+<p class="sub" ti="subtitle_visualize_and_explain_reg" ti="subtitle_visualize_and_explain_reg">Visualize and explain regular expressions step by step</p>
+
+<!-- Presets -->
+<div class="section">
+<h3 ti="h3_presets" ti="h3_presets">Presets</h3>
+<div class="presets" id="presets"></div>
+</div>
+
+<!-- Regex input -->
+<div class="section">
+<h3 ti="h3_regular_expression" ti="h3_regular_expression">Regular Expression</h3>
+<div class="regex-row">
+<input type="text" id="regexInput" tp="placeholder_enter_regex_pattern_e_g_w" tp="placeholder_enter_regex_pattern_e_g_w" placeholder="Enter regex pattern, e.g. (\w+)@(\w+)\.(\w+)" spellcheck="false">
+<button class="btn" id="copyBtn" title="Copy regex" ti="btn_copy" ti="btn_copy">Copy</button>
+</div>
+<div class="flags-row">
+<label><input type="checkbox" id="flag-g" checked> <code>g</code> global</label>
+<label><input type="checkbox" id="flag-i"> <code>i</code> case-insensitive</label>
+<label><input type="checkbox" id="flag-m"> <code>m</code> multiline</label>
+<label><input type="checkbox" id="flag-s"> <code>s</code> dotAll</label>
+<label><input type="checkbox" id="flag-u"> <code>u</code> unicode</label>
+</div>
+<div id="regexError" class="error-msg"></div>
+</div>
+
+<div class="layout">
+<!-- Left column -->
+<div>
+<!-- Test string -->
+<div class="section">
+<h3 ti="h3_test_string" ti="h3_test_string">Test String</h3>
+<div class="field">
+<textarea id="testInput" tp="placeholder_enter_test_string_here" tp="placeholder_enter_test_string_here" placeholder="Enter test string here...">Hello world, my email is user@example.com and backup is admin@test.org</textarea>
+</div>
+<div id="perfWarn" class="perf-warn">Performance warning: regex execution exceeded 100ms timeout.</div>
+<h3>Matches <span id="matchCount" class="match-count">0</span></h3>
+<div id="highlightArea" class="highlight-area"></div>
+</div>
+
+<!-- Match groups -->
+<div class="section">
+<h3 ti="h3_match_details" ti="h3_match_details">Match Details</h3>
+<div id="matchList"></div>
+</div>
+
+<!-- Replace mode -->
+<div class="section">
+<h3 ti="h3_replace_mode" ti="h3_replace_mode">Replace Mode</h3>
+<div class="field">
+<label>Replacement String (supports $1, $2, $&amp;, etc.)</label>
+<input type="text" id="replaceInput" tp="placeholder_e_g_1_at_2" tp="placeholder_e_g_1_at_2" placeholder="e.g. [$1 at $2]" spellcheck="false">
+</div>
+<label style="font-size:0.78rem;color:#888;font-weight:600;display:block;margin-bottom:4px" ti="label_result" ti="label_result">Result</label>
+<div id="replaceOutput" class="replace-output"></div>
+</div>
+</div>
+
+<!-- Right column -->
+<div>
+<!-- Visual explanation -->
+<div class="section">
+<h3 ti="h3_visual_explanation" ti="h3_visual_explanation">Visual Explanation</h3>
+<div id="explanationArea">
+<table class="token-table">
+<thead><tr><th ti="th_token" ti="th_token">Token</th><th ti="th_type" ti="th_type">Type</th><th ti="th_meaning" ti="th_meaning">Meaning</th></tr></thead>
+<tbody id="tokenBody"></tbody>
+</table>
+</div>
+</div>
+
+<!-- Quick reference -->
+<div class="section">
+<div class="ref-toggle" id="refToggle">
+<h3 ti="h3_quick_reference" ti="h3_quick_reference">Quick Reference</h3>
+<span class="arrow" id="refArrow">&#9660;</span>
+</div>
+<div class="ref-content" id="refContent">
+<div class="ref-group">
+<h4>Character Classes</h4>
+<div class="ref-row"><code>\d</code> <span>Digit [0-9]</span></div>
+<div class="ref-row"><code>\D</code> <span>Non-digit</span></div>
+<div class="ref-row"><code>\w</code> <span>Word char [a-zA-Z0-9_]</span></div>
+<div class="ref-row"><code>\W</code> <span>Non-word char</span></div>
+<div class="ref-row"><code>\s</code> <span>Whitespace</span></div>
+<div class="ref-row"><code>\S</code> <span>Non-whitespace</span></div>
+<div class="ref-row"><code>[a-z]</code> <span>Char range a to z</span></div>
+<div class="ref-row"><code>[^abc]</code> <span>Not a, b, or c</span></div>
+<div class="ref-row"><code>.</code> <span>Any char (except newline)</span></div>
+</div>
+<div class="ref-group">
+<h4>Quantifiers</h4>
+<div class="ref-row"><code>*</code> <span>0 or more</span></div>
+<div class="ref-row"><code>+</code> <span>1 or more</span></div>
+<div class="ref-row"><code>?</code> <span>0 or 1</span></div>
+<div class="ref-row"><code>{n}</code> <span>Exactly n</span></div>
+<div class="ref-row"><code>{n,}</code> <span>n or more</span></div>
+<div class="ref-row"><code>{n,m}</code> <span>Between n and m</span></div>
+<div class="ref-row"><code>*?</code> <span>Lazy (non-greedy)</span></div>
+</div>
+<div class="ref-group">
+<h4>Anchors</h4>
+<div class="ref-row"><code>^</code> <span>Start of string/line</span></div>
+<div class="ref-row"><code>$</code> <span>End of string/line</span></div>
+<div class="ref-row"><code>\b</code> <span>Word boundary</span></div>
+<div class="ref-row"><code>\B</code> <span>Non-word boundary</span></div>
+</div>
+<div class="ref-group">
+<h4>Groups &amp; Alternation</h4>
+<div class="ref-row"><code>(...)</code> <span>Capturing group</span></div>
+<div class="ref-row"><code>(?:...)</code> <span>Non-capturing group</span></div>
+<div class="ref-row"><code>(?&lt;name&gt;...)</code> <span>Named group</span></div>
+<div class="ref-row"><code>(?=...)</code> <span>Positive lookahead</span></div>
+<div class="ref-row"><code>(?!...)</code> <span>Negative lookahead</span></div>
+<div class="ref-row"><code>(?&lt;=...)</code> <span>Positive lookbehind</span></div>
+<div class="ref-row"><code>(?&lt;!...)</code> <span>Negative lookbehind</span></div>
+<div class="ref-row"><code>a|b</code> <span>a or b</span></div>
+</div>
+<div class="ref-group">
+<h4>Flags</h4>
+<div class="ref-row"><code>g</code> <span>Global — find all matches</span></div>
+<div class="ref-row"><code>i</code> <span>Case-insensitive</span></div>
+<div class="ref-row"><code>m</code> <span>Multiline — ^ and $ match line boundaries</span></div>
+<div class="ref-row"><code>s</code> <span>DotAll — . matches newlines</span></div>
+<div class="ref-row"><code>u</code> <span>Unicode — full unicode support</span></div>
+</div>
+<div class="ref-group">
+<h4>Common Patterns</h4>
+<div class="ref-row"><code>[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}</code> <span>Email</span></div>
+<div class="ref-row"><code>https?://[^\s]+</code> <span>URL</span></div>
+<div class="ref-row"><code>\(\d{3}\)\s?\d{3}-\d{4}</code> <span>US phone</span></div>
+<div class="ref-row"><code>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}</code> <span>IPv4</span></div>
+<div class="ref-row"><code>\d{4}-\d{2}-\d{2}</code> <span>Date YYYY-MM-DD</span></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+<div class="footer"><a href="https://gokuscraper.github.io/dev-vault/" ti="footer_dev_vault" ti="link_dev_vault" ti="footer_dev_vault" ti="link_dev_vault">Dev Vault</a></div>
+<div class="related">Related: <a href="https://gokuscraper.github.io/dev-vault/regex-test/" ti="link_regex_test" ti="link_regex_test">Regex Test</a> | <a href="https://gokuscraper.github.io/dev-vault/regex-replace/" ti="link_regex_replace" ti="link_regex_replac
+<script>var _LANG={'title_regex_visualizer_visual_r':["Regex Visualizer — Visual Regular Expression Explainer", "正则表达式可视化工具——可视化正则表达式解释器"],'metadesc_visualize_and_explain_reg':["Visualize and explain regular expressions. Match highlighting, group capture, replace mode. Quick reference. Email, URL, date presets.", "可视化并解释正则表达式。匹配项高亮显示、分组捕获、替换模式。快速参考。电子邮件、URL、日期预设。"],'h1_regex_visualizer':["Regex Visualizer", "正则表达式可视化工具"],'h3_presets':["Presets", "预设"],'h3_regular_expression':["Regular Expression", "正则表达式"],'h3_test_string':["Test String", "测试字符串"],'h3_match_details':["Match Details", "比赛详情"],'h3_replace_mode':["Replace Mode", "替换模式"],'h3_visual_explanation':["Visual Explanation", "视觉解释"],'h3_quick_reference':["Quick Reference", "快速参考"],'subtitle_visualize_and_explain_reg':["Visualize and explain regular expressions step by step", "逐步可视化并解释正则表达式"],'btn_copy':["Copy", "复制"],'placeholder_enter_regex_pattern_e_g_w':["Enter regex pattern, e.g. (\\w+)@(\\w+)\\.(\\w+)", "输入正则表达式模式，例如 (\\w+)@(\\w+)\\.(\\w+)"],'placeholder_enter_test_string_here':["Enter test string here...", "请在此处输入测试字符串..."],'placeholder_e_g_1_at_2':["e.g. [$1 at $2]", "例如 [$1 到 $2]"],'th_token':["Token", "令牌"],'th_type':["Type", "类型"],'th_meaning':["Meaning", "意义"],'label_replacement_string_suppor':["Replacement String (supports $1, $2, $&, etc.)", "替换字符串（支持 $1、$2、$&amp; 等）"],'label_result':["Result", "结果"],'footer_dev_vault':["Dev Vault", "开发者宝库"],'link_dev_vault':["Dev Vault", "开发者宝库"],'link_regex_test':["Regex Test", "正则表达式测试"],'link_regex_replace':["Regex Replace", "正则表达式替换"],'link_regex_cheatsheet':["Regex Cheatsheet", "正则表达式速查表"],'jtc_error':["Error:", "错误："],'jtcpre_error':["Error: ", "错误："]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+e">Regex Replace</a> | <a href="https://gokuscraper.github.io/dev-vault/regex-cheatsheet/" ti="link_regex_cheatsheet" ti="link_regex_cheatsheet">Regex Cheatsheet</a></div>
+</div>
+
+<div class="toast" id="toast">Copied!</div>
+
+
+<script>var _LANG={'title_regex_visualizer_visual_r':["Regex Visualizer — Visual Regular Expression Explainer", "正则表达式可视化工具——可视化正则表达式解释器"],'metadesc_visualize_and_explain_reg':["Visualize and explain regular expressions. Match highlighting, group capture, replace mode. Quick reference. Email, URL, date presets.", "可视化并解释正则表达式。匹配项高亮显示、分组捕获、替换模式。快速参考。电子邮件、URL、日期预设。"],'h1_regex_visualizer':["Regex Visualizer", "正则表达式可视化工具"],'h3_presets':["Presets", "预设"],'h3_regular_expression':["Regular Expression", "正则表达式"],'h3_test_string':["Test String", "测试字符串"],'h3_match_details':["Match Details", "比赛详情"],'h3_replace_mode':["Replace Mode", "替换模式"],'h3_visual_explanation':["Visual Explanation", "视觉解释"],'h3_quick_reference':["Quick Reference", "快速参考"],'subtitle_visualize_and_explain_reg':["Visualize and explain regular expressions step by step", "逐步可视化并解释正则表达式"],'btn_copy':["Copy", "复制"],'placeholder_enter_regex_pattern_e_g_w':["Enter regex pattern, e.g. (\\w+)@(\\w+)\\.(\\w+)", "输入正则表达式模式，例如 (\\w+)@(\\w+)\\.(\\w+)"],'placeholder_enter_test_string_here':["Enter test string here...", "请在此处输入测试字符串..."],'placeholder_e_g_1_at_2':["e.g. [$1 at $2]", "例如 [$1 到 $2]"],'th_token':["Token", "令牌"],'th_type':["Type", "类型"],'th_meaning':["Meaning", "意义"],'label_replacement_string_suppor':["Replacement String (supports $1, $2, $&, etc.)", "替换字符串（支持 $1、$2、$&amp; 等）"],'label_result':["Result", "结果"],'footer_dev_vault':["Dev Vault", "开发者宝库"],'link_dev_vault':["Dev Vault", "开发者宝库"],'link_regex_test':["Regex Test", "正则表达式测试"],'link_regex_replace':["Regex Replace", "正则表达式替换"],'link_regex_cheatsheet':["Regex Cheatsheet", "正则表达式速查表"],'jtc_error':["Error:", "错误："],'jtcpre_error':["Error: ", "错误："]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>
+(function(){
+  // --- Presets ---
+  const PRESETS = [
+    {name:'Email', pattern:'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}', test:'user@example.com, bad@@, admin@test.org', flags:{g:true}},
+    {name:'URL', pattern:'https?://[^\\s]+', test:'Visit https://example.com or http://test.org/path?q=1', flags:{g:true}},
+    {name:'US Phone', pattern:'\\(\\d{3}\\)\\s?\\d{3}-\\d{4}', test:'Call (555) 123-4567 or (800)555-0199', flags:{g:true}},
+    {name:'IPv4', pattern:'\\b\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\b', test:'Server at 192.168.1.1, gateway 10.0.0.1, invalid 999.999.999.999', flags:{g:true}},
+    {name:'Date (YYYY-MM-DD)', pattern:'\\d{4}-\\d{2}-\\d{2}', test:'Today is 2026-03-10, started 2025-01-15', flags:{g:true}},
+    {name:'HTML Tag', pattern:'<(\\w+)(\\s[^>]*)?>([\\s\\S]*?)<\\/\\1>', test:'<div class="x">Hello</div> and <p>World</p>', flags:{g:true}},
+  ];
+
+  const presetsEl = document.getElementById('presets');
+  PRESETS.forEach(p => {
+    const btn = document.createElement('button');
+    btn.className = 'preset';
+    btn.textContent = p.name;
+    btn.onclick = () => {
+      document.getElementById('regexInput').value = p.pattern;
+      document.getElementById('testInput').value = p.test;
+      ['g','i','m','s','u'].forEach(f => {
+        document.getElementById('flag-'+f).checked = !!(p.flags && p.flags[f]);
+      });
+      update();
+    };
+    presetsEl.appendChild(btn);
+  });
+
+  // --- Elements ---
+  const regexInput = document.getElementById('regexInput');
+  const testInput = document.getElementById('testInput');
+  const replaceInput = document.getElementById('replaceInput');
+  const regexError = document.getElementById('regexError');
+  const perfWarn = document.getElementById('perfWarn');
+  const highlightArea = document.getElementById('highlightArea');
+  const matchCount = document.getElementById('matchCount');
+  const matchList = document.getElementById('matchList');
+  const replaceOutput = document.getElementById('replaceOutput');
+  const tokenBody = document.getElementById('tokenBody');
+  const copyBtn = document.getElementById('copyBtn');
+  const toast = document.getElementById('toast');
+
+  // --- Quick Reference toggle ---
+  const refToggle = document.getElementById('refToggle');
+  const refContent = document.getElementById('refContent');
+  const refArrow = document.getElementById('refArrow');
+  refToggle.onclick = () => {
+    refContent.classList.toggle('open');
+    refArrow.classList.toggle('open');
+  };
+
+  // --- Copy ---
+  copyBtn.onclick = () => {
+    const flags = getFlags();
+    const text = '/' + regexInput.value + '/' + flags;
+    navigator.clipboard.writeText(text).then(() => {
+      toast.style.display = 'block';
+      setTimeout(() => toast.style.display = 'none', 1500);
+    });
+  };
+
+  // --- Helpers ---
+  function getFlags() {
+    let f = '';
+    ['g','i','m','s','u'].forEach(c => {
+      if (document.getElementById('flag-'+c).checked) f += c;
+    });
+    return f;
+  }
+
+  function escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  // --- Regex Tokenizer ---
+  function tokenize(pattern) {
+    const tokens = [];
+    let i = 0;
+    const len = pattern.length;
+
+    while (i < len) {
+      const ch = pattern[i];
+
+      // Escape sequences
+      if (ch === '\\' && i + 1 < len) {
+        const next = pattern[i+1];
+        if ('dDwWsSbB'.includes(next)) {
+          const meanings = {d:'Digit [0-9]',D:'Non-digit',w:'Word char [a-zA-Z0-9_]',W:'Non-word char',s:'Whitespace',S:'Non-whitespace',b:'Word boundary',B:'Non-word boundary'};
+          const type = 'bB'.includes(next) ? 'anchor' : 'escape';
+          tokens.push({token:'\\'+next, type, meaning:meanings[next]});
+          i += 2; continue;
+        }
+        if ('tnrfv0'.includes(next)) {
+          const meanings = {t:'Tab',n:'Newline',r:'Carriage return',f:'Form feed',v:'Vertical tab','0':'Null'};
+          tokens.push({token:'\\'+next, type:'escape', meaning:meanings[next]||'Escape'});
+          i += 2; continue;
+        }
+        // backreference \1-\9
+        if (next >= '1' && next <= '9') {
+          tokens.push({token:'\\'+next, type:'escape', meaning:'Backreference to group '+next});
+          i += 2; continue;
+        }
+        // escaped special char
+        tokens.push({token:'\\'+next, type:'escape', meaning:'Literal "'+next+'"'});
+        i += 2; continue;
+      }
+
+      // Character class [...]
+      if (ch === '[') {
+        let j = i + 1;
+        let cls = '[';
+        if (j < len && pattern[j] === '^') { cls += '^'; j++; }
+        if (j < len && pattern[j] === ']') { cls += ']'; j++; }
+        while (j < len && pattern[j] !== ']') {
+          if (pattern[j] === '\\' && j + 1 < len) { cls += pattern[j] + pattern[j+1]; j += 2; }
+          else { cls += pattern[j]; j++; }
+        }
+        if (j < len) { cls += ']'; j++; }
+        const neg = cls[1] === '^';
+        tokens.push({token:cls, type:'charclass', meaning:(neg?'Not matching':'Match')+' any of: '+cls.slice(neg?2:1,-1)});
+        i = j; continue;
+      }
+
+      // Groups
+      if (ch === '(') {
+        // Check for special group types
+        if (pattern.substr(i,3) === '(?:') {
+          tokens.push({token:'(?:', type:'group', meaning:'Non-capturing group start'});
+          i += 3; continue;
+        }
+        if (pattern.substr(i,3) === '(?=') {
+          tokens.push({token:'(?=', type:'group', meaning:'Positive lookahead start'});
+          i += 3; continue;
+        }
+        if (pattern.substr(i,3) === '(?!') {
+          tokens.push({token:'(?!', type:'group', meaning:'Negative lookahead start'});
+          i += 3; continue;
+        }
+        if (pattern.substr(i,4) === '(?<=') {
+          tokens.push({token:'(?<=', type:'group', meaning:'Positive lookbehind start'});
+          i += 4; continue;
+        }
+        if (pattern.substr(i,4) === '(?<!') {
+          tokens.push({token:'(?<!', type:'group', meaning:'Negative lookbehind start'});
+          i += 4; continue;
+        }
+        // Named group (?<name>...)
+        const namedMatch = pattern.substr(i).match(/^\(\?<([^>]+)>/);
+        if (namedMatch) {
+          tokens.push({token:namedMatch[0], type:'group', meaning:'Named capturing group "'+namedMatch[1]+'"'});
+          i += namedMatch[0].length; continue;
+        }
+        tokens.push({token:'(', type:'group', meaning:'Capturing group start'});
+        i++; continue;
+      }
+      if (ch === ')') {
+        tokens.push({token:')', type:'group', meaning:'Group end'});
+        i++; continue;
+      }
+
+      // Quantifiers
+      if (ch === '*' || ch === '+' || ch === '?') {
+        // Check for lazy
+        if (i + 1 < len && pattern[i+1] === '?' && ch !== '?') {
+          const m = {'+':'1 or more (lazy)','*':'0 or more (lazy)'};
+          tokens.push({token:ch+'?', type:'quantifier', meaning:m[ch]});
+          i += 2; continue;
+        }
+        const meanings = {'*':'0 or more (greedy)','+':'1 or more (greedy)','?':'0 or 1 (optional)'};
+        tokens.push({token:ch, type:'quantifier', meaning:meanings[ch]});
+        i++; continue;
+      }
+      if (ch === '{') {
+        const qm = pattern.substr(i).match(/^\{(\d+)(,(\d*))?\}(\?)?/);
+        if (qm) {
+          const tok = qm[0];
+          let meaning;
+          if (qm[2] === undefined) meaning = 'Exactly '+qm[1]+' times';
+          else if (qm[3] === '') meaning = qm[1]+' or more times';
+          else meaning = 'Between '+qm[1]+' and '+qm[3]+' times';
+          if (qm[4]) meaning += ' (lazy)';
+          tokens.push({token:tok, type:'quantifier', meaning});
+          i += tok.length; continue;
+        }
+        // literal {
+        tokens.push({token:ch, type:'literal', meaning:'Literal "{"'});
+        i++; continue;
+      }
+
+      // Anchors
+      if (ch === '^') {
+        tokens.push({token:'^', type:'anchor', meaning:'Start of string (or line with m flag)'});
+        i++; continue;
+      }
+      if (ch === '$') {
+        tokens.push({token:'$', type:'anchor', meaning:'End of string (or line with m flag)'});
+        i++; continue;
+      }
+
+      // Alternation
+      if (ch === '|') {
+        tokens.push({token:'|', type:'alternation', meaning:'OR — match left or right'});
+        i++; continue;
+      }
+
+      // Dot
+      if (ch === '.') {
+        tokens.push({token:'.', type:'charclass', meaning:'Any character (except newline)'});
+        i++; continue;
+      }
+
+      // Literal
+      tokens.push({token:ch, type:'literal', meaning:'Literal "'+ch+'"'});
+      i++;
+    }
+    return tokens;
+  }
+
+  function tokenClass(type) {
+    const map = {charclass:'tok-charclass',quantifier:'tok-quantifier',group:'tok-group',anchor:'tok-anchor',alternation:'tok-alternation',escape:'tok-escape',literal:'tok-literal'};
+    return map[type] || 'tok-literal';
+  }
+
+  function typeLabel(type) {
+    const map = {charclass:'Char Class',quantifier:'Quantifier',group:'Group',anchor:'Anchor',alternation:'Alternation',escape:'Escape',literal:'Literal'};
+    return map[type] || type;
+  }
+
+  // --- Main Update ---
+  function update() {
+    const pattern = regexInput.value;
+    const testStr = testInput.value;
+    const replacement = replaceInput.value;
+    const flags = getFlags();
+
+    regexError.textContent = '';
+    perfWarn.style.display = 'none';
+
+    // Tokenize and display explanation
+    if (pattern) {
+      const tokens = tokenize(pattern);
+      tokenBody.innerHTML = tokens.map(t =>
+        `<tr><td class="${tokenClass(t.type)}" style="font-family:'Fira Code',monospace">${escHtml(t.token)}</td><td style="color:#888">${typeLabel(t.type)}</td><td>${escHtml(t.meaning)}</td></tr>`
+      ).join('');
+    } else {
+      tokenBody.innerHTML = '<tr><td colspan="3" style="color:#555">Enter a regex to see explanation</td></tr>';
+    }
+
+    // Build regex
+    if (!pattern) {
+      highlightArea.textContent = testStr;
+      matchCount.textContent = '0';
+      matchList.innerHTML = '';
+      replaceOutput.textContent = '';
+      return;
+    }
+
+    let regex;
+    try {
+      regex = new RegExp(pattern, flags);
+    } catch(e) {
+      regexError.textContent = e.message;
+      highlightArea.textContent = testStr;
+      matchCount.textContent = '0';
+      matchList.innerHTML = '';
+      replaceOutput.textContent = '';
+      return;
+    }
+
+    // Execute with timeout
+    const matches = [];
+    const isGlobal = flags.includes('g');
+    const startTime = performance.now();
+    const TIMEOUT = 100;
+
+    try {
+      if (isGlobal) {
+        let m;
+        regex.lastIndex = 0;
+        while ((m = regex.exec(testStr)) !== null) {
+          if (performance.now() - startTime > TIMEOUT) {
+            perfWarn.style.display = 'block';
+            break;
+          }
+          matches.push({index: m.index, value: m[0], groups: [...m], named: m.groups || null});
+          if (m[0].length === 0) regex.lastIndex++;
+        }
+      } else {
+        const m = regex.exec(testStr);
+        if (m) {
+          matches.push({index: m.index, value: m[0], groups: [...m], named: m.groups || null});
+        }
+      }
+    } catch(e) {
+      regexError.textContent = e.message;
+    }
+
+    if (performance.now() - startTime > TIMEOUT) {
+      perfWarn.style.display = 'block';
+    }
+
+    // Match count
+    matchCount.textContent = matches.length;
+
+    // Highlight test string
+    if (matches.length === 0) {
+      highlightArea.textContent = testStr;
+    } else {
+      let html = '';
+      let last = 0;
+      matches.forEach((m, idx) => {
+        if (m.index > last) html += escHtml(testStr.slice(last, m.index));
+        const cls = 'hl-match hl-' + (idx % 5);
+        html += '<span class="'+cls+'">'+escHtml(m.value)+'</span>';
+        last = m.index + m.value.length;
+      });
+      if (last < testStr.length) html += escHtml(testStr.slice(last));
+      highlightArea.innerHTML = html;
+    }
+
+    // Match list with groups
+    matchList.innerHTML = matches.map((m, idx) => {
+      let groupsHtml = '';
+      if (m.groups.length > 1 || m.named) {
+        const rows = [];
+        for (let g = 0; g < m.groups.length; g++) {
+          rows.push(`<div class="group-row"><span class="gn">${g === 0 ? 'Full match' : 'Group '+g}</span><span class="gv">${m.groups[g] !== undefined ? escHtml(m.groups[g]) : '(undefined)'}</span></div>`);
+        }
+        if (m.named) {
+          for (const [name, val] of Object.entries(m.named)) {
+            rows.push(`<div class="group-row"><span class="gn">${escHtml(name)}</span><span class="gv">${val !== undefined ? escHtml(val) : '(undefined)'}</span></div>`);
+          }
+        }
+        groupsHtml = `<div class="match-groups" id="mg-${idx}">${rows.join('')}</div>`;
+      }
+      return `<div class="match-item">
+        <div class="match-header" onclick="document.getElementById('mg-${idx}')&&document.getElementById('mg-${idx}').classList.toggle('open')">
+          <span><span class="idx">#${idx+1}</span> at index ${m.index}</span>
+          <span class="val">${escHtml(m.value)}</span>
+        </div>
+        ${groupsHtml}
+      </div>`;
+    }).join('');
+
+    // Replace
+    if (replacement !== undefined) {
+      try {
+        const replRegex = new RegExp(pattern, flags);
+        const result = testStr.replace(replRegex, replacement);
+        replaceOutput.textContent = result;
+      } catch(e) {
+        replaceOutput.textContent=T("jtcpre_error")+ e.message;
+      }
+    }
+  }
+
+  // --- Events ---
+  regexInput.addEventListener('input', update);
+  testInput.addEventListener('input', update);
+  replaceInput.addEventListener('input', update);
+  ['g','i','m','s','u'].forEach(f => {
+    document.getElementById('flag-'+f).addEventListener('change', update);
+  });
+
+  // Initial
+  regexInput.value = '(\\w+)@(\\w+)\\.(\\w+)';
+  update();
+})();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+</body>
+</html>

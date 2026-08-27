@@ -1,0 +1,758 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>添加水印</title>
+  <style>
+    :root {
+      --bg: #ffffff;
+      --text: #1f2328;
+      --muted: #667085;
+      --panel: #f7f7f8;
+      --border: #d0d7de;
+      --accent: #2563eb;
+      --accent-contrast: #ffffff;
+      --danger: #dc2626;
+    }
+    html[data-theme="dark"] {
+      --bg: #0b0f14;
+      --text: #e5e7eb;
+      --muted: #9aa4b2;
+      --panel: #0f141a;
+      --border: #1f2937;
+      --accent: #3b82f6;
+      --accent-contrast: #0b0f14;
+      --danger: #f87171;
+    }
+
+    html, body { height: 100%; }
+    body {
+      margin: 0; background: var(--bg); color: var(--text);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, "PingFang SC", "Microsoft Yahei", sans-serif;
+    }
+    .wrap {
+      max-width: 1200px; margin: 0 auto; padding: 16px; display: flex; gap: 16px; flex-wrap: wrap;
+    }
+    header { display:flex; align-items:center; justify-content:space-between; gap:12px; padding: 12px 16px; border-bottom: 1px solid var(--border); background: var(--panel); position: sticky; top: 0; z-index: 10; }
+    h1 { font-size: 18px; margin: 0; }
+    .theme-toggle { border:1px solid var(--border); background: var(--bg); color:var(--text); padding:8px 12px; border-radius:8px; cursor:pointer; }
+
+    .panel {
+      flex: 1 1 320px; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 12px;
+    }
+    .canvas-panel { flex: 2 1 520px; display:flex; flex-direction:column; gap:8px; }
+
+    .grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
+    .field { display:flex; flex-direction:column; gap:6px; }
+    .field label { font-size: 13px; color: var(--muted); }
+    .row { display:flex; gap: 8px; flex-wrap: wrap; }
+
+    textarea, input[type="text"], input[type="number"], input[type="color"], input[type="file"], select {
+      padding: 8px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 8px;
+    }
+    /* 颜色选择器专用样式：显示颜色预览，去掉多余内边距 */
+    input[type="color"] {
+      padding: 0; width: 48px; height: 32px; background: var(--bg);
+      border: 1px solid var(--border); border-radius: 8px; cursor: pointer;
+    }
+    input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+    input[type="color"]::-webkit-color-swatch { border: none; border-radius: 6px; }
+    input[type="color"]::-moz-color-swatch { border: none; border-radius: 6px; }
+    input[type="range"] { width: 100%; }
+    .btn { padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); cursor: pointer; }
+    .btn-primary { background: var(--accent); color: var(--accent-contrast); border-color: var(--accent); }
+    .btn-danger { background: var(--danger); color: var(--accent-contrast); border-color: var(--danger); }
+
+    .canvas-wrap {
+      position: relative; border: 1px dashed var(--border); border-radius: 12px; background: repeating-conic-gradient(from 45deg, #0000 0 90deg, #0001 90deg 180deg) 50%/20px 20px;
+      display:flex; align-items:center; justify-content:center; min-height: 280px; padding: 8px;
+    }
+    canvas { max-width: 100%; height: auto; touch-action: none; border-radius: 10px; }
+
+    .empty { position:absolute; inset: 8px; display:flex; align-items:center; justify-content:center; text-align:center; color: var(--muted); pointer-events: none; }
+    .hint { font-size: 12px; color: var(--muted); }
+
+    .quick-pos .btn { flex: 1 1 120px; }
+
+    @media (max-width: 640px) {
+      header { position: static; }
+      .wrap { padding: 10px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>添加水印</h1>
+    <button id="themeBtn" class="theme-toggle" aria-label="切换主题">🌙 深色</button>
+  </header>
+
+  <div class="wrap">
+    <section class="panel grid" aria-label="控制面板">
+      <div class="field">
+        <label>导入图片（点击选择或拖拽到预览区）</label>
+        <input id="fileInput" type="file" accept="image/*" />
+      </div>
+
+      <div class="field">
+        <label>水印文字</label>
+        <textarea id="wmText" rows="3" placeholder="输入水印，可换行">示例水印</textarea>
+        <span class="hint">支持换行，回车分行</span>
+      </div>
+
+      <div class="row">
+        <div class="field" style="flex:1 1 160px">
+          <label>行距倍数：<span id="lineHeightVal">1.30</span></label>
+          <input id="lineHeight" type="range" min="1" max="2" step="0.05" value="1.30" />
+        </div>
+        <div class="field" style="flex:1 1 160px">
+          <label>文字对齐</label>
+          <select id="textAlign">
+            <option value="left">左对齐</option>
+            <option value="center">居中</option>
+            <option value="right">右对齐</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="field" style="flex:1 1 160px">
+          <label>字体</label>
+          <select id="fontFamily">
+            <option value="system-ui, -apple-system, Segoe UI, Roboto, \"PingFang SC\", \"Microsoft Yahei\", sans-serif">系统默认</option>
+            <option value="Arial, Helvetica, sans-serif">Arial</option>
+            <option value="\"Microsoft Yahei\", Arial, sans-serif">微软雅黑</option>
+            <option value="Times New Roman, Times, serif">Times New Roman</option>
+            <option value="Georgia, serif">Georgia</option>
+            <option value="Monaco, Consolas, 'Courier New', monospace">等宽字体</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="field" style="flex:1 1 160px">
+          <label>字体大小：<span id="fontSizeVal">48</span> px</label>
+          <input id="fontSize" type="range" min="16" max="200" value="48" />
+        </div>
+        <div class="field" style="flex:1 1 160px">
+          <label>透明度：<span id="opacityVal">0.30</span></label>
+          <input id="opacity" type="range" min="0" max="1" step="0.01" value="0.30" />
+        </div>
+      </div>
+      <!-- 新增：字间距 -->
+      <div class="row">
+        <div class="field" style="flex:1 1 160px">
+          <label>字间距：<span id="charSpacingVal">0</span> px</label>
+          <input id="charSpacing" type="range" min="-10" max="50" step="0.5" value="0" />
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="field" style="flex:1 1 160px">
+          <label>颜色</label>
+          <input id="color" type="color" value="#ffffff" />
+        </div>
+        <div class="field" style="flex:1 1 160px">
+          <label>旋转：<span id="rotateVal">0</span>°</label>
+          <input id="rotate" type="range" min="-90" max="90" value="0" />
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="field" style="flex:1 1 160px">
+          <label><input id="tile" type="checkbox" /> 平铺水印</label>
+          <span class="hint">启用后不可拖拽单个文字，使用间距控制密度</span>
+        </div>
+        <div class="field" style="flex:1 1 160px">
+          <label>平铺间距：<span id="tileGapVal">180</span> px</label>
+          <input id="tileGap" type="range" min="60" max="400" value="180" />
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="field" style="flex:1 1 160px">
+          <label>水印类型</label>
+          <select id="wmMode">
+            <option value="text">文字</option>
+            <option value="image">图片</option>
+          </select>
+        </div>
+        <div class="field" style="flex:1 1 160px" id="wmImgField" hidden>
+          <label>水印图片</label>
+          <input id="wmImgInput" type="file" accept="image/*" />
+        </div>
+      </div>
+
+      <div class="row" id="wmImgControls" hidden>
+        <div class="field" style="flex:1 1 160px">
+          <label>图片缩放：<span id="wmScaleVal">1.00</span>x</label>
+          <input id="wmScale" type="range" min="0.1" max="3" step="0.01" value="1.00" />
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="field" style="flex:1 1 160px">
+          <label><input id="strokeEnabled" type="checkbox" /> 文本描边</label>
+        </div>
+        <div class="field" style="flex:1 1 160px">
+          <label>描边颜色</label>
+          <input id="strokeColor" type="color" value="#000000" />
+        </div>
+        <div class="field" style="flex:1 1 160px">
+          <label>描边宽度：<span id="strokeWidthVal">2</span> px</label>
+          <input id="strokeWidth" type="range" min="0" max="10" value="2" />
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="field" style="flex:1 1 160px">
+          <label><input id="shadowEnabled" type="checkbox" /> 阴影</label>
+        </div>
+        <div class="field" style="flex:1 1 160px">
+          <label>阴影颜色</label>
+          <input id="shadowColor" type="color" value="#000000" />
+        </div>
+        <div class="field" style="flex:1 1 160px">
+          <label>阴影模糊：<span id="shadowBlurVal">8</span></label>
+          <input id="shadowBlur" type="range" min="0" max="30" value="8" />
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="field" style="flex:1 1 160px">
+          <label>阴影偏移X：<span id="shadowOffsetXVal">2</span> px</label>
+          <input id="shadowOffsetX" type="range" min="-50" max="50" value="2" />
+        </div>
+        <div class="field" style="flex:1 1 160px">
+          <label>阴影偏移Y：<span id="shadowOffsetYVal">2</span> px</label>
+          <input id="shadowOffsetY" type="range" min="-50" max="50" value="2" />
+        </div>
+      </div>
+
+      <div class="row quick-pos">
+        <button class="btn" data-pos="tl">左上</button>
+        <button class="btn" data-pos="tr">右上</button>
+        <button class="btn" data-pos="c">居中</button>
+        <button class="btn" data-pos="bl">左下</button>
+        <button class="btn" data-pos="br">右下</button>
+      </div>
+
+      <div class="row">
+        <div class="field" style="flex:1 1 160px">
+          <label>JPEG质量：<span id="jpgQualityVal">0.92</span></label>
+          <input id="jpgQuality" type="range" min="0.1" max="1" step="0.01" value="0.92" />
+        </div>
+        <div class="field" style="flex:1 1 160px">
+          <label>导出文件名</label>
+          <input id="fileName" type="text" placeholder="watermarked" />
+        </div>
+      </div>
+
+      <div class="row">
+        <button id="downloadPng" class="btn btn-primary">下载 PNG</button>
+        <button id="downloadJpg" class="btn">下载 JPEG</button>
+        <button id="reset" class="btn btn-danger">重置</button>
+      </div>
+    </section>
+
+    <section class="panel canvas-panel" aria-label="预览与画布">
+      <div class="canvas-wrap" id="canvasWrap">
+        <canvas id="canvas"></canvas>
+        <div class="empty" id="emptyTip">点击或拖拽图片到此区域</div>
+      </div>
+      <small class="hint">提示：未启用平铺时，可直接在图片上拖拽水印文字定位。</small>
+    </section>
+  </div>
+
+  <script>
+    // 主题切换与持久化
+    (function initTheme(){
+      const saved = localStorage.getItem('theme');
+      const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const initial = saved || (prefersDark ? 'dark' : 'light');
+      setTheme(initial);
+      document.getElementById('themeBtn').addEventListener('click', () => {
+        const now = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+        setTheme(now);
+      });
+      function setTheme(mode){
+        document.documentElement.setAttribute('data-theme', mode);
+        localStorage.setItem('theme', mode);
+        const btn = document.getElementById('themeBtn');
+        btn.textContent = mode === 'dark' ? '🌞 浅色' : '🌙 深色';
+      }
+    })();
+
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const wrap = document.getElementById('canvasWrap');
+    const emptyTip = document.getElementById('emptyTip');
+
+    const fileInput = document.getElementById('fileInput');
+    const wmText = document.getElementById('wmText');
+    const fontSize = document.getElementById('fontSize');
+    const fontSizeVal = document.getElementById('fontSizeVal');
+    const color = document.getElementById('color');
+    const opacity = document.getElementById('opacity');
+    const opacityVal = document.getElementById('opacityVal');
+    const rotate = document.getElementById('rotate');
+    const rotateVal = document.getElementById('rotateVal');
+    const tile = document.getElementById('tile');
+    const tileGap = document.getElementById('tileGap');
+    const tileGapVal = document.getElementById('tileGapVal');
+
+    const wmMode = document.getElementById('wmMode');
+    const wmImgField = document.getElementById('wmImgField');
+    const wmImgInput = document.getElementById('wmImgInput');
+    const wmImgControls = document.getElementById('wmImgControls');
+    const wmScale = document.getElementById('wmScale');
+    const wmScaleVal = document.getElementById('wmScaleVal');
+
+    const strokeEnabled = document.getElementById('strokeEnabled');
+    const strokeColor = document.getElementById('strokeColor');
+    const strokeWidth = document.getElementById('strokeWidth');
+    const strokeWidthVal = document.getElementById('strokeWidthVal');
+
+    const shadowEnabled = document.getElementById('shadowEnabled');
+    const shadowColor = document.getElementById('shadowColor');
+    const shadowBlur = document.getElementById('shadowBlur');
+    const shadowBlurVal = document.getElementById('shadowBlurVal');
+    const shadowOffsetX = document.getElementById('shadowOffsetX');
+    const shadowOffsetXVal = document.getElementById('shadowOffsetXVal');
+    const shadowOffsetY = document.getElementById('shadowOffsetY');
+    const shadowOffsetYVal = document.getElementById('shadowOffsetYVal');
+
+    const jpgQuality = document.getElementById('jpgQuality');
+    const jpgQualityVal = document.getElementById('jpgQualityVal');
+    const fileName = document.getElementById('fileName');
+
+    const lineHeight = document.getElementById('lineHeight');
+    const lineHeightVal = document.getElementById('lineHeightVal');
+    const textAlign = document.getElementById('textAlign');
+    const fontFamily = document.getElementById('fontFamily');
+    const charSpacing = document.getElementById('charSpacing');
+    const charSpacingVal = document.getElementById('charSpacingVal');
+
+    const downloadPng = document.getElementById('downloadPng');
+    const downloadJpg = document.getElementById('downloadJpg');
+    const resetBtn = document.getElementById('reset');
+
+    let img = null;
+    let wmImg = null;
+    let mode = 'text';
+    const state = {
+      x: 0,
+      y: 0,
+      dragging: false,
+      dragOffsetX: 0,
+      dragOffsetY: 0,
+    };
+
+    function setFont(){
+      const size = parseInt(fontSize.value,10);
+      const family = fontFamily ? fontFamily.value : "system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
+      ctx.font = `bold ${size}px ${family}`;
+      ctx.textBaseline = 'top';
+      ctx.textAlign = textAlign ? textAlign.value : 'left';
+    }
+    function measureText(text){
+      setFont();
+      const lines = (text || '').split(/\r?\n/);
+      const size = parseInt(fontSize.value,10);
+      const lh = size * (parseFloat(lineHeight?.value || '1.3'));
+      const spacing = parseFloat(charSpacing?.value || '0');
+      let maxW = 0;
+      for(const line of lines){
+        const segs = Array.from(line);
+        const baseW = ctx.measureText(line).width;
+        const w = baseW + (segs.length > 1 ? spacing * (segs.length - 1) : 0);
+        if(w > maxW) maxW = w;
+      }
+      const h = Math.max(lh, lines.length * lh);
+      return { w: maxW, h, lines, lh, spacing };
+    }
+
+    function fitInitialPosition(){
+      const { w, h } = measureText(wmText.value || '');
+      state.x = Math.max(10, (canvas.width - w) / 2);
+      state.y = Math.max(10, (canvas.height - h) / 2);
+    }
+
+    function draw(){
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      if(!img){ return; }
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+      ctx.save();
+      const angle = parseInt(rotate.value,10) * Math.PI / 180;
+      ctx.globalAlpha = parseFloat(opacity.value);
+
+      // 阴影
+      if (shadowEnabled && shadowEnabled.checked) {
+        ctx.shadowColor = shadowColor.value;
+        ctx.shadowBlur = parseInt(shadowBlur.value,10);
+        ctx.shadowOffsetX = parseInt(shadowOffsetX.value,10);
+        ctx.shadowOffsetY = parseInt(shadowOffsetY.value,10);
+      } else {
+        ctx.shadowColor = 'transparent';
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
+      }
+
+      if (wmMode && wmMode.value === 'image' && wmImg) {
+        const scale = parseFloat(wmScale.value || '1');
+        const w = wmImg.naturalWidth * scale;
+        const h = wmImg.naturalHeight * scale;
+        ctx.translate(state.x, state.y);
+        ctx.rotate(angle);
+        ctx.drawImage(wmImg, 0, 0, w, h);
+      } else {
+        const text = wmText.value || '';
+        if(!text){ ctx.restore(); return; }
+        setFont();
+        ctx.fillStyle = color.value;
+        if (strokeEnabled && strokeEnabled.checked) {
+          ctx.lineWidth = parseInt(strokeWidth.value,10);
+          ctx.strokeStyle = strokeColor.value;
+        } else {
+          ctx.lineWidth = 0;
+        }
+
+        // 支持多行文本绘制
+        const { lines, lh, w, h, spacing } = measureText(text);
+        function drawTextLinesAt(x, y){
+          const align = textAlign ? textAlign.value : 'left';
+          for(let i=0; i<lines.length; i++){
+            const yy = y + i * lh;
+            const line = lines[i];
+            if (!line) continue;
+            if (spacing === 0){
+              if (strokeEnabled && strokeEnabled.checked) ctx.strokeText(line, x, yy);
+              ctx.fillText(line, x, yy);
+            } else {
+              const segs = Array.from(line);
+              const baseW = ctx.measureText(line).width;
+              const lineW = baseW + (segs.length > 1 ? spacing * (segs.length - 1) : 0);
+              let startX = x;
+              if(align === 'center') startX = x - lineW/2;
+              else if(align === 'right') startX = x - lineW;
+              const prevAlign = ctx.textAlign;
+              ctx.textAlign = 'left';
+              let xx = startX;
+              for(const ch of segs){
+                if (strokeEnabled && strokeEnabled.checked) ctx.strokeText(ch, xx, yy);
+                ctx.fillText(ch, xx, yy);
+                xx += ctx.measureText(ch).width + spacing;
+              }
+              ctx.textAlign = prevAlign;
+            }
+          }
+        }
+
+        if(tile.checked){
+          // 平铺：围绕画布中心旋转，再按网格填充
+          ctx.translate(canvas.width/2, canvas.height/2);
+          ctx.rotate(angle);
+          ctx.translate(-canvas.width/2, -canvas.height/2);
+          const gap = parseInt(tileGap.value,10);
+          const stepX = Math.max(gap, w + 40);
+          const stepY = Math.max(gap, h + 40);
+          for(let y= -stepY; y < canvas.height + stepY; y += stepY){
+            for(let x= -stepX; x < canvas.width + stepX; x += stepX){
+              drawTextLinesAt(x, y);
+            }
+          }
+        } else {
+          // 单个水印：可拖拽，点击设置位置
+          ctx.translate(state.x, state.y);
+          ctx.rotate(angle);
+          drawTextLinesAt(0, 0);
+        }
+      }
+      ctx.restore();
+    }
+
+    function updateUIValues(){
+      fontSizeVal.textContent = fontSize.value;
+      opacityVal.textContent = parseFloat(opacity.value).toFixed(2);
+      rotateVal.textContent = rotate.value;
+      tileGapVal.textContent = tileGap.value;
+      if (strokeWidthVal) strokeWidthVal.textContent = strokeWidth.value;
+      if (shadowBlurVal) shadowBlurVal.textContent = shadowBlur.value;
+      if (shadowOffsetXVal) shadowOffsetXVal.textContent = shadowOffsetX.value;
+      if (shadowOffsetYVal) shadowOffsetYVal.textContent = shadowOffsetY.value;
+      if (wmScaleVal) wmScaleVal.textContent = parseFloat(wmScale.value).toFixed(2);
+      if (jpgQualityVal) jpgQualityVal.textContent = parseFloat(jpgQuality.value).toFixed(2);
+      if (lineHeightVal) lineHeightVal.textContent = parseFloat(lineHeight.value).toFixed(2);
+      if (charSpacingVal) charSpacingVal.textContent = parseFloat(charSpacing.value).toFixed(1);
+    }
+
+    function loadImageFromFile(file){
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        img = new Image();
+        img.onload = () => {
+          canvas.width = img.naturalWidth;
+          canvas.height = img.naturalHeight;
+          emptyTip.style.display = 'none';
+          fitInitialPosition();
+          draw();
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    // 拖拽导入
+    ['dragenter','dragover','dragleave','drop'].forEach(evt => {
+      wrap.addEventListener(evt, e => { e.preventDefault(); e.stopPropagation(); });
+    });
+    wrap.addEventListener('drop', e => {
+      const file = e.dataTransfer.files && e.dataTransfer.files[0];
+      if(file && file.type.startsWith('image/')) loadImageFromFile(file);
+    });
+
+    // 文件选择
+    fileInput.addEventListener('change', (e) => {
+      const file = e.target.files && e.target.files[0];
+      if(file && file.type.startsWith('image/')) loadImageFromFile(file);
+    });
+
+    // 水印图片选择
+    wmImgInput.addEventListener('change', (e) => {
+      const file = e.target.files && e.target.files[0];
+      if(!file || !file.type.startsWith('image/')) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        wmImg = new Image();
+        wmImg.onload = () => { fitInitialPositionImage(); draw(); };
+        wmImg.src = ev.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    function fitInitialPositionImage(){
+      if(!wmImg) return;
+      const scale = parseFloat(wmScale.value || '1');
+      const w = wmImg.naturalWidth * scale;
+      const h = wmImg.naturalHeight * scale;
+      state.x = Math.max(10, (canvas.width - w) / 2);
+      state.y = Math.max(10, (canvas.height - h) / 2);
+    }
+
+    function updateModeUI(){
+      const isImage = wmMode && wmMode.value === 'image';
+      if (wmImgField) wmImgField.hidden = !isImage;
+      if (wmImgControls) wmImgControls.hidden = !isImage;
+      tile.disabled = isImage;
+      tileGap.disabled = isImage;
+    }
+
+    // 计算当前水印尺寸与边界
+    function getWatermarkDims(){
+      if (wmMode && wmMode.value === 'image' && wmImg) {
+        const scale = parseFloat(wmScale.value || '1');
+        const w = wmImg.naturalWidth * scale;
+        const h = wmImg.naturalHeight * scale;
+        return { w, h, minX: 0, maxX: Math.max(0, canvas.width - w), minY: 0, maxY: Math.max(0, canvas.height - h) };
+      } else {
+        const text = wmText.value || '';
+        const { w, h } = measureText(text);
+        const align = textAlign ? textAlign.value : 'left';
+        let minX, maxX;
+        if(align === 'left'){ minX = 0; maxX = Math.max(0, canvas.width - w); }
+        else if(align === 'center'){ minX = w/2; maxX = canvas.width - w/2; }
+        else { minX = 0; maxX = canvas.width; }
+        const minY = 0, maxY = Math.max(0, canvas.height - h);
+        return { w, h, minX, maxX, minY, maxY };
+      }
+    }
+
+    // 画布拖拽定位
+    canvas.addEventListener('pointerdown', (e) => {
+      if(!img || tile.checked) return;
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      const x = (e.clientX - rect.left) * scaleX;
+      const y = (e.clientY - rect.top) * scaleY;
+      state.dragging = true;
+      // 记录相对偏移，避免按下瞬间跳动
+      state.dragOffsetX = x - state.x;
+      state.dragOffsetY = y - state.y;
+      const { minX, maxX, minY, maxY } = getWatermarkDims();
+      state.x = Math.min(Math.max(x - state.dragOffsetX, minX), maxX);
+      state.y = Math.min(Math.max(y - state.dragOffsetY, minY), maxY);
+      draw(); saveSettings();
+    });
+    window.addEventListener('pointermove', (e) => {
+      if(!state.dragging || !img || tile.checked) return;
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      const x = (e.clientX - rect.left) * scaleX;
+      const y = (e.clientY - rect.top) * scaleY;
+      const { minX, maxX, minY, maxY } = getWatermarkDims();
+      state.x = Math.min(Math.max(x - state.dragOffsetX, minX), maxX);
+      state.y = Math.min(Math.max(y - state.dragOffsetY, minY), maxY);
+      draw(); saveSettings();
+    });
+    window.addEventListener('pointerup', () => { state.dragging = false; });
+    window.addEventListener('pointercancel', () => { state.dragging = false; });
+
+    // 快捷定位按钮
+    document.querySelectorAll('.quick-pos .btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if(!img) return;
+        const pos = btn.dataset.pos;
+        const { w, h } = getWatermarkDims();
+        const align = textAlign ? textAlign.value : 'left';
+        const leftX = align==='left' ? 10 : (align==='center' ? 10 + w/2 : 10 + w);
+        const rightX = align==='left' ? (canvas.width - 10 - w) : (align==='center' ? canvas.width - 10 - w/2 : canvas.width - 10);
+        const centerX = align==='left' ? (canvas.width - w)/2 : (align==='center' ? canvas.width/2 : (canvas.width + w)/2);
+        const topY = 10;
+        const bottomY = canvas.height - 10 - h;
+        const centerY = (canvas.height - h)/2;
+        if(pos==='tl'){ state.x = leftX; state.y = topY; }
+        else if(pos==='tr'){ state.x = rightX; state.y = topY; }
+        else if(pos==='c'){ state.x = centerX; state.y = centerY; }
+        else if(pos==='bl'){ state.x = leftX; state.y = bottomY; }
+        else if(pos==='br'){ state.x = rightX; state.y = bottomY; }
+        draw(); saveSettings();
+      });
+    });
+
+    // 键盘微调
+    window.addEventListener('keydown', (e) => {
+      if(!img || tile.checked) return;
+      const step = e.shiftKey ? 10 : 1;
+      const { minX, maxX, minY, maxY } = getWatermarkDims();
+      let moved = false;
+      if(e.key === 'ArrowLeft'){ state.x = Math.max(minX, state.x - step); moved = true; }
+      else if(e.key === 'ArrowRight'){ state.x = Math.min(maxX, state.x + step); moved = true; }
+      else if(e.key === 'ArrowUp'){ state.y = Math.max(minY, state.y - step); moved = true; }
+      else if(e.key === 'ArrowDown'){ state.y = Math.min(maxY, state.y + step); moved = true; }
+      if(moved){ e.preventDefault(); draw(); saveSettings(); }
+    });
+
+    // 设置持久化
+    function saveSettings(){
+      const s = {
+        wmText: wmText.value,
+        fontSize: fontSize.value,
+        color: color.value,
+        opacity: opacity.value,
+        rotate: rotate.value,
+        tile: tile.checked,
+        tileGap: tileGap.value,
+        strokeEnabled: strokeEnabled.checked,
+        strokeColor: strokeColor.value,
+        strokeWidth: strokeWidth.value,
+        shadowEnabled: shadowEnabled.checked,
+        shadowColor: shadowColor.value,
+        shadowBlur: shadowBlur.value,
+        shadowOffsetX: shadowOffsetX.value,
+        shadowOffsetY: shadowOffsetY.value,
+        wmMode: wmMode.value,
+        wmScale: wmScale.value,
+        jpgQuality: jpgQuality.value,
+        lineHeight: lineHeight.value,
+        textAlign: textAlign.value,
+        fontFamily: fontFamily.value,
+        charSpacing: charSpacing.value,
+        fileName: fileName.value,
+        posX: state.x,
+        posY: state.y,
+      };
+      localStorage.setItem('wmSettings', JSON.stringify(s));
+    }
+    function loadSettings(){
+      const s = localStorage.getItem('wmSettings');
+      if(!s) return;
+      try {
+        const o = JSON.parse(s);
+        if(o.wmText!=null) wmText.value = o.wmText;
+        if(o.fontSize!=null) fontSize.value = o.fontSize;
+        if(o.color!=null) color.value = o.color;
+        if(o.opacity!=null) opacity.value = o.opacity;
+        if(o.rotate!=null) rotate.value = o.rotate;
+        if(o.tile!=null) tile.checked = !!o.tile;
+        if(o.tileGap!=null) tileGap.value = o.tileGap;
+        if(o.strokeEnabled!=null) strokeEnabled.checked = !!o.strokeEnabled;
+        if(o.strokeColor!=null) strokeColor.value = o.strokeColor;
+        if(o.strokeWidth!=null) strokeWidth.value = o.strokeWidth;
+        if(o.shadowEnabled!=null) shadowEnabled.checked = !!o.shadowEnabled;
+        if(o.shadowColor!=null) shadowColor.value = o.shadowColor;
+        if(o.shadowBlur!=null) shadowBlur.value = o.shadowBlur;
+        if(o.shadowOffsetX!=null) shadowOffsetX.value = o.shadowOffsetX;
+        if(o.shadowOffsetY!=null) shadowOffsetY.value = o.shadowOffsetY;
+        if(o.wmMode!=null) wmMode.value = o.wmMode;
+        if(o.wmScale!=null) wmScale.value = o.wmScale;
+        if(o.jpgQuality!=null) jpgQuality.value = o.jpgQuality;
+        if(o.lineHeight!=null) lineHeight.value = o.lineHeight;
+        if(o.textAlign!=null) textAlign.value = o.textAlign;
+        if(o.fontFamily!=null) fontFamily.value = o.fontFamily;
+        if(o.charSpacing!=null) charSpacing.value = o.charSpacing;
+        if(o.fileName!=null) fileName.value = o.fileName;
+        if(o.posX!=null) state.x = o.posX;
+        if(o.posY!=null) state.y = o.posY;
+      } catch(err) {}
+    }
+
+    // 交互与重绘
+    function hook(el, type='input'){
+      if(!el) return;
+      el.addEventListener(type, () => { updateUIValues(); saveSettings(); draw(); });
+    }
+    [wmText, fontSize, color, opacity, rotate, tile, tileGap, strokeEnabled, strokeColor, strokeWidth, shadowEnabled, shadowColor, shadowBlur, shadowOffsetX, shadowOffsetY, wmScale, jpgQuality, lineHeight, charSpacing].forEach(el => {
+      hook(el);
+    });
+    hook(wmMode, 'change');
+    hook(textAlign, 'change');
+    hook(fontFamily, 'change');
+    fileName && fileName.addEventListener('input', () => { saveSettings(); });
+
+    // 下载
+    function sanitizeFileName(input){
+      const name = String(input || '').trim()
+        .replace(/[<>:"\/\\|?*\x00-\x1F]/g, '')
+        .replace(/\.+$/, '')
+        .slice(0, 60);
+      return name || 'watermarked';
+    }
+    function download(type){
+      if(!img) return;
+      const quality = parseFloat(jpgQuality.value || '0.92');
+      const url = canvas.toDataURL(type === 'jpg' ? 'image/jpeg' : 'image/png', quality);
+      const a = document.createElement('a');
+      a.href = url;
+      const base = sanitizeFileName(fileName.value);
+      a.download = `${base}.${type === 'jpg' ? 'jpg' : 'png'}`;
+      document.body.appendChild(a); a.click(); a.remove();
+    }
+    downloadPng.addEventListener('click', () => download('png'));
+    downloadJpg.addEventListener('click', () => download('jpg'));
+
+    // 重置
+    resetBtn.addEventListener('click', () => {
+      wmText.value = '示例水印';
+      fontSize.value = 48; color.value = '#ffffff'; opacity.value = 0.3; rotate.value = 0; tile.checked = false; tileGap.value = 180;
+      wmMode.value = 'text'; wmImg = null; wmScale.value = 1; jpgQuality.value = 0.92;
+      strokeEnabled.checked = false; strokeColor.value = '#000000'; strokeWidth.value = 2;
+      shadowEnabled.checked = false; shadowColor.value = '#000000'; shadowBlur.value = 8; shadowOffsetX.value = 2; shadowOffsetY.value = 2;
+      lineHeight.value = 1.30; charSpacing.value = 0; textAlign.value = 'left'; fontFamily.selectedIndex = 0; fileName.value = 'watermarked';
+      updateModeUI();
+      updateUIValues(); saveSettings();
+      if(img){ fitInitialPosition(); }
+      draw();
+    });
+
+    // 初始
+    loadSettings();
+    updateModeUI();
+    updateUIValues();
+    draw();
+  </script>
+</body>
+</html>

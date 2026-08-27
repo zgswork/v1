@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html tk="title_service_worker_lifecycle" lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Service Worker Lifecycle Playground</title>
+<meta name="description" content="Interactive Service Worker lifecycle visualizer. See registration, installation, activation, and update flows in real-time. State diagram, event log, code examples.">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0a0a;color:#e6e6e6;min-height:100vh}
+.container{max-width:1100px;margin:0 auto;padding:20px 16px}
+h1{font-size:1.6rem;margin-bottom:4px;background:linear-gradient(135deg,#f472b6,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.subtitle{color:#888;font-size:.85rem;margin-bottom:20px}
+.subtitle a{color:#60a5fa;text-decoration:none}
+.tabs{display:flex;gap:4px;margin-bottom:16px;flex-wrap:wrap}
+.tab{padding:8px 16px;background:#1a1a2e;border:1px solid #333;border-radius:8px;cursor:pointer;font-size:.82rem;color:#aaa;transition:.2s}
+.tab:hover{border-color:#555}
+.tab.active{background:#1e293b;border-color:#60a5fa;color:#60a5fa}
+.panel{display:none}
+.panel.active{display:block}
+.card{background:#111;border:1px solid #222;border-radius:12px;padding:16px;margin-bottom:12px}
+.card h3{font-size:.95rem;margin-bottom:10px}
+button{padding:8px 16px;background:#1e293b;border:1px solid #444;border-radius:8px;color:#e6e6e6;cursor:pointer;font-size:.82rem;transition:.2s}
+button:hover{border-color:#60a5fa;background:#1a1a3e}
+button.primary{background:#2563eb;border-color:#2563eb;color:#fff}
+button.primary:hover{background:#1d4ed8}
+button.danger{background:#7f1d1d;border-color:#991b1b}
+button.danger:hover{background:#991b1b}
+button:disabled{opacity:.4;cursor:not-allowed}
+.diagram{position:relative;background:#0d1117;border:1px solid #222;border-radius:12px;padding:24px;margin-bottom:16px;min-height:300px;overflow:hidden}
+.state-node{position:absolute;padding:12px 20px;border-radius:10px;font-size:.82rem;font-weight:600;text-align:center;transition:all .4s ease;border:2px solid #333;min-width:120px}
+.state-node.active{transform:scale(1.1);box-shadow:0 0 20px rgba(96,165,250,.3)}
+.state-node.parsed{background:#1a1a2e;border-color:#555;left:50%;top:20px;transform:translateX(-50%)}
+.state-node.installing{background:#1e3a5f;border-color:#3b82f6;left:20%;top:110px}
+.state-node.installed{background:#1a3f2e;border-color:#22c55e;left:50%;top:110px;transform:translateX(-50%)}
+.state-node.activating{background:#3b1f5e;border-color:#a78bfa;left:80%;top:110px;transform:translateX(-100%)}
+.state-node.activated{background:#065f46;border-color:#34d399;left:50%;top:200px;transform:translateX(-50%)}
+.state-node.redundant{background:#3f1a1a;border-color:#ef4444;left:80%;top:240px;transform:translateX(-100%)}
+.state-node.active.parsed{border-color:#f472b6;box-shadow:0 0 20px rgba(244,114,182,.3)}
+.state-node.active.installing{border-color:#60a5fa;box-shadow:0 0 20px rgba(96,165,250,.4)}
+.state-node.active.installed{border-color:#4ade80;box-shadow:0 0 20px rgba(74,222,128,.4)}
+.state-node.active.activating{border-color:#c084fc;box-shadow:0 0 20px rgba(192,132,252,.4)}
+.state-node.active.activated{border-color:#34d399;box-shadow:0 0 20px rgba(52,211,153,.4)}
+.state-node.active.redundant{border-color:#f87171;box-shadow:0 0 20px rgba(248,113,113,.4)}
+.arrow{position:absolute;color:#444;font-size:.7rem}
+.arrow.active-arrow{color:#60a5fa}
+.event-log{max-height:300px;overflow-y:auto;font-family:'Fira Code',monospace;font-size:.78rem}
+.log-entry{padding:6px 10px;border-bottom:1px solid #1a1a2e;display:flex;gap:8px;align-items:center}
+.log-entry:hover{background:#1a1a2e}
+.log-time{color:#666;min-width:60px}
+.log-event{padding:2px 8px;border-radius:4px;font-size:.72rem;font-weight:600;min-width:80px;text-align:center}
+.log-register{background:#1e3a5f;color:#60a5fa}
+.log-install{background:#1a3f2e;color:#4ade80}
+.log-activate{background:#3b1f5e;color:#c084fc}
+.log-fetch{background:#3f2e1a;color:#fb923c}
+.log-message{background:#1a2e3f;color:#38bdf8}
+.log-error{background:#3f1a1a;color:#f87171}
+.log-update{background:#2d1f0a;color:#fbbf24}
+.log-text{flex:1;color:#ccc}
+.sim-controls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:12px}
+.stat{background:#1a1a2e;border-radius:8px;padding:10px;text-align:center}
+.stat .value{font-size:1.1rem;font-weight:700;color:#60a5fa}
+.stat .label{font-size:.72rem;color:#888;margin-top:2px}
+.phase-bar{display:flex;height:32px;border-radius:8px;overflow:hidden;margin-bottom:12px;background:#1a1a2e}
+.phase-segment{display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:600;transition:width .4s}
+.code-block{background:#0d1117;border:1px solid #222;border-radius:8px;padding:12px;font-family:'Fira Code',monospace;font-size:.78rem;white-space:pre-wrap;overflow-x:auto;color:#c9d1d9;position:relative}
+.copy-btn{position:absolute;top:6px;right:6px;padding:4px 10px;font-size:.72rem;background:#1e293b;border:1px solid #333;border-radius:4px;color:#aaa;cursor:pointer}
+.copy-btn:hover{border-color:#60a5fa;color:#60a5fa}
+.scenario-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;margin-bottom:12px}
+.scenario{background:#1a1a2e;border:1px solid #333;border-radius:8px;padding:12px;cursor:pointer;transition:.2s}
+.scenario:hover{border-color:#60a5fa}
+.scenario .name{font-weight:600;font-size:.85rem}
+.scenario .desc{font-size:.72rem;color:#888;margin-top:4px}
+.empty{text-align:center;padding:30px;color:#666;font-size:.85rem}
+.footer{text-align:center;padding:20px;color:#555;font-size:.75rem;margin-top:20px}
+.footer a{color:#60a5fa;text-decoration:none}
+@media(max-width:600px){.stat-grid{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+
+
+
+
+
+
+<div class="container" style="position:relative">
+<h1 ti="title_service_worker_lifecycle" ti="h1_service_worker_lifecycle" ti="title_service_worker_lifecycle" ti="h1_service_worker_lifecycle" ti="title_service_worker_lifecycle" ti="h1_service_worker_lifecycle">Service Worker Lifecycle Playground</h1>
+<p class="subtitle">Interactive SW lifecycle visualizer &mdash; <a href="https://gokuscraper.github.io/dev-vault/" ti="footer_dev_vault" ti="footer_dev_vault_2" ti="link_dev_vault" ti="link_dev_vault_2" ti="footer_dev_vault" ti="footer_dev_vault_2" ti="link_dev_vault" ti="link_dev_vault_2" ti="footer_dev_vault" ti="footer_dev_vault_2" ti="link_dev_vault" ti="link_dev_vault_2">Dev Vault</a></p>
+
+<div class="tabs">
+<div class="tab active" data-tab="sim">Simulator</div>
+<div class="tab" data-tab="live">Live SW</div>
+<div class="tab" data-tab="code">Code</div>
+</div>
+
+<!-- Simulator Panel -->
+<div class="panel active" id="panel-sim">
+<div class="card">
+<h3 ti="h3_lifecycle_scenarios" ti="h3_lifecycle_scenarios" ti="h3_lifecycle_scenarios">Lifecycle Scenarios</h3>
+<div class="scenario-grid">
+<div class="scenario" onclick="runScenario('first')"><div class="name">First Install</div><div class="desc">Register → Install → Activate</div></div>
+<div class="scenario" onclick="runScenario('update')"><div class="name">Update Flow</div><div class="desc">New version → Install → Wait → Activate</div></div>
+<div class="scenario" onclick="runScenario('skipWaiting')"><div class="name">Skip Waiting</div><div class="desc">New version → Install → skipWaiting → Activate</div></div>
+<div class="scenario" onclick="runScenario('installFail')"><div class="name">Install Failure</div><div class="desc">Register → Install fails → Redundant</div></div>
+<div class="scenario" onclick="runScenario('fetchEvent')"><div class="name">Fetch Handling</div><div class="desc">Active SW intercepts fetch</div></div>
+<div class="scenario" onclick="runScenario('unregister')"><div class="name">Unregister</div><div class="desc">Remove active SW</div></div>
+</div>
+</div>
+
+<div class="card">
+<h3 ti="h3_state_diagram" ti="h3_state_diagram" ti="h3_state_diagram">State Diagram</h3>
+<div class="diagram" id="diagram">
+<div class="state-node parsed" id="node-parsed">Parsed</div>
+<div class="state-node installing" id="node-installing">Installing</div>
+<div class="state-node installed" id="node-installed">Installed<br><span style="font-size:.7rem;font-weight:400;color:#aaa">(waiting)</span></div>
+<div class="state-node activating" id="node-activating">Activating</div>
+<div class="state-node activated" id="node-activated">Activated<br><span style="font-size:.7rem;font-weight:400;color:#aaa">(controlling)</span></div>
+<div class="state-node redundant" id="node-redundant">Redundant</div>
+<!-- Arrows as text -->
+<div class="arrow" style="left:35%;top:65px">register()</div>
+<div class="arrow" style="left:48%;top:65px">→</div>
+<div class="arrow" style="left:35%;top:155px">waitUntil()</div>
+<div class="arrow" style="left:60%;top:155px">clients.claim()</div>
+<div class="arrow" style="left:48%;top:175px">↓</div>
+<div class="arrow" style="left:72%;top:200px;color:#ef4444">error</div>
+</div>
+</div>
+
+<div class="card">
+<h3 ti="h3_phase_timeline" ti="h3_phase_timeline" ti="h3_phase_timeline">Phase Timeline</h3>
+<div class="phase-bar" id="phase-bar">
+<div class="phase-segment" style="width:0%;background:#3b82f6;color:#fff" id="phase-install">Install</div>
+<div class="phase-segment" style="width:0%;background:#22c55e;color:#fff" id="phase-wait">Wait</div>
+<div class="phase-segment" style="width:0%;background:#a78bfa;color:#fff" id="phase-activate">Activate</div>
+<div class="phase-segment" style="width:0%;background:#34d399;color:#fff" id="phase-control">Control</div>
+</div>
+</div>
+
+<div class="card">
+<h3 ti="h3_event_log" ti="h3_event_log" ti="h3_event_log">Event Log</h3>
+<div style="margin-bottom:8px"><button onclick="clearLog()" ti="btn_clear_log" ti="btn_clear_log" ti="btn_clear_log">Clear Log</button></div>
+<div class="event-log" id="event-log">
+<div class="empty">Run a scenario to see lifecycle events</div>
+</div>
+</div>
+</div>
+
+<!-- Live SW Panel -->
+<div class="panel" id="panel-live">
+<div class="card">
+<h3 ti="h3_live_service_worker_statu" ti="h3_live_service_worker_statu" ti="h3_live_service_worker_statu">Live Service Worker Status</h3>
+<p style="font-size:.78rem;color:#888;margin-bottom:12px">Register a real Service Worker on this page and monitor its lifecycle.</p>
+<div class="sim-controls">
+<button class="primary" onclick="registerRealSW()" ti="btn_register_sw" ti="btn_register_sw" ti="btn_register_sw">Register SW</button>
+<button onclick="updateRealSW()" ti="btn_check_for_update" ti="btn_check_for_update" ti="btn_check_for_update">Check for Update</button>
+<button class="danger" onclick="unregisterRealSW()" ti="btn_unregister" ti="btn_unregister" ti="btn_unregister">Unregister</button>
+</div>
+<div class="stat-grid">
+<div class="stat"><div class="value" id="live-state">None</div><div class="label">Current State</div></div>
+<div class="stat"><div class="value" id="live-scope">-</div><div class="label">Scope</div></div>
+<div class="stat"><div class="value" id="live-controller">No</div><div class="label">Controlling</div></div>
+</div>
+<div id="live-support"></div>
+</div>
+
+<div class="card">
+<h3 ti="h3_all_registrations" ti="h3_all_registrations" ti="h3_all_registrations">All Registrations</h3>
+<div id="registrations-list">
+<div class="empty">No Service Worker registrations found</div>
+</div>
+</div>
+
+<div class="card">
+<h3 ti="h3_live_event_log" ti="h3_live_event_log" ti="h3_live_event_log">Live Event Log</h3>
+<div class="event-log" id="live-log">
+<div class="empty">Register a Service Worker to see events</div>
+</div>
+</div>
+</div>
+
+<!-- Code Panel -->
+<div class="panel" id="panel-code">
+<div class="card">
+<h3 ti="h3_basic_registration" ti="h3_basic_registration" ti="h3_basic_registration">Basic Registration</h3>
+<div class="code-block"><button class="copy-btn" onclick="copyCode(this)" ti="btn_copy" ti="btn_copy_2" ti="btn_copy_3" ti="btn_copy_4" ti="btn_copy" ti="btn_copy_2" ti="btn_copy_3" ti="btn_copy_4" ti="btn_copy" ti="btn_copy_2" ti="btn_copy_3" ti="btn_copy_4">Copy</button>// Register a Service Worker
+if ('serviceWorker' in navigator) {
+  const registration = await navigator.serviceWorker.register('/sw.js', {
+    scope: '/'
+  });
+
+  console.log('SW registered:', registration.scope);
+
+  // Monitor state changes
+  registration.addEventListener('updatefound', () => {
+    const newSW = registration.installing;
+    console.log('New SW found, state:', newSW.state);
+
+    newSW.addEventListener('statechange', () => {
+      console.log('SW state changed:', newSW.state);
+      // "installing" → "installed" → "activating" → "activated"
+    });
+  });
+}</div>
+</div>
+
+<div class="card">
+<h3 ti="h3_service_worker_file_sw_js" ti="h3_service_worker_file_sw_js" ti="h3_service_worker_file_sw_js">Service Worker File (sw.js)</h3>
+<div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button>const CACHE_NAME = 'v1';
+const ASSETS = ['/', '/index.html', '/style.css', '/app.js'];
+
+// Install: cache assets
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
+  );
+  // Optional: skip waiting to activate immediately
+  // self.skipWaiting();
+});
+
+// Activate: clean old caches
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys().then((names) =>
+      Promise.all(
+        names.filter(n => n !== CACHE_NAME).map(n => caches.delete(n))
+      )
+    )
+  );
+  // Optional: take control of all clients immediately
+  // self.clients.claim();
+});
+
+// Fetch: serve from cache, fallback to network
+self.addEventListener('fetch', (event) => {
+  event.respondWith(
+    caches.match(event.request).then((cached) => cached || fetch(event.request))
+  );
+});</div>
+</div>
+
+<div class="card">
+<h3 ti="h3_update_flow" ti="h3_update_flow" ti="h3_update_flow">Update Flow</h3>
+<div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button>// Force update check
+const registration = await navigator.serviceWorker.getRegistration();
+await registration.update();
+
+// Listen for controller change (new SW took over)
+navigator.serviceWorker.addEventListener('controllerchange', () => {
+  console.log('New Service Worker is now controlling the page');
+  // Optionally reload to ensure fresh content
+  // window.location.reload();
+});
+
+// In SW: force activation (skip waiting phase)
+// sw.js
+self.addEventListener('install', () => {
+  self.skipWaiting(); // Don't wait for old SW to be replaced
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(self.clients.claim()); // Take control immediately
+});</div>
+</div>
+
+<div class="card">
+<h3 ti="h3_communication_postmessage" ti="h3_communication_postmessage" ti="h3_communication_postmessage">Communication (postMessage)</h3>
+<div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button>// Page → Service Worker
+navigator.serviceWorker.controller.postMessage({
+  type: 'CACHE_URLS',
+  urls: ['/api/data']
+});
+
+// Service Worker → Page
+// In sw.js:
+self.addEventListener('message', (event) => {
+  if (event.data.type === 'CACHE_URLS') {
+    caches.open('dynamic').then(cache => cache.addAll(event.data.urls));
+    // Reply to specific client
+    event.source.postMessage({ type: 'CACHED', count: event.data.urls.length });
+  }
+});
+
+// Listen for messages from SW (in page):
+navigator.serviceWorker.addEventListener('message', (event) => {
+  console.log('From SW:', event.data);
+});</div>
+</div>
+</div>
+
+<div class="footer">
+Service Worker Lifecycle Playground &mdash; <a href="https://gokuscraper.github.io/dev-vault/">Dev Vault</a> &mdash;
+<a href="https://developer.mozilla.org/en-US/docs/Web/API/Service_Worker_API/Using_Service_Workers" ti="link_mdn_guide" ti="link_mdn_guide" ti="link_mdn_guide">MDN Guide</a>
+</div>
+</div>
+
+
+
+<script>var _LANG={'title_service_worker_lifecycle':["Service Worker Lifecycle Playground", "Service Worker 生命周期测试"],'metadesc_interactive_service_worke':["Interactive Service Worker lifecycle visualizer. See registration, installation, activation, and update flows in real-time. State diagram, event log, code examples.", "交互式 Service Worker 生命周期可视化工具。实时查看注册、安装、激活和更新流程。包含状态图、事件日志和代码示例。"],'h1_service_worker_lifecycle':["Service Worker Lifecycle Playground", "Service Worker 生命周期测试"],'h3_lifecycle_scenarios':["Lifecycle Scenarios", "生命周期场景"],'h3_state_diagram':["State Diagram", "状态图"],'h3_phase_timeline':["Phase Timeline", "阶段时间表"],'h3_event_log':["Event Log", "事件日志"],'h3_live_service_worker_statu':["Live Service Worker Status", "在线服务工作者状态"],'h3_all_registrations':["All Registrations", "所有注册"],'h3_live_event_log':["Live Event Log", "实时事件日志"],'h3_basic_registration':["Basic Registration", "基本注册"],'h3_service_worker_file_sw_js':["Service Worker File (sw.js)", "Service Worker 文件 (sw.js)"],'h3_update_flow':["Update Flow", "更新流程"],'h3_communication_postmessage':["Communication (postMessage)", "通信（postMessage）"],'btn_clear_log':["Clear Log", "清除日志"],'btn_register_sw':["Register SW", "注册软件"],'btn_check_for_update':["Check for Update", "检查更新"],'btn_unregister':["Unregister", "取消注册"],'btn_copy':["Copy", "复制"],'btn_copy_2':["Copy", "复制"],'btn_copy_3':["Copy", "复制"],'btn_copy_4':["Copy", "复制"],'footer_dev_vault':["Dev Vault", "开发者宝库"],'footer_dev_vault_2':["Dev Vault", "开发者宝库"],'link_dev_vault':["Dev Vault", "开发者宝库"],'link_dev_vault_2':["Dev Vault", "开发者宝库"],'link_mdn_guide':["MDN Guide", "MDN 指南"],'jtc_none':["None", "没有任何"],'jtc_no':["No", "不"],'jtc_copied':["Copied!", "已复制！"],'jtc_copy':["Copy", "复制"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>var _LANG={'title_service_worker_lifecycle':["Service Worker Lifecycle Playground", "Service Worker 生命周期测试"],'metadesc_interactive_service_worke':["Interactive Service Worker lifecycle visualizer. See registration, installation, activation, and update flows in real-time. State diagram, event log, code examples.", "交互式 Service Worker 生命周期可视化工具。实时查看注册、安装、激活和更新流程。包含状态图、事件日志和代码示例。"],'h1_service_worker_lifecycle':["Service Worker Lifecycle Playground", "Service Worker 生命周期测试"],'h3_lifecycle_scenarios':["Lifecycle Scenarios", "生命周期场景"],'h3_state_diagram':["State Diagram", "状态图"],'h3_phase_timeline':["Phase Timeline", "阶段时间表"],'h3_event_log':["Event Log", "事件日志"],'h3_live_service_worker_statu':["Live Service Worker Status", "在线服务工作者状态"],'h3_all_registrations':["All Registrations", "所有注册"],'h3_live_event_log':["Live Event Log", "实时事件日志"],'h3_basic_registration':["Basic Registration", "基本注册"],'h3_service_worker_file_sw_js':["Service Worker File (sw.js)", "Service Worker 文件 (sw.js)"],'h3_update_flow':["Update Flow", "更新流程"],'h3_communication_postmessage':["Communication (postMessage)", "通信（postMessage）"],'btn_clear_log':["Clear Log", "清除日志"],'btn_register_sw':["Register SW", "注册软件"],'btn_check_for_update':["Check for Update", "检查更新"],'btn_unregister':["Unregister", "取消注册"],'btn_copy':["Copy", "复制"],'btn_copy_2':["Copy", "复制"],'btn_copy_3':["Copy", "复制"],'btn_copy_4':["Copy", "复制"],'footer_dev_vault':["Dev Vault", "开发者宝库"],'footer_dev_vault_2':["Dev Vault", "开发者宝库"],'link_dev_vault':["Dev Vault", "开发者宝库"],'link_dev_vault_2':["Dev Vault", "开发者宝库"],'link_mdn_guide':["MDN Guide", "MDN 指南"],'jtc_none':["None", "没有任何"],'jtc_no':["No", "不"],'jtc_copied':["Copied!", "已复制！"],'jtc_copy':["Copy", "复制"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>
+// Tab switching
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('panel-' + tab.dataset.tab).classList.add('active');
+  });
+});
+
+let logEntries = [];
+let simTimer = null;
+
+function log(type, text) {
+  const time = new Date().toLocaleTimeString('en', {hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  logEntries.push({time, type, text});
+  renderLog();
+}
+
+function renderLog() {
+  const el = document.getElementById('event-log');
+  el.innerHTML = logEntries.map(e => {
+    const cls = `log-${e.type}`;
+    return `<div class="log-entry">
+      <span class="log-time">${e.time}</span>
+      <span class="log-event ${cls}">${e.type}</span>
+      <span class="log-text">${esc(e.text)}</span>
+    </div>`;
+  }).join('');
+  el.scrollTop = el.scrollHeight;
+}
+
+function clearLog() {
+  logEntries = [];
+  document.getElementById('event-log').innerHTML = '<div class="empty">Log cleared</div>';
+}
+
+function setActiveState(state) {
+  document.querySelectorAll('.state-node').forEach(n => n.classList.remove('active'));
+  const node = document.getElementById('node-' + state);
+  if (node) node.classList.add('active');
+}
+
+function setPhase(install, wait, activate, control) {
+  document.getElementById('phase-install').style.width = install + '%';
+  document.getElementById('phase-wait').style.width = wait + '%';
+  document.getElementById('phase-activate').style.width = activate + '%';
+  document.getElementById('phase-control').style.width = control + '%';
+}
+
+function delay(ms) {
+  return new Promise(r => setTimeout(r, ms));
+}
+
+async function runScenario(name) {
+  if (simTimer) clearTimeout(simTimer);
+  clearLog();
+  setPhase(0,0,0,0);
+  setActiveState('');
+
+  switch(name) {
+    case 'first': await scenarioFirst(); break;
+    case 'update': await scenarioUpdate(); break;
+    case 'skipWaiting': await scenarioSkipWaiting(); break;
+    case 'installFail': await scenarioInstallFail(); break;
+    case 'fetchEvent': await scenarioFetch(); break;
+    case 'unregister': await scenarioUnregister(); break;
+  }
+}
+
+async function scenarioFirst() {
+  log('register', 'navigator.serviceWorker.register("/sw.js")');
+  setActiveState('parsed');
+  setPhase(10,0,0,0);
+  await delay(600);
+
+  log('install', 'install event fired');
+  setActiveState('installing');
+  setPhase(25,0,0,0);
+  await delay(400);
+
+  log('install', 'event.waitUntil(caches.open("v1").then(cache => cache.addAll(assets)))');
+  setPhase(50,0,0,0);
+  await delay(800);
+
+  log('install', 'Caching complete. State → installed (waiting)');
+  setActiveState('installed');
+  setPhase(60,10,0,0);
+  await delay(600);
+
+  log('activate', 'No other SW controlling — activate immediately');
+  setActiveState('activating');
+  setPhase(60,10,15,0);
+  await delay(400);
+
+  log('activate', 'activate event fired');
+  log('activate', 'event.waitUntil(cleanup old caches)');
+  setPhase(60,10,20,0);
+  await delay(600);
+
+  log('activate', 'State → activated. SW is now controlling the page.');
+  setActiveState('activated');
+  setPhase(25,5,20,50);
+  await delay(300);
+
+  log('fetch', 'Ready to intercept fetch events');
+}
+
+async function scenarioUpdate() {
+  log('register', 'Browser detects new sw.js (byte-different)');
+  setActiveState('parsed');
+  setPhase(10,0,0,0);
+  await delay(600);
+
+  log('update', 'updatefound event fired on registration');
+  log('install', 'New SW: install event fired');
+  setActiveState('installing');
+  setPhase(30,0,0,0);
+  await delay(800);
+
+  log('install', 'New SW installed. State → installed (waiting)');
+  setActiveState('installed');
+  setPhase(30,40,0,0);
+  await delay(600);
+
+  log('update', 'Waiting for old SW to release all clients...');
+  log('update', '(User closes all tabs, or old SW calls skipWaiting)');
+  setPhase(20,50,0,0);
+  await delay(1200);
+
+  log('activate', 'Old SW released. New SW activating...');
+  setActiveState('activating');
+  setPhase(20,30,20,0);
+  await delay(600);
+
+  log('activate', 'State → activated. New SW is controlling.');
+  setActiveState('activated');
+  setPhase(15,15,20,50);
+
+  log('update', 'Old SW → redundant');
+}
+
+async function scenarioSkipWaiting() {
+  log('register', 'Browser detects new sw.js');
+  setActiveState('parsed');
+  setPhase(10,0,0,0);
+  await delay(500);
+
+  log('install', 'New SW: install event fired');
+  setActiveState('installing');
+  setPhase(30,0,0,0);
+  await delay(600);
+
+  log('install', 'self.skipWaiting() called inside install handler');
+  setActiveState('installed');
+  setPhase(30,5,0,0);
+  await delay(300);
+
+  log('activate', 'skipWaiting() bypassed waiting phase!');
+  setActiveState('activating');
+  setPhase(25,5,30,0);
+  await delay(500);
+
+  log('activate', 'self.clients.claim() — take control immediately');
+  setActiveState('activated');
+  setPhase(20,5,25,50);
+  await delay(300);
+
+  log('activate', 'controllerchange event fired on navigator.serviceWorker');
+  log('message', 'Page can now reload to use new SW');
+}
+
+async function scenarioInstallFail() {
+  log('register', 'navigator.serviceWorker.register("/sw.js")');
+  setActiveState('parsed');
+  setPhase(10,0,0,0);
+  await delay(600);
+
+  log('install', 'install event fired');
+  setActiveState('installing');
+  setPhase(30,0,0,0);
+  await delay(500);
+
+  log('error', 'event.waitUntil() promise rejected!');
+  log('error', 'Error: cache.addAll() failed — asset not found (404)');
+  setPhase(50,0,0,0);
+  await delay(600);
+
+  log('error', 'Install failed. State → redundant');
+  setActiveState('redundant');
+  setPhase(50,0,0,0);
+
+  log('error', 'SW is discarded. Next navigation will retry registration.');
+}
+
+async function scenarioFetch() {
+  log('activate', 'Active SW is controlling the page');
+  setActiveState('activated');
+  setPhase(10,5,10,50);
+  await delay(500);
+
+  log('fetch', 'fetch event: GET /api/data');
+  await delay(300);
+  log('fetch', 'Strategy: Cache First — checking cache...');
+  await delay(400);
+  log('fetch', 'Cache miss. Falling back to network...');
+  await delay(600);
+  log('fetch', 'Network response received. Caching for next time.');
+  await delay(400);
+
+  log('fetch', 'fetch event: GET /api/data (second request)');
+  await delay(200);
+  log('fetch', 'Cache hit! Serving from cache (0ms network)');
+  await delay(400);
+
+  log('fetch', 'fetch event: GET /images/logo.png');
+  await delay(200);
+  log('fetch', 'Cache hit! Serving from cache');
+}
+
+async function scenarioUnregister() {
+  setActiveState('activated');
+  setPhase(10,5,10,50);
+  log('register', 'Current SW is active and controlling');
+  await delay(600);
+
+  log('register', 'registration.unregister() called');
+  await delay(400);
+
+  log('register', 'SW marked for removal');
+  setPhase(10,5,10,25);
+  await delay(400);
+
+  log('register', 'SW unregistered. State → redundant');
+  setActiveState('redundant');
+  setPhase(0,0,0,0);
+  await delay(300);
+
+  log('register', 'No SW controlling. Page is back to normal network behavior.');
+}
+
+// Live SW
+let liveLogEntries = [];
+
+function liveLog(type, text) {
+  const time = new Date().toLocaleTimeString('en',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  liveLogEntries.push({time,type,text});
+  const el = document.getElementById('live-log');
+  el.innerHTML = liveLogEntries.map(e =>
+    `<div class="log-entry"><span class="log-time">${e.time}</span><span class="log-event log-${e.type}">${e.type}</span><span class="log-text">${esc(e.text)}</span></div>`
+  ).join('');
+  el.scrollTop = el.scrollHeight;
+}
+
+async function registerRealSW() {
+  if (!('serviceWorker' in navigator)) {
+    document.getElementById('live-support').innerHTML = '<div style="color:#f87171;margin-top:8px">Service Worker not supported in this browser or context (requires HTTPS).</div>';
+    return;
+  }
+
+  try {
+    // Create a minimal SW blob
+    const swCode = `
+self.addEventListener('install', (e) => { self.skipWaiting(); });
+self.addEventListener('activate', (e) => { e.waitUntil(self.clients.claim()); });
+self.addEventListener('fetch', (e) => { /* passthrough */ });
+`;
+    // We can't register a blob URL as SW in most browsers, so we'll just try registering
+    // and monitor existing registrations
+    const registrations = await navigator.serviceWorker.getRegistrations();
+    liveLog('register', `Found ${registrations.length} existing registration(s)`);
+
+    if (registrations.length > 0) {
+      monitorRegistration(registrations[0]);
+    } else {
+      liveLog('register', 'No existing SW. On GitHub Pages, the page itself serves as the scope.');
+      liveLog('register', 'To test: create a sw.js file in the same directory and register it.');
+    }
+
+    refreshRegistrations();
+  } catch (e) {
+    liveLog('error', e.message);
+  }
+}
+
+function monitorRegistration(reg) {
+  document.getElementById('live-scope').textContent = reg.scope.replace(location.origin, '');
+
+  const sw = reg.active || reg.waiting || reg.installing;
+  if (sw) {
+    document.getElementById('live-state').textContent = sw.state;
+    sw.addEventListener('statechange', () => {
+      document.getElementById('live-state').textContent = sw.state;
+      liveLog('update', `State changed to: ${sw.state}`);
+    });
+  }
+
+  document.getElementById('live-controller').textContent = navigator.serviceWorker.controller ? 'Yes' : 'No';
+
+  reg.addEventListener('updatefound', () => {
+    liveLog('update', 'Update found!');
+    const newSW = reg.installing;
+    if (newSW) {
+      newSW.addEventListener('statechange', () => {
+        liveLog('install', `New SW state: ${newSW.state}`);
+      });
+    }
+  });
+}
+
+async function updateRealSW() {
+  try {
+    const reg = await navigator.serviceWorker.getRegistration();
+    if (reg) {
+      await reg.update();
+      liveLog('update', 'Update check complete');
+      refreshRegistrations();
+    } else {
+      liveLog('error', 'No registration to update');
+    }
+  } catch (e) {
+    liveLog('error', e.message);
+  }
+}
+
+async function unregisterRealSW() {
+  try {
+    const registrations = await navigator.serviceWorker.getRegistrations();
+    for (const reg of registrations) {
+      await reg.unregister();
+      liveLog('register', `Unregistered: ${reg.scope}`);
+    }
+    document.getElementById('live-state').textContent=T("jtc_none");
+    document.getElementById('live-scope').textContent = '-';
+    document.getElementById('live-controller').textContent=T("jtc_no");
+    refreshRegistrations();
+  } catch (e) {
+    liveLog('error', e.message);
+  }
+}
+
+async function refreshRegistrations() {
+  if (!('serviceWorker' in navigator)) return;
+  const el = document.getElementById('registrations-list');
+  try {
+    const regs = await navigator.serviceWorker.getRegistrations();
+    if (regs.length === 0) {
+      el.innerHTML = '<div class="empty">No Service Worker registrations</div>';
+      return;
+    }
+    el.innerHTML = regs.map(r => {
+      const active = r.active ? `Active: ${r.active.state}` : 'No active SW';
+      const waiting = r.waiting ? ` | Waiting: ${r.waiting.state}` : '';
+      const installing = r.installing ? ` | Installing: ${r.installing.state}` : '';
+      return `<div class="log-entry">
+        <span style="color:#60a5fa;min-width:200px">${r.scope}</span>
+        <span style="flex:1;color:#aaa">${active}${waiting}${installing}</span>
+      </div>`;
+    }).join('');
+  } catch (e) {
+    el.innerHTML = `<div class="empty">${e.message}</div>`;
+  }
+}
+
+function copyCode(btn) {
+  const block = btn.parentElement;
+  const code = block.textContent.replace('Copy','').trim();
+  navigator.clipboard.writeText(code).then(() => {
+    btn.textContent=T("jtc_copied");
+    setTimeout(() => btn.textContent=T("jtc_copy"), 1500);
+  });
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// Init
+if ('serviceWorker' in navigator) {
+  refreshRegistrations();
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    liveLog('activate', 'Controller changed — new SW controlling page');
+  });
+}
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+</body>
+</html>

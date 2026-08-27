@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Excel数据转换器</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #e2e8f0 0%, #f1f5f9 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: #ffffff;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+            color: white;
+            padding: 35px 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.6rem;
+            font-weight: 700;
+            margin-bottom: 15px;
+            color: white;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            letter-spacing: -0.5px;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+            font-weight: 400;
+            color: rgba(255, 255, 255, 0.95);
+        }
+
+        .main-content {
+            padding: 50px 40px;
+            background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+        }
+
+        .upload-section {
+            background: #ffffff;
+            border: 2px dashed #3b82f6;
+            border-radius: 15px;
+            padding: 40px;
+            text-align: center;
+            margin-bottom: 30px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .upload-section:hover {
+            background: #f8fafc;
+            border-color: #2563eb;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(59, 130, 246, 0.1);
+        }
+
+        .upload-section.dragover {
+            background: #eff6ff;
+            border-color: #1d4ed8;
+            transform: scale(1.02);
+        }
+
+        .upload-icon {
+            font-size: 3rem;
+            color: #3b82f6;
+            margin-bottom: 20px;
+        }
+
+        .upload-text {
+            font-size: 1.2rem;
+            color: #666;
+            margin-bottom: 15px;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .upload-btn {
+            background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 25px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+        }
+
+        .upload-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
+        }
+
+        .file-info {
+            background: linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%);
+            border: 2px solid #10b981;
+            border-radius: 16px;
+            padding: 20px;
+            margin: 24px 0;
+            display: none;
+            box-shadow: 0 8px 25px rgba(16, 185, 129, 0.1);
+            position: relative;
+        }
+
+        .file-info::before {
+            content: '✓';
+            position: absolute;
+            top: -12px;
+            left: 20px;
+            background: #10b981;
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .file-info.show {
+            display: block;
+        }
+
+        .file-info strong {
+            color: #065f46;
+            font-weight: 600;
+        }
+
+        .format-selector {
+            margin: 30px 0;
+        }
+
+        .format-title {
+            font-size: 1.4rem;
+            font-weight: 600;
+            margin-bottom: 25px;
+            color: #2d3748;
+            text-align: center;
+        }
+
+        .format-options {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+        }
+
+        .format-option {
+            background: white;
+            border: 2px solid #e2e8f0;
+            border-radius: 15px;
+            padding: 22px 16px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.06);
+        }
+
+        .format-option:hover {
+            border-color: #3b82f6;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(59, 130, 246, 0.1);
+        }
+
+        .format-option.selected {
+            border-color: #3b82f6;
+            border-width: 3px;
+            background: rgba(59, 130, 246, 0.05);
+            box-shadow: 0 8px 25px rgba(59, 130, 246, 0.15);
+        }
+
+        .format-icon {
+            font-size: 2rem;
+            margin-bottom: 12px;
+            display: block;
+        }
+
+        .format-name {
+            font-weight: 600;
+            font-size: 1rem;
+            margin-bottom: 8px;
+            color: #333;
+        }
+
+        .format-option.selected .format-name {
+            color: #1e40af;
+            font-weight: 700;
+        }
+
+        .format-desc {
+            font-size: 0.8rem;
+            line-height: 1.3;
+            color: #666;
+            margin-top: 6px;
+        }
+
+        .format-option.selected .format-desc {
+            color: #666;
+        }
+
+        .button-group {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin: 30px auto;
+            flex-wrap: wrap;
+        }
+
+        .convert-btn {
+            background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 25px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 6px 20px rgba(59, 130, 246, 0.3);
+            min-width: 160px;
+        }
+
+        .convert-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(59, 130, 246, 0.4);
+            background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%);
+        }
+
+        .convert-btn:disabled {
+            background: #cbd5e0;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .reset-btn {
+            background: #f8f9fa;
+            color: #6c757d;
+            border: 1px solid #dee2e6;
+            padding: 15px 30px;
+            border-radius: 25px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            min-width: 120px;
+            display: none;
+        }
+
+        .reset-btn.show {
+            display: inline-block;
+        }
+
+        .reset-btn:hover {
+            background: #e9ecef;
+            border-color: #adb5bd;
+            color: #495057;
+        }
+
+        .result-section {
+            margin-top: 40px;
+            display: none;
+            background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+        }
+
+        .result-section.show {
+            display: block;
+        }
+
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .result-title {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: #1f2937;
+        }
+
+        .download-btn {
+            background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+            color: white;
+            border: none;
+            padding: 12px 28px;
+            border-radius: 25px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 6px 20px rgba(5, 150, 105, 0.25);
+        }
+
+        .download-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(5, 150, 105, 0.35);
+            background: linear-gradient(135deg, #047857 0%, #059669 100%);
+        }
+
+        .result-content {
+            background: linear-gradient(135deg, #f1f5f9 0%, #ffffff 100%);
+            border: 2px solid #e2e8f0;
+            border-radius: 16px;
+            padding: 24px;
+            font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+            font-size: 0.9rem;
+            max-height: 450px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+            line-height: 1.6;
+            box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.05);
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .loading.show {
+            display: block;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #4facfe;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error-message {
+            background: linear-gradient(135deg, #fef2f2 0%, #fef7f7 100%);
+            color: #dc2626;
+            border: 2px solid #f87171;
+            border-radius: 16px;
+            padding: 18px;
+            margin: 24px 0;
+            display: none;
+            box-shadow: 0 8px 25px rgba(248, 113, 113, 0.1);
+            position: relative;
+            font-weight: 500;
+        }
+
+        .error-message::before {
+            content: '⚠';
+            position: absolute;
+            top: -12px;
+            left: 20px;
+            background: #dc2626;
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+        }
+
+        .error-message.show {
+            display: block;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                margin: 10px;
+                border-radius: 15px;
+            }
+
+            .header {
+                padding: 20px;
+            }
+
+            .header h1 {
+                font-size: 2rem;
+            }
+
+            .main-content {
+                padding: 20px;
+            }
+
+            .upload-section {
+                padding: 30px 20px;
+            }
+
+            .format-options {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 12px;
+            }
+
+            .format-option {
+                padding: 18px 12px;
+            }
+
+            .format-icon {
+                font-size: 1.8rem;
+                margin-bottom: 8px;
+            }
+
+            .format-name {
+                font-size: 0.95rem;
+            }
+
+            .format-desc {
+                font-size: 0.75rem;
+                line-height: 1.2;
+            }
+
+            .result-content {
+                font-size: 0.8rem;
+                padding: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Excel数据转换器</h1>
+            <p>轻松将Excel文件转换为CSV、JSON、HTML或SQL格式</p>
+        </div>
+
+        <div class="main-content">
+            <!-- 文件上传区域 -->
+            <div class="upload-section" id="uploadSection">
+                <div class="upload-icon">📁</div>
+                <div class="upload-text">拖拽Excel文件到此处，或点击选择文件</div>
+                <button class="upload-btn" onclick="document.getElementById('fileInput').click()">选择文件</button>
+                <input type="file" id="fileInput" class="file-input" accept=".xlsx,.xls" onchange="handleFileSelect(event)">
+            </div>
+
+            <!-- 文件信息 -->
+            <div class="file-info" id="fileInfo">
+                <strong>已选择文件：</strong><span id="fileName"></span><br>
+                <strong>文件大小：</strong><span id="fileSize"></span><br>
+                <strong>工作表数量：</strong><span id="sheetCount"></span>
+            </div>
+
+            <!-- 错误信息 -->
+            <div class="error-message" id="errorMessage"></div>
+
+            <!-- 格式选择 -->
+            <div class="format-selector">
+                <div class="format-title">选择转换格式</div>
+                <div class="format-options">
+                    <div class="format-option" data-format="csv" onclick="selectFormat('csv')">
+                        <div class="format-icon">📄</div>
+                        <div class="format-name">CSV格式</div>
+                        <div class="format-desc">转换为逗号分隔值文件，适合Excel和数据分析工具使用</div>
+                    </div>
+                    <div class="format-option" data-format="json" onclick="selectFormat('json')">
+                        <div class="format-icon">🔗</div>
+                        <div class="format-name">JSON格式</div>
+                        <div class="format-desc">转换为JSON对象数组，适合API数据交换和前端开发使用</div>
+                    </div>
+                    <div class="format-option" data-format="html" onclick="selectFormat('html')">
+                        <div class="format-icon">🌐</div>
+                        <div class="format-name">HTML表格</div>
+                        <div class="format-desc">转换为HTML表格格式，适合网页展示和打印使用</div>
+                    </div>
+                    <div class="format-option" data-format="sql" onclick="selectFormat('sql')">
+                        <div class="format-icon">🗄️</div>
+                        <div class="format-name">SQL语句</div>
+                        <div class="format-desc">转换为数据库插入语句，适合数据库导入和数据迁移</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 按钮组 -->
+            <div class="button-group">
+                <button class="convert-btn" id="convertBtn" onclick="convertData()" disabled>开始转换</button>
+                <button class="reset-btn" id="resetBtn" onclick="resetAll()">清空重置</button>
+            </div>
+
+            <!-- 加载动画 -->
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <div>正在转换中...</div>
+            </div>
+
+            <!-- 结果显示 -->
+            <div class="result-section" id="resultSection">
+                <div class="result-header">
+                    <div class="result-title" id="resultTitle">转换结果</div>
+                    <button class="download-btn" id="downloadBtn" onclick="downloadResult()">下载文件</button>
+                </div>
+                <div class="result-content" id="resultContent"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 标准页脚模板 - 复制到每个HTML文件 -->
+    <style>
+    .footer {
+        margin-top: 50px;
+        padding: 20px 0;
+        text-align: center;
+        font-size: 14px;
+        color: #333;  /* 深灰接近黑色，更清晰 */
+    }
+
+    .footer a {
+        color: #0066cc;  /* 更深的蓝色，对比度更高 */
+        text-decoration: none;
+    }
+
+    .footer a:hover {
+        text-decoration: underline;
+    }
+
+    /* 深色背景自动适配 */
+    @media (prefers-color-scheme: dark) {
+        .footer {
+            color: #f0f0f0;  /* 接近白色，更清晰 */
+        }
+        .footer a {
+            color: #4da6ff;  /* 亮蓝色，在深色背景下更清晰 */
+        }
+    }
+
+    /* 如果页面背景是深色，手动添加这个类 */
+    .dark-theme .footer {
+        color: #f0f0f0;
+    }
+
+    .dark-theme .footer a {
+        color: #4da6ff;
+    }
+    </style>
+
+    <footer class="footer">
+        <p>© 2025 Excel数据转换器 | <a href="https://t.zsxq.com/MlnIL" target="_blank">联系作者</a></p>
+    </footer>
+
+    <script>
+        let excelData = null;
+        let selectedFormat = null;
+        let convertedData = null;
+        let fileName = '';
+
+        // 文件拖拽处理
+        const uploadSection = document.getElementById('uploadSection');
+        
+        uploadSection.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadSection.classList.add('dragover');
+        });
+
+        uploadSection.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            uploadSection.classList.remove('dragover');
+        });
+
+        uploadSection.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadSection.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        });
+
+        // 文件选择处理
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                handleFile(file);
+            }
+        }
+
+        // 处理文件
+        function handleFile(file) {
+            if (!file.name.match(/\.(xlsx|xls)$/i)) {
+                showError('请选择Excel文件（.xlsx或.xls格式）');
+                return;
+            }
+
+            fileName = file.name.replace(/\.(xlsx|xls)$/i, '');
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    
+                    // 显示文件信息
+                    document.getElementById('fileName').textContent = file.name;
+                    document.getElementById('fileSize').textContent = formatFileSize(file.size);
+                    document.getElementById('sheetCount').textContent = workbook.SheetNames.length;
+                    document.getElementById('fileInfo').classList.add('show');
+                    
+                    // 存储Excel数据
+                    excelData = workbook;
+                    hideError();
+                    updateConvertButton();
+                } catch (error) {
+                    showError('文件读取失败，请确保文件格式正确');
+                }
+            };
+            
+            reader.readAsArrayBuffer(file);
+        }
+
+        // 格式化文件大小
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        // 选择格式
+        function selectFormat(format) {
+            // 移除之前的选择
+            document.querySelectorAll('.format-option').forEach(option => {
+                option.classList.remove('selected');
+            });
+            
+            // 添加新选择
+            document.querySelector(`[data-format="${format}"]`).classList.add('selected');
+            selectedFormat = format;
+            updateConvertButton();
+        }
+
+        // 更新按钮状态
+        function updateConvertButton() {
+            const convertBtn = document.getElementById('convertBtn');
+            const resetBtn = document.getElementById('resetBtn');
+            
+            if (excelData && selectedFormat) {
+                convertBtn.disabled = false;
+            } else {
+                convertBtn.disabled = true;
+            }
+            
+            // 只有在有数据或选择了格式时才显示重置按钮
+            if (excelData || selectedFormat) {
+                resetBtn.classList.add('show');
+            } else {
+                resetBtn.classList.remove('show');
+            }
+        }
+
+        // 转换数据
+        function convertData() {
+            if (!excelData || !selectedFormat) return;
+
+            showLoading();
+            hideResult();
+            hideError();
+
+            setTimeout(() => {
+                try {
+                    // 获取第一个工作表
+                    const firstSheetName = excelData.SheetNames[0];
+                    const worksheet = excelData.Sheets[firstSheetName];
+                    
+                    let result = '';
+                    let fileExtension = '';
+                    let mimeType = '';
+
+                    switch (selectedFormat) {
+                        case 'csv':
+                            result = XLSX.utils.sheet_to_csv(worksheet);
+                            fileExtension = 'csv';
+                            mimeType = 'text/csv';
+                            break;
+                        case 'json':
+                            const jsonData = XLSX.utils.sheet_to_json(worksheet);
+                            result = JSON.stringify(jsonData, null, 2);
+                            fileExtension = 'json';
+                            mimeType = 'application/json';
+                            break;
+                        case 'html':
+                            result = generateHTML(worksheet);
+                            fileExtension = 'html';
+                            mimeType = 'text/html';
+                            break;
+                        case 'sql':
+                            result = generateSQL(worksheet);
+                            fileExtension = 'sql';
+                            mimeType = 'text/sql';
+                            break;
+                    }
+
+                    convertedData = {
+                        content: result,
+                        extension: fileExtension,
+                        mimeType: mimeType
+                    };
+
+                    showResult(result, selectedFormat.toUpperCase());
+                } catch (error) {
+                    showError('转换失败：' + error.message);
+                } finally {
+                    hideLoading();
+                }
+            }, 1000);
+        }
+
+        // 生成HTML表格
+        function generateHTML(worksheet) {
+            const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+            if (jsonData.length === 0) return '<p>无数据</p>';
+
+            let html = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Excel数据表格</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; font-weight: bold; }
+        tr:nth-child(even) { background-color: #f9f9f9; }
+    </style>
+</head>
+<body>
+    <h1>Excel数据表格</h1>
+    <table>`;
+
+            jsonData.forEach((row, index) => {
+                html += '<tr>';
+                row.forEach(cell => {
+                    const tag = index === 0 ? 'th' : 'td';
+                    html += `<${tag}>${cell || ''}</${tag}>`;
+                });
+                html += '</tr>';
+            });
+
+            html += `    </table>
+</body>
+</html>`;
+            return html;
+        }
+
+        // 生成SQL插入语句
+        function generateSQL(worksheet) {
+            const jsonData = XLSX.utils.sheet_to_json(worksheet);
+            if (jsonData.length === 0) return '-- 无数据';
+
+            const tableName = 'excel_data';
+            const columns = Object.keys(jsonData[0]);
+            
+            let sql = `-- Excel数据转换为SQL插入语句\n`;
+            sql += `-- 创建表结构\n`;
+            sql += `CREATE TABLE ${tableName} (\n`;
+            columns.forEach((col, index) => {
+                sql += `    ${col.replace(/[^a-zA-Z0-9_]/g, '_')} VARCHAR(255)`;
+                if (index < columns.length - 1) sql += ',';
+                sql += '\n';
+            });
+            sql += `);\n\n`;
+
+            sql += `-- 插入数据\n`;
+            jsonData.forEach(row => {
+                sql += `INSERT INTO ${tableName} (${columns.map(col => col.replace(/[^a-zA-Z0-9_]/g, '_')).join(', ')}) VALUES (`;
+                sql += columns.map(col => `'${String(row[col] || '').replace(/'/g, "''")}'`).join(', ');
+                sql += ');\n';
+            });
+
+            return sql;
+        }
+
+        // 显示结果
+        function showResult(content, format) {
+            document.getElementById('resultTitle').textContent = `${format} 转换结果`;
+            document.getElementById('resultContent').textContent = content;
+            document.getElementById('resultSection').classList.add('show');
+        }
+
+        // 隐藏结果
+        function hideResult() {
+            document.getElementById('resultSection').classList.remove('show');
+        }
+
+        // 显示加载动画
+        function showLoading() {
+            document.getElementById('loading').classList.add('show');
+        }
+
+        // 隐藏加载动画
+        function hideLoading() {
+            document.getElementById('loading').classList.remove('show');
+        }
+
+        // 显示错误信息
+        function showError(message) {
+            document.getElementById('errorMessage').textContent = message;
+            document.getElementById('errorMessage').classList.add('show');
+        }
+
+        // 隐藏错误信息
+        function hideError() {
+            document.getElementById('errorMessage').classList.remove('show');
+        }
+
+        // 下载结果
+        function downloadResult() {
+            if (!convertedData) return;
+
+            const blob = new Blob([convertedData.content], { type: convertedData.mimeType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${fileName}.${convertedData.extension}`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // 清空重置功能
+        function resetAll() {
+            // 重置所有变量
+            excelData = null;
+            selectedFormat = null;
+            convertedData = null;
+            fileName = '';
+            
+            // 清空文件输入
+            document.getElementById('fileInput').value = '';
+            
+            // 隐藏文件信息
+            document.getElementById('fileInfo').classList.remove('show');
+            
+            // 清除格式选择
+            document.querySelectorAll('.format-option').forEach(option => {
+                option.classList.remove('selected');
+            });
+            
+            // 隐藏结果和错误信息
+            hideResult();
+            hideError();
+            hideLoading();
+            
+            // 更新按钮状态（这会自动隐藏重置按钮）
+            updateConvertButton();
+        }
+    </script>
+</body>
+</html>

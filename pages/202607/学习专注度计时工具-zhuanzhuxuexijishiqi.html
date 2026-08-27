@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>学习专注度计时工具</title>
+    <!-- 引入Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入Font Awesome -->
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <!-- 引入Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+    <!-- 引入日期处理工具 -->
+    <script src="https://cdn.jsdelivr.net/npm/date-fns@2.30.0/dist/date-fns.min.js"></script>
+    
+    <!-- Tailwind配置 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#8B5CF6', // 紫色系，代表专注和平静
+                        secondary: '#EC4899',
+                        neutral: '#64748B',
+                        light: '#F8FAFC',
+                        dark: '#1E293B',
+                        focus: '#10B981', // 专注模式颜色
+                        break: '#F59E0B'  // 休息模式颜色
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    
+    <!-- 自定义工具类 -->
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .card-shadow {
+                box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.02);
+            }
+            .timer-shadow {
+                box-shadow: 0 0 30px rgba(139, 92, 246, 0.2);
+            }
+            .transition-all-300 {
+                transition: all 300ms ease-in-out;
+            }
+            .btn-primary {
+                @apply bg-primary text-white font-medium py-3 px-6 rounded-lg hover:bg-primary/90 active:bg-primary/80 transition-all-300 flex items-center justify-center;
+            }
+            .btn-secondary {
+                @apply bg-white text-primary border border-primary font-medium py-3 px-6 rounded-lg hover:bg-primary/5 active:bg-primary/10 transition-all-300 flex items-center justify-center;
+            }
+            .duration-btn {
+                @apply py-2 px-4 rounded-lg border border-slate-200 hover:border-primary hover:text-primary transition-all-300 cursor-pointer;
+            }
+            .duration-btn.active {
+                @apply bg-primary/10 border-primary text-primary font-medium;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-purple-50 to-indigo-50 min-h-screen font-sans text-dark flex flex-col">
+    <!-- 页面容器 -->
+    <div class="container mx-auto px-4 py-6 max-w-4xl flex-grow">
+        <!-- 标题区域 -->
+        <header class="text-center mb-8 mt-4">
+            <h1 class="text-[clamp(1.8rem,5vw,2.5rem)] font-bold text-dark mb-3 bg-clip-text text-transparent bg-gradient-to-r from-primary to-secondary">
+                专注学习计时器
+            </h1>
+            <p class="text-neutral text-base max-w-2xl mx-auto">
+                设定专注时长，屏蔽干扰，提升学习效率。专注结束后记得休息哦！
+            </p>
+        </header>
+        
+        <!-- 主要内容区 -->
+        <main class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-10">
+            <!-- 左侧：计时器主体 (占2列) -->
+            <div class="lg:col-span-2 space-y-6">
+                <!-- 计时器显示 -->
+                <div class="bg-white rounded-2xl p-6 card-shadow timer-shadow text-center">
+                    <div id="timerMode" class="text-lg font-medium text-primary mb-4">
+                        专注模式
+                    </div>
+                    
+                    <div class="text-[clamp(3rem,10vw,5rem)] font-bold text-dark my-6" id="timerDisplay">
+                        25:00
+                    </div>
+                    
+                    <!-- 进度环 -->
+                    <div class="w-40 h-40 mx-auto mb-6 relative">
+                        <canvas id="progressRing"></canvas>
+                    </div>
+                    
+                    <!-- 控制按钮 -->
+                    <div class="flex flex-wrap justify-center gap-4">
+                        <button id="startBtn" class="btn-primary">
+                            <i class="fa fa-play mr-2"></i> 开始专注
+                        </button>
+                        <button id="pauseBtn" class="btn-secondary hidden">
+                            <i class="fa fa-pause mr-2"></i> 暂停
+                        </button>
+                        <button id="resetBtn" class="btn-secondary">
+                            <i class="fa fa-refresh mr-2"></i> 重置
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- 专注设置 -->
+                <div class="bg-white rounded-2xl p-5 card-shadow">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center text-dark">
+                        <i class="fa fa-sliders text-primary mr-2"></i> 时间设置
+                    </h2>
+                    
+                    <!-- 专注时长预设 -->
+                    <div class="mb-6">
+                        <h3 class="text-sm font-medium text-neutral mb-3">专注时长 (分钟)</h3>
+                        <div class="flex flex-wrap gap-2">
+                            <div class="duration-btn active" data-duration="15">15</div>
+                            <div class="duration-btn" data-duration="25">25</div>
+                            <div class="duration-btn" data-duration="30">30</div>
+                            <div class="duration-btn" data-duration="45">45</div>
+                            <div class="duration-btn" data-duration="60">60</div>
+                        </div>
+                    </div>
+                    
+                    <!-- 自定义时长 -->
+                    <div class="flex items-center gap-3">
+                        <input type="number" id="customDuration" min="1" max="120" placeholder="自定义时长" 
+                               class="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all-300">
+                        <button id="setCustomBtn" class="btn-secondary whitespace-nowrap px-4">
+                            设置
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- 专注提示 -->
+                <div class="bg-primary/5 rounded-2xl p-5 border border-primary/20">
+                    <h2 class="text-lg font-semibold mb-3 flex items-center text-primary">
+                        <i class="fa fa-lightbulb-o mr-2"></i> 专注小贴士
+                    </h2>
+                    <ul class="text-neutral space-y-2 text-sm">
+                        <li class="flex items-start">
+                            <i class="fa fa-check-circle text-primary mt-1 mr-2"></i>
+                            <span>专注期间尽量避免切换到其他标签页，保持注意力集中</span>
+                        </li>
+                        <li class="flex items-start">
+                            <i class="fa fa-check-circle text-primary mt-1 mr-2"></i>
+                            <span>建议每25分钟专注后休息5分钟，让大脑放松</span>
+                        </li>
+                        <li class="flex items-start">
+                            <i class="fa fa-check-circle text-primary mt-1 mr-2"></i>
+                            <span>提前准备好学习材料，减少专注时的干扰因素</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+            
+            <!-- 右侧：统计与设置 (占1列) -->
+            <div class="space-y-6">
+                <!-- 今日统计 -->
+                <div class="bg-white rounded-2xl p-5 card-shadow">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center text-dark">
+                        <i class="fa fa-bar-chart text-primary mr-2"></i> 今日统计
+                    </h2>
+                    
+                    <div class="grid grid-cols-2 gap-4 mb-4">
+                        <div class="p-3 bg-slate-50 rounded-lg text-center">
+                            <p class="text-xs text-neutral mb-1">专注次数</p>
+                            <p class="text-xl font-bold text-primary" id="todaySessions">0</p>
+                        </div>
+                        <div class="p-3 bg-slate-50 rounded-lg text-center">
+                            <p class="text-xs text-neutral mb-1">专注时长</p>
+                            <p class="text-xl font-bold text-primary" id="todayTotalMinutes">0</p>
+                            <p class="text-xs text-neutral">分钟</p>
+                        </div>
+                    </div>
+                    
+                    <!-- 本周专注趋势 -->
+                    <div>
+                        <h3 class="text-sm font-medium text-neutral mb-3">本周专注时长</h3>
+                        <div class="w-full h-[180px]">
+                            <canvas id="weeklyChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 专注设置 -->
+                <div class="bg-white rounded-2xl p-5 card-shadow">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center text-dark">
+                        <i class="fa fa-cog text-primary mr-2"></i> 专注设置
+                    </h2>
+                    
+                    <div class="space-y-4">
+                        <!-- 标签切换提醒 -->
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="font-medium text-sm">标签切换提醒</p>
+                                <p class="text-xs text-neutral">切换标签时提醒专注</p>
+                            </div>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="tabReminder" class="sr-only peer" checked>
+                                <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary/50 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                            </label>
+                        </div>
+                        
+                        <!-- 完成提醒声音 -->
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="font-medium text-sm">完成提醒声音</p>
+                                <p class="text-xs text-neutral">计时结束时播放提示音</p>
+                            </div>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="soundReminder" class="sr-only peer" checked>
+                                <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary/50 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                            </label>
+                        </div>
+                        
+                        <!-- 全屏模式 -->
+                        <button id="fullscreenBtn" class="w-full btn-secondary">
+                            <i class="fa fa-expand mr-2"></i> 全屏专注模式
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <!-- 页脚备注 -->
+    <footer class="text-center text-neutral text-sm py-4 border-t border-slate-200 mt-auto">
+        <p>
+            邓文涛(AI版) | <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="84b3b4b3b1b0b3b0b0b5c4f5f5aae7ebe9">[email&#160;protected]</a> | VX：707547441 | 更多点击➡️
+            <a href="https://dkfile.com/Dx25214" target="_blank" rel="noopener" class="text-primary hover:underline">🌌</a>
+        </p>
+    </footer>
+    
+    <!-- 专注提醒弹窗 -->
+    <div id="focusReminder" class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-2xl p-6 max-w-md w-full mx-4 text-center">
+            <div class="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i class="fa fa-exclamation-triangle text-primary text-2xl"></i>
+            </div>
+            <h3 class="text-xl font-bold mb-2">保持专注！</h3>
+            <p class="text-neutral mb-6">您已切换到其他标签页，记得回到学习哦~</p>
+            <button id="returnFocusBtn" class="btn-primary w-full">
+                返回专注
+            </button>
+        </div>
+    </div>
+    
+    <!-- 完成提醒弹窗 -->
+    <div id="completeReminder" class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-2xl p-6 max-w-md w-full mx-4 text-center">
+            <div class="w-16 h-16 bg-focus/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i class="fa fa-check-circle text-focus text-2xl"></i>
+            </div>
+            <h3 class="text-xl font-bold mb-2">专注完成！</h3>
+            <p class="text-neutral mb-4" id="completeMessage">您已专注学习25分钟，真棒！</p>
+            <p class="text-neutral mb-6">建议休息5-10分钟后再继续学习</p>
+            <div class="flex gap-3">
+                <button id="startBreakBtn" class="btn-primary flex-1">
+                    <i class="fa fa-coffee mr-2"></i> 开始休息
+                </button>
+                <button id="startAnotherBtn" class="btn-secondary flex-1">
+                    <i class="fa fa-refresh mr-2"></i> 再来一次
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 音频元素 -->
+    <audio id="notificationSound" preload="auto">
+        <source src="https://assets.mixkit.co/sfx/preview/mixkit-software-interface-start-2574.mp3" type="audio/mpeg">
+    </audio>
+    
+    <!-- 核心逻辑JS -->
+    <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+        // 等待DOM加载完成
+        document.addEventListener('DOMContentLoaded', function() {
+            // --------------------------
+            // 数据存储与初始化
+            // --------------------------
+            // 存储键名
+            const STORAGE_KEYS = {
+                SESSIONS: 'focusTimer_sessions',
+                SETTINGS: 'focusTimer_settings'
+            };
+            
+            // 应用状态
+            const appState = {
+                timer: {
+                    minutes: 25,
+                    seconds: 0,
+                    totalSeconds: 25 * 60,
+                    remainingSeconds: 25 * 60,
+                    isRunning: false,
+                    interval: null,
+                    mode: 'focus' // 'focus' 或 'break'
+                },
+                settings: {
+                    tabReminder: true,
+                    soundReminder: true
+                },
+                sessions: []
+            };
+            
+            // 初始化数据
+            function initData() {
+                // 加载设置
+                const savedSettings = JSON.parse(localStorage.getItem(STORAGE_KEYS.SETTINGS));
+                if (savedSettings) {
+                    appState.settings = { ...appState.settings, ...savedSettings };
+                    document.getElementById('tabReminder').checked = appState.settings.tabReminder;
+                    document.getElementById('soundReminder').checked = appState.settings.soundReminder;
+                }
+                
+                // 加载历史记录
+                const savedSessions = JSON.parse(localStorage.getItem(STORAGE_KEYS.SESSIONS));
+                if (savedSessions && Array.isArray(savedSessions)) {
+                    appState.sessions = savedSessions;
+                }
+                
+                // 清理过期数据（保留30天内的记录）
+                const thirtyDaysAgo = date-fns.subDays(new Date(), 30);
+                appState.sessions = appState.sessions.filter(session => {
+                    return date-fns.isAfter(new Date(session.date), thirtyDaysAgo);
+                });
+                
+                saveData();
+            }
+            
+            // 保存数据到localStorage
+            function saveData() {
+                localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(appState.settings));
+                localStorage.setItem(STORAGE_KEYS.SESSIONS, JSON.stringify(appState.sessions));
+            }
+            
+            // 添加专注记录
+            function addSession() {
+                const durationMinutes = appState.timer.mode === 'focus' 
+                    ? Math.round(appState.timer.totalSeconds / 60)
+                    : Math.round(appState.timer.totalSeconds / 60);
+                
+                appState.sessions.push({
+                    id: Date.now(),
+                    date: new Date().toISOString(),
+                    duration: durationMinutes,
+                    mode: appState.timer.mode
+                });
+                
+                saveData();
+                updateStats();
+            }
+            
+            // --------------------------
+            // DOM元素获取
+            // --------------------------
+            const timerDisplay = document.getElementById('timerDisplay');
+            const timerMode = document.getElementById('timerMode');
+            const startBtn = document.getElementById('startBtn');
+            const pauseBtn = document.getElementById('pauseBtn');
+            const resetBtn = document.getElementById('resetBtn');
+            const durationBtns = document.querySelectorAll('.duration-btn');
+            const customDuration = document.getElementById('customDuration');
+            const setCustomBtn = document.getElementById('setCustomBtn');
+            const tabReminder = document.getElementById('tabReminder');
+            const soundReminder = document.getElementById('soundReminder');
+            const fullscreenBtn = document.getElementById('fullscreenBtn');
+            const todaySessions = document.getElementById('todaySessions');
+            const todayTotalMinutes = document.getElementById('todayTotalMinutes');
+            const focusReminder = document.getElementById('focusReminder');
+            const returnFocusBtn = document.getElementById('returnFocusBtn');
+            const completeReminder = document.getElementById('completeReminder');
+            const completeMessage = document.getElementById('completeMessage');
+            const startBreakBtn = document.getElementById('startBreakBtn');
+            const startAnotherBtn = document.getElementById('startAnotherBtn');
+            const notificationSound = document.getElementById('notificationSound');
+            
+            // 图表实例
+            let progressRing = null;
+            let weeklyChart = null;
+            
+            // --------------------------
+            // 工具函数
+            // --------------------------
+            // 格式化时间显示
+            function formatTime(minutes, seconds) {
+                return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            }
+            
+            // 更新计时器显示
+            function updateTimerDisplay() {
+                timerDisplay.textContent = formatTime(appState.timer.minutes, appState.timer.seconds);
+                updateProgressRing();
+            }
+            
+            // 开始计时器
+            function startTimer() {
+                if (appState.timer.isRunning) return;
+                
+                appState.timer.isRunning = true;
+                startBtn.classList.add('hidden');
+                pauseBtn.classList.remove('hidden');
+                
+                // 开始计时
+                appState.timer.interval = setInterval(() => {
+                    if (appState.timer.remainingSeconds <= 0) {
+                        completeTimer();
+                        return;
+                    }
+                    
+                    appState.timer.remainingSeconds--;
+                    appState.timer.minutes = Math.floor(appState.timer.remainingSeconds / 60);
+                    appState.timer.seconds = appState.timer.remainingSeconds % 60;
+                    
+                    updateTimerDisplay();
+                }, 1000);
+            }
+            
+            // 暂停计时器
+            function pauseTimer() {
+                if (!appState.timer.isRunning) return;
+                
+                appState.timer.isRunning = false;
+                clearInterval(appState.timer.interval);
+                startBtn.classList.remove('hidden');
+                pauseBtn.classList.add('hidden');
+            }
+            
+            // 重置计时器
+            function resetTimer() {
+                pauseTimer();
+                appState.timer.remainingSeconds = appState.timer.totalSeconds;
+                appState.timer.minutes = Math.floor(appState.timer.remainingSeconds / 60);
+                appState.timer.seconds = appState.timer.remainingSeconds % 60;
+                updateTimerDisplay();
+            }
+            
+            // 设置计时器时长
+            function setTimerDuration(minutes) {
+                // 确保输入有效
+                if (isNaN(minutes) || minutes < 1 || minutes > 120) {
+                    alert('请输入1-120之间的有效时长');
+                    return false;
+                }
+                
+                // 重置当前计时器
+                pauseTimer();
+                
+                // 更新时长
+                appState.timer.minutes = minutes;
+                appState.timer.seconds = 0;
+                appState.timer.totalSeconds = minutes * 60;
+                appState.timer.remainingSeconds = minutes * 60;
+                
+                // 更新显示
+                updateTimerDisplay();
+                
+                // 更新按钮状态
+                durationBtns.forEach(btn => {
+                    if (parseInt(btn.dataset.duration) === minutes) {
+                        btn.classList.add('active');
+                    } else {
+                        btn.classList.remove('active');
+                    }
+                });
+                
+                return true;
+            }
+            
+            // 完成计时
+            function completeTimer() {
+                pauseTimer();
+                
+                // 添加记录（仅记录专注时长）
+                if (appState.timer.mode === 'focus') {
+                    addSession();
+                }
+                
+                // 显示完成提醒
+                const message = appState.timer.mode === 'focus' 
+                    ? `您已专注学习${Math.round(appState.timer.totalSeconds / 60)}分钟，真棒！`
+                    : `休息时间结束，准备开始新的专注吧！`;
+                
+                completeMessage.textContent = message;
+                completeReminder.classList.remove('hidden');
+                
+                // 播放提示音
+                if (appState.settings.soundReminder) {
+                    playNotificationSound();
+                }
+            }
+            
+            // 播放提示音
+            function playNotificationSound() {
+                try {
+                    notificationSound.currentTime = 0;
+                    notificationSound.play();
+                } catch (e) {
+                    console.log('无法播放提示音:', e);
+                }
+            }
+            
+            // 切换到休息模式
+            function switchToBreakMode() {
+                appState.timer.mode = 'break';
+                timerMode.textContent = '休息模式';
+                timerMode.className = 'text-lg font-medium text-break mb-4';
+                setTimerDuration(5); // 默认休息5分钟
+                completeReminder.classList.add('hidden');
+            }
+            
+            // 切换到专注模式
+            function switchToFocusMode() {
+                appState.timer.mode = 'focus';
+                timerMode.textContent = '专注模式';
+                timerMode.className = 'text-lg font-medium text-primary mb-4';
+                setTimerDuration(25); // 默认专注25分钟
+                completeReminder.classList.add('hidden');
+            }
+            
+            // 更新统计信息
+            function updateStats() {
+                const today = new Date();
+                const todayStr = date-fns.format(today, 'yyyy-MM-dd');
+                
+                // 计算今日专注次数和时长
+                const todaySessionsData = appState.sessions.filter(session => {
+                    return date-fns.format(new Date(session.date), 'yyyy-MM-dd') === todayStr && 
+                           session.mode === 'focus';
+                });
+                
+                const sessionCount = todaySessionsData.length;
+                const totalMinutes = todaySessionsData.reduce((sum, session) => sum + session.duration, 0);
+                
+                // 更新今日统计显示
+                todaySessions.textContent = sessionCount;
+                todayTotalMinutes.textContent = totalMinutes;
+                
+                // 更新周统计图表
+                updateWeeklyChart();
+            }
+            
+            // --------------------------
+            // 图表渲染函数
+            // --------------------------
+            // 初始化进度环
+            function initProgressRing() {
+                const ctx = document.getElementById('progressRing').getContext('2d');
+                const canvas = document.getElementById('progressRing');
+                
+                // 设置canvas大小
+                canvas.width = canvas.offsetWidth;
+                canvas.height = canvas.offsetHeight;
+                
+                // 创建环形图
+                progressRing = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        datasets: [{
+                            data: [appState.timer.remainingSeconds, appState.timer.totalSeconds - appState.timer.remainingSeconds],
+                            backgroundColor: [
+                                '#8B5CF6',
+                                '#EDE9FE'
+                            ],
+                            borderWidth: 0,
+                            cutout: '80%'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: false
+                            },
+                            tooltip: {
+                                enabled: false
+                            }
+                        },
+                        animation: {
+                            duration: 0
+                        }
+                    }
+                });
+            }
+            
+            // 更新进度环
+            function updateProgressRing() {
+                if (!progressRing) return;
+                
+                progressRing.data.datasets[0].data = [
+                    appState.timer.remainingSeconds,
+                    appState.timer.totalSeconds - appState.timer.remainingSeconds
+                ];
+                
+                // 根据模式更新颜色
+                if (appState.timer.mode === 'focus') {
+                    progressRing.data.datasets[0].backgroundColor = ['#8B5CF6', '#EDE9FE'];
+                } else {
+                    progressRing.data.datasets[0].backgroundColor = ['#F59E0B', '#FEF3C7'];
+                }
+                
+                progressRing.update();
+            }
+            
+            // 初始化周统计图表
+            function initWeeklyChart() {
+                const ctx = document.getElementById('weeklyChart').getContext('2d');
+                
+                weeklyChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: [],
+                        datasets: [{
+                            label: '专注分钟',
+                            data: [],
+                            backgroundColor: '#8B5CF6',
+                            borderRadius: 4,
+                            barThickness: 8
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: false
+                            }
+                        },
+                        scales: {
+                            x: {
+                                grid: {
+                                    display: false
+                                },
+                                ticks: {
+                                    font: {
+                                        size: 9
+                                    }
+                                }
+                            },
+                            y: {
+                                beginAtZero: true,
+                                grid: {
+                                    color: 'rgba(0, 0, 0, 0.05)'
+                                },
+                                ticks: {
+                                    font: {
+                                        size: 9
+                                    },
+                                    stepSize: 60
+                                }
+                            }
+                        },
+                        animation: {
+                            duration: 500
+                        }
+                    }
+                });
+                
+                updateWeeklyChart();
+            }
+            
+            // 更新周统计图表
+            function updateWeeklyChart() {
+                if (!weeklyChart) return;
+                
+                const labels = [];
+                const data = [];
+                
+                // 获取过去7天的数据
+                for (let i = 6; i >= 0; i--) {
+                    const date = date-fns.subDays(new Date(), i);
+                    const dateStr = date-fns.format(date, 'yyyy-MM-dd');
+                    const dayName = date-fns.format(date, 'EEE'); // 星期几的缩写
+                    
+                    // 计算当天的专注时长
+                    const dailyMinutes = appState.sessions
+                        .filter(session => {
+                            return date-fns.format(new Date(session.date), 'yyyy-MM-dd') === dateStr &&
+                                   session.mode === 'focus';
+                        })
+                        .reduce((sum, session) => sum + session.duration, 0);
+                    
+                    labels.push(dayName);
+                    data.push(dailyMinutes);
+                }
+                
+                weeklyChart.data.labels = labels;
+                weeklyChart.data.datasets[0].data = data;
+                weeklyChart.update();
+            }
+            
+            // --------------------------
+            // 事件处理函数
+            // --------------------------
+            // 标签页焦点变化检测
+            function handleVisibilityChange() {
+                // 计时器运行中且启用了标签提醒
+                if (appState.timer.isRunning && appState.settings.tabReminder) {
+                    if (document.hidden) {
+                        // 页面失去焦点
+                        focusReminder.classList.remove('hidden');
+                    } else {
+                        // 页面获得焦点
+                        focusReminder.classList.add('hidden');
+                    }
+                }
+            }
+            
+            // 全屏模式切换
+            function toggleFullscreen() {
+                if (!document.fullscreenElement) {
+                    document.documentElement.requestFullscreen().catch(err => {
+                        alert(`无法进入全屏模式: ${err.message}`);
+                    });
+                    fullscreenBtn.innerHTML = '<i class="fa fa-compress mr-2"></i> 退出全屏';
+                } else {
+                    if (document.exitFullscreen) {
+                        document.exitFullscreen();
+                        fullscreenBtn.innerHTML = '<i class="fa fa-expand mr-2"></i> 全屏专注模式';
+                    }
+                }
+            }
+            
+            // --------------------------
+            // 初始化函数
+            // --------------------------
+            function init() {
+                // 初始化数据
+                initData();
+                
+                // 初始化图表
+                initProgressRing();
+                initWeeklyChart();
+                
+                // 初始显示
+                updateTimerDisplay();
+                updateStats();
+                
+                // 绑定事件
+                // 计时器控制
+                startBtn.addEventListener('click', startTimer);
+                pauseBtn.addEventListener('click', pauseTimer);
+                resetBtn.addEventListener('click', resetTimer);
+                
+                // 时长选择
+                durationBtns.forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        setTimerDuration(parseInt(btn.dataset.duration));
+                    });
+                });
+                
+                // 自定义时长
+                setCustomBtn.addEventListener('click', () => {
+                    const minutes = parseInt(customDuration.value);
+                    if (setTimerDuration(minutes)) {
+                        customDuration.value = '';
+                    }
+                });
+                
+                customDuration.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        const minutes = parseInt(customDuration.value);
+                        if (setTimerDuration(minutes)) {
+                            customDuration.value = '';
+                        }
+                    }
+                });
+                
+                // 设置项
+                tabReminder.addEventListener('change', () => {
+                    appState.settings.tabReminder = tabReminder.checked;
+                    saveData();
+                });
+                
+                soundReminder.addEventListener('change', () => {
+                    appState.settings.soundReminder = soundReminder.checked;
+                    saveData();
+                });
+                
+                // 全屏模式
+                fullscreenBtn.addEventListener('click', toggleFullscreen);
+                
+                // 专注提醒弹窗
+                returnFocusBtn.addEventListener('click', () => {
+                    focusReminder.classList.add('hidden');
+                    // 尝试将页面置顶
+                    window.focus();
+                });
+                
+                // 完成提醒弹窗
+                startBreakBtn.addEventListener('click', switchToBreakMode);
+                startAnotherBtn.addEventListener('click', switchToFocusMode);
+                
+                // 监听页面可见性变化
+                document.addEventListener('visibilitychange', handleVisibilityChange);
+                
+                // 窗口大小变化时重新绘制图表
+                window.addEventListener('resize', () => {
+                    if (progressRing) {
+                        progressRing.destroy();
+                        initProgressRing();
+                    }
+                    
+                    if (weeklyChart) {
+                        weeklyChart.destroy();
+                        initWeeklyChart();
+                    }
+                });
+            }
+            
+            // 启动应用
+            init();
+        });
+    </script>
+</body>
+</html>

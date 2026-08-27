@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能喝水提醒工具</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3b82f6',     // 主色调：蓝色（与水相关）
+                        secondary: '#60a5fa',   // 次要蓝色
+                        accent: '#0ea5e9',      // 强调色
+                        success: '#10b981',     // 完成色
+                        neutral: '#f3f4f6',     // 中性色
+                    },
+                    fontFamily: {
+                        inter: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                    boxShadow: {
+                        'card': '0 4px 12px rgba(0,0,0,0.05)',
+                        'hover': '0 8px 24px rgba(0,0,0,0.1)',
+                        'reminder': '0 10px 25px rgba(59, 130, 246, 0.2)',
+                    }
+                },
+            }
+        }
+    </script>
+    
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .input-focus {
+                @apply focus:ring-2 focus:ring-primary/50 focus:border-primary focus:outline-none;
+            }
+            .card-transition {
+                @apply transition-all duration-300 ease-in-out;
+            }
+            .progress-animation {
+                @apply transition-all duration-500 ease-out;
+            }
+        }
+    </style>
+</head>
+<body class="font-inter bg-gradient-to-br from-blue-50 to-white min-h-screen text-gray-800">
+    <div class="container mx-auto px-4 py-8 max-w-3xl">
+        <!-- 页面头部：标题与说明 -->
+        <header class="text-center mb-8">
+            <div class="inline-block p-3 bg-primary/10 rounded-full mb-4">
+                <i class="fa fa-tint text-2xl text-primary"></i>
+            </div>
+            <h1 class="text-[clamp(1.5rem,4vw,2rem)] font-bold text-gray-800">智能喝水提醒</h1>
+            <p class="text-gray-500 text-sm mt-2">规律饮水，健康生活，告别忘记喝水的烦恼</p>
+        </header>
+        
+        <!-- 主内容区：核心功能模块 -->
+        <main class="space-y-8">
+            <!-- 1. 设置模块：每日目标和提醒间隔 -->
+            <div class="bg-white rounded-xl shadow-card p-6 card-transition hover:shadow-hover">
+                <h2 class="text-lg font-semibold mb-5 flex items-center">
+                    <i class="fa fa-cog text-primary mr-2"></i> 饮水设置
+                </h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <!-- 每日喝水目标 -->
+                    <div>
+                        <label for="dailyGoal" class="block text-sm font-medium text-gray-700 mb-2">
+                            每日喝水目标（毫升）
+                        </label>
+                        <div class="relative">
+                            <input type="number" id="dailyGoal" min="500" max="5000" value="2000" 
+                                class="w-full pl-4 pr-10 py-2 border border-gray-300 rounded-lg input-focus card-transition">
+                            <span class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500">ml</span>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-1">建议成年人每日饮水量为1500-2000ml</p>
+                    </div>
+                    
+                    <!-- 提醒间隔 -->
+                    <div>
+                        <label for="reminderInterval" class="block text-sm font-medium text-gray-700 mb-2">
+                            提醒间隔（小时）
+                        </label>
+                        <div class="relative">
+                            <input type="number" id="reminderInterval" min="0.5" max="8" step="0.5" value="1" 
+                                class="w-full pl-4 pr-10 py-2 border border-gray-300 rounded-lg input-focus card-transition">
+                            <span class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500">小时</span>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-1">设置多久提醒一次喝水，0.5小时=30分钟</p>
+                    </div>
+                    
+                    <!-- 保存设置按钮 -->
+                    <div class="md:col-span-2">
+                        <button id="saveSettingsBtn" 
+                            class="w-full py-2.5 bg-primary hover:bg-primary/90 text-white rounded-lg card-transition flex items-center justify-center">
+                            <i class="fa fa-save mr-2"></i> 保存设置并开始提醒
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 2. 今日进度模块：进度条+数据 -->
+            <div class="bg-white rounded-xl shadow-card p-6 card-transition hover:shadow-hover">
+                <h2 class="text-lg font-semibold mb-5 flex items-center">
+                    <i class="fa fa-tachometer text-primary mr-2"></i> 今日饮水进度
+                </h2>
+                
+                <!-- 进度条 -->
+                <div class="mb-4">
+                    <div class="flex justify-between text-sm mb-1.5">
+                        <span>完成度</span>
+                        <span id="progressPercentage">0%</span>
+                    </div>
+                    <div class="h-3 bg-gray-100 rounded-full overflow-hidden">
+                        <div id="progressBar" class="h-full bg-primary progress-animation w-0"></div>
+                    </div>
+                </div>
+                
+                <!-- 数据统计 -->
+                <div class="grid grid-cols-2 md:grid-cols-3 gap-4 text-center">
+                    <div class="bg-blue-50 p-3 rounded-lg">
+                        <div class="text-xs text-gray-500 mb-1">已饮用</div>
+                        <div id="totalConsumed" class="text-xl font-bold text-primary">0 ml</div>
+                    </div>
+                    <div class="bg-blue-50 p-3 rounded-lg">
+                        <div class="text-xs text-gray-500 mb-1">目标</div>
+                        <div id="goalDisplay" class="text-xl font-bold text-primary">2000 ml</div>
+                    </div>
+                    <div class="bg-blue-50 p-3 rounded-lg md:col-span-1 col-span-2">
+                        <div class="text-xs text-gray-500 mb-1">剩余需饮用</div>
+                        <div id="remaining" class="text-xl font-bold text-primary">2000 ml</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 3. 记录饮水模块：添加喝水记录 -->
+            <div class="bg-white rounded-xl shadow-card p-6 card-transition hover:shadow-hover">
+                <h2 class="text-lg font-semibold mb-5 flex items-center">
+                    <i class="fa fa-plus-circle text-primary mr-2"></i> 记录饮水
+                </h2>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                    <!-- 快捷添加按钮 -->
+                    <button class="add-water-btn py-2 bg-blue-50 hover:bg-blue-100 text-primary rounded-lg card-transition" data-amount="100">
+                        100ml
+                    </button>
+                    <button class="add-water-btn py-2 bg-blue-50 hover:bg-blue-100 text-primary rounded-lg card-transition" data-amount="200">
+                        200ml
+                    </button>
+                    <button class="add-water-btn py-2 bg-blue-50 hover:bg-blue-100 text-primary rounded-lg card-transition" data-amount="300">
+                        300ml
+                    </button>
+                    <button class="add-water-btn py-2 bg-blue-50 hover:bg-blue-100 text-primary rounded-lg card-transition" data-amount="500">
+                        500ml
+                    </button>
+                </div>
+                
+                <!-- 自定义输入 -->
+                <div class="relative">
+                    <input type="number" id="customAmount" min="50" placeholder="自定义饮水量（ml）" 
+                        class="w-full pl-4 pr-10 py-2 border border-gray-300 rounded-lg input-focus card-transition">
+                    <span class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500">ml</span>
+                </div>
+                <div class="mt-3">
+                    <button id="addCustomBtn" 
+                        class="w-full py-2.5 bg-secondary hover:bg-secondary/90 text-white rounded-lg card-transition flex items-center justify-center">
+                        <i class="fa fa-tint mr-2"></i> 记录自定义饮水量
+                    </button>
+                </div>
+            </div>
+            
+            <!-- 4. 今日记录模块：查看历史记录 -->
+            <div class="bg-white rounded-xl shadow-card p-6 card-transition hover:shadow-hover">
+                <div class="flex justify-between items-center mb-5">
+                    <h2 class="text-lg font-semibold flex items-center">
+                        <i class="fa fa-history text-primary mr-2"></i> 今日饮水记录
+                    </h2>
+                    <button id="clearRecordsBtn" class="text-xs text-gray-500 hover:text-red-500 card-transition">
+                        <i class="fa fa-trash-o mr-1"></i> 清空今日记录
+                    </button>
+                </div>
+                
+                <div id="recordsContainer" class="space-y-2 max-h-48 overflow-y-auto pr-2">
+                    <!-- 初始状态：无记录提示 -->
+                    <div id="noRecordsMsg" class="text-center py-6 text-gray-400 text-sm">
+                        今日暂无饮水记录，开始您的第一杯水吧！
+                    </div>
+                    
+                    <!-- 记录列表将通过JavaScript动态生成 -->
+                    <div id="recordsList" class="hidden space-y-2"></div>
+                </div>
+            </div>
+        </main>
+        
+        <!-- 底部备注 -->
+        <footer class="mt-12 pt-6 border-t border-gray-200 text-center text-gray-600 text-sm">
+            <p>
+                邓文涛(AI版) | <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="162126212322212222275667673875797b">[email&#160;protected]</a> | VX：707547441 | 
+                更多点击➡️<a href="https://dkfile.com/Dx25214" target="_blank" rel="noopener" class="text-primary hover:underline">🌌</a>
+            </p>
+        </footer>
+    </div>
+    
+    <!-- 喝水提醒弹窗 -->
+    <div id="reminderModal" class="fixed inset-0 bg-black/30 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-xl p-6 max-w-sm w-full mx-4 shadow-reminder card-transition transform scale-95 opacity-0" id="modalContent">
+            <div class="text-center">
+                <div class="inline-block p-3 bg-primary/10 rounded-full mb-4">
+                    <i class="fa fa-glass text-2xl text-primary"></i>
+                </div>
+                <h3 class="text-xl font-bold mb-2">该喝水啦！</h3>
+                <p class="text-gray-600 mb-5">保持规律饮水，让身体更健康</p>
+                <div class="flex gap-3">
+                    <button id="drankBtn" class="flex-1 py-2.5 bg-primary hover:bg-primary/90 text-white rounded-lg card-transition">
+                        <i class="fa fa-check mr-2"></i> 已喝水
+                    </button>
+                    <button id="snoozeBtn" class="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg card-transition">
+                        <i class="fa fa-clock-o mr-2"></i> 稍后提醒
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 确认清空记录对话框 -->
+    <div id="confirmDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-xl p-5 max-w-sm w-full mx-4 card-transition transform scale-95 opacity-0" id="dialogContent">
+            <h3 class="text-base font-semibold mb-2">确认清空今日记录？</h3>
+            <p class="text-xs text-gray-500 mb-4">此操作将删除今日所有饮水记录，且无法恢复</p>
+            <div class="flex gap-3">
+                <button id="cancelClearBtn" class="flex-1 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm card-transition">
+                    取消
+                </button>
+                <button id="confirmClearBtn" class="flex-1 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm card-transition">
+                    确认清空
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 操作提示弹窗 -->
+    <div id="toast" class="fixed bottom-6 left-1/2 transform -translate-x-1/2 translate-y-20 opacity-0 transition-all duration-300 flex items-center px-4 py-2.5 rounded-lg shadow-lg z-50 max-w-xs">
+        <i class="fa fa-check-circle mr-2"></i>
+        <span id="toastMessage"></span>
+    </div>
+
+    <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+        // 全局变量
+        let dailyGoal = 2000;          // 每日喝水目标(ml)
+        let reminderInterval = 1;      // 提醒间隔(小时)
+        let totalConsumed = 0;         // 今日已喝水量(ml)
+        let waterRecords = [];         // 饮水记录
+        let reminderTimer = null;      // 提醒定时器
+        let today = getFormattedDate();// 今日日期
+        
+        // DOM元素获取
+        const dailyGoalInput = document.getElementById('dailyGoal');
+        const reminderIntervalInput = document.getElementById('reminderInterval');
+        const saveSettingsBtn = document.getElementById('saveSettingsBtn');
+        const progressBar = document.getElementById('progressBar');
+        const progressPercentage = document.getElementById('progressPercentage');
+        const totalConsumedEl = document.getElementById('totalConsumed');
+        const goalDisplay = document.getElementById('goalDisplay');
+        const remainingEl = document.getElementById('remaining');
+        const customAmountInput = document.getElementById('customAmount');
+        const addCustomBtn = document.getElementById('addCustomBtn');
+        const addWaterBtns = document.querySelectorAll('.add-water-btn');
+        const recordsContainer = document.getElementById('recordsContainer');
+        const noRecordsMsg = document.getElementById('noRecordsMsg');
+        const recordsList = document.getElementById('recordsList');
+        const clearRecordsBtn = document.getElementById('clearRecordsBtn');
+        const confirmDialog = document.getElementById('confirmDialog');
+        const dialogContent = document.getElementById('dialogContent');
+        const cancelClearBtn = document.getElementById('cancelClearBtn');
+        const confirmClearBtn = document.getElementById('confirmClearBtn');
+        const reminderModal = document.getElementById('reminderModal');
+        const modalContent = document.getElementById('modalContent');
+        const drankBtn = document.getElementById('drankBtn');
+        const snoozeBtn = document.getElementById('snoozeBtn');
+        const toast = document.getElementById('toast');
+        const toastMessage = document.getElementById('toastMessage');
+        
+        // 初始化
+        function init() {
+            loadData();         // 加载保存的数据
+            updateUI();         // 更新界面显示
+            setupEventListeners(); // 设置事件监听
+        }
+        
+        // 工具函数：格式化日期为 YYYY-MM-DD
+        function getFormattedDate(date = new Date()) {
+            return date.toISOString().split('T')[0];
+        }
+        
+        // 加载本地存储的数据
+        function loadData() {
+            const savedData = JSON.parse(localStorage.getItem('waterTrackerData')) || {};
+            
+            // 检查是否是新的一天，如果是则重置记录
+            if (savedData.date !== today) {
+                totalConsumed = 0;
+                waterRecords = [];
+            } else {
+                totalConsumed = savedData.totalConsumed || 0;
+                waterRecords = savedData.waterRecords || [];
+            }
+            
+            // 加载设置
+            dailyGoal = savedData.dailyGoal || 2000;
+            reminderInterval = savedData.reminderInterval || 1;
+            
+            // 更新输入框
+            dailyGoalInput.value = dailyGoal;
+            reminderIntervalInput.value = reminderInterval;
+        }
+        
+        // 保存数据到本地存储
+        function saveData() {
+            const data = {
+                date: today,
+                dailyGoal,
+                reminderInterval,
+                totalConsumed,
+                waterRecords
+            };
+            localStorage.setItem('waterTrackerData', JSON.stringify(data));
+        }
+        
+        // 更新界面显示
+        function updateUI() {
+            // 计算进度
+            const progress = Math.min(Math.round((totalConsumed / dailyGoal) * 100), 100);
+            
+            // 更新进度条和数据显示
+            progressBar.style.width = `${progress}%`;
+            progressPercentage.textContent = `${progress}%`;
+            totalConsumedEl.textContent = `${totalConsumed} ml`;
+            goalDisplay.textContent = `${dailyGoal} ml`;
+            
+            // 计算并显示剩余水量
+            const remaining = Math.max(dailyGoal - totalConsumed, 0);
+            remainingEl.textContent = `${remaining} ml`;
+            
+            // 更新进度条颜色（完成时变绿色）
+            if (progress >= 100) {
+                progressBar.classList.remove('bg-primary');
+                progressBar.classList.add('bg-success');
+            } else {
+                progressBar.classList.remove('bg-success');
+                progressBar.classList.add('bg-primary');
+            }
+            
+            // 更新记录列表
+            updateRecordsList();
+            
+            // 保存数据
+            saveData();
+        }
+        
+        // 更新记录列表
+        function updateRecordsList() {
+            if (waterRecords.length === 0) {
+                noRecordsMsg.classList.remove('hidden');
+                recordsList.classList.add('hidden');
+                return;
+            }
+            
+            noRecordsMsg.classList.add('hidden');
+            recordsList.classList.remove('hidden');
+            
+            // 清空现有列表
+            recordsList.innerHTML = '';
+            
+            // 倒序显示记录（最新的在上面）
+            const reversedRecords = [...waterRecords].reverse();
+            
+            // 添加记录项
+            reversedRecords.forEach((record, index) => {
+                const recordEl = document.createElement('div');
+                recordEl.className = 'flex justify-between items-center p-2.5 bg-gray-50 rounded-lg text-sm';
+                recordEl.innerHTML = `
+                    <div>
+                        <span class="font-medium">${record.amount} ml</span>
+                        <span class="text-gray-500 ml-2">${record.time}</span>
+                    </div>
+                    <button class="delete-record text-gray-400 hover:text-red-500 card-transition" data-index="${waterRecords.length - 1 - index}">
+                        <i class="fa fa-times"></i>
+                    </button>
+                `;
+                recordsList.appendChild(recordEl);
+            });
+            
+            // 添加删除事件监听
+            document.querySelectorAll('.delete-record').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const index = parseInt(this.dataset.index);
+                    deleteRecord(index);
+                });
+            });
+        }
+        
+        // 添加饮水记录
+        function addWaterRecord(amount) {
+            if (amount <= 0) return;
+            
+            // 获取当前时间
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+            
+            // 添加记录
+            waterRecords.push({
+                amount,
+                time: timeStr,
+                timestamp: now.getTime()
+            });
+            
+            // 更新总饮水量
+            totalConsumed += amount;
+            
+            // 更新界面
+            updateUI();
+            
+            // 显示提示
+            showToast(`已记录 ${amount} ml 饮水量`);
+        }
+        
+        // 删除记录
+        function deleteRecord(index) {
+            if (index >= 0 && index < waterRecords.length) {
+                const amount = waterRecords[index].amount;
+                waterRecords.splice(index, 1);
+                totalConsumed -= amount;
+                updateUI();
+                showToast('记录已删除');
+            }
+        }
+        
+        // 清空今日记录
+        function clearAllRecords() {
+            if (waterRecords.length === 0) {
+                showToast('没有可清空的记录', 'error');
+                return;
+            }
+            
+            totalConsumed = 0;
+            waterRecords = [];
+            updateUI();
+            hideClearConfirm();
+            showToast('今日记录已清空');
+        }
+        
+        // 启动提醒
+        function startReminder() {
+            // 清除现有定时器
+            if (reminderTimer) {
+                clearInterval(reminderTimer);
+            }
+            
+            // 获取输入值并验证
+            const goal = parseInt(dailyGoalInput.value, 10);
+            const interval = parseFloat(reminderIntervalInput.value);
+            
+            if (isNaN(goal) || goal < 500 || goal > 5000) {
+                showToast('请设置有效的每日喝水目标（500-5000ml）', 'error');
+                return;
+            }
+            
+            if (isNaN(interval) || interval < 0.5 || interval > 8) {
+                showToast('请设置有效的提醒间隔（0.5-8小时）', 'error');
+                return;
+            }
+            
+            // 更新设置
+            dailyGoal = goal;
+            reminderInterval = interval;
+            
+            // 转换间隔为毫秒
+            const intervalMs = interval * 60 * 60 * 1000;
+            
+            // 设置新定时器
+            reminderTimer = setInterval(showReminder, intervalMs);
+            
+            // 保存数据并更新界面
+            saveData();
+            updateUI();
+            
+            // 显示提示
+            showToast(`提醒已设置，将每 ${interval} 小时提醒一次`);
+        }
+        
+        // 显示喝水提醒
+        function showReminder() {
+            // 显示提醒弹窗
+            reminderModal.classList.remove('hidden');
+            setTimeout(() => {
+                modalContent.classList.remove('scale-95', 'opacity-0');
+                modalContent.classList.add('scale-100', 'opacity-100');
+            }, 50);
+            
+            // 播放提示音（简化版，避免Base64问题）
+            try {
+                const audio = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAA==');
+                audio.play().catch(e => console.log('提示音播放失败:', e));
+            } catch (e) {
+                console.log('提示音初始化失败:', e);
+            }
+        }
+        
+        // 隐藏提醒弹窗
+        function hideReminder() {
+            modalContent.classList.remove('scale-100', 'opacity-100');
+            modalContent.classList.add('scale-95', 'opacity-0');
+            setTimeout(() => {
+                reminderModal.classList.add('hidden');
+            }, 300);
+        }
+        
+        // 显示清空确认对话框
+        function showClearConfirm() {
+            confirmDialog.classList.remove('hidden');
+            setTimeout(() => {
+                dialogContent.classList.remove('scale-95', 'opacity-0');
+                dialogContent.classList.add('scale-100', 'opacity-100');
+            }, 50);
+        }
+        
+        // 隐藏清空确认对话框
+        function hideClearConfirm() {
+            dialogContent.classList.remove('scale-100', 'opacity-100');
+            dialogContent.classList.add('scale-95', 'opacity-0');
+            setTimeout(() => {
+                confirmDialog.classList.add('hidden');
+            }, 300);
+        }
+        
+        // 显示提示消息
+        function showToast(message, type = 'success') {
+            toastMessage.textContent = message;
+            
+            if (type === 'success') {
+                toast.className = 'fixed bottom-6 left-1/2 transform -translate-x-1/2 translate-y-0 opacity-100 transition-all duration-300 flex items-center px-4 py-2.5 rounded-lg shadow-lg z-50 max-w-xs bg-green-500 text-white';
+                toast.querySelector('i').className = 'fa fa-check-circle mr-2';
+            } else {
+                toast.className = 'fixed bottom-6 left-1/2 transform -translate-x-1/2 translate-y-0 opacity-100 transition-all duration-300 flex items-center px-4 py-2.5 rounded-lg shadow-lg z-50 max-w-xs bg-red-500 text-white';
+                toast.querySelector('i').className = 'fa fa-exclamation-circle mr-2';
+            }
+            
+            setTimeout(() => {
+                toast.className = 'fixed bottom-6 left-1/2 transform -translate-x-1/2 translate-y-20 opacity-0 transition-all duration-300 flex items-center px-4 py-2.5 rounded-lg shadow-lg z-50 max-w-xs';
+            }, 3000);
+        }
+        
+        // 设置事件监听器
+        function setupEventListeners() {
+            // 保存设置按钮
+            saveSettingsBtn.addEventListener('click', startReminder);
+            
+            // 快捷添加按钮
+            addWaterBtns.forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const amount = parseInt(this.dataset.amount);
+                    addWaterRecord(amount);
+                });
+            });
+            
+            // 自定义添加按钮
+            addCustomBtn.addEventListener('click', function() {
+                const amount = parseInt(customAmountInput.value);
+                if (isNaN(amount) || amount < 50) {
+                    showToast('请输入有效的饮水量（至少50ml）', 'error');
+                    customAmountInput.focus();
+                    return;
+                }
+                addWaterRecord(amount);
+                customAmountInput.value = ''; // 清空输入框
+            });
+            
+            // 清空记录按钮
+            clearRecordsBtn.addEventListener('click', showClearConfirm);
+            
+            // 取消清空按钮
+            cancelClearBtn.addEventListener('click', hideClearConfirm);
+            
+            // 确认清空按钮
+            confirmClearBtn.addEventListener('click', clearAllRecords);
+            
+            // 已喝水按钮
+            drankBtn.addEventListener('click', function() {
+                hideReminder();
+                // 默认添加200ml
+                addWaterRecord(200);
+            });
+            
+            // 稍后提醒按钮
+            snoozeBtn.addEventListener('click', function() {
+                hideReminder();
+                // 10分钟后再次提醒
+                setTimeout(showReminder, 10 * 60 * 1000);
+                showToast('将在10分钟后再次提醒');
+            });
+            
+            // 点击对话框外部关闭
+            confirmDialog.addEventListener('click', function(e) {
+                if (e.target === confirmDialog) {
+                    hideClearConfirm();
+                }
+            });
+            
+            // 点击提醒框外部关闭
+            reminderModal.addEventListener('click', function(e) {
+                if (e.target === reminderModal) {
+                    hideReminder();
+                }
+            });
+            
+            // 自定义输入框回车提交
+            customAmountInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    addCustomBtn.click();
+                }
+            });
+        }
+        
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>

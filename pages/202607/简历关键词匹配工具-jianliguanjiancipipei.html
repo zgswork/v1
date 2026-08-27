@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>简历关键词匹配工具</title>
+    <!-- 引入Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入Font Awesome -->
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    
+    <!-- 配置Tailwind自定义颜色 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3b82f6',
+                        secondary: '#10b981',
+                        warning: '#f97316',
+                        danger: '#ef4444',
+                    },
+                }
+            }
+        }
+    </script>
+    
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .upload-area {
+                @apply border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-primary transition-colors duration-300 cursor-pointer bg-gray-50;
+            }
+            .upload-area.active {
+                @apply border-primary bg-primary/5;
+            }
+            .keyword-highlight {
+                @apply bg-yellow-100 px-1 rounded border-b-2 border-warning;
+            }
+            .missing-keyword {
+                @apply bg-red-100 px-1 rounded border-b-2 border-danger font-medium;
+            }
+            .present-keyword {
+                @apply bg-green-100 px-1 rounded border-b-2 border-secondary font-medium;
+            }
+            .btn-primary {
+                @apply bg-primary text-white px-4 py-2 rounded-lg shadow transition-all duration-300 hover:bg-primary/90 hover:shadow-md active:scale-95;
+            }
+            .btn-secondary {
+                @apply bg-gray-100 text-gray-700 px-4 py-2 rounded-lg shadow transition-all duration-300 hover:bg-gray-200 hover:shadow-md active:scale-95;
+            }
+            .text-content {
+                @apply p-4 bg-white rounded-lg border border-gray-200 min-h-[200px] max-h-[400px] overflow-y-auto text-gray-700 text-sm leading-relaxed;
+            }
+            .match-score {
+                @apply text-3xl font-bold;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 font-sans text-gray-800 min-h-screen flex flex-col">
+    <div class="max-w-6xl w-full mx-auto px-4 py-8 flex-grow">
+        <!-- 头部标题 -->
+        <header class="text-center mb-10">
+            <h1 class="text-[clamp(1.8rem,5vw,2.5rem)] font-bold text-gray-800 mb-3 flex items-center justify-center">
+                <i class="fa fa-search text-primary mr-3"></i>简历关键词匹配工具
+            </h1>
+            <p class="text-gray-600 max-w-2xl mx-auto">
+                上传简历和职位描述，自动分析并高亮匹配差异，帮您发现简历中缺失的关键技能和要求
+            </p>
+        </header>
+
+        <main class="space-y-8">
+            <!-- 上传区域 -->
+            <section class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- 上传简历 -->
+                <div class="bg-white rounded-xl p-6 shadow-sm">
+                    <h2 class="text-xl font-bold mb-4 flex items-center">
+                        <i class="fa fa-file-text-o text-primary mr-2"></i>上传简历
+                    </h2>
+                    
+                    <div id="resumeUploadArea" class="upload-area mb-4">
+                        <input type="file" id="resumeUpload" accept=".txt,.pdf,.doc,.docx" class="hidden">
+                        <div class="space-y-2">
+                            <i class="fa fa-file-pdf-o text-4xl text-gray-400"></i>
+                            <p class="text-gray-600">点击或拖拽简历文件到此处</p>
+                            <p class="text-xs text-gray-500">支持TXT、PDF、Word格式</p>
+                        </div>
+                    </div>
+                    
+                    <div id="resumeFileName" class="text-sm text-gray-600 hidden">
+                        <i class="fa fa-check-circle text-secondary mr-1"></i>
+                        <span></span>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <label class="block text-gray-700 font-medium mb-2">或直接粘贴简历内容</label>
+                        <textarea 
+                            id="resumeText" 
+                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all outline-none min-h-[120px]"
+                            placeholder="在此粘贴您的简历内容..."></textarea>
+                    </div>
+                </div>
+                
+                <!-- 上传职位描述 -->
+                <div class="bg-white rounded-xl p-6 shadow-sm">
+                    <h2 class="text-xl font-bold mb-4 flex items-center">
+                        <i class="fa fa-briefcase text-primary mr-2"></i>上传职位描述 (JD)
+                    </h2>
+                    
+                    <div id="jdUploadArea" class="upload-area mb-4">
+                        <input type="file" id="jdUpload" accept=".txt,.pdf,.doc,.docx" class="hidden">
+                        <div class="space-y-2">
+                            <i class="fa fa-file-text-o text-4xl text-gray-400"></i>
+                            <p class="text-gray-600">点击或拖拽职位描述到此处</p>
+                            <p class="text-xs text-gray-500">支持TXT、PDF、Word格式</p>
+                        </div>
+                    </div>
+                    
+                    <div id="jdFileName" class="text-sm text-gray-600 hidden">
+                        <i class="fa fa-check-circle text-secondary mr-1"></i>
+                        <span></span>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <label class="block text-gray-700 font-medium mb-2">或直接粘贴职位描述</label>
+                        <textarea 
+                            id="jdText" 
+                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all outline-none min-h-[120px]"
+                            placeholder="在此粘贴职位描述内容..."></textarea>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- 分析按钮 -->
+            <section class="text-center">
+                <button id="analyzeBtn" class="btn-primary text-lg px-8 py-3" disabled>
+                    <i class="fa fa-bar-chart mr-2"></i>开始关键词匹配分析
+                </button>
+                <p class="text-sm text-gray-500 mt-2">分析将需要几秒钟时间，请稍候...</p>
+            </section>
+            
+            <!-- 分析结果 -->
+            <section id="resultsSection" class="hidden space-y-8">
+                <!-- 匹配度评分 -->
+                <div class="bg-white rounded-xl p-6 shadow-sm text-center">
+                    <h2 class="text-xl font-bold mb-4">简历匹配度评分</h2>
+                    <div class="match-score text-primary" id="matchScore">0%</div>
+                    <p class="text-gray-600 mt-2">
+                        <span id="matchDescription">请上传简历和职位描述进行分析</span>
+                    </p>
+                </div>
+                
+                <!-- 关键词分析结果 -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <!-- 提取的关键词 -->
+                    <div class="lg:col-span-1">
+                        <div class="bg-white rounded-xl p-6 shadow-sm">
+                            <h2 class="text-xl font-bold mb-4 flex items-center">
+                                <i class="fa fa-tags text-primary mr-2"></i>提取的关键词
+                            </h2>
+                            
+                            <div class="mb-3">
+                                <div class="flex justify-between items-center text-sm mb-2">
+                                    <span>职位描述中的关键要求</span>
+                                    <span id="totalKeywords" class="bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full text-xs">0个</span>
+                                </div>
+                                
+                                <div id="allKeywords" class="flex flex-wrap gap-2 max-h-[300px] overflow-y-auto p-2 bg-gray-50 rounded-lg">
+                                    <!-- 关键词将在这里显示 -->
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <div class="flex justify-between items-center text-sm mb-2">
+                                    <span>简历中缺失的关键词</span>
+                                    <span id="missingKeywordsCount" class="bg-danger/10 text-danger px-2 py-0.5 rounded-full text-xs">0个</span>
+                                </div>
+                                
+                                <div id="missingKeywords" class="flex flex-wrap gap-2 max-h-[200px] overflow-y-auto p-2 bg-gray-50 rounded-lg">
+                                    <!-- 缺失的关键词将在这里显示 -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 高亮后的职位描述 -->
+                    <div class="lg:col-span-2">
+                        <div class="bg-white rounded-xl p-6 shadow-sm">
+                            <h2 class="text-xl font-bold mb-4 flex items-center">
+                                <i class="fa fa-briefcase text-primary mr-2"></i>职位描述（关键词高亮）
+                            </h2>
+                            
+                            <div id="highlightedJD" class="text-content">
+                                <!-- 高亮后的职位描述将在这里显示 -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 优化建议 -->
+                <div class="bg-white rounded-xl p-6 shadow-sm">
+                    <h2 class="text-xl font-bold mb-4 flex items-center">
+                        <i class="fa fa-lightbulb-o text-warning mr-2"></i>简历优化建议
+                    </h2>
+                    
+                    <div id="improvementTips" class="text-gray-700 space-y-3 pl-2 border-l-4 border-warning/30">
+                        <!-- 优化建议将在这里显示 -->
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+    
+    <!-- 底部备注 -->
+    <footer class="mt-10 py-4 border-t border-gray-200">
+        <div class="max-w-6xl mx-auto px-4 text-center text-gray-600 text-sm">
+            <p>
+                邓文涛(AI版) | <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="e3d4d3d4d6d7d4d7d7d2a39292cd808c8e">[email&#160;protected]</a> | VX：707547441 | 更多点击➡️
+                <a href="https://dkfile.com/Dx25214" target="_blank" rel="noopener" class="text-primary hover:underline">🌌</a>
+            </p>
+        </div>
+    </footer>
+    
+    <!-- 提示消息 -->
+    <div id="toast" class="fixed bottom-6 left-1/2 transform -translate-x-1/2 translate-y-20 opacity-0 transition-all duration-300 flex items-center px-4 py-2.5 rounded-lg shadow-lg z-50 max-w-xs">
+        <i id="toastIcon" class="fa fa-check-circle mr-2 text-green-500"></i>
+        <span id="toastMessage"></span>
+    </div>
+
+    <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+        // DOM元素
+        const resumeUploadArea = document.getElementById('resumeUploadArea');
+        const resumeUpload = document.getElementById('resumeUpload');
+        const resumeFileName = document.getElementById('resumeFileName').querySelector('span');
+        const resumeFileNameContainer = document.getElementById('resumeFileName');
+        const resumeText = document.getElementById('resumeText');
+        
+        const jdUploadArea = document.getElementById('jdUploadArea');
+        const jdUpload = document.getElementById('jdUpload');
+        const jdFileName = document.getElementById('jdFileName').querySelector('span');
+        const jdFileNameContainer = document.getElementById('jdFileName');
+        const jdText = document.getElementById('jdText');
+        
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        const resultsSection = document.getElementById('resultsSection');
+        const matchScore = document.getElementById('matchScore');
+        const matchDescription = document.getElementById('matchDescription');
+        const totalKeywords = document.getElementById('totalKeywords');
+        const allKeywords = document.getElementById('allKeywords');
+        const missingKeywordsCount = document.getElementById('missingKeywordsCount');
+        const missingKeywords = document.getElementById('missingKeywords');
+        const highlightedJD = document.getElementById('highlightedJD');
+        const improvementTips = document.getElementById('improvementTips');
+        
+        const toast = document.getElementById('toast');
+        const toastIcon = document.getElementById('toastIcon');
+        const toastMessage = document.getElementById('toastMessage');
+        
+        // 虚词列表（用于过滤）
+        const stopWords = [
+            '的', '了', '在', '是', '有', '和', '就', '不', '人', '都', '一', '一个', '上', '也', '很', '到', '说', '要', '去', '你',
+            '会', '着', '没有', '看', '好', '自己', '这', '我们', '下', '为', '时', '以', '于', '其', '而', '后', '之', '又', '然',
+            '夫', '若', '彼', '何', '与', '及', '则', '者', '所', '此', '焉', '矣', '耳', '哉', '乎', '也', '呢', '吗', '吧', '啊',
+            'the', 'and', 'of', 'to', 'a', 'in', 'is', 'it', 'you', 'that', 'he', 'she', 'this', 'my', 'your', 'me', 'we', 'us', 'our',
+            'has', 'have', 'had', 'will', 'would', 'shall', 'should', 'may', 'might', 'must', 'can', 'could', 'as', 'at', 'by', 'for',
+            'from', 'how', 'what', 'when', 'where', 'which', 'who', 'whom', 'why', 'with', 'about', 'an', 'are', 'be', 'been', 'being',
+            'but', 'did', 'do', 'does', 'doing', 'down', 'during', 'each', 'few', 'more', 'most', 'other', 'some', 'such', 'no', 'nor',
+            'not', 'only', 'own', 'same', 'so', 'than', 'too', 'very', 's', 't', 'don', 'now'
+        ];
+        
+        // 初始化
+        function init() {
+            setupEventListeners();
+            checkAnalyzeButton();
+        }
+        
+        // 设置事件监听器
+        function setupEventListeners() {
+            // 简历上传区域
+            resumeUploadArea.addEventListener('click', () => {
+                resumeUpload.click();
+            });
+            
+            // 简历拖拽功能
+            setupDragAndDrop(resumeUploadArea, resumeUpload, resumeFileName, resumeFileNameContainer);
+            
+            // 职位描述上传区域
+            jdUploadArea.addEventListener('click', () => {
+                jdUpload.click();
+            });
+            
+            // 职位描述拖拽功能
+            setupDragAndDrop(jdUploadArea, jdUpload, jdFileName, jdFileNameContainer);
+            
+            // 文件选择变化
+            resumeUpload.addEventListener('change', (e) => {
+                handleFileSelection(e, resumeFileName, resumeFileNameContainer);
+                checkAnalyzeButton();
+            });
+            
+            jdUpload.addEventListener('change', (e) => {
+                handleFileSelection(e, jdFileName, jdFileNameContainer);
+                checkAnalyzeButton();
+            });
+            
+            // 文本区域变化
+            resumeText.addEventListener('input', checkAnalyzeButton);
+            jdText.addEventListener('input', checkAnalyzeButton);
+            
+            // 分析按钮
+            analyzeBtn.addEventListener('click', analyzeDocuments);
+        }
+        
+        // 设置拖拽功能
+        function setupDragAndDrop(area, input, fileNameEl, fileNameContainer) {
+            area.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                area.classList.add('active');
+            });
+            
+            area.addEventListener('dragleave', () => {
+                area.classList.remove('active');
+            });
+            
+            area.addEventListener('drop', (e) => {
+                e.preventDefault();
+                area.classList.remove('active');
+                
+                if (e.dataTransfer.files.length) {
+                    input.files = e.dataTransfer.files;
+                    handleFileSelection({ target: input }, fileNameEl, fileNameContainer);
+                    checkAnalyzeButton();
+                }
+            });
+        }
+        
+        // 处理文件选择
+        function handleFileSelection(event, fileNameEl, fileNameContainer) {
+            if (event.target.files.length) {
+                const file = event.target.files[0];
+                fileNameEl.textContent = file.name;
+                fileNameContainer.classList.remove('hidden');
+                
+                // 简单处理文本文件（对于PDF和Word，这里仅模拟处理）
+                if (file.type.includes('text/plain')) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        // 根据是简历还是JD，填充到相应的文本区域
+                        if (fileNameContainer.id === 'resumeFileName') {
+                            resumeText.value = e.target.result;
+                        } else {
+                            jdText.value = e.target.result;
+                        }
+                    };
+                    reader.readAsText(file);
+                } else {
+                    // 对于非文本文件，显示提示
+                    showToast('已识别文件，您可以在文本框中编辑内容', 'info');
+                }
+            }
+        }
+        
+        // 检查分析按钮状态
+        function checkAnalyzeButton() {
+            const hasResume = resumeText.value.trim() !== '' || resumeUpload.files.length > 0;
+            const hasJD = jdText.value.trim() !== '' || jdUpload.files.length > 0;
+            
+            analyzeBtn.disabled = !(hasResume && hasJD);
+        }
+        
+        // 分析文档
+        function analyzeDocuments() {
+            // 获取简历和JD文本
+            const resumeContent = resumeText.value.trim();
+            const jdContent = jdText.value.trim();
+            
+            if (!resumeContent || !jdContent) {
+                showToast('请确保简历和职位描述都已填写', 'error');
+                return;
+            }
+            
+            // 显示加载状态
+            analyzeBtn.disabled = true;
+            analyzeBtn.innerHTML = '<i class="fa fa-spinner fa-spin mr-2"></i>分析中...';
+            
+            // 模拟分析延迟
+            setTimeout(() => {
+                // 提取JD关键词
+                const jdKeywords = extractKeywords(jdContent);
+                
+                // 提取简历关键词
+                const resumeKeywords = extractKeywords(resumeContent);
+                
+                // 找出缺失的关键词
+                const missing = jdKeywords.filter(keyword => 
+                    !resumeKeywords.some(rk => rk.toLowerCase() === keyword.toLowerCase())
+                );
+                
+                // 计算匹配度
+                const matchPercentage = Math.round(((jdKeywords.length - missing.length) / jdKeywords.length) * 100);
+                
+                // 显示结果
+                displayResults(jdContent, jdKeywords, missing, matchPercentage);
+                
+                // 恢复按钮状态
+                analyzeBtn.innerHTML = '<i class="fa fa-bar-chart mr-2"></i>开始关键词匹配分析';
+                analyzeBtn.disabled = false;
+                
+                // 滚动到结果区域
+                resultsSection.scrollIntoView({ behavior: 'smooth' });
+                
+                showToast('分析完成，已生成匹配结果');
+            }, 1500);
+        }
+        
+        // 提取关键词
+        function extractKeywords(text) {
+            // 简单的关键词提取逻辑
+            // 1. 去除标点符号和特殊字符
+            let cleaned = text.replace(/[^\w\s]/gi, ' ');
+            
+            // 2. 转换为小写
+            cleaned = cleaned.toLowerCase();
+            
+            // 3. 分割为单词
+            let words = cleaned.split(/\s+/).filter(word => word.length > 1);
+            
+            // 4. 过滤虚词和常见词
+            words = words.filter(word => !stopWords.includes(word.toLowerCase()));
+            
+            // 5. 提取独特的关键词
+            const uniqueWords = [...new Set(words)];
+            
+            // 6. 按在文本中出现的频率排序
+            const wordFrequency = {};
+            words.forEach(word => {
+                wordFrequency[word] = (wordFrequency[word] || 0) + 1;
+            });
+            
+            // 7. 排序并返回前50个关键词（避免过多）
+            return uniqueWords
+                .sort((a, b) => (wordFrequency[b] || 0) - (wordFrequency[a] || 0))
+                .slice(0, 50);
+        }
+        
+        // 显示分析结果
+        function displayResults(jdContent, jdKeywords, missingKeywordsList, matchPercentage) {
+            // 显示结果区域
+            resultsSection.classList.remove('hidden');
+            
+            // 显示匹配度
+            matchScore.textContent = `${matchPercentage}%`;
+            
+            // 设置匹配度描述
+            let description = '';
+            if (matchPercentage >= 90) {
+                description = '优秀！您的简历与职位要求高度匹配';
+                matchScore.className = 'match-score text-secondary';
+            } else if (matchPercentage >= 70) {
+                description = '良好，简历与职位要求匹配度较高';
+                matchScore.className = 'match-score text-primary';
+            } else if (matchPercentage >= 50) {
+                description = '一般，简历与职位要求有一定差距';
+                matchScore.className = 'match-score text-warning';
+            } else {
+                description = '较低，建议根据职位要求优化简历';
+                matchScore.className = 'match-score text-danger';
+            }
+            matchDescription.textContent = description;
+            
+            // 显示所有关键词
+            totalKeywords.textContent = `${jdKeywords.length}个`;
+            allKeywords.innerHTML = '';
+            jdKeywords.forEach(keyword => {
+                const isMissing = missingKeywordsList.some(mk => mk.toLowerCase() === keyword.toLowerCase());
+                const keywordEl = document.createElement('span');
+                keywordEl.className = `px-2 py-1 rounded-full text-xs ${isMissing ? 'bg-danger/10 text-danger' : 'bg-secondary/10 text-secondary'}`;
+                keywordEl.textContent = keyword;
+                allKeywords.appendChild(keywordEl);
+            });
+            
+            // 显示缺失的关键词
+            missingKeywordsCount.textContent = `${missingKeywordsList.length}个`;
+            missingKeywords.innerHTML = '';
+            missingKeywordsList.forEach(keyword => {
+                const keywordEl = document.createElement('span');
+                keywordEl.className = 'px-2 py-1 rounded-full text-xs bg-danger/10 text-danger';
+                keywordEl.textContent = keyword;
+                missingKeywords.appendChild(keywordEl);
+            });
+            
+            // 高亮显示JD中的关键词
+            let highlightedText = jdContent;
+            
+            // 按关键词长度排序，避免短词被长词包含时先匹配
+            const sortedKeywords = [...jdKeywords].sort((a, b) => b.length - a.length);
+            
+            sortedKeywords.forEach(keyword => {
+                if (keyword.length < 2) return;
+                
+                // 创建正则表达式，不区分大小写
+                const regex = new RegExp(`(${keyword})`, 'gi');
+                
+                // 检查关键词是否在缺失列表中
+                const isMissing = missingKeywordsList.some(mk => mk.toLowerCase() === keyword.toLowerCase());
+                
+                // 替换关键词为高亮版本
+                highlightedText = highlightedText.replace(regex, (match) => {
+                    const className = isMissing ? 'missing-keyword' : 'present-keyword';
+                    return `<span class="${className}">${match}</span>`;
+                });
+            });
+            
+            highlightedJD.innerHTML = highlightedText.replace(/\n/g, '<br>');
+            
+            // 生成优化建议
+            generateImprovementTips(missingKeywordsList, matchPercentage);
+        }
+        
+        // 生成优化建议
+        function generateImprovementTips(missingKeywords, matchPercentage) {
+            improvementTips.innerHTML = '';
+            
+            if (missingKeywords.length === 0) {
+                const tip = document.createElement('p');
+                tip.innerHTML = '<i class="fa fa-check-circle text-secondary mr-2"></i>您的简历包含了职位描述中的所有关键要求，非常匹配！';
+                improvementTips.appendChild(tip);
+                return;
+            }
+            
+            if (matchPercentage < 50) {
+                const tip = document.createElement('p');
+                tip.innerHTML = '<i class="fa fa-exclamation-circle text-danger mr-2"></i>您的简历与职位要求匹配度较低，建议重点补充缺失的关键词。';
+                improvementTips.appendChild(tip);
+            } else if (matchPercentage < 70) {
+                const tip = document.createElement('p');
+                tip.innerHTML = '<i class="fa fa-info-circle text-warning mr-2"></i>您的简历与职位要求有一定差距，补充缺失的关键词可以提高匹配度。';
+                improvementTips.appendChild(tip);
+            }
+            
+            const keywordsTip = document.createElement('p');
+            keywordsTip.innerHTML = `<i class="fa fa-pencil text-primary mr-2"></i>建议在简历中添加以下关键词：<strong>${missingKeywords.slice(0, 5).join('、')}</strong>${missingKeywords.length > 5 ? '等' : ''}。`;
+            improvementTips.appendChild(keywordsTip);
+            
+            const contextTip = document.createElement('p');
+            contextTip.innerHTML = '<i class="fa fa-lightbulb-o text-warning mr-2"></i>添加关键词时，建议结合具体工作经历和项目经验，使内容更具说服力。';
+            improvementTips.appendChild(contextTip);
+            
+            const sectionTip = document.createElement('p');
+            sectionTip.innerHTML = '<i class="fa fa-file-text-o text-primary mr-2"></i>重点在技能、工作经历和项目描述部分补充相关内容，这些是招聘方重点关注的区域。';
+            improvementTips.appendChild(sectionTip);
+        }
+        
+        // 显示提示消息
+        function showToast(message, type = 'success') {
+            toastMessage.textContent = message;
+            
+            if (type === 'success') {
+                toast.className = 'fixed bottom-6 left-1/2 transform -translate-x-1/2 translate-y-0 opacity-100 transition-all duration-300 flex items-center px-4 py-2.5 rounded-lg shadow-lg z-50 max-w-xs bg-green-50 text-green-800';
+                toastIcon.className = 'fa fa-check-circle mr-2 text-green-500';
+            } else if (type === 'error') {
+                toast.className = 'fixed bottom-6 left-1/2 transform -translate-x-1/2 translate-y-0 opacity-100 transition-all duration-300 flex items-center px-4 py-2.5 rounded-lg shadow-lg z-50 max-w-xs bg-red-50 text-red-800';
+                toastIcon.className = 'fa fa-exclamation-circle mr-2 text-red-500';
+            } else if (type === 'info') {
+                toast.className = 'fixed bottom-6 left-1/2 transform -translate-x-1/2 translate-y-0 opacity-100 transition-all duration-300 flex items-center px-4 py-2.5 rounded-lg shadow-lg z-50 max-w-xs bg-blue-50 text-blue-800';
+                toastIcon.className = 'fa fa-info-circle mr-2 text-blue-500';
+            }
+            
+            // 3秒后隐藏
+            setTimeout(() => {
+                toast.className = 'fixed bottom-6 left-1/2 transform -translate-x-1/2 translate-y-20 opacity-0 transition-all duration-300 flex items-center px-4 py-2.5 rounded-lg shadow-lg z-50 max-w-xs';
+            }, 3000);
+        }
+        
+        // 初始化应用
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>

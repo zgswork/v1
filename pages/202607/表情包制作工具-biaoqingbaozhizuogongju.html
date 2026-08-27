@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>表情包制作工具</title>
+    <!-- 引入Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入Font Awesome -->
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    
+    <!-- 配置Tailwind自定义颜色 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3b82f6',
+                        secondary: '#10b981',
+                        accent: '#f97316',
+                        dark: '#1e293b',
+                    },
+                }
+            }
+        }
+    </script>
+    
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .canvas-container {
+                @apply relative w-full max-w-md mx-auto border-2 border-gray-300 rounded-lg overflow-hidden bg-white;
+                aspect-ratio: 1/1; /* 保持正方形比例 */
+            }
+            .meme-canvas {
+                @apply absolute top-0 left-0 w-full h-full;
+            }
+            .btn-primary {
+                @apply bg-primary text-white px-4 py-2 rounded-lg shadow transition-all duration-300 hover:bg-primary/90 hover:shadow-md active:scale-95;
+            }
+            .btn-secondary {
+                @apply bg-gray-100 text-gray-700 px-4 py-2 rounded-lg shadow transition-all duration-300 hover:bg-gray-200 hover:shadow-md active:scale-95;
+            }
+            .btn-accent {
+                @apply bg-accent text-white px-4 py-2 rounded-lg shadow transition-all duration-300 hover:bg-accent/90 hover:shadow-md active:scale-95;
+            }
+            .text-editor {
+                @apply absolute left-0 right-0 text-center text-white text-[clamp(1.2rem,5vw,1.8rem)] font-bold drop-shadow-md px-2 cursor-move;
+                text-shadow: 0 0 3px rgba(0,0,0,0.8);
+                user-select: none;
+            }
+            .sticker-item {
+                @apply w-16 h-16 object-contain cursor-pointer hover:scale-110 transition-transform duration-200;
+            }
+            .draggable {
+                @apply cursor-move user-select: none;
+            }
+            .control-btn {
+                @apply w-8 h-8 flex items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors;
+            }
+            .upload-area {
+                @apply border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-primary transition-colors duration-300 cursor-pointer bg-gray-50;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 font-sans text-gray-800 min-h-screen flex flex-col">
+    <div class="max-w-6xl w-full mx-auto px-4 py-8 flex-grow">
+        <!-- 头部标题 -->
+        <header class="text-center mb-10">
+            <h1 class="text-[clamp(1.8rem,5vw,2.5rem)] font-bold text-gray-800 mb-3 flex items-center justify-center">
+                <i class="fa fa-smile-o text-primary mr-3"></i>表情包制作工具
+            </h1>
+            <p class="text-gray-600 max-w-2xl mx-auto">
+                简单快速制作个性化表情包，上传图片，添加文字和贴纸，一键生成标准尺寸表情包
+            </p>
+        </header>
+
+        <main class="space-y-8">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <!-- 左侧：工具面板 -->
+                <section class="lg:col-span-1 space-y-6">
+                    <!-- 上传图片区域 -->
+                    <div class="bg-white rounded-xl p-6 shadow-sm">
+                        <h2 class="text-xl font-bold mb-4 flex items-center">
+                            <i class="fa fa-upload text-primary mr-2"></i>上传图片
+                        </h2>
+                        
+                        <div id="uploadArea" class="upload-area mb-4">
+                            <input type="file" id="imageUpload" accept="image/*" class="hidden">
+                            <div class="space-y-2">
+                                <i class="fa fa-image text-4xl text-gray-400"></i>
+                                <p class="text-gray-600">点击或拖拽图片到此处</p>
+                                <p class="text-xs text-gray-500">支持JPG、PNG等格式</p>
+                            </div>
+                        </div>
+                        
+                        <div id="imagePreviewContainer" class="hidden">
+                            <div class="text-sm text-gray-600 mb-2">预览：</div>
+                            <div class="w-full aspect-square rounded-lg overflow-hidden border border-gray-200">
+                                <img id="imagePreview" src="" alt="预览图" class="w-full h-full object-cover">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 文字添加工具 -->
+                    <div class="bg-white rounded-xl p-6 shadow-sm">
+                        <h2 class="text-xl font-bold mb-4 flex items-center">
+                            <i class="fa fa-font text-primary mr-2"></i>添加文字
+                        </h2>
+                        
+                        <div class="space-y-4">
+                            <div>
+                                <label for="textContent" class="block text-gray-700 font-medium mb-2">文字内容</label>
+                                <input 
+                                    type="text" 
+                                    id="textContent" 
+                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all outline-none"
+                                    placeholder="输入要添加的文字..."
+                                >
+                            </div>
+                            
+                            <div>
+                                <label class="block text-gray-700 font-medium mb-2">文字位置</label>
+                                <div class="flex gap-2">
+                                    <button id="topTextBtn" class="flex-1 bg-gray-100 hover:bg-gray-200 py-2 rounded text-center transition-colors">
+                                        顶部
+                                    </button>
+                                    <button id="bottomTextBtn" class="flex-1 bg-gray-100 hover:bg-gray-200 py-2 rounded text-center transition-colors">
+                                        底部
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <label for="textColor" class="block text-gray-700 font-medium mb-2">文字颜色</label>
+                                <div class="flex items-center gap-2">
+                                    <input 
+                                        type="color" 
+                                        id="textColor" 
+                                        value="#ffffff"
+                                        class="w-10 h-10 p-0 border border-gray-300 rounded"
+                                    >
+                                    <input 
+                                        type="range" 
+                                        id="textSize" 
+                                        min="12" 
+                                        max="36" 
+                                        value="24"
+                                        class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                                    >
+                                    <span id="textSizeValue" class="text-sm w-8 text-center">24</span>
+                                </div>
+                            </div>
+                            
+                            <button id="addTextBtn" class="btn-primary w-full" disabled>
+                                <i class="fa fa-plus mr-2"></i>添加到表情包
+                            </button>
+                        </div>
+                    </div>
+                </section>
+                
+                <!-- 中间：编辑区域 -->
+                <section class="lg:col-span-1">
+                    <div class="bg-white rounded-xl p-6 shadow-sm h-full flex flex-col">
+                        <h2 class="text-xl font-bold mb-4 flex items-center">
+                            <i class="fa fa-paint-brush text-primary mr-2"></i>编辑区域
+                            <span class="ml-2 text-sm bg-gray-100 text-gray-600 px-2 py-0.5 rounded">200×200px</span>
+                        </h2>
+                        
+                        <!-- 表情包画布容器 -->
+                        <div class="canvas-container mb-4 flex-grow flex items-center justify-center">
+                            <div id="emptyState" class="text-center text-gray-500">
+                                <i class="fa fa-image text-5xl mb-3 text-gray-300"></i>
+                                <p>上传图片开始制作</p>
+                            </div>
+                            
+                            <!-- 主画布 -->
+                            <canvas id="memeCanvas" class="meme-canvas hidden"></canvas>
+                            
+                            <!-- 文字编辑层 (绝对定位在canvas上方) -->
+                            <div id="textLayer" class="absolute top-0 left-0 w-full h-full pointer-events-none"></div>
+                            
+                            <!-- 贴纸编辑层 -->
+                            <div id="stickerLayer" class="absolute top-0 left-0 w-full h-full pointer-events-none"></div>
+                            
+                            <!-- 选中元素的控制按钮 -->
+                            <div id="elementControls" class="absolute hidden">
+                                <button id="rotateBtn" class="control-btn absolute -top-10 left-1/2 transform -translate-x-1/2">
+                                    <i class="fa fa-rotate-right"></i>
+                                </button>
+                                <button id="scaleBtn" class="control-btn absolute -right-10 top-1/2 transform -translate-y-1/2">
+                                    <i class="fa fa-search-plus"></i>
+                                </button>
+                                <button id="deleteBtn" class="control-btn absolute -bottom-10 left-1/2 transform -translate-x-1/2 bg-red-500 hover:bg-red-600">
+                                    <i class="fa fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- 操作按钮 -->
+                        <div class="flex gap-3">
+                            <button id="resetBtn" class="btn-secondary flex-1" disabled>
+                                <i class="fa fa-refresh mr-2"></i>重置
+                            </button>
+                            <button id="downloadBtn" class="btn-accent flex-1" disabled>
+                                <i class="fa fa-download mr-2"></i>下载表情包
+                            </button>
+                        </div>
+                    </div>
+                </section>
+                
+                <!-- 右侧：贴纸面板 -->
+                <section class="lg:col-span-1">
+                    <div class="bg-white rounded-xl p-6 shadow-sm">
+                        <h2 class="text-xl font-bold mb-4 flex items-center">
+                            <i class="fa fa-th text-primary mr-2"></i>贴纸库
+                        </h2>
+                        
+                        <div class="grid grid-cols-3 gap-3 max-h-[500px] overflow-y-auto pr-1">
+                            <!-- 贴纸将通过JS动态加载 -->
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+    
+    <!-- 底部备注 -->
+    <footer class="mt-10 py-4 border-t border-gray-200">
+        <div class="max-w-6xl mx-auto px-4 text-center text-gray-600 text-sm">
+            <p>
+                邓文涛(AI版) | <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="a4939493919093909095e4d5d58ac7cbc9">[email&#160;protected]</a> | VX：707547441 | 更多点击➡️
+                <a href="https://dkfile.com/Dx25214" target="_blank" rel="noopener" class="text-primary hover:underline">🌌</a>
+            </p>
+        </div>
+    </footer>
+    
+    <!-- 提示消息 -->
+    <div id="toast" class="fixed bottom-6 left-1/2 transform -translate-x-1/2 translate-y-20 opacity-0 transition-all duration-300 flex items-center px-4 py-2.5 rounded-lg shadow-lg z-50 max-w-xs">
+        <i id="toastIcon" class="fa fa-check-circle mr-2 text-green-500"></i>
+        <span id="toastMessage"></span>
+    </div>
+
+    <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+        // 全局变量
+        let baseImage = null;
+        let canvas, ctx;
+        let textElements = [];
+        let stickerElements = [];
+        let selectedElement = null;
+        let isDragging = false;
+        let dragOffset = { x: 0, y: 0 };
+        
+        // 贴纸库 - 使用Font Awesome图标作为基础贴纸
+        const stickers = [
+            { id: 'dog', icon: 'fa-dog', color: '#8B4513' },
+            { id: 'cat', icon: 'fa-cat', color: '#A52A2A' },
+            { id: 'grin', icon: 'fa-grin-beam', color: '#FFD700' },
+            { id: 'sad', icon: 'fa-sad-tear', color: '#1E90FF' },
+            { id: 'angry', icon: 'fa-angry', color: '#FF4500' },
+            { id: 'surprise', icon: 'fa-surprise', color: '#FF6347' },
+            { id: 'love', icon: 'fa-heart', color: '#FF69B4' },
+            { id: 'thumbs-up', icon: 'fa-thumbs-up', color: '#32CD32' },
+            { id: 'thumbs-down', icon: 'fa-thumbs-down', color: '#FF6347' },
+            { id: 'fire', icon: 'fa-fire', color: '#FF4500' },
+            { id: 'star', icon: 'fa-star', color: '#FFD700' },
+            { id: 'question', icon: 'fa-question-circle', color: '#1E90FF' },
+            { id: 'exclamation', icon: 'fa-exclamation-circle', color: '#FFA500' },
+            { id: 'check', icon: 'fa-check-circle', color: '#32CD32' },
+            { id: 'x', icon: 'fa-times-circle', color: '#FF4500' },
+            { id: 'money', icon: 'fa-money', color: '#008000' },
+            { id: 'coffee', icon: 'fa-coffee', color: '#8B4513' },
+            { id: 'beer', icon: 'fa-beer', color: '#D2B48C' }
+        ];
+        
+        // DOM元素
+        const uploadArea = document.getElementById('uploadArea');
+        const imageUpload = document.getElementById('imageUpload');
+        const imagePreviewContainer = document.getElementById('imagePreviewContainer');
+        const imagePreview = document.getElementById('imagePreview');
+        const emptyState = document.getElementById('emptyState');
+        const memeCanvas = document.getElementById('memeCanvas');
+        const textLayer = document.getElementById('textLayer');
+        const stickerLayer = document.getElementById('stickerLayer');
+        const textContent = document.getElementById('textContent');
+        const topTextBtn = document.getElementById('topTextBtn');
+        const bottomTextBtn = document.getElementById('bottomTextBtn');
+        const textColor = document.getElementById('textColor');
+        const textSize = document.getElementById('textSize');
+        const textSizeValue = document.getElementById('textSizeValue');
+        const addTextBtn = document.getElementById('addTextBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const elementControls = document.getElementById('elementControls');
+        const rotateBtn = document.getElementById('rotateBtn');
+        const scaleBtn = document.getElementById('scaleBtn');
+        const deleteBtn = document.getElementById('deleteBtn');
+        const toast = document.getElementById('toast');
+        const toastIcon = document.getElementById('toastIcon');
+        const toastMessage = document.getElementById('toastMessage');
+        
+        // 初始化
+        function init() {
+            // 设置画布
+            canvas = memeCanvas;
+            ctx = canvas.getContext('2d');
+            canvas.width = 200;
+            canvas.height = 200;
+            
+            setupEventListeners();
+            loadStickers();
+        }
+        
+        // 设置事件监听器
+        function setupEventListeners() {
+            // 上传区域点击触发文件选择
+            uploadArea.addEventListener('click', () => {
+                imageUpload.click();
+            });
+            
+            // 拖拽功能
+            uploadArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                uploadArea.classList.add('border-primary', 'bg-primary/5');
+            });
+            
+            uploadArea.addEventListener('dragleave', () => {
+                uploadArea.classList.remove('border-primary', 'bg-primary/5');
+            });
+            
+            uploadArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadArea.classList.remove('border-primary', 'bg-primary/5');
+                
+                if (e.dataTransfer.files.length) {
+                    handleImageUpload(e.dataTransfer.files[0]);
+                }
+            });
+            
+            // 图片选择变化
+            imageUpload.addEventListener('change', (e) => {
+                if (e.target.files.length) {
+                    handleImageUpload(e.target.files[0]);
+                }
+            });
+            
+            // 文字大小变化
+            textSize.addEventListener('input', (e) => {
+                textSizeValue.textContent = e.target.value;
+            });
+            
+            // 添加文字按钮
+            addTextBtn.addEventListener('click', addTextToMeme);
+            
+            // 文字输入变化时启用/禁用添加按钮
+            textContent.addEventListener('input', () => {
+                addTextBtn.disabled = !textContent.value.trim() || !baseImage;
+            });
+            
+            // 重置按钮
+            resetBtn.addEventListener('click', resetMeme);
+            
+            // 下载按钮
+            downloadBtn.addEventListener('click', downloadMeme);
+            
+            // 元素控制按钮
+            rotateBtn.addEventListener('click', rotateSelectedElement);
+            scaleBtn.addEventListener('click', scaleSelectedElement);
+            deleteBtn.addEventListener('click', deleteSelectedElement);
+            
+            // 画布点击事件 - 选择元素
+            memeCanvas.addEventListener('click', handleCanvasClick);
+            
+            // 窗口大小变化时重绘
+            window.addEventListener('resize', redrawMeme);
+        }
+        
+        // 加载贴纸库
+        function loadStickers() {
+            const stickerContainer = document.querySelector('.grid.grid-cols-3');
+            
+            stickers.forEach(sticker => {
+                const stickerEl = document.createElement('div');
+                stickerEl.className = 'sticker-item flex items-center justify-center rounded-lg bg-gray-50';
+                stickerEl.innerHTML = `<i class="fa ${sticker.icon} text-2xl" style="color: ${sticker.color}"></i>`;
+                stickerEl.dataset.id = sticker.id;
+                stickerEl.dataset.icon = sticker.icon;
+                stickerEl.dataset.color = sticker.color;
+                
+                stickerEl.addEventListener('click', () => {
+                    if (!baseImage) {
+                        showToast('请先上传图片', 'error');
+                        return;
+                    }
+                    addStickerToMeme(sticker);
+                });
+                
+                stickerContainer.appendChild(stickerEl);
+            });
+        }
+        
+        // 处理图片上传
+        function handleImageUpload(file) {
+            if (!file.type.startsWith('image/')) {
+                showToast('请选择图片文件', 'error');
+                return;
+            }
+            
+            const reader = new FileReader();
+            
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    // 保存原始图片
+                    baseImage = img;
+                    
+                    // 显示预览
+                    imagePreview.src = e.target.result;
+                    imagePreviewContainer.classList.remove('hidden');
+                    
+                    // 显示画布，隐藏空状态
+                    memeCanvas.classList.remove('hidden');
+                    emptyState.classList.add('hidden');
+                    
+                    // 初始化画布
+                    resetMeme();
+                    
+                    // 启用按钮
+                    addTextBtn.disabled = !textContent.value.trim();
+                    resetBtn.disabled = false;
+                    downloadBtn.disabled = false;
+                    
+                    showToast('图片上传成功');
+                };
+                
+                img.src = e.target.result;
+            };
+            
+            reader.readAsDataURL(file);
+        }
+        
+        // 添加文字到表情包
+        function addTextToMeme() {
+            const text = textContent.value.trim();
+            if (!text) return;
+            
+            const position = topTextBtn.classList.contains('bg-primary') ? 'top' : 'bottom';
+            const color = textColor.value;
+            const size = parseInt(textSize.value);
+            
+            // 创建文字元素
+            const textElement = {
+                id: `text-${Date.now()}`,
+                type: 'text',
+                content: text,
+                position: position,
+                color: color,
+                size: size,
+                x: canvas.width / 2,
+                y: position === 'top' ? size + 10 : canvas.height - 10,
+                rotation: 0,
+                scale: 1
+            };
+            
+            textElements.push(textElement);
+            createTextDOMElement(textElement);
+            redrawMeme();
+            
+            // 清空输入
+            textContent.value = '';
+            addTextBtn.disabled = true;
+            
+            showToast('文字添加成功');
+        }
+        
+        // 创建文字DOM元素
+        function createTextDOMElement(textElement) {
+            // 移除已存在的相同ID元素
+            const existing = document.getElementById(textElement.id);
+            if (existing) {
+                existing.remove();
+            }
+            
+            const textEl = document.createElement('div');
+            textEl.id = textElement.id;
+            textEl.className = 'text-editor draggable';
+            textEl.style.top = `${textElement.y - textElement.size/2}px`;
+            textEl.style.left = '0';
+            textEl.style.right = '0';
+            textEl.style.color = textElement.color;
+            textEl.style.fontSize = `${textElement.size}px`;
+            textEl.style.transform = `rotate(${textElement.rotation}deg) scale(${textElement.scale})`;
+            textEl.style.transformOrigin = 'center';
+            textEl.textContent = textElement.content;
+            textEl.dataset.type = 'text';
+            
+            // 启用指针事件，用于拖拽
+            textEl.style.pointerEvents = 'auto';
+            
+            // 添加拖拽事件
+            textEl.addEventListener('mousedown', (e) => {
+                e.stopPropagation();
+                startDrag(textElement, e);
+            });
+            
+            textEl.addEventListener('touchstart', (e) => {
+                e.stopPropagation();
+                const touch = e.touches[0];
+                startDrag(textElement, touch);
+            });
+            
+            textLayer.appendChild(textEl);
+        }
+        
+        // 添加贴纸到表情包
+        function addStickerToMeme(sticker) {
+            // 创建贴纸元素
+            const stickerElement = {
+                id: `sticker-${Date.now()}`,
+                type: 'sticker',
+                icon: sticker.icon,
+                color: sticker.color,
+                x: canvas.width / 2,
+                y: canvas.height / 2,
+                rotation: 0,
+                scale: 1,
+                size: 40
+            };
+            
+            stickerElements.push(stickerElement);
+            createStickerDOMElement(stickerElement);
+            redrawMeme();
+            
+            showToast('贴纸添加成功');
+        }
+        
+        // 创建贴纸DOM元素
+        function createStickerDOMElement(stickerElement) {
+            // 移除已存在的相同ID元素
+            const existing = document.getElementById(stickerElement.id);
+            if (existing) {
+                existing.remove();
+            }
+            
+            const stickerEl = document.createElement('div');
+            stickerEl.id = stickerElement.id;
+            stickerEl.className = 'absolute draggable flex items-center justify-center';
+            stickerEl.style.top = `${stickerElement.y}px`;
+            stickerEl.style.left = `${stickerElement.x}px`;
+            stickerEl.style.width = `${stickerElement.size}px`;
+            stickerEl.style.height = `${stickerElement.size}px`;
+            stickerEl.style.transform = `translate(-50%, -50%) rotate(${stickerElement.rotation}deg) scale(${stickerElement.scale})`;
+            stickerEl.innerHTML = `<i class="fa ${stickerElement.icon} text-2xl" style="color: ${stickerElement.color}"></i>`;
+            stickerEl.dataset.type = 'sticker';
+            
+            // 启用指针事件，用于拖拽
+            stickerEl.style.pointerEvents = 'auto';
+            
+            // 添加拖拽事件
+            stickerEl.addEventListener('mousedown', (e) => {
+                e.stopPropagation();
+                startDrag(stickerElement, e);
+            });
+            
+            stickerEl.addEventListener('touchstart', (e) => {
+                e.stopPropagation();
+                const touch = e.touches[0];
+                startDrag(stickerElement, touch);
+            });
+            
+            stickerLayer.appendChild(stickerEl);
+        }
+        
+        // 开始拖拽元素
+        function startDrag(element, event) {
+            selectedElement = element;
+            isDragging = true;
+            
+            // 计算偏移量
+            const canvasRect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / canvasRect.width;
+            const scaleY = canvas.height / canvasRect.height;
+            
+            dragOffset.x = (event.clientX - canvasRect.left) * scaleX - element.x;
+            dragOffset.y = (event.clientY - canvasRect.top) * scaleY - element.y;
+            
+            // 显示控制按钮
+            showElementControls();
+            
+            // 添加鼠标/触摸移动和释放事件
+            document.addEventListener('mousemove', dragElement);
+            document.addEventListener('mouseup', stopDrag);
+            document.addEventListener('touchmove', dragElementTouch);
+            document.addEventListener('touchend', stopDrag);
+            
+            // 高亮选中元素
+            const el = document.getElementById(element.id);
+            if (el) {
+                el.style.outline = '2px dashed primary';
+            }
+        }
+        
+        // 拖拽元素（鼠标）
+        function dragElement(event) {
+            if (!isDragging || !selectedElement) return;
+            event.preventDefault();
+            
+            const canvasRect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / canvasRect.width;
+            const scaleY = canvas.height / canvasRect.height;
+            
+            // 计算新位置
+            selectedElement.x = (event.clientX - canvasRect.left) * scaleX - dragOffset.x;
+            selectedElement.y = (event.clientY - canvasRect.top) * scaleY - dragOffset.y;
+            
+            // 更新DOM元素位置
+            updateElementPosition(selectedElement);
+        }
+        
+        // 拖拽元素（触摸）
+        function dragElementTouch(event) {
+            if (!isDragging || !selectedElement) return;
+            event.preventDefault();
+            
+            const touch = event.touches[0];
+            const canvasRect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / canvasRect.width;
+            const scaleY = canvas.height / canvasRect.height;
+            
+            // 计算新位置
+            selectedElement.x = (touch.clientX - canvasRect.left) * scaleX - dragOffset.x;
+            selectedElement.y = (touch.clientY - canvasRect.top) * scaleY - dragOffset.y;
+            
+            // 更新DOM元素位置
+            updateElementPosition(selectedElement);
+        }
+        
+        // 停止拖拽
+        function stopDrag() {
+            isDragging = false;
+            
+            // 移除事件监听
+            document.removeEventListener('mousemove', dragElement);
+            document.removeEventListener('mouseup', stopDrag);
+            document.removeEventListener('touchmove', dragElementTouch);
+            document.removeEventListener('touchend', stopDrag);
+            
+            // 移除高亮
+            if (selectedElement) {
+                const el = document.getElementById(selectedElement.id);
+                if (el) {
+                    el.style.outline = 'none';
+                }
+            }
+        }
+        
+        // 更新元素位置
+        function updateElementPosition(element) {
+            const el = document.getElementById(element.id);
+            if (!el) return;
+            
+            if (element.type === 'text') {
+                el.style.top = `${element.y - element.size/2}px`;
+                el.style.transform = `rotate(${element.rotation}deg) scale(${element.scale})`;
+            } else if (element.type === 'sticker') {
+                el.style.top = `${element.y}px`;
+                el.style.left = `${element.x}px`;
+                el.style.transform = `translate(-50%, -50%) rotate(${element.rotation}deg) scale(${element.scale})`;
+            }
+            
+            // 更新控制按钮位置
+            if (selectedElement === element) {
+                showElementControls();
+            }
+        }
+        
+        // 处理画布点击 - 选择/取消选择元素
+        function handleCanvasClick(event) {
+            // 如果点击的是空白区域，取消选择
+            selectedElement = null;
+            elementControls.classList.add('hidden');
+            
+            // 移除所有元素的高亮
+            document.querySelectorAll('.draggable').forEach(el => {
+                el.style.outline = 'none';
+            });
+        }
+        
+        // 显示元素控制按钮
+        function showElementControls() {
+            if (!selectedElement) {
+                elementControls.classList.add('hidden');
+                return;
+            }
+            
+            const canvasRect = canvas.getBoundingClientRect();
+            const scaleX = canvasRect.width / canvas.width;
+            const scaleY = canvasRect.height / canvas.height;
+            
+            // 计算控制按钮位置（相对于画布容器）
+            const x = selectedElement.x * scaleX;
+            const y = selectedElement.y * scaleY;
+            
+            // 设置控制按钮位置
+            elementControls.style.left = `${x}px`;
+            elementControls.style.top = `${y}px`;
+            elementControls.style.transform = 'translate(-50%, -50%)';
+            elementControls.classList.remove('hidden');
+        }
+        
+        // 旋转选中元素
+        function rotateSelectedElement() {
+            if (!selectedElement) return;
+            
+            selectedElement.rotation = (selectedElement.rotation + 15) % 360;
+            updateElementPosition(selectedElement);
+            redrawMeme();
+        }
+        
+        // 缩放选中元素
+        function scaleSelectedElement() {
+            if (!selectedElement) return;
+            
+            // 切换缩放方向（放大/缩小）
+            if (selectedElement.scale < 1.5) {
+                selectedElement.scale += 0.1;
+            } else {
+                selectedElement.scale = 0.5;
+            }
+            
+            updateElementPosition(selectedElement);
+            redrawMeme();
+        }
+        
+        // 删除选中元素
+        function deleteSelectedElement() {
+            if (!selectedElement) return;
+            
+            // 从数组中移除
+            if (selectedElement.type === 'text') {
+                textElements = textElements.filter(el => el.id !== selectedElement.id);
+            } else if (selectedElement.type === 'sticker') {
+                stickerElements = stickerElements.filter(el => el.id !== selectedElement.id);
+            }
+            
+            // 从DOM中移除
+            const el = document.getElementById(selectedElement.id);
+            if (el) {
+                el.remove();
+            }
+            
+            // 取消选择
+            selectedElement = null;
+            elementControls.classList.add('hidden');
+            
+            redrawMeme();
+            showToast('元素已删除');
+        }
+        
+        // 重绘表情包
+        function redrawMeme() {
+            if (!baseImage) return;
+            
+            // 清空画布
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // 绘制基础图片（保持比例并填充整个画布）
+            const aspectRatio = baseImage.width / baseImage.height;
+            let drawWidth, drawHeight, drawX = 0, drawY = 0;
+            
+            if (aspectRatio > 1) {
+                // 图片更宽
+                drawWidth = canvas.width;
+                drawHeight = canvas.width / aspectRatio;
+                drawY = (canvas.height - drawHeight) / 2;
+            } else {
+                // 图片更高
+                drawHeight = canvas.height;
+                drawWidth = canvas.height * aspectRatio;
+                drawX = (canvas.width - drawWidth) / 2;
+            }
+            
+            ctx.drawImage(baseImage, drawX, drawY, drawWidth, drawHeight);
+        }
+        
+        // 重置表情包
+        function resetMeme() {
+            // 清空元素
+            textElements = [];
+            stickerElements = [];
+            selectedElement = null;
+            
+            // 清空DOM层
+            textLayer.innerHTML = '';
+            stickerLayer.innerHTML = '';
+            
+            // 隐藏控制按钮
+            elementControls.classList.add('hidden');
+            
+            // 重绘基础图片
+            redrawMeme();
+            
+            showToast('已重置表情包');
+        }
+        
+        // 下载表情包
+        function downloadMeme() {
+            // 创建临时画布用于最终渲染
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = 200;
+            tempCanvas.height = 200;
+            const tempCtx = tempCanvas.getContext('2d');
+            
+            // 绘制基础图片
+            const aspectRatio = baseImage.width / baseImage.height;
+            let drawWidth, drawHeight, drawX = 0, drawY = 0;
+            
+            if (aspectRatio > 1) {
+                drawWidth = tempCanvas.width;
+                drawHeight = tempCanvas.width / aspectRatio;
+                drawY = (tempCanvas.height - drawHeight) / 2;
+            } else {
+                drawHeight = tempCanvas.height;
+                drawWidth = tempCanvas.height * aspectRatio;
+                drawX = (tempCanvas.width - drawWidth) / 2;
+            }
+            
+            tempCtx.drawImage(baseImage, drawX, drawY, drawWidth, drawHeight);
+            
+            // 绘制文字
+            textElements.forEach(text => {
+                tempCtx.save();
+                tempCtx.translate(text.x, text.y);
+                tempCtx.rotate(text.rotation * Math.PI / 180);
+                tempCtx.scale(text.scale, text.scale);
+                
+                tempCtx.font = `${text.size}px Arial, sans-serif`;
+                tempCtx.fillStyle = text.color;
+                tempCtx.textAlign = 'center';
+                tempCtx.textBaseline = 'middle';
+                tempCtx.shadowColor = 'rgba(0,0,0,0.8)';
+                tempCtx.shadowBlur = 3;
+                
+                tempCtx.fillText(text.content, 0, 0);
+                tempCtx.restore();
+            });
+            
+            // 创建下载链接
+            const link = document.createElement('a');
+            link.download = `meme_${Date.now()}.png`;
+            link.href = tempCanvas.toDataURL('image/png');
+            link.click();
+            
+            showToast('表情包下载成功');
+        }
+        
+        // 显示提示消息
+        function showToast(message, type = 'success') {
+            toastMessage.textContent = message;
+            
+            if (type === 'success') {
+                toast.className = 'fixed bottom-6 left-1/2 transform -translate-x-1/2 translate-y-0 opacity-100 transition-all duration-300 flex items-center px-4 py-2.5 rounded-lg shadow-lg z-50 max-w-xs bg-green-50 text-green-800';
+                toastIcon.className = 'fa fa-check-circle mr-2 text-green-500';
+            } else if (type === 'error') {
+                toast.className = 'fixed bottom-6 left-1/2 transform -translate-x-1/2 translate-y-0 opacity-100 transition-all duration-300 flex items-center px-4 py-2.5 rounded-lg shadow-lg z-50 max-w-xs bg-red-50 text-red-800';
+                toastIcon.className = 'fa fa-exclamation-circle mr-2 text-red-500';
+            }
+            
+            // 3秒后隐藏
+            setTimeout(() => {
+                toast.className = 'fixed bottom-6 left-1/2 transform -translate-x-1/2 translate-y-20 opacity-0 transition-all duration-300 flex items-center px-4 py-2.5 rounded-lg shadow-lg z-50 max-w-xs';
+            }, 3000);
+        }
+        
+        // 初始化应用
+        document.addEventListener('DOMContentLoaded', init);
+        
+        // 文字位置按钮点击事件
+        topTextBtn.addEventListener('click', () => {
+            topTextBtn.classList.add('bg-primary', 'text-white');
+            topTextBtn.classList.remove('bg-gray-100');
+            bottomTextBtn.classList.remove('bg-primary', 'text-white');
+            bottomTextBtn.classList.add('bg-gray-100');
+        });
+        
+        bottomTextBtn.addEventListener('click', () => {
+            bottomTextBtn.classList.add('bg-primary', 'text-white');
+            bottomTextBtn.classList.remove('bg-gray-100');
+            topTextBtn.classList.remove('bg-primary', 'text-white');
+            topTextBtn.classList.add('bg-gray-100');
+        });
+        
+        // 默认选中顶部文字
+        topTextBtn.click();
+    </script>
+</body>
+</html>

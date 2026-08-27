@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html tk="title_json_schema_generator_inf" lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JSON Schema Generator — Infer Schema from JSON</title>
+<meta name="description" content="Generate JSON Schema from sample JSON data. Auto-infer types, required fields, patterns, enums. Draft 2020-12 output. No signup.">
+<link rel="canonical" href="https://gokuscraper.github.io/dev-vault/json-schema-gen/">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebApplication","name":"JSON Schema Generator","description":"Infer JSON Schema from sample data. Auto-detect types, required fields, enums, and patterns.","url":"https://gokuscraper.github.io/dev-vault/json-schema-gen/","applicationCategory":"DeveloperApplication","operatingSystem":"Any","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"author":{"@type":"Organization","name":"gokuscraper","url":"https://github.com/gokuscraper"}}
+</script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0a0a;color:#e6e6e6;min-height:100vh}
+.container{max-width:1000px;margin:0 auto;padding:20px 16px}
+h1{text-align:center;font-size:1.6rem;margin-bottom:4px;color:#fff}
+.sub{text-align:center;color:#888;font-size:0.85rem;margin-bottom:16px}
+.panels{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:700px){.panels{grid-template-columns:1fr}}
+.panel{background:#161616;border:1px solid #222;border-radius:10px;padding:16px;position:relative}
+.panel h3{font-size:0.9rem;color:#4da6ff;margin-bottom:10px}
+textarea{width:100%;min-height:400px;padding:10px;border-radius:6px;border:1px solid #333;background:#0d1117;color:#c9d1d9;font-size:0.82rem;font-family:'Fira Code',monospace;outline:none;resize:vertical;line-height:1.6}
+textarea:focus{border-color:#3b82f6}
+.options{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px;justify-content:center}
+.check-row{display:flex;align-items:center;gap:6px}
+.check-row input[type=checkbox]{width:14px;height:14px;accent-color:#3b82f6}
+.check-row label{font-size:0.8rem;color:#aaa;font-weight:normal}
+.copy-btn{position:absolute;top:12px;right:12px;padding:5px 12px;font-size:0.75rem;border-radius:4px;border:1px solid #444;background:#21262d;color:#aaa;cursor:pointer}
+.copy-btn:hover{color:#fff;border-color:#3b82f6}
+.error{color:#f85149;font-size:0.82rem;margin-top:8px}
+.samples{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;justify-content:center}
+.sample{padding:6px 12px;border-radius:8px;border:1px solid #333;background:#161616;color:#888;font-size:0.78rem;cursor:pointer;font-weight:600}
+.sample:hover{border-color:#3b82f6;color:#4da6ff}
+.toast{position:fixed;bottom:20px;right:20px;background:#238636;color:#fff;padding:10px 20px;border-radius:8px;font-size:0.85rem;display:none;z-index:99}
+.footer{text-align:center;margin-top:24px;padding:16px 0;border-top:1px solid #222}
+.footer a{color:#4da6ff;text-decoration:none;font-size:0.8rem}
+.related{margin-top:20px;text-align:center;font-size:0.8rem;color:#666}
+.related a{color:#4da6ff;text-decoration:none;margin:0 8px}
+</style>
+</head>
+<body>
+
+
+<div class="container" style="position:relative">
+<h1 ti="h1_json_schema_generator">JSON Schema Generator</h1>
+<p class="sub" ti="subtitle_paste_json_get_a_schema_a">Paste JSON, get a schema — auto-infer types, required fields, patterns</p>
+
+<div class="samples">
+<span class="sample" onclick="loadSample('user')">User</span>
+<span class="sample" onclick="loadSample('api')">API Response</span>
+<span class="sample" onclick="loadSample('config')">Config</span>
+<span class="sample" onclick="loadSample('array')">Array</span>
+<span class="sample" onclick="loadSample('nested')">Nested</span>
+</div>
+
+<div class="options">
+<div class="check-row"><input type="checkbox" id="optReq" checked onchange="gen()"><label for="optReq" ti="label_all_fields_required">All fields required</label></div>
+<div class="check-row"><input type="checkbox" id="optDesc" onchange="gen()"><label for="optDesc" ti="label_add_descriptions">Add descriptions</label></div>
+<div class="check-row"><input type="checkbox" id="optExamples" checked onchange="gen()"><label for="optExamples" ti="label_include_examples">Include examples</label></div>
+<div class="check-row"><input type="checkbox" id="optPatterns" checked onchange="gen()"><label for="optPatterns" ti="label_infer_patterns">Infer patterns</label></div>
+<div class="check-row"><input type="checkbox" id="optNoAdditional" onchange="gen()"><label for="optNoAdditional" ti="label_no_additional_properties">No additional properties</label></div>
+</div>
+
+<div class="panels">
+<div class="panel">
+<h3 ti="h3_input_json">Input JSON</h3>
+<textarea id="input" oninput="gen()" spellcheck="false">{
+  "id": 1,
+  "name": "Alice",
+  "email": "alice@example.com",
+  "age": 30,
+  "active": true,
+  "tags": ["admin", "user"],
+  "address": {
+    "street": "123 Main St",
+    "city": "Springfield",
+    "zip": "62701"
+  }
+}</textarea>
+<div class="error" id="error"></div>
+</div>
+<div class="panel">
+<h3 ti="h3_json_schema">JSON Schema</h3>
+<button class="copy-btn" onclick="copyOut()" ti="btn_copy">Copy</button>
+<textarea id="output" readonly spellcheck="false"></textarea>
+</div>
+</div>
+
+<div class="footer"><a href="https://gokuscraper.github.io/dev-vault/" ti="link_dev_vault">Dev Vault</a></div>
+<div class="related">Related: <a href="https://gokuscraper.github.io/dev-vault/json-formatter/" ti="link_json_formatter">JSON Formatter</a> | <a href="https://gokuscraper.github.io/dev-vault/json-path/" ti="link_json_path">JSON Path</a> | <a href="https://gokuscraper.github.io/dev-vault/json-diff/" ti="link_json_diff">JSON Diff</a></div>
+</div>
+<div class="toast" id="toast">Copied!</div>
+
+
+<script>var _LANG={'title_json_schema_generator_inf':["JSON Schema Generator — Infer Schema from JSON", "JSON Schema 生成器 — 从 JSON 推断 Schema"],'metadesc_generate_json_schema_from':["Generate JSON Schema from sample JSON data. Auto-infer types, required fields, patterns, enums. Draft 2020-12 output. No signup.", "从示例 JSON 数据生成 JSON Schema。自动推断类型、必填字段、模式和枚举。2020 年 12 月草案输出。无需注册。"],'h1_json_schema_generator':["JSON Schema Generator", "JSON Schema 生成器"],'h3_input_json':["Input JSON", "输入 JSON"],'h3_json_schema':["JSON Schema", "JSON 模式"],'subtitle_paste_json_get_a_schema_a':["Paste JSON, get a schema — auto-infer types, required fields, patterns", "粘贴 JSON，获取模式——自动推断类型、必填字段和模式"],'btn_copy':["Copy", "复制"],'label_all_fields_required':["All fields required", "所有字段均为必填项"],'label_add_descriptions':["Add descriptions", "添加描述"],'label_include_examples':["Include examples", "请举例说明"],'label_infer_patterns':["Infer patterns", "推断模式"],'label_no_additional_properties':["No additional properties", "无其他属性"],'link_dev_vault':["Dev Vault", "开发者宝库"],'link_json_formatter':["JSON Formatter", "JSON格式化程序"],'link_json_path':["JSON Path", "JSON 路径"],'link_json_diff':["JSON Diff", "JSON 差异"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>
+const SAMPLES={
+user:`{
+  "id": 1,
+  "name": "Alice",
+  "email": "alice@example.com",
+  "age": 30,
+  "active": true,
+  "tags": ["admin", "user"],
+  "address": {
+    "street": "123 Main St",
+    "city": "Springfield",
+    "zip": "62701"
+  }
+}`,
+api:`{
+  "status": "success",
+  "data": {
+    "users": [
+      {"id": 1, "name": "Alice", "role": "admin"},
+      {"id": 2, "name": "Bob", "role": "user"}
+    ],
+    "total": 2,
+    "page": 1,
+    "per_page": 20
+  },
+  "timestamp": "2026-03-10T12:00:00Z"
+}`,
+config:`{
+  "port": 3000,
+  "host": "0.0.0.0",
+  "database": {
+    "url": "postgres://localhost:5432/mydb",
+    "pool_size": 10,
+    "ssl": false
+  },
+  "cors": {
+    "origins": ["http://localhost:3000"],
+    "credentials": true
+  },
+  "log_level": "info"
+}`,
+array:`[
+  {"id": 1, "title": "First Post", "published": true, "views": 150},
+  {"id": 2, "title": "Second Post", "published": false, "views": 0}
+]`,
+nested:`{
+  "company": "Acme Corp",
+  "employees": [
+    {
+      "name": "Alice",
+      "department": {
+        "name": "Engineering",
+        "floor": 3
+      },
+      "skills": ["go", "rust", "python"]
+    }
+  ],
+  "founded": "1990-01-15",
+  "revenue": 1500000.50
+}`
+};
+
+// Pattern detection
+const PATTERNS={
+  email:/^[^@]+@[^@]+\.[^@]+$/,
+  uri:/^https?:\/\/.+/,
+  date:/^\d{4}-\d{2}-\d{2}$/,
+  'date-time':/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/,
+  ipv4:/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/,
+  uuid:/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+};
+
+function detectFormat(val){
+  if(typeof val!=='string')return null;
+  for(const[fmt,rx] of Object.entries(PATTERNS)){
+    if(rx.test(val))return fmt;
+  }
+  return null;
+}
+
+function inferSchema(val, opts){
+  if(val===null) return {type:'null'};
+
+  if(Array.isArray(val)){
+    const schema={type:'array'};
+    if(val.length>0){
+      // Merge schemas of all items
+      const itemSchemas=val.map(v=>inferSchema(v,opts));
+      // If all same type, use first; otherwise use anyOf
+      const types=new Set(itemSchemas.map(s=>JSON.stringify(s)));
+      if(types.size===1) schema.items=itemSchemas[0];
+      else schema.items={anyOf:[...types].map(t=>JSON.parse(t))};
+    }
+    if(opts.examples&&val.length>0) schema.examples=[val];
+    return schema;
+  }
+
+  if(typeof val==='object'){
+    const schema={type:'object',properties:{}};
+    const keys=Object.keys(val);
+    keys.forEach(k=>{
+      const prop=inferSchema(val[k],opts);
+      if(opts.desc) prop.description=`The ${k} field`;
+      schema.properties[k]=prop;
+    });
+    if(opts.req&&keys.length>0) schema.required=keys;
+    if(opts.noAdditional) schema.additionalProperties=false;
+    return schema;
+  }
+
+  if(typeof val==='string'){
+    const schema={type:'string'};
+    if(opts.patterns){
+      const fmt=detectFormat(val);
+      if(fmt) schema.format=fmt;
+    }
+    if(opts.examples) schema.examples=[val];
+    return schema;
+  }
+
+  if(typeof val==='number'){
+    const schema=Number.isInteger(val)?{type:'integer'}:{type:'number'};
+    if(opts.examples) schema.examples=[val];
+    return schema;
+  }
+
+  if(typeof val==='boolean'){
+    return {type:'boolean'};
+  }
+
+  return {};
+}
+
+function gen(){
+  const input=document.getElementById('input').value;
+  const errEl=document.getElementById('error');
+  const outEl=document.getElementById('output');
+
+  if(!input.trim()){
+    errEl.textContent='';
+    outEl.value='';
+    return;
+  }
+
+  let data;
+  try{
+    data=JSON.parse(input);
+    errEl.textContent='';
+  }catch(e){
+    errEl.textContent=`Parse error: ${e.message}`;
+    outEl.value='';
+    return;
+  }
+
+  const opts={
+    req:document.getElementById('optReq').checked,
+    desc:document.getElementById('optDesc').checked,
+    examples:document.getElementById('optExamples').checked,
+    patterns:document.getElementById('optPatterns').checked,
+    noAdditional:document.getElementById('optNoAdditional').checked,
+  };
+
+  const schema={
+    $schema:'https://json-schema.org/draft/2020-12/schema',
+    title:'Generated Schema',
+    ...inferSchema(data,opts)
+  };
+
+  outEl.value=JSON.stringify(schema,null,2);
+}
+
+function loadSample(name){
+  document.getElementById('input').value=SAMPLES[name]||'';
+  gen();
+}
+
+function copyOut(){
+  const text=document.getElementById('output').value;
+  if(!text)return;
+  navigator.clipboard.writeText(text);
+  const t=document.getElementById('toast');t.style.display='block';
+  setTimeout(()=>t.style.display='none',1500);
+}
+
+gen();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+</body>
+</html>

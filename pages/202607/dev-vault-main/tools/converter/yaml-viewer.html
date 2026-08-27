@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html tk="title_yaml_viewer" lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>YAML Viewer</title>
+<meta name="description" content="View and explore YAML files with collapsible tree view, syntax highlighting, and search. Parse and validate YAML content.">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0a0a;color:#e6e6e6;min-height:100vh;display:flex;justify-content:center;padding:24px}
+.container{max-width:720px;width:100%}
+h1{font-size:1.4rem;color:#fff;margin-bottom:6px}
+.desc{color:#888;font-size:0.9rem;margin-bottom:20px}
+.card{background:#161616;border:1px solid #222;border-radius:10px;padding:20px;margin-bottom:16px}
+label{display:block;color:#aaa;font-size:0.85rem;margin-bottom:4px;font-weight:600}
+textarea{width:100%;padding:10px 14px;border-radius:8px;border:1px solid #333;background:#111;color:#ccd;font-family:monospace;font-size:0.85rem;outline:none;resize:vertical;min-height:120px;margin-bottom:10px}
+textarea:focus{border-color:#3b82f6}
+.tree{background:#0d1520;border:1px solid #2a4a7a;border-radius:8px;padding:14px;font-family:monospace;font-size:0.85rem;line-height:1.7;overflow-x:auto;max-height:400px;overflow-y:auto}
+.tree .key{color:#4da6ff}
+.tree .str{color:#22c55e}
+.tree .num{color:#eab308}
+.tree .bool{color:#a855f7}
+.tree .null{color:#888}
+.tree .bracket{color:#888}
+.tree .toggle{cursor:pointer;color:#888;user-select:none;margin-right:4px}
+.tree .toggle:hover{color:#3b82f6}
+.tree .hidden{display:none}
+.error{color:#ef4444;font-size:0.85rem;margin-top:4px;min-height:20px}
+button{padding:8px 20px;border-radius:8px;border:1px solid #333;background:#1a1a1a;color:#e6e6e6;font-size:0.85rem;cursor:pointer;font-weight:600}
+button:hover{background:#252525;border-color:#3b82f6}
+.flex-center{display:flex;justify-content:center;gap:8px;margin-top:6px;flex-wrap:wrap}
+</style>
+</head>
+<body>
+
+
+<div class="container" style="position:relative">
+  <h1 ti="title_yaml_viewer" ti="h1_yaml_viewer">YAML Viewer</h1>
+  <p class="desc" ti="subtitle_parse_view_and_explore_ya">Parse, view, and explore YAML content with tree visualization</p>
+  <div class="card">
+    <label ti="label_yaml_content">YAML content</label>
+    <textarea id="input" rows="6" spellcheck="false">server:
+  host: localhost
+  port: 8080
+  debug: true
+database:
+  name: mydb
+  pool: 10
+  options:
+    - ssl
+    - backup
+users:
+  - name: Alice
+    role: admin
+  - name: Bob
+    role: user
+</textarea>
+    <div class="tree" id="tree"></div>
+    <div class="error" id="error"></div>
+    <div class="flex-center">
+      <button id="copyBtn" ti="btn_copy_as_json">Copy as JSON</button>
+    </div>
+  </div>
+</div>
+
+<script>var _LANG={'title_yaml_viewer':["YAML Viewer", "YAML 查看器"],'metadesc_view_and_explore_yaml_fil':["View and explore YAML files with collapsible tree view, syntax highlighting, and search. Parse and validate YAML content.", "使用可折叠树状视图、语法高亮和搜索功能查看和浏览 YAML 文件。解析和验证 YAML 内容。"],'h1_yaml_viewer':["YAML Viewer", "YAML 查看器"],'subtitle_parse_view_and_explore_ya':["Parse, view, and explore YAML content with tree visualization", "使用树状可视化解析、查看和探索 YAML 内容"],'btn_copy_as_json':["Copy as JSON", "复制为 JSON"],'label_yaml_content':["YAML content", "YAML 内容"],'jtc_error':["Error:", "错误："],'jtcpre_error':["Error: ", "错误："]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>
+function escapeHtml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function yamlToObj(text) {
+  const result = {};
+  const lines = text.split('\n');
+  const stack = [{ obj: result, indent: -1 }];
+  let lastKey = null;
+  let inArray = false;
+  for (const line of lines) {
+    if (!line.trim() || line.trim().startsWith('#')) continue;
+    const indent = line.search(/\S/);
+    const trimmed = line.trim();
+    while (stack.length > 1 && stack[stack.length - 1].indent >= indent) stack.pop();
+    const current = stack[stack.length - 1].obj;
+    if (trimmed.startsWith('- ')) {
+      const val = parseScalar(trimmed.slice(2).trim());
+      if (!Array.isArray(current)) {
+        const parent = stack[stack.length - 2]?.obj;
+        if (parent && lastKey) { parent[lastKey] = []; stack[stack.length - 1].obj = parent[lastKey]; }
+      }
+      if (Array.isArray(current)) current.push(val);
+      continue;
+    }
+    const colonIdx = trimmed.indexOf(':');
+    if (colonIdx === -1) continue;
+    const key = trimmed.slice(0, colonIdx).trim();
+    let val = trimmed.slice(colonIdx + 1).trim();
+    lastKey = key;
+    if (val === '') {
+      current[key] = {};
+      stack.push({ obj: current[key], indent });
+    } else {
+      current[key] = parseScalar(val);
+    }
+  }
+  return result;
+}
+
+function parseScalar(s) {
+  if (s === '~' || s === 'null') return null;
+  if (s === 'true') return true;
+  if (s === 'false') return false;
+  if (/^-?\d+$/.test(s)) return parseInt(s, 10);
+  if (/^-?\d+\.\d+$/.test(s)) return parseFloat(s);
+  if ((s.startsWith("'") && s.endsWith("'")) || (s.startsWith('"') && s.endsWith('"'))) return s.slice(1, -1);
+  return s;
+}
+
+function renderTree(obj, depth) {
+  const pad = '  '.repeat(depth);
+  if (obj === null) return `<span class="null">null</span>`;
+  if (typeof obj === 'boolean') return `<span class="bool">${obj}</span>`;
+  if (typeof obj === 'number') return `<span class="num">${obj}</span>`;
+  if (typeof obj === 'string') return `<span class="str">"${escapeHtml(obj)}"</span>`;
+  if (Array.isArray(obj)) {
+    if (obj.length === 0) return `<span class="bracket">[]</span>`;
+    const id = 'arr-' + Math.random().toString(36).slice(2);
+    let html = `<span class="toggle" onclick="toggle('${id}')">▼</span><span class="bracket">[</span><span id="${id}">`;
+    html += obj.map((item, i) => {
+      const v = renderTree(item, depth + 1);
+      return '<br>' + pad + '  ' + v + (i < obj.length - 1 ? ',' : '');
+    }).join('');
+    html += '<br>' + pad + `<span class="bracket">]</span></span>`;
+    return html;
+  }
+  if (typeof obj === 'object') {
+    const keys = Object.keys(obj);
+    if (keys.length === 0) return `<span class="bracket">{}</span>`;
+    const id = 'obj-' + Math.random().toString(36).slice(2);
+    let html = `<span class="toggle" onclick="toggle('${id}')">▼</span><span class="bracket">{</span><span id="${id}">`;
+    html += keys.map((k, i) => {
+      const v = renderTree(obj[k], depth + 1);
+      return '<br>' + pad + '  ' + `<span class="key">${escapeHtml(k)}</span>` + ': ' + v + (i < keys.length - 1 ? ',' : '');
+    }).join('');
+    html += '<br>' + pad + `<span class="bracket">}</span></span>`;
+    return html;
+  }
+  return escapeHtml(String(obj));
+}
+
+function toggle(id) {
+  const el = document.getElementById(id);
+  const toggle = el.previousElementSibling;
+  if (el.style.display === 'none') {
+    el.style.display = '';
+    toggle.textContent = '▼';
+  } else {
+    el.style.display = 'none';
+    toggle.textContent = '▶';
+  }
+}
+
+function update() {
+  const input = document.getElementById('input').value;
+  const tree = document.getElementById('tree');
+  const error = document.getElementById('error');
+  error.textContent = '';
+  try {
+    const obj = yamlToObj(input);
+    tree.innerHTML = renderTree(obj, 0);
+  } catch(e) {
+    error.textContent=T("jtcpre_error")+ e.message;
+    tree.innerHTML = '';
+  }
+}
+
+document.getElementById('input').addEventListener('input', update);
+document.getElementById('copyBtn').addEventListener('click', () => {
+  try {
+    const obj = yamlToObj(document.getElementById('input').value);
+    navigator.clipboard.writeText(JSON.stringify(obj, null, 2));
+  } catch(e) {}
+});
+update();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+</body>
+</html>

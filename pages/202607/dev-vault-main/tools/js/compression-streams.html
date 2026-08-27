@@ -1,0 +1,1190 @@
+<!DOCTYPE html>
+<html tk="title_compression_streams_api_p" lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Compression Streams API Playground</title>
+<meta name="description" content="Interactive playground for the browser-native Compression Streams API. Compress, decompress, benchmark gzip, deflate, and deflate-raw without external libraries.">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d1117;--surface:#161b22;--surface2:#1c2333;--border:#30363d;
+  --text:#e6edf3;--text2:#8b949e;--accent:#58a6ff;--accent2:#3fb950;
+  --warn:#d29922;--error:#f85149;--purple:#bc8cff;
+  --radius:8px;--shadow:0 2px 8px rgba(0,0,0,.3);
+  --font-mono:'SF Mono',SFMono-Regular,ui-monospace,'DejaVu Sans Mono',Menlo,Consolas,monospace;
+}
+html{font-size:15px;scroll-behavior:smooth}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+  background:var(--bg);color:var(--text);line-height:1.6;min-height:100vh}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+
+/* Layout */
+.container{max-width:1100px;margin:0 auto;padding:0 1rem 3rem}
+header{text-align:center;padding:2.5rem 1rem 1.5rem;border-bottom:1px solid var(--border)}
+header h1{font-size:1.8rem;font-weight:700;letter-spacing:-.02em}
+header h1 span{color:var(--accent)}
+header p{color:var(--text2);margin-top:.4rem;font-size:.95rem}
+
+/* Support banner */
+.support-banner{display:flex;align-items:center;gap:.6rem;padding:.7rem 1rem;
+  border-radius:var(--radius);margin:1.2rem auto;max-width:600px;font-size:.85rem}
+.support-banner.ok{background:rgba(63,185,80,.1);border:1px solid rgba(63,185,80,.3);color:var(--accent2)}
+.support-banner.no{background:rgba(248,81,73,.1);border:1px solid rgba(248,81,73,.3);color:var(--error)}
+.support-banner .icon{font-size:1.2rem}
+
+/* Tabs */
+.tabs{display:flex;gap:2px;margin:1.5rem 0 0;overflow-x:auto;border-bottom:2px solid var(--border);padding-bottom:0}
+.tab-btn{background:none;border:none;color:var(--text2);padding:.65rem 1rem;cursor:pointer;
+  font-size:.85rem;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-2px;
+  white-space:nowrap;transition:color .15s,border-color .15s}
+.tab-btn:hover{color:var(--text)}
+.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tab-panel{display:none;padding:1.5rem 0}
+.tab-panel.active{display:block}
+
+/* Cards */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  padding:1.25rem;margin-bottom:1rem;box-shadow:var(--shadow)}
+.card h3{font-size:1rem;margin-bottom:.8rem;display:flex;align-items:center;gap:.5rem}
+.card h3 .badge{font-size:.7rem;padding:2px 8px;border-radius:10px;background:var(--accent);color:#000;font-weight:600}
+
+/* Form elements */
+label{display:block;font-size:.82rem;color:var(--text2);margin-bottom:.3rem;font-weight:500}
+textarea,input[type=text],select{width:100%;background:var(--surface2);border:1px solid var(--border);
+  color:var(--text);border-radius:6px;padding:.55rem .7rem;font-family:var(--font-mono);
+  font-size:.85rem;resize:vertical;transition:border-color .15s}
+textarea:focus,input:focus,select:focus{outline:none;border-color:var(--accent)}
+select{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%238b949e' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right .7rem center;padding-right:2rem}
+textarea{min-height:120px}
+
+/* Buttons */
+.btn{display:inline-flex;align-items:center;gap:.4rem;padding:.5rem 1rem;border:1px solid var(--border);
+  border-radius:6px;background:var(--surface2);color:var(--text);font-size:.82rem;cursor:pointer;
+  font-weight:500;transition:background .15s,border-color .15s}
+.btn:hover{background:var(--border);border-color:var(--text2)}
+.btn-primary{background:var(--accent);color:#000;border-color:var(--accent)}
+.btn-primary:hover{background:#79c0ff;border-color:#79c0ff}
+.btn-group{display:flex;gap:.5rem;flex-wrap:wrap;margin:.8rem 0}
+
+/* Size bar */
+.size-bar-wrap{margin:.8rem 0}
+.size-bar{display:flex;height:28px;border-radius:6px;overflow:hidden;background:var(--surface2);position:relative}
+.size-bar .original{background:var(--text2);transition:width .4s ease}
+.size-bar .compressed{background:var(--accent2);transition:width .4s ease}
+.size-label{display:flex;justify-content:space-between;font-size:.78rem;color:var(--text2);margin-top:.3rem}
+.size-label .ratio{color:var(--accent2);font-weight:600}
+.size-label .ratio.bad{color:var(--error)}
+
+/* Hex dump */
+.hex-dump{background:var(--surface2);border:1px solid var(--border);border-radius:6px;
+  padding:.7rem;font-family:var(--font-mono);font-size:.75rem;max-height:280px;
+  overflow:auto;line-height:1.7;white-space:pre;color:var(--text2)}
+.hex-dump .offset{color:var(--accent);user-select:none}
+.hex-dump .byte{color:var(--text)}
+.hex-dump .ascii{color:var(--warn)}
+
+/* Comparison table */
+.cmp-table{width:100%;border-collapse:collapse;font-size:.82rem;margin-top:.8rem}
+.cmp-table th,.cmp-table td{padding:.5rem .7rem;text-align:left;border-bottom:1px solid var(--border)}
+.cmp-table th{color:var(--text2);font-weight:600;font-size:.78rem;text-transform:uppercase;letter-spacing:.04em}
+.cmp-table td{font-family:var(--font-mono)}
+.cmp-table tr:last-child td{border-bottom:none}
+.cmp-winner{color:var(--accent2);font-weight:600}
+
+/* Drop zone */
+.drop-zone{border:2px dashed var(--border);border-radius:var(--radius);padding:2rem;
+  text-align:center;cursor:pointer;transition:border-color .2s,background .2s;color:var(--text2)}
+.drop-zone:hover,.drop-zone.over{border-color:var(--accent);background:rgba(88,166,255,.05)}
+.drop-zone input{display:none}
+.drop-zone .icon{font-size:2rem;margin-bottom:.5rem}
+
+/* Progress */
+.progress-wrap{margin:.8rem 0}
+.progress-bar{height:8px;background:var(--surface2);border-radius:4px;overflow:hidden}
+.progress-fill{height:100%;background:var(--accent);width:0;transition:width .15s;border-radius:4px}
+.progress-text{font-size:.78rem;color:var(--text2);margin-top:.3rem}
+
+/* Streaming log */
+.stream-log{background:var(--surface2);border:1px solid var(--border);border-radius:6px;
+  padding:.6rem;font-family:var(--font-mono);font-size:.75rem;max-height:200px;overflow:auto;
+  line-height:1.8}
+.stream-log .chunk{color:var(--accent2)}
+.stream-log .meta{color:var(--text2)}
+
+/* Benchmark */
+.bench-bars{margin:.8rem 0}
+.bench-row{display:flex;align-items:center;gap:.8rem;margin-bottom:.5rem}
+.bench-label{width:90px;font-size:.82rem;font-weight:500;flex-shrink:0}
+.bench-track{flex:1;height:24px;background:var(--surface2);border-radius:4px;overflow:hidden;position:relative}
+.bench-fill{height:100%;border-radius:4px;transition:width .5s ease;display:flex;align-items:center;
+  padding-left:.5rem;font-size:.72rem;font-weight:600;color:#000;min-width:fit-content;white-space:nowrap}
+.bench-fill.gzip{background:var(--accent)}
+.bench-fill.deflate{background:var(--accent2)}
+.bench-fill.deflate-raw{background:var(--purple)}
+.bench-value{font-size:.78rem;color:var(--text2);width:80px;text-align:right;flex-shrink:0}
+
+/* Presets */
+.preset-pills{display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:.8rem}
+.preset-pill{padding:.3rem .7rem;border-radius:14px;font-size:.75rem;background:var(--surface2);
+  border:1px solid var(--border);color:var(--text2);cursor:pointer;transition:all .15s}
+.preset-pill:hover,.preset-pill.active{background:var(--accent);color:#000;border-color:var(--accent)}
+
+/* Output box */
+.output-box{background:var(--surface2);border:1px solid var(--border);border-radius:6px;
+  padding:.7rem;font-family:var(--font-mono);font-size:.82rem;max-height:200px;overflow:auto;
+  word-break:break-all;white-space:pre-wrap}
+
+/* Grid helpers */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+.flex-between{display:flex;justify-content:space-between;align-items:center}
+.mt-1{margin-top:.5rem}.mt-2{margin-top:1rem}.mb-1{margin-bottom:.5rem}
+
+/* Status */
+.status{font-size:.78rem;padding:.4rem .7rem;border-radius:6px;margin-top:.5rem}
+.status.success{background:rgba(63,185,80,.1);color:var(--accent2)}
+.status.error{background:rgba(248,81,73,.1);color:var(--error)}
+.status.info{background:rgba(88,166,255,.1);color:var(--accent)}
+
+/* Spinner */
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--border);
+  border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Responsive */
+@media(max-width:700px){
+  .grid-2{grid-template-columns:1fr}
+  .tabs{gap:0}
+  .tab-btn{padding:.5rem .6rem;font-size:.78rem}
+  header h1{font-size:1.4rem}
+}
+</style>
+</head>
+<body>
+
+
+
+
+
+
+
+
+
+<header>
+  <h1>Compression <span>Streams</span> API</h1>
+  <p>Browser-native gzip, deflate & deflate-raw compression — zero dependencies</p>
+  <div id="support-banner" class="support-banner ok">
+    <span class="icon"></span>
+    <span id="support-text">Checking browser support...</span>
+  </div>
+</header>
+
+<div class="container" style="position:relative">
+  <div class="tabs" role="tablist">
+    <button class="tab-btn active" data-tab="compress" role="tab" ti="btn_text_compressor" ti="btn_text_compressor" ti="btn_text_compressor" ti="btn_text_compressor">Text Compressor</button>
+    <button class="tab-btn" data-tab="file" role="tab" ti="btn_file_compressor" ti="btn_file_compressor" ti="btn_file_compressor" ti="btn_file_compressor">File Compressor</button>
+    <button class="tab-btn" data-tab="compare" role="tab" ti="btn_ratio_comparison" ti="btn_ratio_comparison" ti="btn_ratio_comparison" ti="btn_ratio_comparison">Ratio Comparison</button>
+    <button class="tab-btn" data-tab="streaming" role="tab" ti="btn_streaming" ti="btn_streaming" ti="btn_streaming" ti="btn_streaming">Streaming</button>
+    <button class="tab-btn" data-tab="decompress" role="tab" ti="btn_decompress" ti="btn_decompress_2" ti="btn_decompress" ti="btn_decompress_2" ti="btn_decompress" ti="btn_decompress_2" ti="btn_decompress" ti="btn_decompress_2">Decompress</button>
+    <button class="tab-btn" data-tab="benchmark" role="tab" ti="btn_benchmark" ti="btn_benchmark" ti="btn_benchmark" ti="btn_benchmark">Benchmark</button>
+  </div>
+
+  <!-- Tab 1: Text Compressor -->
+  <div id="tab-compress" class="tab-panel active">
+    <div class="card">
+      <h3 ti="h3_text_compressor" ti="h3_text_compressor" ti="h3_text_compressor" ti="h3_text_compressor">Text Compressor</h3>
+      <label ti="label_presets" ti="label_presets_2" ti="label_presets_3" ti="label_presets_4" ti="label_presets" ti="label_presets_2" ti="label_presets_3" ti="label_presets_4" ti="label_presets" ti="label_presets_2" ti="label_presets_3" ti="label_presets_4" ti="label_presets" ti="label_presets_2" ti="label_presets_3" ti="label_presets_4">Presets</label>
+      <div class="preset-pills" id="compress-presets"></div>
+      <label for="compress-input" ti="label_input_text" ti="label_input_text_2" ti="label_input_text_3" ti="label_input_text_4" ti="label_input_text" ti="label_input_text_2" ti="label_input_text_3" ti="label_input_text_4" ti="label_input_text" ti="label_input_text_2" ti="label_input_text_3" ti="label_input_text_4" ti="label_input_text" ti="label_input_text_2" ti="label_input_text_3" ti="label_input_text_4">Input Text</label>
+      <textarea id="compress-input" tp="placeholder_type_or_paste_text_to_com" tp="placeholder_type_or_paste_text_to_com" tp="placeholder_type_or_paste_text_to_com" tp="placeholder_type_or_paste_text_to_com" placeholder="Type or paste text to compress..."></textarea>
+      <div class="grid-2 mt-1">
+        <div>
+          <label for="compress-algo">Algorithm</label>
+          <select id="compress-algo">
+            <option value="gzip">gzip</option>
+            <option value="deflate">deflate</option>
+            <option value="deflate-raw">deflate-raw</option>
+          </select>
+        </div>
+        <div class="btn-group" style="align-self:end">
+          <button class="btn btn-primary" id="compress-btn" ti="btn_compress" ti="btn_compress" ti="btn_compress" ti="btn_compress">Compress</button>
+          <button class="btn" id="compress-copy" ti="btn_copy_base64" ti="btn_copy_base64" ti="btn_copy_base64" ti="btn_copy_base64">Copy Base64</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" id="compress-result" style="display:none">
+      <h3 ti="h3_result" ti="h3_result" ti="h3_result" ti="h3_result">Result</h3>
+      <div class="size-bar-wrap">
+        <div class="size-bar">
+          <div class="original" id="cr-bar-orig"></div>
+          <div class="compressed" id="cr-bar-comp"></div>
+        </div>
+        <div class="size-label">
+          <span id="cr-sizes"></span>
+          <span class="ratio" id="cr-ratio"></span>
+        </div>
+      </div>
+      <div class="mt-1">
+        <label ti="label_base64_output" ti="label_base64_output" ti="label_base64_output" ti="label_base64_output">Base64 Output</label>
+        <div class="output-box" id="cr-base64"></div>
+      </div>
+      <div class="mt-1">
+        <label ti="label_hex_dump" ti="label_hex_dump" ti="label_hex_dump" ti="label_hex_dump">Hex Dump</label>
+        <div class="hex-dump" id="cr-hex"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab 2: File Compressor -->
+  <div id="tab-file" class="tab-panel">
+    <div class="card">
+      <h3 ti="h3_file_compressor" ti="h3_file_compressor" ti="h3_file_compressor" ti="h3_file_compressor">File Compressor</h3>
+      <div class="drop-zone" id="file-drop">
+        <div class="icon">&#128230;</div>
+        <div>Drag & drop a file here, or click to browse</div>
+        <div style="font-size:.78rem;margin-top:.3rem;color:var(--text2)">Any file type supported</div>
+        <input type="file" id="file-input">
+      </div>
+      <div class="mt-1">
+        <label for="file-algo">Algorithm</label>
+        <select id="file-algo">
+          <option value="gzip">gzip</option>
+          <option value="deflate">deflate</option>
+          <option value="deflate-raw">deflate-raw</option>
+        </select>
+      </div>
+      <div id="file-result" style="display:none" class="mt-1">
+        <div class="size-bar-wrap">
+          <div class="size-bar">
+            <div class="original" id="fr-bar-orig"></div>
+            <div class="compressed" id="fr-bar-comp"></div>
+          </div>
+          <div class="size-label">
+            <span id="fr-sizes"></span>
+            <span class="ratio" id="fr-ratio"></span>
+          </div>
+        </div>
+        <div class="btn-group">
+          <button class="btn btn-primary" id="file-download" ti="btn_download_compressed" ti="btn_download_compressed" ti="btn_download_compressed" ti="btn_download_compressed">Download Compressed</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab 3: Comparison -->
+  <div id="tab-compare" class="tab-panel">
+    <div class="card">
+      <h3 ti="h3_compression_ratio_compari" ti="h3_compression_ratio_compari" ti="h3_compression_ratio_compari" ti="h3_compression_ratio_compari">Compression Ratio Comparison</h3>
+      <label>Presets</label>
+      <div class="preset-pills" id="compare-presets"></div>
+      <label for="compare-input">Input Text</label>
+      <textarea id="compare-input" tp="placeholder_enter_text_to_compare_com" tp="placeholder_enter_text_to_compare_com" tp="placeholder_enter_text_to_compare_com" tp="placeholder_enter_text_to_compare_com" placeholder="Enter text to compare compression across all algorithms..."></textarea>
+      <div class="btn-group">
+        <button class="btn btn-primary" id="compare-btn" ti="btn_compare_all" ti="btn_compare_all" ti="btn_compare_all" ti="btn_compare_all">Compare All</button>
+      </div>
+    </div>
+    <div class="card" id="compare-result" style="display:none">
+      <h3 ti="h3_results" ti="h3_results" ti="h3_results" ti="h3_results">Results</h3>
+      <table class="cmp-table">
+        <thead><tr><th ti="th_algorithm" ti="th_algorithm_2" ti="label_algorithm" ti="label_algorithm_2" ti="label_algorithm_3" ti="label_algorithm_4" ti="th_algorithm" ti="th_algorithm_2" ti="label_algorithm" ti="label_algorithm_2" ti="label_algorithm_3" ti="label_algorithm_4" ti="th_algorithm" ti="th_algorithm_2" ti="label_algorithm" ti="label_algorithm_2" ti="label_algorithm_3" ti="label_algorithm_4" ti="th_algorithm" ti="th_algorithm_2" ti="label_algorithm" ti="label_algorithm_2" ti="label_algorithm_3" ti="label_algorithm_4">Algorithm</th><th ti="th_original" ti="th_original" ti="th_original" ti="th_original">Original</th><th ti="th_compressed" ti="th_compressed" ti="th_compressed" ti="th_compressed">Compressed</th><th ti="th_ratio" ti="th_ratio" ti="th_ratio" ti="th_ratio">Ratio</th><th ti="th_savings" ti="th_savings" ti="th_savings" ti="th_savings">Savings</th></tr></thead>
+        <tbody id="compare-tbody"></tbody>
+      </table>
+      <div class="bench-bars mt-2" id="compare-bars"></div>
+    </div>
+  </div>
+
+  <!-- Tab 4: Streaming -->
+  <div id="tab-streaming" class="tab-panel">
+    <div class="card">
+      <h3>Streaming Demo <span class="badge">Chunked</span></h3>
+      <p style="font-size:.85rem;color:var(--text2);margin-bottom:.8rem">
+        Watch compression happen chunk by chunk through the Streams API pipeline.
+      </p>
+      <label>Presets</label>
+      <div class="preset-pills" id="stream-presets"></div>
+      <label for="stream-input">Input Text</label>
+      <textarea id="stream-input" tp="placeholder_enter_text_to_stream_comp" tp="placeholder_enter_text_to_stream_comp" tp="placeholder_enter_text_to_stream_comp" tp="placeholder_enter_text_to_stream_comp" placeholder="Enter text to stream-compress..."></textarea>
+      <div class="grid-2 mt-1">
+        <div>
+          <label for="stream-algo">Algorithm</label>
+          <select id="stream-algo">
+            <option value="gzip">gzip</option>
+            <option value="deflate">deflate</option>
+            <option value="deflate-raw">deflate-raw</option>
+          </select>
+        </div>
+        <div>
+          <label for="stream-chunk" ti="label_chunk_size_bytes" ti="label_chunk_size_bytes" ti="label_chunk_size_bytes" ti="label_chunk_size_bytes">Chunk Size (bytes)</label>
+          <select id="stream-chunk">
+            <option value="64">64</option>
+            <option value="256">256</option>
+            <option value="1024" selected>1024</option>
+            <option value="4096">4096</option>
+          </select>
+        </div>
+      </div>
+      <div class="btn-group">
+        <button class="btn btn-primary" id="stream-btn" ti="btn_start_streaming" ti="btn_start_streaming" ti="btn_start_streaming" ti="btn_start_streaming">Start Streaming</button>
+      </div>
+    </div>
+    <div class="card" id="stream-result" style="display:none">
+      <h3 ti="h3_stream_progress" ti="h3_stream_progress" ti="h3_stream_progress" ti="h3_stream_progress">Stream Progress</h3>
+      <div class="progress-wrap">
+        <div class="progress-bar"><div class="progress-fill" id="stream-progress"></div></div>
+        <div class="progress-text" id="stream-progress-text">0%</div>
+      </div>
+      <div class="stream-log" id="stream-log"></div>
+      <div class="size-bar-wrap mt-1">
+        <div class="size-bar">
+          <div class="original" id="sr-bar-orig"></div>
+          <div class="compressed" id="sr-bar-comp"></div>
+        </div>
+        <div class="size-label">
+          <span id="sr-sizes"></span>
+          <span class="ratio" id="sr-ratio"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab 5: Decompress -->
+  <div id="tab-decompress" class="tab-panel">
+    <div class="card">
+      <h3 ti="h3_decompress" ti="h3_decompress" ti="h3_decompress" ti="h3_decompress">Decompress</h3>
+      <label for="decompress-input" ti="label_base64_encoded_compressed" ti="label_base64_encoded_compressed" ti="label_base64_encoded_compressed" ti="label_base64_encoded_compressed">Base64-encoded Compressed Data</label>
+      <textarea id="decompress-input" tp="placeholder_paste_base64_encoded_gzip" tp="placeholder_paste_base64_encoded_gzip" tp="placeholder_paste_base64_encoded_gzip" tp="placeholder_paste_base64_encoded_gzip" placeholder="Paste base64-encoded gzip/deflate/deflate-raw data..."></textarea>
+      <div class="grid-2 mt-1">
+        <div>
+          <label for="decompress-algo">Algorithm</label>
+          <select id="decompress-algo">
+            <option value="gzip">gzip</option>
+            <option value="deflate">deflate</option>
+            <option value="deflate-raw">deflate-raw</option>
+          </select>
+        </div>
+        <div class="btn-group" style="align-self:end">
+          <button class="btn btn-primary" id="decompress-btn">Decompress</button>
+        </div>
+      </div>
+      <div class="mt-1">
+        <label ti="label_or_upload_a_compressed_fi" ti="label_or_upload_a_compressed_fi" ti="label_or_upload_a_compressed_fi" ti="label_or_upload_a_compressed_fi">Or upload a compressed file</label>
+        <div class="drop-zone" id="decompress-drop" style="padding:1rem">
+          <div>Drop compressed file here</div>
+          <input type="file" id="decompress-file-input">
+        </div>
+      </div>
+    </div>
+    <div class="card" id="decompress-result" style="display:none">
+      <h3 ti="h3_decompressed_output" ti="h3_decompressed_output" ti="h3_decompressed_output" ti="h3_decompressed_output">Decompressed Output</h3>
+      <div class="size-bar-wrap">
+        <div class="size-bar">
+          <div class="compressed" id="dr-bar-comp"></div>
+          <div class="original" id="dr-bar-orig" style="background:var(--accent2)"></div>
+        </div>
+        <div class="size-label">
+          <span id="dr-sizes"></span>
+          <span class="ratio" id="dr-ratio"></span>
+        </div>
+      </div>
+      <div class="mt-1">
+        <label ti="label_text_output" ti="label_text_output" ti="label_text_output" ti="label_text_output">Text Output</label>
+        <div class="output-box" id="dr-output"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab 6: Benchmark -->
+  <div id="tab-benchmark" class="tab-panel">
+    <div class="card">
+      <h3 ti="h3_compression_benchmark" ti="h3_compression_benchmark" ti="h3_compression_benchmark" ti="h3_compression_benchmark">Compression Benchmark</h3>
+      <label>Presets</label>
+      <div class="preset-pills" id="bench-presets"></div>
+      <label for="bench-input">Input Text</label>
+      <textarea id="bench-input" tp="placeholder_enter_text_to_benchmark" tp="placeholder_enter_text_to_benchmark" tp="placeholder_enter_text_to_benchmark" tp="placeholder_enter_text_to_benchmark" placeholder="Enter text to benchmark..."></textarea>
+      <div class="grid-2 mt-1">
+        <div>
+          <label for="bench-iterations" ti="label_iterations" ti="label_iterations" ti="label_iterations" ti="label_iterations">Iterations</label>
+          <select id="bench-iterations">
+            <option value="10">10</option>
+            <option value="50" selected>50</option>
+            <option value="100">100</option>
+            <option value="500">500</option>
+          </select>
+        </div>
+        <div class="btn-group" style="align-self:end">
+          <button class="btn btn-primary" id="bench-btn" ti="btn_run_benchmark" ti="btn_run_benchmark" ti="btn_run_benchmark" ti="btn_run_benchmark">Run Benchmark</button>
+        </div>
+      </div>
+    <
+
+<script>var _LANG={'title_compression_streams_api_p':["Compression Streams API Playground", "压缩流 API 演示"],'metadesc_interactive_playground_fo':["Interactive playground for the browser-native Compression Streams API. Compress, decompress, benchmark gzip, deflate, and deflate-raw without external libraries.", "用于浏览器原生压缩流 API 的交互式演示环境。无需外部库即可进行压缩、解压缩和 gzip、deflate 和 deflate-raw 的性能测试。"],'h1_welcome_to_our_site':["Welcome to Our Site", "欢迎访问我们的网站"],'h2_getting_started':["Getting Started", "入门"],'h2_features':["Features", "特征"],'h2_contact':["Contact", "接触"],'h3_text_compressor':["Text Compressor", "文本压缩器"],'h3_result':["Result", "结果"],'h3_file_compressor':["File Compressor", "文件压缩器"],'h3_compression_ratio_compari':["Compression Ratio Comparison", "压缩比比较"],'h3_results':["Results", "结果"],'h3_stream_progress':["Stream Progress", "流进度"],'h3_decompress':["Decompress", "解压缩"],'h3_decompressed_output':["Decompressed Output", "解压缩输出"],'h3_compression_benchmark':["Compression Benchmark", "压缩基准"],'btn_text_compressor':["Text Compressor", "文本压缩器"],'btn_file_compressor':["File Compressor", "文件压缩器"],'btn_ratio_comparison':["Ratio Comparison", "比率比较"],'btn_streaming':["Streaming", "流媒体"],'btn_decompress':["Decompress", "解压缩"],'btn_benchmark':["Benchmark", "基准"],'btn_compress':["Compress", "压缩"],'btn_copy_base64':["Copy Base64", "复制 Base64"],'btn_download_compressed':["Download Compressed", "下载压缩文件"],'btn_compare_all':["Compare All", "全部比较"],'btn_start_streaming':["Start Streaming", "开始串流"],'btn_decompress_2':["Decompress", "解压缩"],'btn_run_benchmark':["Run Benchmark", "运行基准测试"],'btn_learn_more':["Learn More", "了解更多"],'placeholder_type_or_paste_text_to_com':["Type or paste text to compress...", "输入或粘贴文本以进行压缩……"],'placeholder_enter_text_to_compare_com':["Enter text to compare compression across all algorithms...", "输入文本以比较所有算法的压缩效果……"],'placeholder_enter_text_to_stream_comp':["Enter text to stream-compress...", "输入要进行流式压缩的文本..."],'placeholder_paste_base64_encoded_gzip':["Paste base64-encoded gzip/deflate/deflate-raw data...", "粘贴 base64 编码的 gzip/deflate/deflate-raw 数据……"],'placeholder_enter_text_to_benchmark':["Enter text to benchmark...", "输入要进行基准测试的文本..."],'th_algorithm':["Algorithm", "算法"],'th_original':["Original", "原来的"],'th_compressed':["Compressed", "压缩"],'th_ratio':["Ratio", "比率"],'th_savings':["Savings", "储蓄"],'th_algorithm_2':["Algorithm", "算法"],'th_compress_avg':["Compress (avg)", "压缩（平均值）"],'th_decompress_avg':["Decompress (avg)", "解压缩（平均值）"],'th_total':["Total", "全部的"],'th_output_size':["Output Size", "输出大小"],'label_presets':["Presets", "预设"],'label_input_text':["Input Text", "输入文本"],'label_algorithm':["Algorithm", "算法"],'label_base64_output':["Base64 Output", "Base64 输出"],'label_hex_dump':["Hex Dump", "十六进制转储"],'label_algorithm_2':["Algorithm", "算法"],'label_presets_2':["Presets", "预设"],'label_input_text_2':["Input Text", "输入文本"],'label_presets_3':["Presets", "预设"],'label_input_text_3':["Input Text", "输入文本"],'label_algorithm_3':["Algorithm", "算法"],'label_chunk_size_bytes':["Chunk Size (bytes)", "数据块大小（字节）"],'label_base64_encoded_compressed':["Base64-encoded Compressed Data", "Base64编码的压缩数据"],'label_algorithm_4':["Algorithm", "算法"],'label_or_upload_a_compressed_fi':["Or upload a compressed file", "或者上传压缩文件"],'label_text_output':["Text Output", "文本输出"],'label_presets_4':["Presets", "预设"],'label_input_text_4':["Input Text", "输入文本"],'label_iterations':["Iterations", "迭代"],'link_hello_example_com':["hello@example.com", "hello@example.com"],'jtc_compressionstream_decompr':["CompressionStream & DecompressionStream are supported in this browser", "此浏览器支持 CompressionStream 和 DecompressionStream。"],'jtc_compression_streams_api_i':["Compression Streams API is not supported in this browser. Try Chrome 80+, Edge 80+, or Safari 16.4+.", "此浏览器不支持压缩流 API。请尝试使用 Chrome 80+、Edge 80+ 或 Safari 16.4+。"],'jtc_100_complete':["100% - Complete", "100% 完成"],'jtc_run_benchmark':["Run Benchmark", "运行基准测试"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>var _LANG={'title_compression_streams_api_p':["Compression Streams API Playground", "压缩流 API 演示"],'metadesc_interactive_playground_fo':["Interactive playground for the browser-native Compression Streams API. Compress, decompress, benchmark gzip, deflate, and deflate-raw without external libraries.", "用于浏览器原生压缩流 API 的交互式演示环境。无需外部库即可进行压缩、解压缩和 gzip、deflate 和 deflate-raw 的性能测试。"],'h1_welcome_to_our_site':["Welcome to Our Site", "欢迎访问我们的网站"],'h2_getting_started':["Getting Started", "入门"],'h2_features':["Features", "特征"],'h2_contact':["Contact", "接触"],'h3_text_compressor':["Text Compressor", "文本压缩器"],'h3_result':["Result", "结果"],'h3_file_compressor':["File Compressor", "文件压缩器"],'h3_compression_ratio_compari':["Compression Ratio Comparison", "压缩比比较"],'h3_results':["Results", "结果"],'h3_stream_progress':["Stream Progress", "流进度"],'h3_decompress':["Decompress", "解压缩"],'h3_decompressed_output':["Decompressed Output", "解压缩输出"],'h3_compression_benchmark':["Compression Benchmark", "压缩基准"],'btn_text_compressor':["Text Compressor", "文本压缩器"],'btn_file_compressor':["File Compressor", "文件压缩器"],'btn_ratio_comparison':["Ratio Comparison", "比率比较"],'btn_streaming':["Streaming", "流媒体"],'btn_decompress':["Decompress", "解压缩"],'btn_benchmark':["Benchmark", "基准"],'btn_compress':["Compress", "压缩"],'btn_copy_base64':["Copy Base64", "复制 Base64"],'btn_download_compressed':["Download Compressed", "下载压缩文件"],'btn_compare_all':["Compare All", "全部比较"],'btn_start_streaming':["Start Streaming", "开始串流"],'btn_decompress_2':["Decompress", "解压缩"],'btn_run_benchmark':["Run Benchmark", "运行基准测试"],'btn_learn_more':["Learn More", "了解更多"],'placeholder_type_or_paste_text_to_com':["Type or paste text to compress...", "输入或粘贴文本以进行压缩……"],'placeholder_enter_text_to_compare_com':["Enter text to compare compression across all algorithms...", "输入文本以比较所有算法的压缩效果……"],'placeholder_enter_text_to_stream_comp':["Enter text to stream-compress...", "输入要进行流式压缩的文本..."],'placeholder_paste_base64_encoded_gzip':["Paste base64-encoded gzip/deflate/deflate-raw data...", "粘贴 base64 编码的 gzip/deflate/deflate-raw 数据……"],'placeholder_enter_text_to_benchmark':["Enter text to benchmark...", "输入要进行基准测试的文本..."],'th_algorithm':["Algorithm", "算法"],'th_original':["Original", "原来的"],'th_compressed':["Compressed", "压缩"],'th_ratio':["Ratio", "比率"],'th_savings':["Savings", "储蓄"],'th_algorithm_2':["Algorithm", "算法"],'th_compress_avg':["Compress (avg)", "压缩（平均值）"],'th_decompress_avg':["Decompress (avg)", "解压缩（平均值）"],'th_total':["Total", "全部的"],'th_output_size':["Output Size", "输出大小"],'label_presets':["Presets", "预设"],'label_input_text':["Input Text", "输入文本"],'label_algorithm':["Algorithm", "算法"],'label_base64_output':["Base64 Output", "Base64 输出"],'label_hex_dump':["Hex Dump", "十六进制转储"],'label_algorithm_2':["Algorithm", "算法"],'label_presets_2':["Presets", "预设"],'label_input_text_2':["Input Text", "输入文本"],'label_presets_3':["Presets", "预设"],'label_input_text_3':["Input Text", "输入文本"],'label_algorithm_3':["Algorithm", "算法"],'label_chunk_size_bytes':["Chunk Size (bytes)", "数据块大小（字节）"],'label_base64_encoded_compressed':["Base64-encoded Compressed Data", "Base64编码的压缩数据"],'label_algorithm_4':["Algorithm", "算法"],'label_or_upload_a_compressed_fi':["Or upload a compressed file", "或者上传压缩文件"],'label_text_output':["Text Output", "文本输出"],'label_presets_4':["Presets", "预设"],'label_input_text_4':["Input Text", "输入文本"],'label_iterations':["Iterations", "迭代"],'link_hello_example_com':["hello@example.com", "hello@example.com"],'jtc_compressionstream_decompr':["CompressionStream & DecompressionStream are supported in this browser", "此浏览器支持 CompressionStream 和 DecompressionStream。"],'jtc_compression_streams_api_i':["Compression Streams API is not supported in this browser. Try Chrome 80+, Edge 80+, or Safari 16.4+.", "此浏览器不支持压缩流 API。请尝试使用 Chrome 80+、Edge 80+ 或 Safari 16.4+。"],'jtc_100_complete':["100% - Complete", "100% 完成"],'jtc_run_benchmark':["Run Benchmark", "运行基准测试"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+/div>
+    <div class="card" id="bench-result" style="display:none">
+      <h3>Results <span class="badge" id="bench-iters-label"></span></h3>
+      <div class="mb-1" style="font-size:.82rem;color:var(--text2)">Compression Speed (lower = faster)</div>
+      <div class="bench-bars" id="bench-compress-bars"></div>
+      <div class="mb-1 mt-2" style="font-size:.82rem;color:var(--text2)">Decompression Speed (lower = faster)</div>
+      <div class="bench-bars" id="bench-decompress-bars"></div>
+      <table class="cmp-table mt-2">
+        <thead><tr><th>Algorithm</th><th ti="th_compress_avg" ti="th_compress_avg" ti="th_compress_avg" ti="th_compress_avg">Compress (avg)</th><th ti="th_decompress_avg" ti="th_decompress_avg" ti="th_decompress_avg" ti="th_decompress_avg">Decompress (avg)</th><th ti="th_total" ti="th_total" ti="th_total" ti="th_total">Total</th><th ti="th_output_size" ti="th_output_size" ti="th_output_size" ti="th_output_size">Output Size</th></tr></thead>
+        <tbody id="bench-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+
+<script>var _LANG={'title_compression_streams_api_p':["Compression Streams API Playground", "压缩流 API 演示"],'metadesc_interactive_playground_fo':["Interactive playground for the browser-native Compression Streams API. Compress, decompress, benchmark gzip, deflate, and deflate-raw without external libraries.", "用于浏览器原生压缩流 API 的交互式演示环境。无需外部库即可进行压缩、解压缩和 gzip、deflate 和 deflate-raw 的性能测试。"],'h1_welcome_to_our_site':["Welcome to Our Site", "欢迎访问我们的网站"],'h2_getting_started':["Getting Started", "入门"],'h2_features':["Features", "特征"],'h2_contact':["Contact", "接触"],'h3_text_compressor':["Text Compressor", "文本压缩器"],'h3_result':["Result", "结果"],'h3_file_compressor':["File Compressor", "文件压缩器"],'h3_compression_ratio_compari':["Compression Ratio Comparison", "压缩比比较"],'h3_results':["Results", "结果"],'h3_stream_progress':["Stream Progress", "流进度"],'h3_decompress':["Decompress", "解压缩"],'h3_decompressed_output':["Decompressed Output", "解压缩输出"],'h3_compression_benchmark':["Compression Benchmark", "压缩基准"],'btn_text_compressor':["Text Compressor", "文本压缩器"],'btn_file_compressor':["File Compressor", "文件压缩器"],'btn_ratio_comparison':["Ratio Comparison", "比率比较"],'btn_streaming':["Streaming", "流媒体"],'btn_decompress':["Decompress", "解压缩"],'btn_benchmark':["Benchmark", "基准"],'btn_compress':["Compress", "压缩"],'btn_copy_base64':["Copy Base64", "复制 Base64"],'btn_download_compressed':["Download Compressed", "下载压缩文件"],'btn_compare_all':["Compare All", "全部比较"],'btn_start_streaming':["Start Streaming", "开始串流"],'btn_decompress_2':["Decompress", "解压缩"],'btn_run_benchmark':["Run Benchmark", "运行基准测试"],'btn_learn_more':["Learn More", "了解更多"],'placeholder_type_or_paste_text_to_com':["Type or paste text to compress...", "输入或粘贴文本以进行压缩……"],'placeholder_enter_text_to_compare_com':["Enter text to compare compression across all algorithms...", "输入文本以比较所有算法的压缩效果……"],'placeholder_enter_text_to_stream_comp':["Enter text to stream-compress...", "输入要进行流式压缩的文本..."],'placeholder_paste_base64_encoded_gzip':["Paste base64-encoded gzip/deflate/deflate-raw data...", "粘贴 base64 编码的 gzip/deflate/deflate-raw 数据……"],'placeholder_enter_text_to_benchmark':["Enter text to benchmark...", "输入要进行基准测试的文本..."],'th_algorithm':["Algorithm", "算法"],'th_original':["Original", "原来的"],'th_compressed':["Compressed", "压缩"],'th_ratio':["Ratio", "比率"],'th_savings':["Savings", "储蓄"],'th_algorithm_2':["Algorithm", "算法"],'th_compress_avg':["Compress (avg)", "压缩（平均值）"],'th_decompress_avg':["Decompress (avg)", "解压缩（平均值）"],'th_total':["Total", "全部的"],'th_output_size':["Output Size", "输出大小"],'label_presets':["Presets", "预设"],'label_input_text':["Input Text", "输入文本"],'label_algorithm':["Algorithm", "算法"],'label_base64_output':["Base64 Output", "Base64 输出"],'label_hex_dump':["Hex Dump", "十六进制转储"],'label_algorithm_2':["Algorithm", "算法"],'label_presets_2':["Presets", "预设"],'label_input_text_2':["Input Text", "输入文本"],'label_presets_3':["Presets", "预设"],'label_input_text_3':["Input Text", "输入文本"],'label_algorithm_3':["Algorithm", "算法"],'label_chunk_size_bytes':["Chunk Size (bytes)", "数据块大小（字节）"],'label_base64_encoded_compressed':["Base64-encoded Compressed Data", "Base64编码的压缩数据"],'label_algorithm_4':["Algorithm", "算法"],'label_or_upload_a_compressed_fi':["Or upload a compressed file", "或者上传压缩文件"],'label_text_output':["Text Output", "文本输出"],'label_presets_4':["Presets", "预设"],'label_input_text_4':["Input Text", "输入文本"],'label_iterations':["Iterations", "迭代"],'link_hello_example_com':["hello@example.com", "hello@example.com"],'jtc_compressionstream_decompr':["CompressionStream & DecompressionStream are supported in this browser", "此浏览器支持 CompressionStream 和 DecompressionStream。"],'jtc_compression_streams_api_i':["Compression Streams API is not supported in this browser. Try Chrome 80+, Edge 80+, or Safari 16.4+.", "此浏览器不支持压缩流 API。请尝试使用 Chrome 80+、Edge 80+ 或 Safari 16.4+。"],'jtc_100_complete':["100% - Complete", "100% 完成"],'jtc_run_benchmark':["Run Benchmark", "运行基准测试"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>
+// === Presets ===
+const PRESETS = {
+  json: {
+    name: 'JSON',
+    text: JSON.stringify({
+      users: [
+        { id: 1, name: "Alice Johnson", email: "alice@example.com", role: "admin", active: true },
+        { id: 2, name: "Bob Smith", email: "bob@example.com", role: "editor", active: true },
+        { id: 3, name: "Charlie Brown", email: "charlie@example.com", role: "viewer", active: false },
+        { id: 4, name: "Diana Prince", email: "diana@example.com", role: "admin", active: true },
+        { id: 5, name: "Eve Wilson", email: "eve@example.com", role: "editor", active: true }
+      ],
+      metadata: { version: "2.1.0", generated: "2026-03-12T00:00:00Z", count: 5 }
+    }, null, 2)
+  },
+  html: {
+    name: 'HTML',
+    text: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sample Page</title>
+  <style>
+    body { font-family: sans-serif; margin: 0; padding: 2rem; background: #f5f5f5; }
+    .container { max-width: 800px; margin: 0 auto; }
+    h1 { color: #333; border-bottom: 2px solid #007bff; padding-bottom: .5rem; }
+    .card { background: white; border-radius: 8px; padding: 1.5rem; margin: 1rem 0; box-shadow: 0 2px 4px rgba(0,0,0,.1); }
+    .card h2 { margin-top: 0; color: #555; }
+    .btn { display: inline-block; padding: .5rem 1rem; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <div class="container" style="position:relative">
+    <h1 ti="h1_welcome_to_our_site" ti="h1_welcome_to_our_site" ti="h1_welcome_to_our_site" ti="h1_welcome_to_our_site">Welcome to Our Site</h1>
+    <div class="card"><h2 ti="h2_getting_started" ti="h2_getting_started" ti="h2_getting_started" ti="h2_getting_started">Getting Started</h2><p>This is a sample HTML page with typical markup patterns.</p></div>
+    <div class="card"><h2 ti="h2_features" ti="h2_features" ti="h2_features" ti="h2_features">Features</h2><ul><li>Responsive design</li><li>Modern CSS</li><li>Clean markup</li></ul></div>
+    <div class="card"><h2 ti="h2_contact" ti="h2_contact" ti="h2_contact" ti="h2_contact">Contact</h2><p>Email us at <a href="mailto:hello@example.com" ti="link_hello_example_com" ti="link_hello_example_com" ti="link_hello_example_com" ti="link_hello_example_com">hello@example.com</a></p><button class="btn" ti="btn_learn_more" ti="btn_learn_more" ti="btn_learn_more" ti="btn_learn_more">Learn More</button></div>
+  </div>
+</body>
+</html>`
+  },
+  repeated: {
+    name: 'Repeated',
+    text: 'The quick brown fox jumps over the lazy dog. '.repeat(50)
+  },
+  random: {
+    name: 'Random',
+    text: (() => {
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()';
+      let r = '';
+      for (let i = 0; i < 2000; i++) r += chars[Math.floor(Math.random() * chars.length)];
+      return r;
+    })()
+  },
+  lorem: {
+    name: 'Lorem Ipsum',
+    text: `Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+
+Curabitur pretium tincidunt lacus. Nulla gravida orci a odio. Nullam varius, turpis et commodo pharetra, est eros bibendum elit, nec luctus magna felis sollicitudin mauris. Integer in mauris eu nibh euismod gravida. Duis ac tellus et risus vulputate vehicula. Donec lobortis risus a elit. Etiam tempor. Ut ullamcorper, ligula ut dictum pharetra, nisi nunc fringilla magna, in commodo elit erat nec turpis. Ut pharetra purus quis ante.
+
+Praesent blandit laoreet nibh. Fusce convallis metus id felis luctus adipiscing. Pellentesque egestas, neque sit amet convallis pulvinar, justo nulla eleifend augue, ac auctor orci leo non est. Quisque id mi. Ut tincidunt tincidunt erat. Etiam vestibulum volutpat enim. Diam nonummy nibh euismod tincidunt ut laoreet dolore magna aliquam erat volutpat. Ut wisi enim ad minim veniam, quis nostrud exerci tation ullamcorper suscipit lobortis nisl ut aliquip ex ea commodo consequat.`
+  },
+  css: {
+    name: 'CSS',
+    text: `:root {
+  --primary: #3b82f6;
+  --secondary: #10b981;
+  --danger: #ef4444;
+  --bg: #ffffff;
+  --text: #1f2937;
+  --border: #e5e7eb;
+  --radius: 0.5rem;
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+}
+
+.container { max-width: 1200px; margin: 0 auto; padding: 0 1rem; }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; }
+
+.card {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  box-shadow: var(--shadow);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: var(--radius);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn-primary { background: var(--primary); color: white; }
+.btn-primary:hover { background: #2563eb; }
+.btn-secondary { background: var(--secondary); color: white; }
+.btn-danger { background: var(--danger); color: white; }
+
+@media (max-width: 768px) {
+  .grid { grid-template-columns: 1fr; }
+  .container { padding: 0 0.5rem; }
+}`
+  },
+  log: {
+    name: 'Log File',
+    text: Array.from({length: 40}, (_, i) => {
+      const levels = ['INFO', 'DEBUG', 'WARN', 'ERROR', 'INFO', 'INFO', 'DEBUG'];
+      const msgs = [
+        'Request processed successfully',
+        'Cache hit for key user:1234',
+        'Slow query detected: 245ms',
+        'Connection timeout to db-replica-3',
+        'User authentication successful uid=5678',
+        'Background job completed: cleanup_sessions',
+        'Memory usage: 67.3% (2.1GB / 3.2GB)'
+      ];
+      const ts = new Date(2026, 2, 12, 10, i, Math.floor(Math.random()*60));
+      return `[${ts.toISOString()}] ${levels[i%7]} ${msgs[i%7]}`;
+    }).join('\n')
+  }
+};
+
+// === Utility Functions ===
+function formatBytes(bytes) {
+  if (bytes === 0) return '0 B';
+  const k = 1024, sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+async function compressData(data, algorithm) {
+  const input = typeof data === 'string' ? new TextEncoder().encode(data) : data;
+  const cs = new CompressionStream(algorithm);
+  const writer = cs.writable.getWriter();
+  const reader = cs.readable.getReader();
+  const chunks = [];
+  writer.write(input);
+  writer.close();
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+  }
+  const totalLen = chunks.reduce((a, c) => a + c.length, 0);
+  const result = new Uint8Array(totalLen);
+  let offset = 0;
+  for (const chunk of chunks) {
+    result.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return result;
+}
+
+async function decompressData(data, algorithm) {
+  const ds = new DecompressionStream(algorithm);
+  const writer = ds.writable.getWriter();
+  const reader = ds.readable.getReader();
+  const chunks = [];
+  writer.write(data);
+  writer.close();
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+  }
+  const totalLen = chunks.reduce((a, c) => a + c.length, 0);
+  const result = new Uint8Array(totalLen);
+  let offset = 0;
+  for (const chunk of chunks) {
+    result.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return result;
+}
+
+function uint8ToBase64(bytes) {
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary);
+}
+
+function base64ToUint8(b64) {
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+function renderHexDump(bytes, container) {
+  const lines = [];
+  for (let i = 0; i < bytes.length; i += 16) {
+    const slice = bytes.slice(i, i + 16);
+    const offset = i.toString(16).padStart(8, '0');
+    const hexParts = [];
+    const asciiParts = [];
+    for (let j = 0; j < 16; j++) {
+      if (j < slice.length) {
+        hexParts.push(slice[j].toString(16).padStart(2, '0'));
+        asciiParts.push(slice[j] >= 32 && slice[j] <= 126 ? String.fromCharCode(slice[j]) : '.');
+      } else {
+        hexParts.push('  ');
+        asciiParts.push(' ');
+      }
+    }
+    const hexLeft = hexParts.slice(0, 8).join(' ');
+    const hexRight = hexParts.slice(8).join(' ');
+    lines.push(
+      `<span class="offset">${offset}</span>  <span class="byte">${hexLeft}  ${hexRight}</span>  <span class="ascii">|${asciiParts.join('')}|</span>`
+    );
+  }
+  container.innerHTML = lines.join('\n');
+}
+
+function updateSizeBar(origEl, compEl, sizesEl, ratioEl, origSize, compSize) {
+  const total = Math.max(origSize, compSize);
+  const origPct = (origSize / total) * 100;
+  const compPct = (compSize / total) * 100;
+  origEl.style.width = origPct + '%';
+  compEl.style.width = compPct + '%';
+  sizesEl.textContent = `Original: ${formatBytes(origSize)} | Compressed: ${formatBytes(compSize)}`;
+  const ratio = ((1 - compSize / origSize) * 100).toFixed(1);
+  ratioEl.textContent = ratio >= 0 ? `${ratio}% smaller` : `${Math.abs(ratio)}% larger`;
+  ratioEl.className = 'ratio' + (ratio < 0 ? ' bad' : '');
+}
+
+function renderPresets(containerId, textareaId) {
+  const container = document.getElementById(containerId);
+  const textarea = document.getElementById(textareaId);
+  Object.entries(PRESETS).forEach(([key, preset]) => {
+    const pill = document.createElement('button');
+    pill.className = 'preset-pill';
+    pill.textContent = preset.name;
+    pill.addEventListener('click', () => {
+      container.querySelectorAll('.preset-pill').forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+      textarea.value = preset.text;
+    });
+    container.appendChild(pill);
+  });
+}
+
+// === Browser Support Check ===
+function checkSupport() {
+  const banner = document.getElementById('support-banner');
+  const text = document.getElementById('support-text');
+  if (typeof CompressionStream !== 'undefined' && typeof DecompressionStream !== 'undefined') {
+    banner.className = 'support-banner ok';
+    text.textContent=T("jtc_compressionstream_decompr");
+  } else {
+    banner.className = 'support-banner no';
+    text.textContent=T("jtc_compression_streams_api_i");
+  }
+}
+
+// === Tab Navigation ===
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
+// === Tab 1: Text Compressor ===
+let lastCompressedB64 = '';
+
+document.getElementById('compress-btn').addEventListener('click', async () => {
+  const input = document.getElementById('compress-input').value;
+  if (!input) return;
+  const algo = document.getElementById('compress-algo').value;
+  try {
+    const encoded = new TextEncoder().encode(input);
+    const compressed = await compressData(input, algo);
+    lastCompressedB64 = uint8ToBase64(compressed);
+
+    const resultCard = document.getElementById('compress-result');
+    resultCard.style.display = '';
+
+    updateSizeBar(
+      document.getElementById('cr-bar-orig'),
+      document.getElementById('cr-bar-comp'),
+      document.getElementById('cr-sizes'),
+      document.getElementById('cr-ratio'),
+      encoded.length, compressed.length
+    );
+
+    document.getElementById('cr-base64').textContent = lastCompressedB64;
+    renderHexDump(compressed, document.getElementById('cr-hex'));
+  } catch (e) {
+    alert('Compression error: ' + e.message);
+  }
+});
+
+document.getElementById('compress-copy').addEventListener('click', () => {
+  if (lastCompressedB64) {
+    navigator.clipboard.writeText(lastCompressedB64).catch(() => {});
+  }
+});
+
+// === Tab 2: File Compressor ===
+let fileCompressedBlob = null;
+let fileName = '';
+
+const fileDrop = document.getElementById('file-drop');
+const fileInput = document.getElementById('file-input');
+
+fileDrop.addEventListener('click', () => fileInput.click());
+fileDrop.addEventListener('dragover', e => { e.preventDefault(); fileDrop.classList.add('over'); });
+fileDrop.addEventListener('dragleave', () => fileDrop.classList.remove('over'));
+fileDrop.addEventListener('drop', e => {
+  e.preventDefault();
+  fileDrop.classList.remove('over');
+  if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', () => { if (fileInput.files.length) handleFile(fileInput.files[0]); });
+
+async function handleFile(file) {
+  fileName = file.name;
+  const algo = document.getElementById('file-algo').value;
+  const buffer = await file.arrayBuffer();
+  const data = new Uint8Array(buffer);
+  try {
+    const compressed = await compressData(data, algo);
+    fileCompressedBlob = new Blob([compressed]);
+    const resultDiv = document.getElementById('file-result');
+    resultDiv.style.display = '';
+    updateSizeBar(
+      document.getElementById('fr-bar-orig'),
+      document.getElementById('fr-bar-comp'),
+      document.getElementById('fr-sizes'),
+      document.getElementById('fr-ratio'),
+      data.length, compressed.length
+    );
+  } catch (e) {
+    alert('File compression error: ' + e.message);
+  }
+}
+
+document.getElementById('file-download').addEventListener('click', () => {
+  if (!fileCompressedBlob) return;
+  const algo = document.getElementById('file-algo').value;
+  const ext = algo === 'gzip' ? '.gz' : algo === 'deflate' ? '.zz' : '.deflate-raw';
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(fileCompressedBlob);
+  a.download = fileName + ext;
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+// === Tab 3: Comparison ===
+document.getElementById('compare-btn').addEventListener('click', async () => {
+  const input = document.getElementById('compare-input').value;
+  if (!input) return;
+  const encoded = new TextEncoder().encode(input);
+  const algos = ['gzip', 'deflate', 'deflate-raw'];
+  const results = [];
+
+  for (const algo of algos) {
+    const compressed = await compressData(input, algo);
+    results.push({ algo, origSize: encoded.length, compSize: compressed.length });
+  }
+
+  const bestIdx = results.reduce((best, r, i) => r.compSize < results[best].compSize ? i : best, 0);
+  const tbody = document.getElementById('compare-tbody');
+  tbody.innerHTML = '';
+  const barsDiv = document.getElementById('compare-bars');
+  barsDiv.innerHTML = '';
+  const maxComp = Math.max(...results.map(r => r.compSize));
+  const colors = ['var(--accent)', 'var(--accent2)', 'var(--purple)'];
+
+  results.forEach((r, i) => {
+    const ratio = ((1 - r.compSize / r.origSize) * 100).toFixed(1);
+    const isBest = i === bestIdx;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td${isBest ? ' class="cmp-winner"' : ''}>${r.algo}${isBest ? ' &#9733;' : ''}</td>
+      <td>${formatBytes(r.origSize)}</td>
+      <td${isBest ? ' class="cmp-winner"' : ''}>${formatBytes(r.compSize)}</td>
+      <td>${(r.compSize / r.origSize * 100).toFixed(1)}%</td>
+      <td${isBest ? ' class="cmp-winner"' : ''}>${ratio}%</td>`;
+    tbody.appendChild(tr);
+
+    const row = document.createElement('div');
+    row.className = 'bench-row';
+    row.innerHTML = `
+      <div class="bench-label">${r.algo}</div>
+      <div class="bench-track">
+        <div class="bench-fill" style="width:${(r.compSize/maxComp*100).toFixed(1)}%;background:${colors[i]}">${formatBytes(r.compSize)}</div>
+      </div>`;
+    barsDiv.appendChild(row);
+  });
+
+  document.getElementById('compare-result').style.display = '';
+});
+
+// === Tab 4: Streaming ===
+document.getElementById('stream-btn').addEventListener('click', async () => {
+  const input = document.getElementById('stream-input').value;
+  if (!input) return;
+  const algo = document.getElementById('stream-algo').value;
+  const chunkSize = parseInt(document.getElementById('stream-chunk').value);
+  const encoded = new TextEncoder().encode(input);
+  const resultCard = document.getElementById('stream-result');
+  resultCard.style.display = '';
+  const log = document.getElementById('stream-log');
+  log.innerHTML = '';
+  const progressFill = document.getElementById('stream-progress');
+  const progressText = document.getElementById('stream-progress-text');
+
+  // Create chunks from input
+  const inputChunks = [];
+  for (let i = 0; i < encoded.length; i += chunkSize) {
+    inputChunks.push(encoded.slice(i, i + chunkSize));
+  }
+
+  const cs = new CompressionStream(algo);
+  const writer = cs.writable.getWriter();
+  const reader = cs.readable.getReader();
+  const outputChunks = [];
+  let totalOut = 0;
+
+  const addLog = (msg, cls = 'meta') => {
+    log.innerHTML += `<div class="${cls}">${msg}</div>`;
+    log.scrollTop = log.scrollHeight;
+  };
+
+  addLog(`Starting ${algo} compression | ${inputChunks.length} chunks of ${chunkSize}B | Total: ${formatBytes(encoded.length)}`);
+
+  // Write chunks
+  const writePromise = (async () => {
+    for (let i = 0; i < inputChunks.length; i++) {
+      await writer.write(inputChunks[i]);
+      const pct = ((i + 1) / inputChunks.length * 100).toFixed(0);
+      progressFill.style.width = pct + '%';
+      progressText.textContent = `Writing chunk ${i + 1}/${inputChunks.length} (${pct}%)`;
+      addLog(`  Wrote chunk #${i + 1}: ${inputChunks[i].length}B`, 'meta');
+      // Small delay for visual effect
+      await new Promise(r => setTimeout(r, 30));
+    }
+    await writer.close();
+    addLog('Input stream closed');
+  })();
+
+  // Read compressed output
+  const readPromise = (async () => {
+    let chunkIdx = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunkIdx++;
+      totalOut += value.length;
+      outputChunks.push(value);
+      addLog(`  Output chunk #${chunkIdx}: ${value.length}B compressed`, 'chunk');
+    }
+    addLog(`Compression complete | ${chunkIdx} output chunks | ${formatBytes(totalOut)} total`);
+  })();
+
+  await Promise.all([writePromise, readPromise]);
+
+  progressFill.style.width = '100%';
+  progressText.textContent=T("jtc_100_complete");
+
+  updateSizeBar(
+    document.getElementById('sr-bar-orig'),
+    document.getElementById('sr-bar-comp'),
+    document.getElementById('sr-sizes'),
+    document.getElementById('sr-ratio'),
+    encoded.length, totalOut
+  );
+});
+
+// === Tab 5: Decompress ===
+const decompressDrop = document.getElementById('decompress-drop');
+const decompressFileInput = document.getElementById('decompress-file-input');
+
+decompressDrop.addEventListener('click', () => decompressFileInput.click());
+decompressDrop.addEventListener('dragover', e => { e.preventDefault(); decompressDrop.classList.add('over'); });
+decompressDrop.addEventListener('dragleave', () => decompressDrop.classList.remove('over'));
+decompressDrop.addEventListener('drop', e => {
+  e.preventDefault();
+  decompressDrop.classList.remove('over');
+  if (e.dataTransfer.files.length) handleDecompressFile(e.dataTransfer.files[0]);
+});
+decompressFileInput.addEventListener('change', () => {
+  if (decompressFileInput.files.length) handleDecompressFile(decompressFileInput.files[0]);
+});
+
+async function handleDecompressFile(file) {
+  const buffer = await file.arrayBuffer();
+  const data = new Uint8Array(buffer);
+  const algo = document.getElementById('decompress-algo').value;
+  await doDecompress(data, algo);
+}
+
+document.getElementById('decompress-btn').addEventListener('click', async () => {
+  const b64 = document.getElementById('decompress-input').value.trim();
+  if (!b64) return;
+  const algo = document.getElementById('decompress-algo').value;
+  try {
+    const data = base64ToUint8(b64);
+    await doDecompress(data, algo);
+  } catch (e) {
+    alert('Invalid base64 input: ' + e.message);
+  }
+});
+
+async function doDecompress(data, algo) {
+  try {
+    const decompressed = await decompressData(data, algo);
+    const text = new TextDecoder().decode(decompressed);
+    const resultCard = document.getElementById('decompress-result');
+    resultCard.style.display = '';
+
+    updateSizeBar(
+      document.getElementById('dr-bar-comp'),
+      document.getElementById('dr-bar-orig'),
+      document.getElementById('dr-sizes'),
+      document.getElementById('dr-ratio'),
+      data.length, decompressed.length
+    );
+    document.getElementById('dr-sizes').textContent =
+      `Compressed: ${formatBytes(data.length)} | Decompressed: ${formatBytes(decompressed.length)}`;
+    const expansion = ((decompressed.length / data.length - 1) * 100).toFixed(1);
+    document.getElementById('dr-ratio').textContent = `${expansion}% expansion`;
+    document.getElementById('dr-ratio').className = 'ratio';
+
+    document.getElementById('dr-output').textContent = text;
+  } catch (e) {
+    alert('Decompression error: ' + e.message + '\nMake sure you selected the correct algorithm.');
+  }
+}
+
+// === Tab 6: Benchmark ===
+document.getElementById('bench-btn').addEventListener('click', async () => {
+  const input = document.getElementById('bench-input').value;
+  if (!input) return;
+  const iterations = parseInt(document.getElementById('bench-iterations').value);
+  const algos = ['gzip', 'deflate', 'deflate-raw'];
+  const results = [];
+  const btn = document.getElementById('bench-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Running...';
+
+  for (const algo of algos) {
+    // Warmup
+    const compressed = await compressData(input, algo);
+
+    // Benchmark compress
+    const compStart = performance.now();
+    for (let i = 0; i < iterations; i++) await compressData(input, algo);
+    const compTime = performance.now() - compStart;
+
+    // Benchmark decompress
+    const decStart = performance.now();
+    for (let i = 0; i < iterations; i++) await decompressData(compressed, algo);
+    const decTime = performance.now() - decStart;
+
+    results.push({
+      algo,
+      compAvg: compTime / iterations,
+      decAvg: decTime / iterations,
+      totalAvg: (compTime + decTime) / iterations,
+      compSize: compressed.length
+    });
+  }
+
+  btn.disabled = false;
+  btn.textContent=T("jtc_run_benchmark");
+
+  // Render results
+  document.getElementById('bench-result').style.display = '';
+  document.getElementById('bench-iters-label').textContent = `${iterations} iterations`;
+
+  const maxComp = Math.max(...results.map(r => r.compAvg));
+  const maxDec = Math.max(...results.map(r => r.decAvg));
+  const colors = ['var(--accent)', 'var(--accent2)', 'var(--purple)'];
+  const classNames = ['gzip', 'deflate', 'deflate-raw'];
+
+  const compBars = document.getElementById('bench-compress-bars');
+  compBars.innerHTML = '';
+  const decBars = document.getElementById('bench-decompress-bars');
+  decBars.innerHTML = '';
+
+  results.forEach((r, i) => {
+    const compRow = document.createElement('div');
+    compRow.className = 'bench-row';
+    compRow.innerHTML = `
+      <div class="bench-label">${r.algo}</div>
+      <div class="bench-track">
+        <div class="bench-fill ${classNames[i]}" style="width:${(r.compAvg/maxComp*100).toFixed(1)}%">${r.compAvg.toFixed(2)}ms</div>
+      </div>
+      <div class="bench-value">${r.compAvg.toFixed(2)}ms</div>`;
+    compBars.appendChild(compRow);
+
+    const decRow = document.createElement('div');
+    decRow.className = 'bench-row';
+    decRow.innerHTML = `
+      <div class="bench-label">${r.algo}</div>
+      <div class="bench-track">
+        <div class="bench-fill ${classNames[i]}" style="width:${(r.decAvg/maxDec*100).toFixed(1)}%">${r.decAvg.toFixed(2)}ms</div>
+      </div>
+      <div class="bench-value">${r.decAvg.toFixed(2)}ms</div>`;
+    decBars.appendChild(decRow);
+  });
+
+  const bestIdx = results.reduce((best, r, i) => r.totalAvg < results[best].totalAvg ? i : best, 0);
+  const tbody = document.getElementById('bench-tbody');
+  tbody.innerHTML = '';
+  results.forEach((r, i) => {
+    const isBest = i === bestIdx;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td${isBest ? ' class="cmp-winner"' : ''}>${r.algo}${isBest ? ' &#9733;' : ''}</td>
+      <td>${r.compAvg.toFixed(2)}ms</td>
+      <td>${r.decAvg.toFixed(2)}ms</td>
+      <td${isBest ? ' class="cmp-winner"' : ''}>${r.totalAvg.toFixed(2)}ms</td>
+      <td>${formatBytes(r.compSize)}</td>`;
+    tbody.appendChild(tr);
+  });
+});
+
+// === Init ===
+checkSupport();
+renderPresets('compress-presets', 'compress-input');
+renderPresets('compare-presets', 'compare-input');
+renderPresets('stream-presets', 'stream-input');
+renderPresets('bench-presets', 'bench-input');
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+</body>
+</html>

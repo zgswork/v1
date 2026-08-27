@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html tk="title_websocket_frame_inspector" lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WebSocket Frame Inspector — RFC 6455 Frame Decoder</title>
+<meta name="description" content="Interactive WebSocket frame decoder and generator. Parse hex to see FIN, opcode, mask, payload. Generate frames for testing. Visualize RFC 6455 wire format.">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0a0a;color:#e6e6e6;min-height:100vh}
+.container{max-width:1000px;margin:0 auto;padding:20px 16px}
+h1{text-align:center;font-size:1.5rem;color:#fff;margin-bottom:4px}
+.subtitle{text-align:center;color:#888;font-size:0.85rem;margin-bottom:20px}
+.tabs{display:flex;gap:6px;margin-bottom:16px;border-bottom:1px solid #222;padding-bottom:8px}
+.tab{padding:8px 16px;border-radius:8px 8px 0 0;border:1px solid transparent;background:transparent;color:#888;cursor:pointer;font-size:0.85rem;font-weight:600}
+.tab.active{background:#1a1a2e;color:#4da6ff;border-color:#333}
+.tab:hover:not(.active){color:#ccc}
+.panel{display:none}.panel.active{display:block}
+
+.presets{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.preset{padding:5px 12px;border-radius:16px;border:1px solid #333;background:#161616;color:#888;font-size:0.72rem;cursor:pointer}
+.preset:hover{background:#1c1c1c;color:#ccc}
+.preset.active{background:#1a2744;color:#4da6ff;border-color:#2a4a7a}
+
+.btn{padding:8px 16px;border-radius:8px;border:none;font-weight:600;cursor:pointer;font-size:0.82rem}
+.btn-primary{background:#3b82f6;color:#fff}.btn-primary:hover{background:#2563eb}
+.btn-secondary{background:#333;color:#ccc}.btn-secondary:hover{background:#444}
+.btn-sm{padding:4px 10px;font-size:0.72rem}
+
+/* Hex input */
+.hex-input{width:100%;padding:12px;border-radius:8px;border:1px solid #333;background:#0d0d1a;color:#10b981;font-family:'Cascadia Code',Consolas,monospace;font-size:0.85rem;resize:vertical;min-height:60px;letter-spacing:1px}
+
+/* Frame diagram */
+.frame-diagram{background:#0d0d1a;border:1px solid #222;border-radius:10px;padding:16px;margin:12px 0;overflow-x:auto}
+.bit-row{display:flex;margin-bottom:2px}
+.bit-cell{width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:0.6rem;font-family:'Cascadia Code',Consolas,monospace;border:1px solid #333;transition:background 0.2s}
+.bit-cell.fin{background:#1a2744;color:#4da6ff}
+.bit-cell.rsv{background:#1a1a1a;color:#555}
+.bit-cell.opcode{background:#2e1a0d;color:#f59e0b}
+.bit-cell.mask-bit{background:#0d2e1f;color:#10b981}
+.bit-cell.length{background:#2e0d2e;color:#a78bfa}
+.bit-cell.mask-key{background:#0d2e1f;color:#10b981}
+.bit-cell.payload{background:#1a1a2e;color:#93c5fd}
+.bit-label{font-size:0.6rem;color:#666;min-width:80px;text-align:right;padding-right:8px;display:flex;align-items:center;justify-content:flex-end}
+
+/* Decoded fields */
+.fields{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}
+@media(max-width:600px){.fields{grid-template-columns:1fr}}
+.field{background:#111;border:1px solid #222;border-radius:8px;padding:10px}
+.field-name{font-size:0.68rem;color:#888;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px}
+.field-value{font-size:0.9rem;font-weight:600;color:#fff;font-family:'Cascadia Code',Consolas,monospace}
+.field-desc{font-size:0.68rem;color:#555;margin-top:2px}
+
+/* Generator */
+.gen-row{display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
+.gen-row label{font-size:0.8rem;color:#888;min-width:100px}
+.gen-row input,.gen-row select{padding:6px 10px;border-radius:6px;border:1px solid #333;background:#1a1a1a;color:#fff;font-size:0.82rem}
+.gen-row input[type=text]{font-family:'Cascadia Code',Consolas,monospace;flex:1;min-width:200px}
+.gen-output{background:#0d0d1a;border:1px solid #222;border-radius:8px;padding:12px;font-family:'Cascadia Code',Consolas,monospace;font-size:0.82rem;color:#10b981;word-break:break-all;position:relative}
+.copy-btn{position:absolute;top:6px;right:6px;padding:3px 8px;border-radius:4px;border:1px solid #333;background:#1a1a1a;color:#888;font-size:0.65rem;cursor:pointer}
+.copy-btn:hover{color:#fff;background:#333}
+
+/* Reference */
+.ref-section{margin-bottom:20px}
+.ref-section h3{color:#4da6ff;font-size:0.95rem;margin-bottom:8px}
+.ref-section p,.ref-section li{color:#aaa;font-size:0.82rem;line-height:1.6}
+.ref-section ul{padding-left:20px}
+.code{font-family:'Cascadia Code',Consolas,monospace;background:#1a1a2e;padding:2px 6px;border-radius:3px;color:#93c5fd;font-size:0.78rem}
+</style>
+</head>
+<body>
+
+
+<div class="container" style="position:relative">
+<h1 ti="h1_websocket_frame_inspector">WebSocket Frame Inspector</h1>
+<p class="subtitle" ti="subtitle_decode_and_generate_rfc_6">Decode and generate RFC 6455 WebSocket frames</p>
+
+<div class="tabs">
+<button class="tab active" onclick="showTab('decoder')" ti="btn_decoder">Decoder</button>
+<button class="tab" onclick="showTab('generator')" ti="btn_generator">Generator</button>
+<button class="tab" onclick="showTab('reference')" ti="btn_reference">Reference</button>
+</div>
+
+<div id="tab-decoder" class="panel active">
+<div class="presets" id="presets"></div>
+<div style="margin-bottom:8px;font-size:0.75rem;color:#888">Paste hex bytes (space-separated or continuous):</div>
+<textarea class="hex-input" id="hex-input" tp="placeholder_81_85_37_fa_21_3d_7f_9f_4" placeholder="81 85 37 fa 21 3d 7f 9f 4d 51 58" oninput="decodeFrame()"></textarea>
+<button class="btn btn-primary btn-sm" style="margin-top:6px" onclick="decodeFrame()" ti="btn_decode">Decode</button>
+
+<div class="frame-diagram" id="frame-diagram"></div>
+<div class="fields" id="fields"></div>
+<div id="decode-payload" style="margin-top:8px"></div>
+</div>
+
+<div id="tab-generator" class="panel">
+<h3 style="color:#fff;margin-bottom:12px;font-size:0.95rem" ti="h3_generate_websocket_frame">Generate WebSocket Frame</h3>
+<div class="gen-row">
+<label ti="label_opcode">Opcode:</label>
+<select id="gen-opcode">
+<option value="1">0x1 — Text</option>
+<option value="2">0x2 — Binary</option>
+<option value="8">0x8 — Close</option>
+<option value="9">0x9 — Ping</option>
+<option value="10">0xA — Pong</option>
+</select>
+</div>
+<div class="gen-row">
+<label ti="label_fin_bit">FIN bit:</label>
+<select id="gen-fin"><option value="1">1 (final frame)</option><option value="0">0 (continuation)</option></select>
+</div>
+<div class="gen-row">
+<label ti="label_masked">Masked:</label>
+<select id="gen-mask"><option value="1">Yes (client→server)</option><option value="0">No (server→client)</option></select>
+</div>
+<div class="gen-row">
+<label ti="label_payload">Payload:</label>
+<input type="text" id="gen-payload" value="Hello" tp="placeholder_text_payload" placeholder="Text payload">
+</div>
+<button class="btn btn-primary" onclick="generateFrame()" ti="btn_generate">Generate</button>
+<div class="gen-output" id="gen-output" style="margin-top:12px;display:none">
+<button class="copy-btn" onclick="copyGenerated()" ti="btn_copy">Copy</button>
+<div id="gen-hex"></div>
+</div>
+</div>
+
+<div id="tab-reference" class="panel">
+<div class="ref-section">
+<h3 ti="h3_websocket_frame_format_rf">WebSocket Frame Format (RFC 6455)</h3>
+<pre style="font-family:'Cascadia Code',Consolas,monospace;font-size:0.72rem;color:#93c5fd;background:#0d0d1a;padding:12px;border-radius:8px;line-height:1.5;overflow-x:auto">
+ 0                   1                   2                   3
+ 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
++-+-+-+-+-------+-+-------------+-------------------------------+
+|F|R|R|R| opcode|M| Payload len |    Extended payload length    |
+|I|S|S|S|  (4)  |A|     (7)     |             (16/64)           |
+|N|V|V|V|       |S|             |   (if payload len==126/127)   |
+| |1|2|3|       |K|             |                               |
++-+-+-+-+-------+-+-------------+ - - - - - - - - - - - - - - -+
+|     Extended payload length continued, if payload len == 127  |
++ - - - - - - - - - - - - - - -+-------------------------------+
+|                               |Masking-key, if MASK set to 1  |
++-------------------------------+-------------------------------+
+| Masking-key (continued)       |          Payload Data         |
++-------------------------------- - - - - - - - - - - - - - - -+
+:                     Payload Data continued ...                :
++---------------------------------------------------------------+</pre>
+</div>
+<div class="ref-section">
+<h3 ti="h3_opcodes">Opcodes</h3>
+<ul>
+<li><span class="code">0x0</span> — Continuation frame</li>
+<li><span class="code">0x1</span> — Text frame (UTF-8)</li>
+<li><span class="code">0x2</span> — Binary frame</li>
+<li><span class="code">0x3-0x7</span> — Reserved (non-control)</li>
+<li><span class="code">0x8</span> — Connection Close</li>
+<li><span class="code">0x9</span> — Ping</li>
+<li><span class="code">0xA</span> — Pong</li>
+<li><span class="code">0xB-0xF</span> — Reserved (control)</li>
+</ul>
+</div>
+<div class="ref-section">
+<h3 ti="h3_masking_algorithm">Masking Algorithm</h3>
+<p>Client→server frames MUST be masked. The masking key is 4 bytes. Each payload byte is XORed with the key:</p>
+<p style="margin-top:6px"><span class="code">decoded[i] = encoded[i] XOR maskKey[i % 4]</span></p>
+</div>
+<div class="ref-section">
+<h3 ti="h3_payload_length_encoding">Payload Length Encoding</h3>
+<ul>
+<li><strong ti="strong_0_125">0-125</strong>: Length in the 7-bit field directly</li>
+<li><strong ti="strong_126">126</strong>: Next 2 bytes contain the actual length (16-bit)</li>
+<li><strong ti="strong_127">127</strong>: Next 8 bytes contain the actual length (64-bit)</li>
+</ul>
+</div>
+</div>
+</div>
+
+
+<script>var _LANG={'title_websocket_frame_inspector':["WebSocket Frame Inspector — RFC 6455 Frame Decoder", "WebSocket 帧检查器 — RFC 6455 帧解码器"],'metadesc_interactive_websocket_fra':["Interactive WebSocket frame decoder and generator. Parse hex to see FIN, opcode, mask, payload. Generate frames for testing. Visualize RFC 6455 wire format.", "交互式 WebSocket 帧解码器和生成器。解析十六进制以查看 FIN、操作码、掩码和有效载荷。生成用于测试的帧。可视化 RFC 6455 线格式。"],'h1_websocket_frame_inspector':["WebSocket Frame Inspector", "WebSocket 帧检查器"],'h3_generate_websocket_frame':["Generate WebSocket Frame", "生成 WebSocket 帧"],'h3_websocket_frame_format_rf':["WebSocket Frame Format (RFC 6455)", "WebSocket 帧格式（RFC 6455）"],'h3_opcodes':["Opcodes", "操作码"],'h3_masking_algorithm':["Masking Algorithm", "掩蔽算法"],'h3_payload_length_encoding':["Payload Length Encoding", "有效载荷长度编码"],'subtitle_decode_and_generate_rfc_6':["Decode and generate RFC 6455 WebSocket frames", "解码并生成 RFC 6455 WebSocket 帧"],'btn_decoder':["Decoder", "解码器"],'btn_generator':["Generator", "发电机"],'btn_reference':["Reference", "参考"],'btn_decode':["Decode", "解码"],'btn_generate':["Generate", "产生"],'btn_copy':["Copy", "复制"],'btn_p_name':["${p.name}", "${p.name}"],'label_byte_0':["Byte 0:", "字节 0："],'label_byte_1':["Byte 1:", "字节 1："],'label_bytes_2':["Bytes 2+:", "字节 2+："],'placeholder_81_85_37_fa_21_3d_7f_9f_4':["81 85 37 fa 21 3d 7f 9f 4d 51 58", "81 85 37 FA 21 3d 7f 9f 4d 51 58"],'placeholder_text_payload':["Text payload", "文本有效载荷"],'strong_0_125':["0-125", "0-125"],'strong_126':["126", "126"],'strong_127':["127", "127"],'label_opcode':["Opcode:", "操作码："],'label_fin_bit':["FIN bit:", "FIN 部分："],'label_masked':["Masked:", "蒙面："],'label_payload':["Payload:", "有效载荷："],'jtc_copied':["Copied!", "已复制！"],'jtc_copy':["Copy", "复制"],'jtlword_fin':["FIN", "鳍"],'jtlword_opcode':["Opcode", "操作码"],'jtlword_masked':["Masked", "蒙面人"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>
+const OPCODES = {0:'Continuation',1:'Text',2:'Binary',8:'Close',9:'Ping',10:'Pong'};
+
+const PRESETS = [
+  {name:'Text "Hello"',hex:'81 85 37 fa 21 3d 7f 9f 4d 51 58',desc:'Masked text frame'},
+  {name:'Unmasked Text',hex:'81 05 48 65 6c 6c 6f',desc:'Server→client unmasked "Hello"'},
+  {name:'Ping',hex:'89 00',desc:'Ping with no payload'},
+  {name:'Pong',hex:'8a 00',desc:'Pong with no payload'},
+  {name:'Close 1000',hex:'88 02 03 e8',desc:'Close with status 1000 (normal)'},
+  {name:'Binary Frame',hex:'82 04 01 02 03 04',desc:'4-byte binary data'},
+  {name:'Fragment 1',hex:'01 03 48 65 6c',desc:'First fragment of "Hel" (FIN=0, text)'},
+  {name:'Fragment 2',hex:'80 02 6c 6f',desc:'Final fragment of "lo" (FIN=1, continuation)'},
+];
+
+let currentPreset = 0;
+
+function showTab(id) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + id).classList.add('active');
+  document.querySelector(`.tab[onclick="showTab('${id}')"]`).classList.add('active');
+}
+
+function renderPresets() {
+  document.getElementById('presets').innerHTML = PRESETS.map((p, i) =>
+    `<button class="preset ${i === currentPreset ? 'active' : ''}" onclick="loadPreset(${i})" title="${p.desc}" ti="btn_p_name">${p.name}</button>`
+  ).join('');
+}
+
+function loadPreset(i) {
+  currentPreset = i;
+  document.getElementById('hex-input').value = PRESETS[i].hex;
+  renderPresets();
+  decodeFrame();
+}
+
+function parseHex(str) {
+  return str.replace(/\s+/g,'').match(/.{1,2}/g)?.map(h => parseInt(h, 16)) || [];
+}
+
+function decodeFrame() {
+  const bytes = parseHex(document.getElementById('hex-input').value);
+  if (bytes.length < 2) {
+    document.getElementById('frame-diagram').innerHTML = '<div style="color:#666;font-size:0.75rem;text-align:center;padding:20px">Enter at least 2 hex bytes</div>';
+    document.getElementById('fields').innerHTML = '';
+    document.getElementById('decode-payload').innerHTML = '';
+    return;
+  }
+
+  const b0 = bytes[0], b1 = bytes[1];
+  const fin = (b0 >> 7) & 1;
+  const rsv1 = (b0 >> 6) & 1;
+  const rsv2 = (b0 >> 5) & 1;
+  const rsv3 = (b0 >> 4) & 1;
+  const opcode = b0 & 0x0f;
+  const masked = (b1 >> 7) & 1;
+  let payloadLen = b1 & 0x7f;
+
+  let offset = 2;
+  let extLen = 0;
+  if (payloadLen === 126) {
+    extLen = (bytes[2] << 8) | bytes[3];
+    payloadLen = extLen;
+    offset = 4;
+  } else if (payloadLen === 127) {
+    extLen = 0;
+    for (let i = 0; i < 8; i++) extLen = extLen * 256 + (bytes[2+i] || 0);
+    payloadLen = extLen;
+    offset = 10;
+  }
+
+  let maskKey = null;
+  if (masked) {
+    maskKey = bytes.slice(offset, offset + 4);
+    offset += 4;
+  }
+
+  const payloadBytes = bytes.slice(offset, offset + payloadLen);
+  let decodedPayload = payloadBytes;
+  if (masked && maskKey) {
+    decodedPayload = payloadBytes.map((b, i) => b ^ maskKey[i % 4]);
+  }
+
+  // Render bit diagram
+  renderBitDiagram(bytes, fin, rsv1, rsv2, rsv3, opcode, masked, b1 & 0x7f, maskKey, payloadBytes);
+
+  // Render fields
+  let payloadStr = '';
+  if (opcode === 1 || opcode === 0) {
+    payloadStr = String.fromCharCode(...decodedPayload);
+  } else if (opcode === 8 && decodedPayload.length >= 2) {
+    const code = (decodedPayload[0] << 8) | decodedPayload[1];
+    const reason = String.fromCharCode(...decodedPayload.slice(2));
+    payloadStr = `Status: ${code}${reason ? ' — ' + reason : ''}`;
+  } else {
+    payloadStr = decodedPayload.map(b => b.toString(16).padStart(2, '0')).join(' ');
+  }
+
+  document.getElementById('fields').innerHTML = `
+    <div class="field"><div class="field-name">FIN</div><div class="field-value">${fin}</div><div class="field-desc">${fin ? 'Final frame' : 'More fragments follow'}</div></div>
+    <div class="field"><div class="field-name">Opcode</div><div class="field-value">0x${opcode.toString(16)} — ${OPCODES[opcode]||'Reserved'}</div></div>
+    <div class="field"><div class="field-name">Masked</div><div class="field-value">${masked ? 'Yes' : 'No'}</div><div class="field-desc">${masked ? 'Client→Server' : 'Server→Client'}</div></div>
+    <div class="field"><div class="field-name">Payload Length</div><div class="field-value">${payloadLen} bytes</div></div>
+    ${maskKey ? `<div class="field"><div class="field-name">Mask Key</div><div class="field-value">${maskKey.map(b=>b.toString(16).padStart(2,'0')).join(' ')}</div></div>` : ''}
+    <div class="field"><div class="field-name">RSV Bits</div><div class="field-value">${rsv1}${rsv2}${rsv3}</div><div class="field-desc">${(rsv1||rsv2||rsv3)?'Extension in use':'No extensions'}</div></div>
+  `;
+
+  document.getElementById('decode-payload').innerHTML = payloadStr ? `
+    <div style="background:#0d0d1a;border:1px solid #222;border-radius:8px;padding:12px">
+      <div style="font-size:0.7rem;color:#888;margin-bottom:4px">Decoded Payload:</div>
+      <div style="font-family:'Cascadia Code',Consolas,monospace;font-size:0.85rem;color:#10b981;word-break:break-all">${payloadStr}</div>
+      ${masked ? `<div style="font-size:0.65rem;color:#555;margin-top:6px">Unmasking: payload[i] XOR maskKey[i%4]</div>` : ''}
+    </div>` : '';
+}
+
+function renderBitDiagram(bytes, fin, rsv1, rsv2, rsv3, opcode, masked, lenField, maskKey, payload) {
+  const container = document.getElementById('frame-diagram');
+  let html = '<div style="font-size:0.65rem;color:#888;margin-bottom:8px">Byte-level view:</div>';
+
+  // Byte 0
+  const b0bits = bytes[0].toString(2).padStart(8, '0');
+  html += '<div class="bit-row"><span class="bit-label" ti="label_byte_0">Byte 0:</span>';
+  html += `<div class="bit-cell fin" title="FIN">${b0bits[0]}</div>`;
+  html += `<div class="bit-cell rsv" title="RSV1">${b0bits[1]}</div>`;
+  html += `<div class="bit-cell rsv" title="RSV2">${b0bits[2]}</div>`;
+  html += `<div class="bit-cell rsv" title="RSV3">${b0bits[3]}</div>`;
+  for (let i = 4; i < 8; i++) html += `<div class="bit-cell opcode" title="Opcode">${b0bits[i]}</div>`;
+  html += '<span style="font-size:0.6rem;color:#666;margin-left:8px">FIN|RSV|Opcode</span></div>';
+
+  // Byte 1
+  if (bytes.length > 1) {
+    const b1bits = bytes[1].toString(2).padStart(8, '0');
+    html += '<div class="bit-row"><span class="bit-label" ti="label_byte_1">Byte 1:</span>';
+    html += `<div class="bit-cell mask-bit" title="MASK">${b1bits[0]}</div>`;
+    for (let i = 1; i < 8; i++) html += `<div class="bit-cell length" title="Payload length">${b1bits[i]}</div>`;
+    html += '<span style="font-size:0.6rem;color:#666;margin-left:8px">MASK|PayloadLen</span></div>';
+  }
+
+  // Remaining bytes as hex
+  if (bytes.length > 2) {
+    html += '<div class="bit-row"><span class="bit-label" ti="label_bytes_2">Bytes 2+:</span>';
+    let offset = 2;
+    const rawLen = bytes[1] & 0x7f;
+    if (rawLen === 126) {
+      html += bytes.slice(2, 4).map(b => `<div class="bit-cell length" title="Extended length">${b.toString(16).padStart(2,'0')}</div>`).join('');
+      offset = 4;
+    } else if (rawLen === 127) {
+      html += bytes.slice(2, 10).map(b => `<div class="bit-cell length" title="Extended length">${b.toString(16).padStart(2,'0')}</div>`).join('');
+      offset = 10;
+    }
+    if (masked && bytes.length >= offset + 4) {
+      html += bytes.slice(offset, offset+4).map(b => `<div class="bit-cell mask-key" title="Mask key">${b.toString(16).padStart(2,'0')}</div>`).join('');
+      offset += 4;
+    }
+    html += bytes.slice(offset).map(b => `<div class="bit-cell payload" title="Payload">${b.toString(16).padStart(2,'0')}</div>`).join('');
+    html += '</div>';
+  }
+
+  // Legend
+  html += '<div style="display:flex;gap:12px;margin-top:8px;flex-wrap:wrap">';
+  html += '<span style="font-size:0.6rem"><span class="bit-cell fin" style="display:inline-block;width:14px;height:14px;font-size:0;vertical-align:middle"></span> FIN</span>';
+  html += '<span style="font-size:0.6rem"><span class="bit-cell opcode" style="display:inline-block;width:14px;height:14px;font-size:0;vertical-align:middle"></span> Opcode</span>';
+  html += '<span style="font-size:0.6rem"><span class="bit-cell mask-bit" style="display:inline-block;width:14px;height:14px;font-size:0;vertical-align:middle"></span> Mask</span>';
+  html += '<span style="font-size:0.6rem"><span class="bit-cell length" style="display:inline-block;width:14px;height:14px;font-size:0;vertical-align:middle"></span> Length</span>';
+  html += '<span style="font-size:0.6rem"><span class="bit-cell mask-key" style="display:inline-block;width:14px;height:14px;font-size:0;vertical-align:middle"></span> Mask Key</span>';
+  html += '<span style="font-size:0.6rem"><span class="bit-cell payload" style="display:inline-block;width:14px;height:14px;font-size:0;vertical-align:middle"></span> Payload</span>';
+  html += '</div>';
+
+  container.innerHTML = html;
+}
+
+function generateFrame() {
+  const opcode = parseInt(document.getElementById('gen-opcode').value);
+  const fin = parseInt(document.getElementById('gen-fin').value);
+  const doMask = parseInt(document.getElementById('gen-mask').value);
+  const payloadText = document.getElementById('gen-payload').value;
+  const payloadBytes = new TextEncoder().encode(payloadText);
+
+  const bytes = [];
+  bytes.push((fin << 7) | opcode);
+
+  let lenByte = doMask ? 0x80 : 0;
+  if (payloadBytes.length < 126) {
+    lenByte |= payloadBytes.length;
+    bytes.push(lenByte);
+  } else if (payloadBytes.length < 65536) {
+    lenByte |= 126;
+    bytes.push(lenByte);
+    bytes.push((payloadBytes.length >> 8) & 0xff);
+    bytes.push(payloadBytes.length & 0xff);
+  } else {
+    lenByte |= 127;
+    bytes.push(lenByte);
+    for (let i = 7; i >= 0; i--) bytes.push((payloadBytes.length >> (i * 8)) & 0xff);
+  }
+
+  let maskKey = null;
+  if (doMask) {
+    maskKey = Array.from({length: 4}, () => Math.floor(Math.random() * 256));
+    bytes.push(...maskKey);
+    for (let i = 0; i < payloadBytes.length; i++) {
+      bytes.push(payloadBytes[i] ^ maskKey[i % 4]);
+    }
+  } else {
+    bytes.push(...payloadBytes);
+  }
+
+  const hex = bytes.map(b => b.toString(16).padStart(2, '0')).join(' ');
+  document.getElementById('gen-output').style.display = 'block';
+  document.getElementById('gen-hex').textContent = hex;
+}
+
+function copyGenerated() {
+  const text = document.getElementById('gen-hex').textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.querySelector('#gen-output .copy-btn');
+    btn.textContent=T("jtc_copied");
+    setTimeout(() => btn.textContent=T("jtc_copy"), 1500);
+  });
+}
+
+renderPresets();
+loadPreset(0);
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+</body>
+</html>

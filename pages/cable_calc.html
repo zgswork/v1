@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>电缆线径计算器 · 国标简化算法</title>
+<style>
+  :root{
+    --bg:#f4f6fb;
+    --card:#ffffff;
+    --primary:#2563eb;
+    --primary-d:#1d4ed8;
+    --text:#1f2937;
+    --muted:#6b7280;
+    --line:#e5e7eb;
+    --ok:#0f9d58;
+    --warn:#d97706;
+    --shadow:0 4px 18px rgba(15,23,42,.06);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  body{
+    margin:0;background:var(--bg);color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    line-height:1.5;padding:16px;
+  }
+  .wrap{max-width:720px;margin:0 auto;}
+  header{text-align:center;margin-bottom:18px;}
+  header h1{font-size:20px;margin:0 0 4px;font-weight:700;}
+  header p{margin:0;font-size:13px;color:var(--muted);}
+  .card{
+    background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:16px;margin-bottom:14px;box-shadow:var(--shadow);
+  }
+  .card h2{font-size:15px;margin:0 0 12px;display:flex;align-items:center;gap:8px;}
+  .card h2 .dot{width:8px;height:8px;border-radius:50%;background:var(--primary);}
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;}
+  .field{display:flex;flex-direction:column;gap:6px;}
+  .field.full{grid-column:1/-1;}
+  label{font-size:13px;color:var(--muted);font-weight:600;}
+  input,select{
+    width:100%;padding:11px 12px;font-size:15px;border:1px solid var(--line);
+    border-radius:10px;background:#fff;color:var(--text);appearance:none;
+    outline:none;transition:border-color .15s,box-shadow .15s;
+  }
+  input:focus,select:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(37,99,235,.12);}
+  select{
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path fill='%236b7280' d='M1 1l5 5 5-5'/></svg>");
+    background-repeat:no-repeat;background-position:right 12px center;padding-right:34px;
+  }
+  .results{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;}
+  .stat{background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:11px 12px;}
+  .stat .k{font-size:12px;color:var(--muted);margin-bottom:3px;}
+  .stat .v{font-size:18px;font-weight:700;}
+  .stat .v small{font-size:12px;font-weight:500;color:var(--muted);}
+  .model{
+    grid-column:1/-1;background:linear-gradient(135deg,#eff6ff,#dbeafe);
+    border:1px solid #bfdbfe;border-radius:10px;padding:14px;text-align:center;
+  }
+  .model .big{font-size:20px;font-weight:800;color:var(--primary-d);letter-spacing:.5px;}
+  .model .sub{font-size:12px;color:#3b82f6;margin-top:4px;}
+  .branch{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;}
+  .branch .b{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:12px;text-align:center;}
+  .branch .b .n{font-size:24px;font-weight:800;color:var(--ok);}
+  .branch .b .t{font-size:12px;color:#15803d;margin-top:2px;}
+  .note{font-size:12px;color:var(--muted);line-height:1.7;}
+  .note li{margin-bottom:3px;}
+  .tag{display:inline-block;font-size:11px;padding:2px 8px;border-radius:20px;background:#eef2ff;color:var(--primary-d);font-weight:600;}
+  .warn{color:var(--warn);font-weight:600;}
+  @media(max-width:480px){
+    .grid,.results,.branch{grid-template-columns:1fr;}
+    body{padding:12px;}
+    header h1{font-size:18px;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>电缆线径计算器</h1>
+    <p>依据 GB 50217 / GB/T 16895 简化算法 · 环境温度 30℃ · 含安全余量</p>
+  </header>
+
+  <div class="card">
+    <h2><span class="dot"></span>输入参数</h2>
+    <div class="grid">
+      <div class="field">
+        <label>功率因数 cosφ</label>
+        <input id="pf" type="number" min="0.1" max="1" step="0.01" value="0.85">
+      </div>
+      <div class="field">
+        <label>允许压降 ΔU (%)</label>
+        <input id="vd" type="number" min="0.5" max="15" step="0.5" value="5">
+      </div>
+      <div class="field">
+        <label>负载功率 P (kW)</label>
+        <input id="pw" type="number" min="0.1" step="0.1" value="10">
+      </div>
+      <div class="field">
+        <label>电压等级</label>
+        <select id="vol">
+          <option value="380">380V 三相</option>
+          <option value="220">220V 单相</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>敷设距离 L (m)</label>
+        <input id="dist" type="number" min="1" step="1" value="100">
+      </div>
+      <div class="field">
+        <label>电缆材质</label>
+        <select id="mat">
+          <option value="cu">铜 (Cu)</option>
+          <option value="al">铝 (Al)</option>
+        </select>
+      </div>
+      <div class="field full">
+        <label>敷设工艺（影响载流量）</label>
+        <select id="ins">
+          <option value="1.0">桥架 / 明敷（空气中）</option>
+          <option value="0.8">穿管敷设（空气中）</option>
+          <option value="0.85">直埋敷设（走地 / 土壤中）</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2><span class="dot"></span>计算结果</h2>
+    <div class="results">
+      <div class="stat"><div class="k">计算电流 I</div><div class="v" id="oI">–<small> A</small></div></div>
+      <div class="stat"><div class="k">按压降要求线径</div><div class="v" id="oSvd">–<small> mm²</small></div></div>
+      <div class="stat"><div class="k">按载流量要求线径</div><div class="v" id="oSamp">–<small> mm²</small></div></div>
+      <div class="stat"><div class="k">安全余量后取值</div><div class="v" id="oSm">–<small> mm²</small></div></div>
+      <div class="model">
+        <div class="big" id="oModel">–</div>
+        <div class="sub" id="oSub">–</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" id="branchCard" style="display:none;">
+    <h2><span class="dot"></span>下级 220V 分支电缆数量</h2>
+    <div class="field" style="margin-bottom:12px;">
+      <label>下级 220V 分支长度 (m)</label>
+      <input id="blen" type="number" min="1" step="1" value="50">
+    </div>
+    <p class="note" style="margin-top:0;">条件：低压单相 220V、3×S²、相同压降 / 功率因数 / 材质。数量为满足总功率所需的最少回路数（向上取整）。</p>
+    <div class="branch">
+      <div class="b"><div class="n" id="oN25">–</div><div class="t">3×2.5² 回路（路）</div></div>
+      <div class="b"><div class="n" id="oN4">–</div><div class="t">3×4² 回路（路）</div></div>
+    </div>
+    <p class="note" id="branchNote" style="margin-top:10px;"></p>
+  </div>
+
+  <div class="card">
+    <h2><span class="dot"></span>计算说明与依据</h2>
+    <ul class="note">
+      <li><b>电压降公式</b>：单相 ΔU=2·I·ρ·L/S，三相 ΔU=√3·I·ρ·L/S；取允许压降 S=ΔU<sub>allow</sub> 反算线径。</li>
+      <li><b>电阻率（30℃）</b>：铜 ρ≈0.0179 Ω·mm²/m，铝 ρ≈0.0294 Ω·mm²/m（含温度修正）。</li>
+      <li><b>载流量</b>：按 30℃ 环境空气中多芯电缆基准值，再乘敷设工艺修正系数（桥架 1.0 / 穿管 0.8 / 直埋 0.85），并取 1.25 倍安全系数。</li>
+      <li><b>安全余量</b>：线径取「压降要求」与「载流量要求」二者较大值，再向上取整到标称截面（GB/T 3956 标准序列）。</li>
+      <li><b>型号</b>：优先 YJV（铜）/ YJLV（铝）0.6/1kV；柔性/移动场合可用 RVV 替代。220V 取 3 芯（1火1零1地），380V 取 5 芯（3火1零1地）。</li>
+      <li class="warn">※ 本工具为工程快速估算，未计入感抗（大截面偏保守）、多根并列、谐波等。正式设计请依 GB 50217、GB 50054、GB/T 16895 校核。</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+(function(){
+  const SIZES=[1,1.5,2.5,4,6,10,16,25,35,50,70,95,120,150,185,240];
+  const CU={1.5:18,2.5:24,4:32,6:41,10:56,16:75,25:98,35:122,50:147,70:185,95:223,120:257,150:294,185:341,240:400};
+  const AL={2.5:18,4:25,6:31,10:44,16:59,25:77,35:95,50:115,70:145,95:175,120:201,150:231,185:268,240:313};
+  const RHO={cu:0.0179, al:0.0294};
+
+  const $=id=>document.getElementById(id);
+  const f=()=>({
+    pf:parseFloat($('pf').value), vd:parseFloat($('vd').value),
+    pw:parseFloat($('pw').value), vol:$('vol').value,
+    dist:parseFloat($('dist').value), mat:$('mat').value,
+    ins:parseFloat($('ins').value)
+  });
+
+  function amp(size,mat){return (mat==='cu'?CU:AL)[size]||0;}
+  function nextSize(s){
+    for(const x of SIZES){ if(x>=s-1e-9) return x; }
+    return SIZES[SIZES.length-1];
+  }
+
+  function calc(){
+      const p=f();
+    if(![p.pf,p.vd,p.pw,p.dist].every(v=>isFinite(v)&&v>0)) return;
+    const blen=parseFloat($('blen').value)||50;
+    const rho=RHO[p.mat];
+    const is3=p.vol==='380';
+    const U=is3?380:220;
+    const Pw=p.pw*1000;
+    const I = is3 ? Pw/(Math.sqrt(3)*U*p.pf) : Pw/(U*p.pf);
+    const dUallow = U*p.vd/100;
+
+    // 按压降要求线径
+    const Svd = is3 ? (Math.sqrt(3)*I*rho*p.dist/dUallow) : (2*I*rho*p.dist/dUallow);
+    // 按载流量要求线径（1.25 安全系数）
+    const Ireq=I*1.25;
+    let Samp=0;
+    for(const s of SIZES){ if(amp(s,p.mat)*p.ins>=Ireq){ Samp=s; break; } }
+    // 若序列不足
+    const Sraw=Math.max(Svd,Samp>0?Samp:Svd);
+    const Sm=nextSize(Sraw);
+    const over=Samp>0?false:(Ireq>amp(SIZES[SIZES.length-1],p.mat)*p.ins);
+
+    const core=is3?5:3;
+    const base=p.mat==='cu'?'YJV':'YJLV';
+    const model=`${base}-0.6/1kV ${core}×${Sm}`;
+    const sub=`${is3?'三相 3火1零1地':'单相 1火1零1地'} · 推荐 RVV 作柔性替代`;
+
+    $('oI').innerHTML=I.toFixed(1)+'<small> A</small>';
+    $('oSvd').innerHTML=Svd.toFixed(2)+'<small> mm²</small>';
+    $('oSamp').innerHTML=(Samp>0?Samp.toFixed(2):'超序列')+'<small> mm²</small>';
+    $('oSm').innerHTML=Sm+'<small> mm²</small>';
+    $('oModel').textContent=model;
+    $('oSub').textContent=sub+(over?'  ⚠ 电流超出现有序列，请增大电压或分段供电':'');
+
+    // 下级分支（仅 380V）
+    if(is3){
+      $('branchCard').style.display='';
+      const Lb=blen, Ub=220, dUb=Ub*p.vd/100;
+      function branch(sb){
+        const Imax=amp(sb,p.mat)*p.ins;             // 载流量上限电流（长度无关）
+        const Ivd=sb*dUb/(2*Lb*rho);               // 压降允许电流（随长度反比）
+        const I=Math.min(Imax,Ivd);                // 实际取二者较小值
+        const dU=I*2*Lb*rho/sb;                     // 实际压降(V)
+        const Uend=Ub-dU;                           // 末端电压
+        const Pb=Uend*I*p.pf;                       // 单回路末端实际最大承载功率(W)
+        const N=Math.max(1,Math.ceil(Pw/Pb));
+        const byAmp=Ivd>Imax;                       // true=受载流量限制而非压降
+        return {N,I,Pb,Imax,Ivd,Uend,byAmp};
+      }
+      const b25=branch(2.5), b4=branch(4);
+      $('oN25').textContent=b25.N;
+      $('oN4').textContent=b4.N;
+      $('branchNote').innerHTML=
+        `单路 3×2.5² 末端电压约 <b>${b25.Uend.toFixed(1)}V</b>、电流 <b>${b25.I.toFixed(1)}A</b>`+
+        `（载流量上限 ${b25.Imax.toFixed(0)}A），可载约 <b>${(b25.Pb/1000).toFixed(2)} kW</b>`+
+        `${b25.byAmp?'（受载流量限制）':'（受压降限制）'}；`+
+        `单路 3×4² 末端电压约 <b>${b4.Uend.toFixed(1)}V</b>、电流 <b>${b4.I.toFixed(1)}A</b>`+
+        `（载流量上限 ${b4.Imax.toFixed(0)}A），可载约 <b>${(b4.Pb/1000).toFixed(2)} kW</b>`+
+        `${b4.byAmp?'（受载流量限制）':'（受压降限制）'}。`;
+    } else {
+      $('branchCard').style.display='none';
+    }
+  }
+
+  ['pf','vd','pw','vol','dist','mat','ins','blen'].forEach(id=>{
+    $(id).addEventListener('input',calc);
+    $(id).addEventListener('change',calc);
+  });
+  calc();
+})();
+</script>
+</body>
+</html>

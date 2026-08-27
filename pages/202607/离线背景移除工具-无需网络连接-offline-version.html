@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>离线背景移除工具 - 无需网络连接</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .main-content {
+            padding: 40px;
+        }
+
+        .upload-area {
+            border: 3px dashed #d1d5db;
+            border-radius: 12px;
+            padding: 60px 20px;
+            text-align: center;
+            background: #f9fafb;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            margin-bottom: 30px;
+        }
+
+        .upload-area:hover {
+            border-color: #4f46e5;
+            background: #f0f4ff;
+        }
+
+        .upload-area.dragover {
+            border-color: #4f46e5;
+            background: #e0e7ff;
+            transform: scale(1.02);
+        }
+
+        .upload-icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            color: #6b7280;
+        }
+
+        .upload-text {
+            font-size: 1.2rem;
+            color: #374151;
+            margin-bottom: 10px;
+        }
+
+        .upload-hint {
+            color: #6b7280;
+            font-size: 0.9rem;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .processing-area {
+            display: none;
+            margin-top: 30px;
+        }
+
+        .image-preview {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .preview-container {
+            text-align: center;
+        }
+
+        .preview-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #374151;
+        }
+
+        .preview-image {
+            max-width: 100%;
+            max-height: 400px;
+            border-radius: 12px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+        }
+
+        .controls {
+            background: #f8fafc;
+            padding: 30px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+        }
+
+        .control-group {
+            margin-bottom: 25px;
+        }
+
+        .control-label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #374151;
+        }
+
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .slider {
+            flex: 1;
+            height: 6px;
+            border-radius: 3px;
+            background: #e5e7eb;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #4f46e5;
+            cursor: pointer;
+        }
+
+        .slider::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #4f46e5;
+            cursor: pointer;
+            border: none;
+        }
+
+        .slider-value {
+            min-width: 40px;
+            text-align: center;
+            font-weight: 600;
+            color: #4f46e5;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-right: 10px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(79, 70, 229, 0.3);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-secondary {
+            background: #6b7280;
+        }
+
+        .btn-secondary:hover {
+            box-shadow: 0 8px 25px rgba(107, 114, 128, 0.3);
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e5e7eb;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 20px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4f46e5, #7c3aed);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .status-text {
+            text-align: center;
+            color: #6b7280;
+            margin: 10px 0;
+        }
+
+        .offline-notice {
+            background: #fef3c7;
+            border: 1px solid #f59e0b;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            color: #92400e;
+        }
+
+        .offline-notice h3 {
+            margin-bottom: 8px;
+            color: #78350f;
+        }
+
+        @media (max-width: 768px) {
+            .image-preview {
+                grid-template-columns: 1fr;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .main-content {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎨 离线背景移除工具</h1>
+            <p>完全离线运行，无需网络连接，保护您的隐私安全</p>
+        </div>
+
+        <div class="main-content">
+            <div class="offline-notice">
+                <h3>🔒 离线模式说明</h3>
+                <p>此工具使用纯前端技术，完全在您的浏览器中运行，无需网络连接。虽然效果不如AI模型，但能够处理大部分简单背景的图片。</p>
+            </div>
+
+            <!-- 上传区域 -->
+            <div class="upload-area" id="uploadArea">
+                <div class="upload-icon">📁</div>
+                <div class="upload-text">点击选择图片或拖拽到此处</div>
+                <div class="upload-hint">支持 JPG、PNG、WebP 格式，最大 10MB</div>
+                <input type="file" class="file-input" id="fileInput" accept="image/*">
+            </div>
+
+            <!-- 处理区域 -->
+            <div class="processing-area" id="processingArea">
+                <!-- 图片预览 -->
+                <div class="image-preview">
+                    <div class="preview-container">
+                        <div class="preview-title">原始图片</div>
+                        <img id="originalImage" class="preview-image" alt="原始图片">
+                    </div>
+                    <div class="preview-container">
+                        <div class="preview-title">处理结果</div>
+                        <canvas id="resultCanvas" class="preview-image"></canvas>
+                    </div>
+                </div>
+
+                <!-- 控制面板 -->
+                <div class="controls">
+                    <div class="control-group">
+                        <label class="control-label">边缘检测敏感度</label>
+                        <div class="slider-container">
+                            <input type="range" class="slider" id="edgeThreshold" min="10" max="100" value="50">
+                            <span class="slider-value" id="edgeValue">50</span>
+                        </div>
+                    </div>
+                    
+                    <div class="control-group">
+                        <label class="control-label">颜色容差</label>
+                        <div class="slider-container">
+                            <input type="range" class="slider" id="colorTolerance" min="5" max="50" value="20">
+                            <span class="slider-value" id="toleranceValue">20</span>
+                        </div>
+                    </div>
+                    
+                    <div class="control-group">
+                        <label class="control-label">平滑度</label>
+                        <div class="slider-container">
+                            <input type="range" class="slider" id="smoothness" min="1" max="10" value="3">
+                            <span class="slider-value" id="smoothValue">3</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 进度条 -->
+                <div class="progress-bar" id="progressBar" style="display: none;">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <div class="status-text" id="statusText"></div>
+
+                <!-- 操作按钮 -->
+                <div style="text-align: center; margin-top: 20px;">
+                    <button class="btn" id="processBtn" onclick="processImage()">开始处理</button>
+                    <button class="btn btn-secondary" id="downloadBtn" onclick="downloadResult()" disabled>下载结果</button>
+                    <button class="btn btn-secondary" onclick="resetTool()">重新选择</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        // 全局变量
+        let originalImageData = null;
+        let processedImageData = null;
+        let canvas = null;
+        let ctx = null;
+
+        // Initialize the application
+        // 初始化应用
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeApp();
+        });
+
+        function initializeApp() {
+            const uploadArea = document.getElementById('uploadArea');
+            const fileInput = document.getElementById('fileInput');
+            canvas = document.getElementById('resultCanvas');
+            ctx = canvas.getContext('2d');
+
+            // Setup file upload handlers
+            // 设置文件上传处理器
+            uploadArea.addEventListener('click', () => fileInput.click());
+            fileInput.addEventListener('change', handleFileSelect);
+
+            // Setup drag and drop
+            // 设置拖拽上传
+            uploadArea.addEventListener('dragover', handleDragOver);
+            uploadArea.addEventListener('dragleave', handleDragLeave);
+            uploadArea.addEventListener('drop', handleDrop);
+
+            // Setup slider event listeners
+            // 设置滑块事件监听器
+            setupSliders();
+        }
+
+        function setupSliders() {
+            const sliders = [
+                { slider: 'edgeThreshold', value: 'edgeValue' },
+                { slider: 'colorTolerance', value: 'toleranceValue' },
+                { slider: 'smoothness', value: 'smoothValue' }
+            ];
+
+            sliders.forEach(({ slider, value }) => {
+                const sliderEl = document.getElementById(slider);
+                const valueEl = document.getElementById(value);
+                
+                sliderEl.addEventListener('input', function() {
+                    valueEl.textContent = this.value;
+                    if (originalImageData) {
+                        // Auto-process on slider change
+                        // 滑块变化时自动处理
+                        debounce(processImage, 300)();
+                    }
+                });
+            });
+        }
+
+        // Debounce function to limit processing frequency
+        // 防抖函数，限制处理频率
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault();
+            e.currentTarget.classList.add('dragover');
+        }
+
+        function handleDragLeave(e) {
+            e.currentTarget.classList.remove('dragover');
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            e.currentTarget.classList.remove('dragover');
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        }
+
+        function handleFileSelect(e) {
+            const file = e.target.files[0];
+            if (file) {
+                handleFile(file);
+            }
+        }
+
+        function handleFile(file) {
+            // Validate file type
+            // 验证文件类型
+            if (!file.type.startsWith('image/')) {
+                alert('请选择图片文件！');
+                return;
+            }
+
+            // Validate file size (10MB limit)
+            // 验证文件大小（10MB限制）
+            if (file.size > 10 * 1024 * 1024) {
+                alert('文件大小不能超过 10MB！');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                loadImage(e.target.result);
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function loadImage(src) {
+            const img = new Image();
+            img.onload = function() {
+                // Display original image
+                // 显示原始图片
+                const originalImg = document.getElementById('originalImage');
+                originalImg.src = src;
+
+                // Setup canvas
+                // 设置画布
+                canvas.width = img.width;
+                canvas.height = img.height;
+                ctx.drawImage(img, 0, 0);
+
+                // Store original image data
+                // 存储原始图片数据
+                originalImageData = ctx.getImageData(0, 0, img.width, img.height);
+
+                // Show processing area
+                // 显示处理区域
+                document.getElementById('processingArea').style.display = 'block';
+                
+                // Auto-process the image
+                // 自动处理图片
+                processImage();
+            };
+            img.src = src;
+        }
+
+        function processImage() {
+            if (!originalImageData) return;
+
+            const processBtn = document.getElementById('processBtn');
+            const downloadBtn = document.getElementById('downloadBtn');
+            const progressBar = document.getElementById('progressBar');
+            const progressFill = document.getElementById('progressFill');
+            const statusText = document.getElementById('statusText');
+
+            // Disable buttons and show progress
+            // 禁用按钮并显示进度
+            processBtn.disabled = true;
+            downloadBtn.disabled = true;
+            progressBar.style.display = 'block';
+            statusText.textContent = '正在处理图片...';
+
+            // Get processing parameters
+            // 获取处理参数
+            const edgeThreshold = parseInt(document.getElementById('edgeThreshold').value);
+            const colorTolerance = parseInt(document.getElementById('colorTolerance').value);
+            const smoothness = parseInt(document.getElementById('smoothness').value);
+
+            // Process image in chunks to show progress
+            // 分块处理图片以显示进度
+            setTimeout(() => {
+                try {
+                    updateProgress(20, '分析图片内容...');
+                    
+                    setTimeout(() => {
+                        updateProgress(50, '检测边缘...');
+                        
+                        setTimeout(() => {
+                            updateProgress(80, '移除背景...');
+                            
+                            setTimeout(() => {
+                                // Perform the actual background removal
+                                // 执行实际的背景移除
+                                const result = removeBackgroundOffline(
+                                    originalImageData, 
+                                    edgeThreshold, 
+                                    colorTolerance, 
+                                    smoothness
+                                );
+                                
+                                // Display result
+                                // 显示结果
+                                ctx.putImageData(result, 0, 0);
+                                processedImageData = result;
+                                
+                                updateProgress(100, '处理完成！');
+                                
+                                setTimeout(() => {
+                                    progressBar.style.display = 'none';
+                                    statusText.textContent = '';
+                                    processBtn.disabled = false;
+                                    downloadBtn.disabled = false;
+                                }, 1000);
+                            }, 300);
+                        }, 300);
+                    }, 300);
+                } catch (error) {
+                    console.error('处理失败:', error);
+                    statusText.textContent = '处理失败，请尝试调整参数';
+                    progressBar.style.display = 'none';
+                    processBtn.disabled = false;
+                }
+            }, 100);
+        }
+
+        function updateProgress(percent, message) {
+            const progressFill = document.getElementById('progressFill');
+            const statusText = document.getElementById('statusText');
+            
+            progressFill.style.width = percent + '%';
+            statusText.textContent = message;
+        }
+
+        // Offline background removal algorithm
+        // 离线背景移除算法
+        function removeBackgroundOffline(imageData, edgeThreshold, colorTolerance, smoothness) {
+            const data = new Uint8ClampedArray(imageData.data);
+            const width = imageData.width;
+            const height = imageData.height;
+            
+            // Create alpha mask
+            // 创建透明度遮罩
+            const mask = new Uint8Array(width * height);
+            
+            // Step 1: Detect edges using simple gradient
+            // 步骤1：使用简单梯度检测边缘
+            for (let y = 1; y < height - 1; y++) {
+                for (let x = 1; x < width - 1; x++) {
+                    const idx = (y * width + x) * 4;
+                    
+                    // Calculate gradient magnitude
+                    // 计算梯度幅度
+                    const gx = Math.abs(
+                        (data[idx - 4] + data[idx - 3] + data[idx - 2]) - 
+                        (data[idx + 4] + data[idx + 5] + data[idx + 6])
+                    );
+                    const gy = Math.abs(
+                        (data[idx - width * 4] + data[idx - width * 4 + 1] + data[idx - width * 4 + 2]) - 
+                        (data[idx + width * 4] + data[idx + width * 4 + 1] + data[idx + width * 4 + 2])
+                    );
+                    
+                    const gradient = Math.sqrt(gx * gx + gy * gy);
+                    
+                    // Mark as foreground if gradient is high
+                    // 如果梯度高则标记为前景
+                    if (gradient > edgeThreshold) {
+                        mask[y * width + x] = 255;
+                    }
+                }
+            }
+            
+            // Step 2: Flood fill from corners (background detection)
+            // 步骤2：从角落开始泛洪填充（背景检测）
+            const visited = new Uint8Array(width * height);
+            const queue = [];
+            
+            // Start from corners
+            // 从角落开始
+            const corners = [
+                [0, 0], [width - 1, 0], [0, height - 1], [width - 1, height - 1]
+            ];
+            
+            corners.forEach(([x, y]) => {
+                if (!visited[y * width + x]) {
+                    queue.push([x, y]);
+                    visited[y * width + x] = 1;
+                }
+            });
+            
+            // Flood fill background
+            // 泛洪填充背景
+            while (queue.length > 0) {
+                const [x, y] = queue.shift();
+                const idx = (y * width + x) * 4;
+                
+                // Get current pixel color
+                // 获取当前像素颜色
+                const r = data[idx];
+                const g = data[idx + 1];
+                const b = data[idx + 2];
+                
+                // Check neighbors
+                // 检查邻居
+                const neighbors = [
+                    [x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1]
+                ];
+                
+                neighbors.forEach(([nx, ny]) => {
+                    if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+                        const nIdx = (ny * width + nx) * 4;
+                        const nMaskIdx = ny * width + nx;
+                        
+                        if (!visited[nMaskIdx] && mask[nMaskIdx] < 128) {
+                            // Check color similarity
+                            // 检查颜色相似性
+                            const nr = data[nIdx];
+                            const ng = data[nIdx + 1];
+                            const nb = data[nIdx + 2];
+                            
+                            const colorDiff = Math.sqrt(
+                                (r - nr) * (r - nr) + 
+                                (g - ng) * (g - ng) + 
+                                (b - nb) * (b - nb)
+                            );
+                            
+                            if (colorDiff < colorTolerance) {
+                                visited[nMaskIdx] = 1;
+                                mask[nMaskIdx] = 0; // Mark as background
+                                queue.push([nx, ny]);
+                            }
+                        }
+                    }
+                });
+            }
+            
+            // Step 3: Apply smoothing
+            // 步骤3：应用平滑
+            for (let i = 0; i < smoothness; i++) {
+                smoothMask(mask, width, height);
+            }
+            
+            // Step 4: Apply mask to create transparent background
+            // 步骤4：应用遮罩创建透明背景
+            const result = new ImageData(width, height);
+            for (let i = 0; i < data.length; i += 4) {
+                const pixelIdx = Math.floor(i / 4);
+                result.data[i] = data[i];     // R
+                result.data[i + 1] = data[i + 1]; // G
+                result.data[i + 2] = data[i + 2]; // B
+                result.data[i + 3] = mask[pixelIdx]; // A
+            }
+            
+            return result;
+        }
+        
+        // Smooth the mask using simple averaging
+        // 使用简单平均法平滑遮罩
+        function smoothMask(mask, width, height) {
+            const smoothed = new Uint8Array(mask);
+            
+            for (let y = 1; y < height - 1; y++) {
+                for (let x = 1; x < width - 1; x++) {
+                    const idx = y * width + x;
+                    
+                    let sum = 0;
+                    let count = 0;
+                    
+                    for (let dy = -1; dy <= 1; dy++) {
+                        for (let dx = -1; dx <= 1; dx++) {
+                            const nIdx = (y + dy) * width + (x + dx);
+                            sum += mask[nIdx];
+                            count++;
+                        }
+                    }
+                    
+                    smoothed[idx] = Math.round(sum / count);
+                }
+            }
+            
+            mask.set(smoothed);
+        }
+
+        function downloadResult() {
+            if (!processedImageData) {
+                alert('请先处理图片！');
+                return;
+            }
+
+            // Create download link
+            // 创建下载链接
+            canvas.toBlob(function(blob) {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'background-removed-' + Date.now() + '.png';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }, 'image/png');
+        }
+
+        function resetTool() {
+            // Reset all states
+            // 重置所有状态
+            originalImageData = null;
+            processedImageData = null;
+            
+            document.getElementById('processingArea').style.display = 'none';
+            document.getElementById('fileInput').value = '';
+            document.getElementById('progressBar').style.display = 'none';
+            document.getElementById('statusText').textContent = '';
+            
+            // Reset sliders to default values
+            // 重置滑块到默认值
+            document.getElementById('edgeThreshold').value = 50;
+            document.getElementById('colorTolerance').value = 20;
+            document.getElementById('smoothness').value = 3;
+            document.getElementById('edgeValue').textContent = '50';
+            document.getElementById('toleranceValue').textContent = '20';
+            document.getElementById('smoothValue').textContent = '3';
+        }
+    </script>
+</body>
+</html>

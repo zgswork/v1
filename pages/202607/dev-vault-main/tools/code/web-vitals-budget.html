@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html tk="title_web_vitals_budget_calcula" lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Web Vitals Budget Calculator</title>
+<meta name="description" content="Calculate performance budgets for Core Web Vitals (LCP, INP, CLS). Allocate resource budgets, estimate third-party costs, and export Lighthouse CI configs.">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0a0a0a;
+  --surface: #141414;
+  --surface-2: #1e1e1e;
+  --surface-3: #282828;
+  --border: #333;
+  --text: #e0e0e0;
+  --text-dim: #888;
+  --accent: #22d3ee;
+  --accent-dim: #0ea5cf;
+  --good: #4caf50;
+  --needs-improvement: #ff9800;
+  --poor: #f44336;
+  --radius: 8px;
+  --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --mono: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+}
+body { font-family: var(--font); background: var(--bg); color: var(--text); line-height: 1.6; min-height: 100vh; }
+header {
+  text-align: center; padding: 2rem 1rem; border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, var(--surface) 0%, var(--bg) 100%);
+}
+header h1 { font-size: 1.8rem; font-weight: 700; margin-bottom: 0.3rem; }
+header h1 span { color: var(--accent); }
+header p { color: var(--text-dim); font-size: 0.95rem; }
+main { max-width: 1200px; margin: 0 auto; padding: 1.5rem 1rem; }
+.tabs {
+  display: flex; gap: 0.25rem; border-bottom: 2px solid var(--border);
+  margin-bottom: 1.5rem; overflow-x: auto;
+}
+.tab {
+  padding: 0.6rem 1.2rem; background: none; border: none; color: var(--text-dim);
+  cursor: pointer; font-size: 0.9rem; font-family: var(--font); white-space: nowrap;
+  border-bottom: 2px solid transparent; margin-bottom: -2px; transition: color 0.2s, border-color 0.2s;
+}
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.panel { display: none; }
+.panel.active { display: block; }
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 1.25rem; margin-bottom: 1rem;
+}
+.card h2 { font-size: 1.1rem; margin-bottom: 0.75rem; color: var(--accent); }
+.card h3 { font-size: 0.95rem; margin-bottom: 0.5rem; }
+label { display: block; font-size: 0.85rem; color: var(--text-dim); margin-bottom: 0.3rem; }
+input[type="text"], input[type="number"], input[type="range"], select, textarea {
+  width: 100%; padding: 0.5rem 0.75rem; background: var(--surface-2);
+  border: 1px solid var(--border); border-radius: var(--radius); color: var(--text);
+  font-family: var(--mono); font-size: 0.85rem; outline: none; transition: border-color 0.2s;
+}
+input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+textarea { resize: vertical; min-height: 120px; font-family: var(--mono); }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem; }
+.form-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem; }
+.form-group { margin-bottom: 0.75rem; }
+button {
+  padding: 0.5rem 1rem; background: var(--accent); color: #000; border: none;
+  border-radius: var(--radius); cursor: pointer; font-family: var(--font);
+  font-size: 0.85rem; font-weight: 600; transition: background 0.2s;
+}
+button:hover { background: var(--accent-dim); }
+button.secondary { background: var(--surface-3); color: var(--text); }
+button.secondary:hover { background: var(--border); }
+.btn-row { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.75rem; }
+pre {
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 1rem; overflow-x: auto; font-family: var(--mono); font-size: 0.82rem;
+  line-height: 1.5; color: #c5c5c5; position: relative; white-space: pre-wrap;
+}
+pre .copy-btn {
+  position: absolute; top: 0.5rem; right: 0.5rem; padding: 0.25rem 0.6rem;
+  font-size: 0.75rem; background: var(--surface-3);
+}
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.metric-card {
+  background: var(--surface-2); border-radius: var(--radius); padding: 1rem;
+  border: 1px solid var(--border); text-align: center;
+}
+.metric-card .metric-label { font-size: 0.8rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; }
+.metric-card .metric-value { font-size: 2rem; font-weight: 700; margin: 0.25rem 0; }
+.metric-card .metric-rating { font-size: 0.75rem; font-weight: 600; padding: 0.15rem 0.5rem; border-radius: 999px; display: inline-block; }
+.rating-good { color: var(--good); background: rgba(76,175,80,0.15); }
+.rating-needs { color: var(--needs-improvement); background: rgba(255,152,0,0.15); }
+.rating-poor { color: var(--poor); background: rgba(244,67,54,0.15); }
+.budget-bar {
+  height: 24px; background: var(--surface-3); border-radius: 12px; overflow: hidden;
+  margin: 0.5rem 0; position: relative;
+}
+.budget-bar-fill {
+  height: 100%; border-radius: 12px; transition: width 0.3s; min-width: 2px;
+}
+.budget-bar-label {
+  position: absolute; right: 0.5rem; top: 50%; transform: translateY(-50%);
+  font-size: 0.7rem; font-weight: 600; color: var(--text);
+}
+.resource-row {
+  display: grid; grid-template-columns: 120px 1fr 80px 60px; gap: 0.75rem;
+  align-items: center; padding: 0.5rem 0; border-bottom: 1px solid var(--border);
+}
+.resource-row:last-child { border-bottom: none; }
+.resource-row label { margin-bottom: 0; }
+.third-party-item {
+  display: grid; grid-template-columns: 1fr 100px 100px 80px; gap: 0.5rem;
+  align-items: center; padding: 0.5rem 0; border-bottom: 1px solid var(--border);
+}
+.comparison-col { text-align: center; }
+.comparison-col h3 { margin-bottom: 0.75rem; }
+.score-circle {
+  width: 80px; height: 80px; border-radius: 50%; display: flex; align-items: center;
+  justify-content: center; margin: 0 auto 0.5rem; font-size: 1.5rem; font-weight: 700;
+  border: 3px solid;
+}
+@media (max-width: 768px) {
+  .form-row, .form-row-3, .two-col { grid-template-columns: 1fr; }
+  .resource-row { grid-template-columns: 1fr; gap: 0.25rem; }
+  .third-party-item { grid-template-columns: 1fr 1fr; }
+  .tab { padding: 0.5rem 0.8rem; font-size: 0.82rem; }
+  header h1 { font-size: 1.4rem; }
+}
+</style>
+</head>
+<body>
+
+
+
+<header>
+  <h1>Web Vitals <span>Budget</span> Calculator</h1>
+  <p>Set performance budgets for Core Web Vitals &amp; resource allocation</p>
+</header>
+
+<main>
+  <div class="tabs" role="tablist">
+    <button class="tab active" data-panel="vitals" role="tab" ti="btn_vitals_budget">Vitals Budget</button>
+    <button class="tab" data-panel="resources" role="tab" ti="btn_resource_budget">Resource Budget</button>
+    <button class="tab" data-panel="thirdparty" role="tab" ti="btn_third_party_cost">Third-Party Cost</button>
+    <button class="tab" data-panel="comparison" role="tab" ti="btn_before_after">Before/After</button>
+    <button class="tab" data-panel="export" role="tab" ti="btn_export_config">Export Config</button>
+  </div>
+
+  <!-- Vitals Budget Panel -->
+  <div class="panel active" id="vitals">
+    <div class="card">
+      <h2 ti="h2_core_web_vitals_budget">Core Web Vitals Budget</h2>
+      <p style="color:var(--text-dim);font-size:0.85rem;margin-bottom:1rem;">Set target thresholds for each Core Web Vital. Values are based on Google's recommended p75 thresholds.</p>
+
+      <div class="form-row-3" style="margin-bottom:1.5rem;">
+        <div class="metric-card">
+          <div class="metric-label">LCP (Largest Contentful Paint)</div>
+          <div class="metric-value" id="lcpValue">2500</div>
+          <div class="metric-rating rating-good" id="lcpRating">Good</div>
+          <div style="margin-top:0.5rem;">
+            <input type="range" id="lcpSlider" min="500" max="8000" value="2500" step="100" oninput="updateVital('lcp')">
+            <div style="display:flex;justify-content:space-between;font-size:0.7rem;color:var(--text-dim);">
+              <span>500ms</span><span>2.5s</span><span>4s</span><span>8s</span>
+            </div>
+          </div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">INP (Interaction to Next Paint)</div>
+          <div class="metric-value" id="inpValue">200</div>
+          <div class="metric-rating rating-good" id="inpRating">Good</div>
+          <div style="margin-top:0.5rem;">
+            <input type="range" id="inpSlider" min="50" max="1000" value="200" step="10" oninput="updateVital('inp')">
+            <div style="display:flex;justify-content:space-between;font-size:0.7rem;color:var(--text-dim);">
+              <span>50ms</span><span>200ms</span><span>500ms</span><span>1s</span>
+            </div>
+          </div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">CLS (Cumulative Layout Shift)</div>
+          <div class="metric-value" id="clsValue">0.10</div>
+          <div class="metric-rating rating-good" id="clsRating">Good</div>
+          <div style="margin-top:0.5rem;">
+            <input type="range" id="clsSlider" min="0" max="100" value="10" step="1" oninput="updateVital('cls')">
+            <div style="display:flex;justify-content:space-between;font-size:0.7rem;color:var(--text-dim);">
+              <span>0</span><span>0.1</span><span>0.25</span><span>1.0</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="background:var(--surface-2);">
+        <h3 ti="h3_budget_summary">Budget Summary</h3>
+        <div id="budgetSummary" style="font-size:0.9rem;"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 ti="h2_google_thresholds_referen">Google Thresholds Reference</h2>
+      <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+        <tr style="border-bottom:1px solid var(--border);">
+          <th style="text-align:left;padding:0.5rem;" ti="th_metric">Metric</th>
+          <th style="text-align:center;padding:0.5rem;color:var(--good);" ti="th_good">Good</th>
+          <th style="text-align:center;padding:0.5rem;color:var(--needs-improvement);" ti="th_needs_improvement">Needs Improvement</th>
+          <th style="text-align:center;padding:0.5rem;color:var(--poor);" ti="th_poor">Poor</th>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:0.5rem;">LCP</td>
+          <td style="text-align:center;padding:0.5rem;">≤ 2.5s</td>
+          <td style="text-align:center;padding:0.5rem;">2.5s – 4s</td>
+          <td style="text-align:center;padding:0.5rem;">&gt; 4s</td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:0.5rem;">INP</td>
+          <td style="text-align:center;padding:0.5rem;">≤ 200ms</td>
+          <td style="text-align:center;padding:0.5rem;">200ms – 500ms</td>
+          <td style="text-align:center;padding:0.5rem;">&gt; 500ms</td>
+        </tr>
+        <tr>
+          <td style="padding:0.5rem;" ti="label_cls" ti="label_cls_2">CLS</td>
+          <td style="text-align:center;padding:0.5rem;">≤ 0.1</td>
+          <td style="text-align:center;padding:0.5rem;">0.1 – 0.25</td>
+          <td style="text-align:center;padding:0.5rem;">&gt; 0.25</td>
+        </tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- Resource Budget Panel -->
+  <div class="panel" id="resources">
+    <div class="card">
+      <h2 ti="h2_resource_budget_allocatio">Resource Budget Allocation</h2>
+      <p style="color:var(--text-dim);font-size:0.85rem;margin-bottom:1rem;">Set transfer size budgets for each resource type. Total affects LCP and load time.</p>
+
+      <div class="form-group">
+        <label for="totalBudget" ti="label_total_page_weight_budget">Total Page Weight Budget (KB)</label>
+        <input type="number" id="totalBudget" value="500" min="50" max="10000" oninput="updateResourceBudget()">
+      </div>
+
+      <div style="margin-top:1rem;">
+        <div class="resource-row" style="font-weight:600;color:var(--text-dim);border-bottom:2px solid var(--border);">
+          <label style="margin-bottom:0;" ti="label_resource">Resource</label>
+          <span>Budget Allocation</span>
+          <span>Size (KB)</span>
+          <span>%</span>
+        </div>
+        <div class="resource-row">
+          <label style="margin-bottom:0;" ti="label_javascript">JavaScript</label>
+          <div class="budget-bar"><div class="budget-bar-fill" id="jsBar" style="width:30%;background:var(--needs-improvement);"></div><span class="budget-bar-label" id="jsBarLabel" ti="label_150_kb">150 KB</span></div>
+          <input type="number" id="jsBudget" value="150" min="0" oninput="updateResourceBudget()">
+          <span id="jsPercent">30%</span>
+        </div>
+        <div class="resource-row">
+          <label style="margin-bottom:0;" ti="label_css">CSS</label>
+          <div class="budget-bar"><div class="budget-bar-fill" id="cssBar" style="width:10%;background:var(--accent);"></div><span class="budget-bar-label" id="cssBarLabel" ti="label_50_kb" ti="label_50_kb_2">50 KB</span></div>
+          <input type="number" id="cssBudget" value="50" min="0" oninput="updateResourceBudget()">
+          <span id="cssPercent">10%</span>
+        </div>
+        <div class="resource-row">
+          <label style="margin-bottom:0;" ti="label_images">Images</label>
+          <div class="budget-bar"><div class="budget-bar-fill" id="imgBar" style="width:40%;background:var(--good);"></div><span class="budget-bar-label" id="imgBarLabel" ti="label_200_kb">200 KB</span></div>
+          <input type="number" id="imgBudget" value="200" min="0" oninput="updateResourceBudget()">
+          <span id="imgPercent">40%</span>
+        </div>
+        <div class="resource-row">
+          <label style="margin-bottom:0;" ti="label_fonts">Fonts</label>
+          <div class="budget-bar"><div class="budget-bar-fill" id="fontBar" style="width:10%;background:#9c27b0;"></div><span class="budget-bar-label" id="fontBarLabel">50 KB</span></div>
+          <input type="number" id="fontBudget" value="50" min="0" oninput="updateResourceBudget()">
+          <span id="fontPercent">10%</span>
+        </div>
+        <div class="resource-row">
+          <label style="margin-bottom:0;" ti="label_html">HTML</label>
+          <div class="budget-bar"><div class="budget-bar-fill" id="htmlBar" style="width:4%;background:#607d8b;"></div><span class="budget-bar-label" id="htmlBarLabel" ti="label_20_kb">20 KB</span></div>
+          <input type="number" id="htmlBudget" value="20" min="0" oninput="updateResourceBudget()">
+          <span id="htmlPercent">4%</span>
+        </div>
+        <div class="resource-row">
+          <label style="margin-bottom:0;" ti="label_other">Other</label>
+          <div class="budget-bar"><div class="budget-bar-fill" id="otherBar" style="width:6%;background:#795548;"></div><span class="budget-bar-label" id="otherBarLabel" ti="label_30_kb">30 KB</span></div>
+          <input type="number" id="otherBudget" value="30" min="0" oninput="updateResourceBudget()">
+          <span id="otherPercent">6%</span>
+        </div>
+      </div>
+
+      <div style="margin-top:1rem;padding:0.75rem;background:var(--surface-2);border-radius:var(--radius);border:1px solid var(--border);">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-weight:600;">Total Used:</span>
+          <span id="totalUsed" style="font-family:var(--mono);font-size:1.1rem;font-weight:700;">500 KB / 500 KB</span>
+        </div>
+        <div class="budget-bar" style="margin-top:0.5rem;">
+          <div class="budget-bar-fill" id="totalBar" style="width:100%;background:var(--good);"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 ti="h3_transfer_size_impact_on_l">Transfer Size Impact on Load Time</h3>
+      <p style="color:var(--text-dim);font-size:0.85rem;margin-bottom:0.75rem;">Estimated load time at different connection speeds:</p>
+      <div class="form-row-3" id="loadTimeEstimates"></div>
+    </div>
+  </div>
+
+  <!-- Third-Party Panel -->
+  <div class="panel" id="thirdparty">
+    <div class="card">
+      <h2 ti="h2_third_party_script_cost_e">Third-Party Script Cost Estimator</h2>
+      <p style="color:var(--text-dim);font-size:0.85rem;margin-bottom:1rem;">Estimate the performance impact of common third-party scripts.</p>
+
+      <div id="thirdPartyList">
+        <div class="third-party-item" style="font-weight:600;color:var(--text-dim);border-bottom:2px solid var(--border);">
+          <span>Script</span>
+          <span>Transfer Size</span>
+          <span>Main Thread</span>
+          <span>Include</span>
+        </div>
+      </div>
+
+      <div style="margin-top:1rem;padding:0.75rem;background:var(--surface-2);border-radius:var(--radius);border:1px solid var(--border);">
+        <h3 style="margin-bottom:0.5rem;" ti="h3_total_third_party_impact">Total Third-Party Impact</h3>
+        <div id="tpSummary"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Before/After Panel -->
+  <div class="panel" id="comparison">
+    <div class="card">
+      <h2 ti="h2_before_after_comparison">Before / After Comparison</h2>
+      <p style="color:var(--text-dim);font-size:0.85rem;margin-bottom:1rem;">Compare current performance with your budget targets.</p>
+
+      <div class="two-col">
+        <div>
+          <h3 style="color:var(--poor);margin-bottom:0.75rem;" ti="h3_before_current">Before (Current)</h3>
+          <div class="form-group">
+            <label ti="label_lcp_ms" ti="label_lcp_ms_2">LCP (ms)</label>
+            <input type="number" id="beforeLcp" value="4200" oninput="updateComparison()">
+          </div>
+          <div class="form-group">
+            <label ti="label_inp_ms" ti="label_inp_ms_2">INP (ms)</label>
+            <input type="number" id="beforeInp" value="380" oninput="updateComparison()">
+          </div>
+          <div class="form-group">
+            <label>CLS</label>
+            <input type="number" id="beforeCls" value="0.28" step="0.01" oninput="updateComparison()">
+          </div>
+          <div class="form-group">
+            <label ti="label_total_page_weight_kb" ti="label_total_page_weight_kb_2">Total Page Weight (KB)</label>
+            <input type="number" id="beforeWeight" value="1800" oninput="updateComparison()">
+          </div>
+        </div>
+        <div>
+          <h3 style="color:var(--good);margin-bottom:0.75rem;" ti="h3_after_budget_target">After (Budget Target)</h3>
+          <div class="form-group">
+            <label>LCP (ms)</label>
+            <input type="number" id="afterLcp" value="2500" oninput="updateComparison()">
+          </div>
+          <div class="form-group">
+            <label>INP (ms)</label>
+            <input type="number" id="afterInp" value="200" oninput="updateComparison()">
+          </div>
+          <div class="form-group">
+            <label>CLS</label>
+            <input type="number" id="afterCls" value="0.08" step="0.01" oninput="updateComparison()">
+          </div>
+          <div class="form-group">
+            <label>Total Page Weight (KB)</label>
+            <input type="number" id="afterWeight" value="500" oninput="updateComparison()">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="two-col">
+      <div class="card comparison-col">
+        <h3 style="color:var(--poor);" ti="h3_before_score">Before Score</h3>
+        <div class="score-circle" id="beforeScore" style="border-color:var(--poor);color:var(--poor);">35</div>
+        <div id="beforeDetails"></div>
+      </div>
+      <div class="card comparison-col">
+        <h3 style="color:var(--good);" ti="h3_after_score">After Score</h3>
+        <div class="score-circle" id="afterScore" style="border-color:var(--good);color:var(--good);">92</div>
+        <div id="afterDetails"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 ti="h3_improvement_summary">Improvement Summary</h3>
+      <div id="improvementSummary"></div>
+    </div>
+  </div>
+
+  <!-- Export Panel -->
+  <div class="panel" id="export">
+    <div class="card">
+      <h2 ti="h2_export_performance_budget">Export Performance Budget</h2>
+      <p style="color:var(--text-dim);font-size:0.85rem;margin-bottom:1rem;">Generate configuration files for CI/CD integration.</p>
+
+      <div class="btn-row" style="margin-bottom:1rem;">
+        <button onclick="generateExport('json')" ti="btn_json">JSON</button>
+        <button onclick="generateExport('yaml')" ti="btn_yaml">YAML</button>
+        <button onclick="generateExport('lighthouse')" ti="btn_lighthouse_ci">Lighthouse CI</button>
+        <button onclick="generateExport('bundlesize')" ti="btn_bundlesize">bundlesize</button>
+      </div>
+
+      <pre id="exportOutput"><button class="copy-btn" onclick="copyCode('exportOutput')" ti="btn_copy" ti="btn_copy_2">Copy</button>Select a format above to generate configuration.</pre>
+    </div>
+  </div>
+</main>
+
+
+<script>var _LANG={'title_web_vitals_budget_calcula':["Web Vitals Budget Calculator", "网络预算计算器"],'metadesc_calculate_performance_bud':["Calculate performance budgets for Core Web Vitals (LCP, INP, CLS). Allocate resource budgets, estimate third-party costs, and export Lighthouse CI configs.", "计算核心 Web 指标（LCP、INP、CLS）的性能预算。分配资源预算，估算第三方成本，并导出 Lighthouse CI 配置。"],'h2_core_web_vitals_budget':["Core Web Vitals Budget", "核心网站指标预算"],'h2_google_thresholds_referen':["Google Thresholds Reference", "Google 阈值参考"],'h2_resource_budget_allocatio':["Resource Budget Allocation", "资源预算分配"],'h2_third_party_script_cost_e':["Third-Party Script Cost Estimator", "第三方脚本成本估算器"],'h2_before_after_comparison':["Before / After Comparison", "前后对比"],'h2_export_performance_budget':["Export Performance Budget", "出口绩效预算"],'h3_budget_summary':["Budget Summary", "预算概要"],'h3_transfer_size_impact_on_l':["Transfer Size Impact on Load Time", "传输尺寸对加载时间的影响"],'h3_total_third_party_impact':["Total Third-Party Impact", "第三方总影响"],'h3_before_current':["Before (Current)", "之前（当前）"],'h3_after_budget_target':["After (Budget Target)", "（预算目标之后）"],'h3_before_score':["Before Score", "得分前"],'h3_after_score':["After Score", "得分后"],'h3_improvement_summary':["Improvement Summary", "改进概要"],'btn_vitals_budget':["Vitals Budget", "重要预算"],'btn_resource_budget':["Resource Budget", "资源预算"],'btn_third_party_cost':["Third-Party Cost", "第三方费用"],'btn_before_after':["Before/After", "之前/之后"],'btn_export_config':["Export Config", "导出配置"],'btn_json':["JSON", "JSON"],'btn_yaml':["YAML", "YAML"],'btn_lighthouse_ci':["Lighthouse CI", "灯塔 CI"],'btn_bundlesize':["bundlesize", "捆绑包大小"],'btn_copy':["Copy", "复制"],'btn_copy_2':["Copy", "复制"],'label_150_kb':["150 KB", "150 KB"],'label_50_kb':["50 KB", "50 KB"],'label_200_kb':["200 KB", "200 KB"],'label_50_kb_2':["50 KB", "50 KB"],'label_20_kb':["20 KB", "20 KB"],'label_30_kb':["30 KB", "30 KB"],'th_metric':["Metric", "指标"],'th_good':["Good", "好的"],'th_needs_improvement':["Needs Improvement", "需要改进"],'th_poor':["Poor", "贫穷的"],'label_total_page_weight_budget':["Total Page Weight Budget (KB)", "总页面重量预算（KB）"],'label_resource':["Resource", "资源"],'label_javascript':["JavaScript", "JavaScript"],'label_css':["CSS", "CSS"],'label_images':["Images", "图片"],'label_fonts':["Fonts", "字体"],'label_html':["HTML", "HTML"],'label_other':["Other", "其他"],'label_lcp_ms':["LCP (ms)", "LCP（毫秒）"],'label_inp_ms':["INP (ms)", "INP（毫秒）"],'label_cls':["CLS", "临床实验室科学"],'label_total_page_weight_kb':["Total Page Weight (KB)", "页面总大小（KB）"],'label_lcp_ms_2':["LCP (ms)", "LCP（毫秒）"],'label_inp_ms_2':["INP (ms)", "INP（毫秒）"],'label_cls_2':["CLS", "临床实验室科学"],'label_total_page_weight_kb_2':["Total Page Weight (KB)", "页面总大小（KB）"],'jtc_copied':["Copied!", "已复制！"],'jtc_copy':["Copy", "复制"],'jtc_good':["Good", "好的"],'jtc_needs_improvement':["Needs Improvement", "需要改进"],'jtc_poor':["Poor", "贫穷的"],'jtlword_lcp':["LCP", "液晶聚合物"],'jtlword_inp':["INP", "国立国际"],'jtlword_cls':["CLS", "临床实验室科学"],'jtlword_weight':["Weight", "重量"],'jtlword_copy':["Copy", "复制"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>
+// === Tab Navigation ===
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById(tab.dataset.panel).classList.add('active');
+  });
+});
+
+function copyCode(preId) {
+  const pre = document.getElementById(preId);
+  const text = pre.textContent.replace(/^Copy/, '').trim();
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = pre.querySelector('.copy-btn');
+    if (btn) { btn.textContent=T("jtc_copied"); setTimeout(() => btn.textContent=T("jtc_copy"), 1500); }
+  });
+}
+
+// === Vitals Budget ===
+function updateVital(metric) {
+  const thresholds = {
+    lcp: { good: 2500, poor: 4000, unit: 'ms', format: v => v },
+    inp: { good: 200, poor: 500, unit: 'ms', format: v => v },
+    cls: { good: 10, poor: 25, unit: '', format: v => (v / 100).toFixed(2) },
+  };
+  const t = thresholds[metric];
+  const slider = document.getElementById(metric + 'Slider');
+  const val = parseInt(slider.value);
+  const displayVal = t.format(val);
+
+  document.getElementById(metric + 'Value').textContent = displayVal;
+  const ratingEl = document.getElementById(metric + 'Rating');
+
+  const compareVal = metric === 'cls' ? val : val;
+  if (compareVal <= t.good) {
+    ratingEl.textContent=T("jtc_good");
+    ratingEl.className = 'metric-rating rating-good';
+  } else if (compareVal <= t.poor) {
+    ratingEl.textContent=T("jtc_needs_improvement");
+    ratingEl.className = 'metric-rating rating-needs';
+  } else {
+    ratingEl.textContent=T("jtc_poor");
+    ratingEl.className = 'metric-rating rating-poor';
+  }
+
+  updateBudgetSummary();
+}
+
+function updateBudgetSummary() {
+  const lcp = parseInt(document.getElementById('lcpSlider').value);
+  const inp = parseInt(document.getElementById('inpSlider').value);
+  const cls = parseInt(document.getElementById('clsSlider').value) / 100;
+
+  let tips = [];
+  if (lcp <= 2500) tips.push('LCP budget is within the "Good" threshold. Optimize largest element rendering.');
+  else if (lcp <= 4000) tips.push('LCP budget needs improvement. Consider lazy loading below-fold images and preloading critical resources.');
+  else tips.push('LCP budget is in "Poor" range. Significant optimization needed: reduce server response time, optimize critical rendering path.');
+
+  if (inp <= 200) tips.push('INP budget is within the "Good" threshold. Keep main thread work minimal.');
+  else if (inp <= 500) tips.push('INP needs improvement. Consider code splitting, deferring non-critical JS, and using web workers.');
+  else tips.push('INP is in "Poor" range. Break up long tasks, reduce JavaScript execution time.');
+
+  if (cls <= 0.1) tips.push('CLS budget is within the "Good" threshold. Set explicit dimensions on media elements.');
+  else if (cls <= 0.25) tips.push('CLS needs improvement. Add width/height to images, avoid inserting content above existing content.');
+  else tips.push('CLS is in "Poor" range. Audit layout shifts with DevTools Performance panel.');
+
+  document.getElementById('budgetSummary').innerHTML = tips.map(t => `<p style="margin-bottom:0.5rem;font-size:0.85rem;">&#8226; ${t}</p>`).join('');
+}
+updateBudgetSummary();
+
+// === Resource Budget ===
+const resourceTypes = ['js', 'css', 'img', 'font', 'html', 'other'];
+const barColors = { js: 'var(--needs-improvement)', css: 'var(--accent)', img: 'var(--good)', font: '#9c27b0', html: '#607d8b', other: '#795548' };
+
+function updateResourceBudget() {
+  const total = parseInt(document.getElementById('totalBudget').value) || 500;
+  let used = 0;
+
+  resourceTypes.forEach(type => {
+    const val = parseInt(document.getElementById(type + 'Budget').value) || 0;
+    used += val;
+    const pct = total > 0 ? (val / total * 100) : 0;
+    document.getElementById(type + 'Bar').style.width = Math.min(pct, 100) + '%';
+    document.getElementById(type + 'Bar').style.background = barColors[type];
+    document.getElementById(type + 'BarLabel').textContent = val + ' KB';
+    document.getElementById(type + 'Percent').textContent = pct.toFixed(0) + '%';
+  });
+
+  const totalUsed = document.getElementById('totalUsed');
+  totalUsed.textContent = `${used} KB / ${total} KB`;
+  const overBudget = used > total;
+  totalUsed.style.color = overBudget ? 'var(--poor)' : 'var(--good)';
+
+  const totalBar = document.getElementById('totalBar');
+  totalBar.style.width = Math.min(used / total * 100, 100) + '%';
+  totalBar.style.background = overBudget ? 'var(--poor)' : 'var(--good)';
+
+  updateLoadTimeEstimates(used);
+}
+
+function updateLoadTimeEstimates(sizeKB) {
+  const connections = [
+    { name: '3G (1.5 Mbps)', speed: 1500 / 8 },
+    { name: '4G (10 Mbps)', speed: 10000 / 8 },
+    { name: 'Broadband (50 Mbps)', speed: 50000 / 8 },
+  ];
+
+  const container = document.getElementById('loadTimeEstimates');
+  container.innerHTML = connections.map(c => {
+    const time = (sizeKB / c.speed).toFixed(2);
+    const rating = time <= 2 ? 'good' : time <= 4 ? 'needs-improvement' : 'poor';
+    return `
+      <div class="metric-card">
+        <div class="metric-label">${c.name}</div>
+        <div class="metric-value" style="font-size:1.5rem;">${time}s</div>
+        <div class="metric-rating rating-${rating === 'needs-improvement' ? 'needs' : rating}">${rating === 'good' ? 'Fast' : rating === 'needs-improvement' ? 'Moderate' : 'Slow'}</div>
+      </div>
+    `;
+  }).join('');
+}
+updateResourceBudget();
+
+// === Third-Party Scripts ===
+const thirdPartyScripts = [
+  { name: 'Google Analytics (GA4)', size: 28, mainThread: 50, included: true },
+  { name: 'Google Tag Manager', size: 33, mainThread: 80, included: true },
+  { name: 'Facebook Pixel', size: 58, mainThread: 120, included: false },
+  { name: 'Google Ads', size: 45, mainThread: 100, included: false },
+  { name: 'Hotjar', size: 40, mainThread: 150, included: false },
+  { name: 'Intercom', size: 200, mainThread: 300, included: false },
+  { name: 'Stripe.js', size: 42, mainThread: 30, included: false },
+  { name: 'reCAPTCHA', size: 150, mainThread: 200, included: false },
+  { name: 'YouTube Embed', size: 500, mainThread: 250, included: false },
+  { name: 'Twitter Widget', size: 120, mainThread: 180, included: false },
+  { name: 'Sentry', size: 25, mainThread: 20, included: false },
+  { name: 'Segment', size: 35, mainThread: 60, included: false },
+];
+
+function renderThirdParty() {
+  const list = document.getElementById('thirdPartyList');
+  const header = list.children[0].outerHTML;
+  list.innerHTML = header + thirdPartyScripts.map((s, i) => `
+    <div class="third-party-item">
+      <span style="font-size:0.85rem;">${s.name}</span>
+      <span style="font-family:var(--mono);font-size:0.82rem;">${s.size} KB</span>
+      <span style="font-family:var(--mono);font-size:0.82rem;">${s.mainThread} ms</span>
+      <label style="margin-bottom:0;text-align:center;">
+        <input type="checkbox" ${s.included ? 'checked' : ''} onchange="toggleThirdParty(${i}, this.checked)" style="width:18px;height:18px;accent-color:var(--accent);">
+      </label>
+    </div>
+  `).join('');
+  updateThirdPartySummary();
+}
+
+function toggleThirdParty(index, included) {
+  thirdPartyScripts[index].included = included;
+  updateThirdPartySummary();
+}
+
+function updateThirdPartySummary() {
+  const included = thirdPartyScripts.filter(s => s.included);
+  const totalSize = included.reduce((a, s) => a + s.size, 0);
+  const totalThread = included.reduce((a, s) => a + s.mainThread, 0);
+
+  document.getElementById('tpSummary').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;text-align:center;">
+      <div>
+        <div style="font-size:0.8rem;color:var(--text-dim);">Scripts Selected</div>
+        <div style="font-size:1.5rem;font-weight:700;">${included.length}</div>
+      </div>
+      <div>
+        <div style="font-size:0.8rem;color:var(--text-dim);">Total Transfer Size</div>
+        <div style="font-size:1.5rem;font-weight:700;color:${totalSize > 200 ? 'var(--poor)' : totalSize > 100 ? 'var(--needs-improvement)' : 'var(--good)'};">${totalSize} KB</div>
+      </div>
+      <div>
+        <div style="font-size:0.8rem;color:var(--text-dim);">Main Thread Impact</div>
+        <div style="font-size:1.5rem;font-weight:700;color:${totalThread > 300 ? 'var(--poor)' : totalThread > 150 ? 'var(--needs-improvement)' : 'var(--good)'};">${totalThread} ms</div>
+      </div>
+    </div>
+    <p style="margin-top:0.75rem;font-size:0.82rem;color:var(--text-dim);">
+      ${totalThread > 200 ? 'Warning: Third-party scripts add significant main thread blocking time. This will directly impact INP.' : 'Third-party script impact is within acceptable range.'}
+    </p>
+  `;
+}
+renderThirdParty();
+
+// === Before/After Comparison ===
+function calcScore(lcp, inp, cls) {
+  let score = 100;
+  // LCP scoring
+  if (lcp <= 2500) score -= 0;
+  else if (lcp <= 4000) score -= (lcp - 2500) / 1500 * 25;
+  else score -= 25 + (Math.min(lcp, 8000) - 4000) / 4000 * 25;
+  // INP scoring
+  if (inp <= 200) score -= 0;
+  else if (inp <= 500) score -= (inp - 200) / 300 * 20;
+  else score -= 20 + (Math.min(inp, 1000) - 500) / 500 * 15;
+  // CLS scoring
+  if (cls <= 0.1) score -= 0;
+  else if (cls <= 0.25) score -= (cls - 0.1) / 0.15 * 10;
+  else score -= 10 + Math.min((cls - 0.25) / 0.75 * 10, 10);
+
+  return Math.max(0, Math.round(score));
+}
+
+function getRatingClass(score) {
+  if (score >= 75) return { cls: 'var(--good)', text: 'Good' };
+  if (score >= 50) return { cls: 'var(--needs-improvement)', text: 'Needs Work' };
+  return { cls: 'var(--poor)', text: 'Poor' };
+}
+
+function updateComparison() {
+  const bLcp = parseInt(document.getElementById('beforeLcp').value) || 0;
+  const bInp = parseInt(document.getElementById('beforeInp').value) || 0;
+  const bCls = parseFloat(document.getElementById('beforeCls').value) || 0;
+  const bWeight = parseInt(document.getElementById('beforeWeight').value) || 0;
+
+  const aLcp = parseInt(document.getElementById('afterLcp').value) || 0;
+  const aInp = parseInt(document.getElementById('afterInp').value) || 0;
+  const aCls = parseFloat(document.getElementById('afterCls').value) || 0;
+  const aWeight = parseInt(document.getElementById('afterWeight').value) || 0;
+
+  const bScore = calcScore(bLcp, bInp, bCls);
+  const aScore = calcScore(aLcp, aInp, aCls);
+
+  const bRating = getRatingClass(bScore);
+  const aRating = getRatingClass(aScore);
+
+  const bScoreEl = document.getElementById('beforeScore');
+  bScoreEl.textContent = bScore;
+  bScoreEl.style.borderColor = bRating.cls;
+  bScoreEl.style.color = bRating.cls;
+
+  const aScoreEl = document.getElementById('afterScore');
+  aScoreEl.textContent = aScore;
+  aScoreEl.style.borderColor = aRating.cls;
+  aScoreEl.style.color = aRating.cls;
+
+  document.getElementById('beforeDetails').innerHTML = `
+    <p style="font-size:0.82rem;">LCP: ${bLcp}ms | INP: ${bInp}ms | CLS: ${bCls}</p>
+    <p style="font-size:0.82rem;">Weight: ${bWeight} KB</p>
+  `;
+  document.getElementById('afterDetails').innerHTML = `
+    <p style="font-size:0.82rem;">LCP: ${aLcp}ms | INP: ${aInp}ms | CLS: ${aCls}</p>
+    <p style="font-size:0.82rem;">Weight: ${aWeight} KB</p>
+  `;
+
+  const lcpImprove = bLcp > 0 ? ((bLcp - aLcp) / bLcp * 100).toFixed(0) : 0;
+  const inpImprove = bInp > 0 ? ((bInp - aInp) / bInp * 100).toFixed(0) : 0;
+  const clsImprove = bCls > 0 ? ((bCls - aCls) / bCls * 100).toFixed(0) : 0;
+  const weightImprove = bWeight > 0 ? ((bWeight - aWeight) / bWeight * 100).toFixed(0) : 0;
+
+  document.getElementById('improvementSummary').innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:0.75rem;text-align:center;">
+      <div class="metric-card">
+        <div class="metric-label">LCP</div>
+        <div style="font-size:1.3rem;font-weight:700;color:${lcpImprove > 0 ? 'var(--good)' : 'var(--poor)'};">${lcpImprove > 0 ? '-' : '+'}${Math.abs(lcpImprove)}%</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">INP</div>
+        <div style="font-size:1.3rem;font-weight:700;color:${inpImprove > 0 ? 'var(--good)' : 'var(--poor)'};">${inpImprove > 0 ? '-' : '+'}${Math.abs(inpImprove)}%</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">CLS</div>
+        <div style="font-size:1.3rem;font-weight:700;color:${clsImprove > 0 ? 'var(--good)' : 'var(--poor)'};">${clsImprove > 0 ? '-' : '+'}${Math.abs(clsImprove)}%</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Weight</div>
+        <div style="font-size:1.3rem;font-weight:700;color:${weightImprove > 0 ? 'var(--good)' : 'var(--poor)'};">${weightImprove > 0 ? '-' : '+'}${Math.abs(weightImprove)}%</div>
+      </div>
+    </div>
+    <p style="margin-top:0.75rem;font-size:0.85rem;color:var(--text-dim);">
+      Performance score: ${bScore} → ${aScore} (${aScore > bScore ? '+' : ''}${aScore - bScore} points)
+    </p>
+  `;
+}
+updateComparison();
+
+// === Export ===
+function getBudgetData() {
+  return {
+    vitals: {
+      lcp: parseInt(document.getElementById('lcpSlider').value),
+      inp: parseInt(document.getElementById('inpSlider').value),
+      cls: parseInt(document.getElementById('clsSlider').value) / 100,
+    },
+    resources: {
+      total: parseInt(document.getElementById('totalBudget').value) || 500,
+      javascript: parseInt(document.getElementById('jsBudget').value) || 0,
+      css: parseInt(document.getElementById('cssBudget').value) || 0,
+      images: parseInt(document.getElementById('imgBudget').value) || 0,
+      fonts: parseInt(document.getElementById('fontBudget').value) || 0,
+      html: parseInt(document.getElementById('htmlBudget').value) || 0,
+      other: parseInt(document.getElementById('otherBudget').value) || 0,
+    }
+  };
+}
+
+function generateExport(format) {
+  const data = getBudgetData();
+  let output = '';
+
+  switch (format) {
+    case 'json':
+      output = JSON.stringify({
+        performanceBudget: {
+          vitals: {
+            LCP: { target: data.vitals.lcp, unit: 'ms' },
+            INP: { target: data.vitals.inp, unit: 'ms' },
+            CLS: { target: data.vitals.cls },
+          },
+          resourceBudgets: [
+            { resourceType: 'script', budget: data.resources.javascript * 1024 },
+            { resourceType: 'stylesheet', budget: data.resources.css * 1024 },
+            { resourceType: 'image', budget: data.resources.images * 1024 },
+            { resourceType: 'font', budget: data.resources.fonts * 1024 },
+            { resourceType: 'document', budget: data.resources.html * 1024 },
+            { resourceType: 'other', budget: data.resources.other * 1024 },
+            { resourceType: 'total', budget: data.resources.total * 1024 },
+          ]
+        }
+      }, null, 2);
+      break;
+
+    case 'yaml':
+      output = `performanceBudget:
+  vitals:
+    LCP:
+      target: ${data.vitals.lcp}
+      unit: ms
+    INP:
+      target: ${data.vitals.inp}
+      unit: ms
+    CLS:
+      target: ${data.vitals.cls}
+  resourceBudgets:
+    - resourceType: script
+      budget: ${data.resources.javascript * 1024}
+    - resourceType: stylesheet
+      budget: ${data.resources.css * 1024}
+    - resourceType: image
+      budget: ${data.resources.images * 1024}
+    - resourceType: font
+      budget: ${data.resources.fonts * 1024}
+    - resourceType: document
+      budget: ${data.resources.html * 1024}
+    - resourceType: other
+      budget: ${data.resources.other * 1024}
+    - resourceType: total
+      budget: ${data.resources.total * 1024}`;
+      break;
+
+    case 'lighthouse':
+      output = JSON.stringify({
+        ci: {
+          collect: {
+            url: ['https://example.com/'],
+            numberOfRuns: 3,
+          },
+          assert: {
+            assertions: {
+              'largest-contentful-paint': ['error', { maxNumericValue: data.vitals.lcp }],
+              'interactive': ['warn', { maxNumericValue: data.vitals.inp + 1000 }],
+              'cumulative-layout-shift': ['error', { maxNumericValue: data.vitals.cls }],
+              'resource-summary:script:size': ['error', { maxNumericValue: data.resources.javascript * 1024 }],
+              'resource-summary:stylesheet:size': ['warn', { maxNumericValue: data.resources.css * 1024 }],
+              'resource-summary:image:size': ['warn', { maxNumericValue: data.resources.images * 1024 }],
+              'resource-summary:font:size': ['warn', { maxNumericValue: data.resources.fonts * 1024 }],
+              'resource-summary:total:size': ['error', { maxNumericValue: data.resources.total * 1024 }],
+            }
+          }
+        }
+      }, null, 2);
+      break;
+
+    case 'bundlesize':
+      output = JSON.stringify({
+        files: [
+          { path: 'dist/**/*.js', maxSize: `${data.resources.javascript} KB` },
+          { path: 'dist/**/*.css', maxSize: `${data.resources.css} KB` },
+          { path: 'dist/**/*.{png,jpg,gif,svg,webp}', maxSize: `${data.resources.images} KB` },
+          { path: 'dist/**/*.{woff,woff2,ttf,eot}', maxSize: `${data.resources.fonts} KB` },
+          { path: 'dist/**/*.html', maxSize: `${data.resources.html} KB` },
+        ]
+      }, null, 2);
+      break;
+  }
+
+  document.getElementById('exportOutput').innerHTML = `<button class="copy-btn" onclick="copyCode('exportOutput')">Copy</button>${escapeHtml(output)}`;
+}
+
+function escapeHtml(str) {
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+</body>
+</html>

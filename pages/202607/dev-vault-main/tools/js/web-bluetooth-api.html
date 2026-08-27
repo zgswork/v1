@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html tk="title_web_bluetooth_api_playgro" lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Web Bluetooth API Playground</title>
+<meta name="description" content="Interactive playground for the Web Bluetooth API — scan for devices, explore GATT services and characteristics, read/write/notify, and learn Bluetooth Low Energy concepts.">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0a0a;--surface:#141414;--surface2:#1a1a1a;--border:#2a2a2a;
+  --text:#e0e0e0;--text2:#888;--accent:#6ea8fe;--accent2:#63e6be;
+  --warn:#ffd43b;--err:#ff6b6b;--purple:#b197fc;--orange:#ffa94d;
+  --radius:8px;--mono:'SF Mono',SFMono-Regular,Consolas,'Liberation Mono',Menlo,monospace;
+  --blue:#339af0;
+}
+html{font-size:15px}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.6;min-height:100vh}
+a{color:var(--accent);text-decoration:none}
+button{font-family:inherit;cursor:pointer;border:1px solid var(--border);background:var(--surface2);color:var(--text);padding:8px 16px;border-radius:var(--radius);font-size:.875rem;transition:all .15s}
+button:hover{border-color:var(--accent);background:#1f1f1f}
+button:active{transform:scale(.97)}
+button.primary{background:var(--accent);color:#0a0a0a;border-color:var(--accent);font-weight:600}
+button.success{background:var(--accent2);color:#0a0a0a;border-color:var(--accent2);font-weight:600}
+button.warn{border-color:var(--warn);color:var(--warn)}
+button.danger{border-color:var(--err);color:var(--err)}
+button:disabled{opacity:.4;cursor:not-allowed}
+input,select,textarea{font-family:inherit;background:var(--surface);border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:var(--radius);font-size:.875rem;width:100%}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent)}
+textarea{resize:vertical;min-height:60px}
+label{display:block;font-size:.8rem;color:var(--text2);margin-bottom:4px;font-weight:500}
+code{font-family:var(--mono);font-size:.8rem;background:var(--surface2);padding:2px 6px;border-radius:4px;color:var(--accent)}
+pre{font-family:var(--mono);font-size:.8rem;background:var(--surface2);padding:12px;border-radius:var(--radius);overflow-x:auto;line-height:1.5;border:1px solid var(--border);white-space:pre-wrap}
+
+.header{text-align:center;padding:2rem 1rem 1rem;border-bottom:1px solid var(--border)}
+.header h1{font-size:1.8rem;margin-bottom:.25rem}
+.header h1 span{color:var(--blue)}
+.header p{color:var(--text2);font-size:.95rem;max-width:640px;margin:0 auto}
+
+.support-bar{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;padding:12px 1rem;border-bottom:1px solid var(--border);background:var(--surface)}
+.badge{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;font-size:.75rem;font-weight:600;border:1px solid var(--border)}
+.badge.ok{border-color:var(--accent2);color:var(--accent2)}
+.badge.no{border-color:var(--err);color:var(--err)}
+.badge .dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+
+.container{max-width:1200px;margin:0 auto;padding:1rem}
+.grid{display:grid;grid-template-columns:1fr;gap:1rem}
+@media(min-width:768px){.grid{grid-template-columns:repeat(2,1fr)}}
+
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.card-head{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border);background:var(--surface2)}
+.card-head h2{font-size:1rem;display:flex;align-items:center;gap:8px}
+.card-body{padding:16px}
+.card.full{grid-column:1/-1}
+
+.field{margin-bottom:12px}
+.btn-row{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.info-box{padding:10px 12px;border-radius:var(--radius);font-size:.8rem;margin-bottom:12px;border:1px solid}
+.info-box.info{border-color:var(--accent);background:rgba(110,168,254,.08);color:var(--accent)}
+.info-box.warn{border-color:var(--warn);background:rgba(255,212,59,.08);color:var(--warn)}
+.info-box.error{border-color:var(--err);background:rgba(255,107,107,.08);color:var(--err)}
+.info-box.success{border-color:var(--accent2);background:rgba(99,230,190,.08);color:var(--accent2)}
+
+/* Connection Status */
+.conn-status{display:flex;align-items:center;gap:12px;padding:16px;border-radius:var(--radius);border:2px solid var(--border);margin-bottom:16px;transition:all .3s}
+.conn-status.connected{border-color:var(--accent2);background:rgba(99,230,190,.05)}
+.conn-status.disconnected{border-color:var(--err);background:rgba(255,107,107,.05)}
+.conn-icon{font-size:2.5rem}
+.conn-info{flex:1}
+.conn-info .name{font-weight:700;font-size:1rem}
+.conn-info .details{font-size:.8rem;color:var(--text2)}
+
+/* Service Tree */
+.service-tree{font-size:.8rem}
+.service-node{border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px;overflow:hidden}
+.service-header{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--surface2);cursor:pointer;font-weight:600}
+.service-header:hover{background:#222}
+.service-header .arrow{transition:transform .2s}
+.service-header .arrow.open{transform:rotate(90deg)}
+.char-list{padding:0 12px 8px}
+.char-item{padding:8px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:4px}
+.char-item:last-child{border-bottom:none}
+.char-name{font-weight:600;color:var(--accent)}
+.char-props{display:flex;gap:4px;flex-wrap:wrap}
+.char-prop{padding:2px 6px;border-radius:10px;font-size:.65rem;border:1px solid}
+.char-prop.read{border-color:var(--accent2);color:var(--accent2)}
+.char-prop.write{border-color:var(--warn);color:var(--warn)}
+.char-prop.notify{border-color:var(--purple);color:var(--purple)}
+.char-prop.indicate{border-color:var(--orange);color:var(--orange)}
+.char-actions{display:flex;gap:4px;margin-top:4px}
+.char-actions button{padding:4px 8px;font-size:.7rem}
+.char-value{font-family:var(--mono);color:var(--accent2);padding:4px 8px;background:var(--bg);border-radius:4px;margin-top:4px;font-size:.75rem;word-break:break-all}
+
+/* Filter Builder */
+.filter-row{display:flex;gap:8px;margin-bottom:8px;align-items:center}
+.filter-row input,.filter-row select{flex:1}
+.filter-row button{flex-shrink:0}
+
+/* UUID Reference */
+.uuid-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:6px;max-height:300px;overflow-y:auto}
+.uuid-item{display:flex;justify-content:space-between;padding:6px 10px;border-radius:4px;border:1px solid var(--border);font-size:.75rem;cursor:pointer;transition:all .1s}
+.uuid-item:hover{border-color:var(--accent);background:rgba(110,168,254,.04)}
+.uuid-item .name{color:var(--text)}
+.uuid-item .hex{color:var(--text2);font-family:var(--mono)}
+
+/* Error Patterns */
+.error-pattern{padding:12px;border-radius:var(--radius);border:1px solid var(--border);margin-bottom:8px}
+.error-pattern h4{font-size:.85rem;color:var(--err);margin-bottom:4px}
+.error-pattern p{font-size:.78rem;color:var(--text2)}
+.error-pattern code{font-size:.7rem}
+
+.log{max-height:250px;overflow-y:auto;font-family:var(--mono);font-size:.78rem;padding:12px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border)}
+.log-entry{padding:2px 0;border-bottom:1px solid rgba(255,255,255,.04)}
+.log-ok{color:var(--accent2)}
+.log-err{color:var(--err)}
+.log-info{color:var(--accent)}
+.log-warn{color:var(--warn)}
+.log-bt{color:var(--blue)}
+
+.write-panel{margin-top:8px;padding:12px;border-radius:var(--radius);border:1px solid var(--border);background:var(--bg);display:none}
+
+footer{text-align:center;padding:2rem 1rem;color:var(--text2);font-size:.8rem;border-top:1px solid var(--border);margin-top:2rem}
+</style>
+</head>
+<body>
+
+
+
+<div class="header">
+  <h1>&#x1f4e1; Web Bluetooth <span>API</span> Playground</h1>
+  <p>Scan for Bluetooth Low Energy devices, explore GATT services and characteristics, and perform read/write/notify operations.</p>
+</div>
+
+<div class="support-bar" id="supportBar"></div>
+
+<div class="container" style="position:relative">
+  <div class="grid">
+
+    <!-- Device Request -->
+    <div class="card">
+      <div class="card-head">
+        <h2><span class="icon">&#x1f50e;</span> Request Device</h2>
+      </div>
+      <div class="card-body">
+        <div class="info-box info">Use <code>navigator.bluetooth.requestDevice()</code> to prompt the user to select a BLE device. Requires a user gesture.</div>
+
+        <div class="field">
+          <label ti="label_filter_mode">Filter Mode</label>
+          <select id="filterMode" onchange="updateFilterUI()">
+            <option value="acceptAllDevices">Accept All Devices</option>
+            <option value="filters">Use Filters</option>
+          </select>
+        </div>
+
+        <div id="filtersSection" style="display:none">
+          <label ti="label_service_filters">Service Filters</label>
+          <div id="filterList">
+            <div class="filter-row">
+              <select onchange="this.nextElementSibling.style.display=this.value==='custom'?'block':'none'">
+                <option value="heart_rate">Heart Rate (0x180D)</option>
+                <option value="battery_service">Battery (0x180F)</option>
+                <option value="device_information">Device Info (0x180A)</option>
+                <option value="generic_access">Generic Access (0x1800)</option>
+                <option value="health_thermometer">Health Thermometer (0x1809)</option>
+                <option value="custom">Custom UUID...</option>
+              </select>
+              <input type="text" style="display:none" tp="placeholder_custom_uuid" tp="placeholder_custom_uuid_2" placeholder="Custom UUID">
+              <button class="danger" onclick="this.parentElement.remove()">&#x2715;</button>
+            </div>
+          </div>
+          <button onclick="addFilter()" style="margin-top:4px" ti="btn_add_filter">+ Add Filter</button>
+
+          <div class="field" style="margin-top:8px">
+            <label ti="label_name_prefix_optional">Name Prefix (optional)</label>
+            <input type="text" id="namePrefix" tp="placeholder_e_g_polar_mi_fitbit" placeholder="e.g. Polar, Mi, Fitbit">
+          </div>
+        </div>
+
+        <div class="field" style="margin-top:8px">
+          <label ti="label_optional_services_for_gat">Optional Services (for GATT access)</label>
+          <input type="text" id="optionalServices" value="battery_service,device_information" tp="placeholder_comma_separated_service_n" placeholder="comma-separated service names or UUIDs">
+        </div>
+
+        <div class="btn-row" style="margin-top:12px">
+          <button class="primary" onclick="requestDevice()" id="btnScan">&#x1f4e1; Scan for Devices</button>
+          <button class="danger" onclick="disconnect()" id="btnDisconnect" disabled ti="btn_disconnect">Disconnect</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Connection Status / Device Info -->
+    <div class="card">
+      <div class="card-head">
+        <h2><span class="icon">&#x1f4f1;</span> Device Info</h2>
+      </div>
+      <div class="card-body">
+        <div class="conn-status disconnected" id="connStatus">
+          <div class="conn-icon" id="connIcon">&#x1f534;</div>
+          <div class="conn-info">
+            <div class="name" id="connName">No device connected</div>
+            <div class="details" id="connDetails">Scan for a device to connect</div>
+          </div>
+        </div>
+
+        <div id="deviceInfoTable" style="display:none">
+          <table style="width:100%;border-collapse:collapse;font-size:.8rem">
+            <tbody id="deviceInfoBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- GATT Service Explorer -->
+    <div class="card full">
+      <div class="card-head">
+        <h2><span class="icon">&#x1f333;</span> GATT Service / Characteristic Explorer</h2>
+        <button onclick="discoverServices()" id="btnDiscover" disabled ti="btn_discover_services">Discover Services</button>
+      </div>
+      <div class="card-body">
+        <div class="info-box info">After connecting, discover GATT services and their characteristics. You can read, write, and subscribe to notifications.</div>
+        <div id="serviceTree" class="service-tree">
+          <p style="color:var(--text2);font-size:.85rem">Connect to a device and click "Discover Services" to explore.</p>
+        </div>
+
+        <div class="write-panel" id="writePanel">
+          <label id="writePanelLabel" ti="label_write_to_characteristic">Write to Characteristic</label>
+          <div class="field">
+            <label ti="label_data_format">Data Format</label>
+            <select id="writeFormat">
+              <option value="utf8">UTF-8 Text</option>
+              <option value="hex">Hex (e.g. 01FF00)</option>
+              <option value="uint8">Uint8</option>
+              <option value="uint16">Uint16 (LE)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label ti="label_value">Value</label>
+            <input type="text" id="writeValue" tp="placeholder_enter_value" placeholder="Enter value">
+          </div>
+          <div class="btn-row">
+            <button class="warn" onclick="doWrite()" ti="btn_write" ti="btn_write_2">Write</button>
+            <button class="warn" onclick="doWriteWithoutResponse()" ti="btn_write_without_response">Write Without Response</button>
+            <button onclick="closeWritePanel()" ti="btn_cancel">Cancel</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Known Service UUIDs -->
+    <div class="card">
+      <div class="card-head">
+        <h2><span class="icon">&#x1f4d6;</span> Known Service UUIDs</h2>
+      </div>
+      <div class="card-body">
+        <div class="info-box info">Standard Bluetooth GATT service UUIDs. Click to copy.</div>
+        <div class="field">
+          <input type="text" id="uuidSearch" tp="placeholder_search_services" placeholder="Search services..." oninput="filterUUIDs()">
+        </div>
+        <div class="uuid-grid" id="uuidGrid"></div>
+      </div>
+    </div>
+
+    <!-- Error Handling Patterns -->
+    <div class="card">
+      <div class="card-head">
+        <h2><span class="icon">&#x26a0;&#xfe0f;</span> Error Handling Patterns</h2>
+      </div>
+      <div class="card-body">
+        <div class="error-pattern">
+          <h4>NotFoundError</h4>
+          <p>User cancelled the device picker or no matching device found.</p>
+          <pre>try {
+  device = await navigator.bluetooth.requestDevice(opts);
+} catch (e) {
+  if (e.name === 'NotFoundError') {
+    // User cancelled or no device
+  }
+}</pre>
+        </div>
+        <div class="error-pattern">
+          <h4>SecurityError</h4>
+          <p>Not in a secure context (HTTPS) or missing user gesture.</p>
+          <pre>// Must be called from user interaction
+button.onclick = () => {
+  navigator.bluetooth.requestDevice(opts);
+};</pre>
+        </div>
+        <div class="error-pattern">
+          <h4>NetworkError</h4>
+          <p>GATT connection failed. Device may be out of range.</p>
+          <pre>device.gatt.connect().catch(e => {
+  if (e.name === 'NetworkError') {
+    // Retry or notify user
+  }
+});</pre>
+        </div>
+        <div class="error-pattern">
+          <h4>NotSupportedError</h4>
+          <p>Requested service/characteristic not available on device.</p>
+          <pre>// Always list required services in filters
+// and optional services in optionalServices</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- Event Log -->
+    <div class="card full">
+      <div class="card-head">
+        <h2><span class="icon">&#x1f4dc;</span> Event Log</h2>
+        <button onclick="clearLog()" ti="btn_clear">Clear</button>
+      </div>
+      <div class="card-body">
+        <div class="log" id="eventLog">
+          <div class="log-entry"><span class="log-info">[Ready] Web Bluetooth API Playground loaded.</span></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<footer>
+  Web Bluetooth API Playground &mdash; A <a href="https://gokuscraper.github.io/dev-vault/" ti="link_dev_toolkit">dev-toolkit</a> project
+</footer>
+
+
+<script>var _LANG={'title_web_bluetooth_api_playgro':["Web Bluetooth API Playground", "Web Bluetooth API Playground"],'metadesc_interactive_playground_fo':["Interactive playground for the Web Bluetooth API — scan for devices, explore GATT services and characteristics, read/write/notify, and learn Bluetooth Low Energy concepts.", "Web Bluetooth API 的交互式游乐场——扫描设备、探索 GATT 服务和特性、读取/写入/通知，以及学习蓝牙低功耗概念。"],'btn_add_filter':["+ Add Filter", "+ 添加筛选器"],'btn_scan_for_devices':["📡 Scan for Devices", "📡 扫描设备"],'btn_disconnect':["Disconnect", "断开"],'btn_discover_services':["Discover Services", "探索服务"],'btn_write':["Write", "写"],'btn_write_without_response':["Write Without Response", "无需回复"],'btn_cancel':["Cancel", "取消"],'btn_clear':["Clear", "清除"],'btn_read':["Read", "读"],'btn_write_2':["Write", "写"],'btn_start_notify':["Start Notify", "启动通知"],'placeholder_custom_uuid':["Custom UUID", "自定义 UUID"],'placeholder_e_g_polar_mi_fitbit':["e.g. Polar, Mi, Fitbit", "例如 Polar、小米、Fitbit"],'placeholder_comma_separated_service_n':["comma-separated service names or UUIDs", "以逗号分隔的服务名称或 UUID"],'placeholder_enter_value':["Enter value", "输入数值"],'placeholder_search_services':["Search services...", "搜索服务……"],'placeholder_custom_uuid_2':["Custom UUID", "自定义 UUID"],'label_filter_mode':["Filter Mode", "过滤模式"],'label_service_filters':["Service Filters", "服务过滤器"],'label_name_prefix_optional':["Name Prefix (optional)", "名称前缀（可选）"],'label_optional_services_for_gat':["Optional Services (for GATT access)", "可选服务（用于 GATT 接入）"],'label_write_to_characteristic':["Write to Characteristic", "写给特征"],'label_data_format':["Data Format", "数据格式"],'label_value':["Value", "价值"],'link_dev_toolkit':["dev-toolkit", "开发工具包"],'jtc_u_1f7e2':["\\u{1f7e2}", "\\u{1f7e2}"],'jtc_u_1f534':["\\u{1f534}", "\\u{1f534}"],'jtc_no_device_connected':["No device connected", "未连接任何设备"],'jtc_scan_for_a_device_to_conn':["Scan for a device to connect", "扫描要连接的设备"],'jtc_start_notify':["Start Notify", "启动通知"],'jtc_stop_notify':["Stop Notify", "停止通知"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>
+/* ── Feature Detection ── */
+const hasBluetooth = !!navigator.bluetooth;
+const hasRequestDevice = hasBluetooth && !!navigator.bluetooth.requestDevice;
+const isSecure = location.protocol === 'https:' || location.hostname === 'localhost';
+
+const supportBar = document.getElementById('supportBar');
+[
+  { name: 'Web Bluetooth', ok: hasBluetooth },
+  { name: 'requestDevice()', ok: hasRequestDevice },
+  { name: 'Secure Context', ok: isSecure },
+  { name: 'getAvailability()', ok: hasBluetooth && !!navigator.bluetooth.getAvailability },
+].forEach(f => {
+  const badge = document.createElement('span');
+  badge.className = 'badge ' + (f.ok ? 'ok' : 'no');
+  badge.innerHTML = `<span class="dot"></span>${f.name}`;
+  supportBar.appendChild(badge);
+});
+
+/* ── Known UUIDs ── */
+const knownServices = [
+  { name: 'Generic Access', uuid: '0x1800' },
+  { name: 'Generic Attribute', uuid: '0x1801' },
+  { name: 'Immediate Alert', uuid: '0x1802' },
+  { name: 'Link Loss', uuid: '0x1803' },
+  { name: 'Tx Power', uuid: '0x1804' },
+  { name: 'Current Time', uuid: '0x1805' },
+  { name: 'Reference Time Update', uuid: '0x1806' },
+  { name: 'Next DST Change', uuid: '0x1807' },
+  { name: 'Glucose', uuid: '0x1808' },
+  { name: 'Health Thermometer', uuid: '0x1809' },
+  { name: 'Device Information', uuid: '0x180A' },
+  { name: 'Heart Rate', uuid: '0x180D' },
+  { name: 'Phone Alert Status', uuid: '0x180E' },
+  { name: 'Battery Service', uuid: '0x180F' },
+  { name: 'Blood Pressure', uuid: '0x1810' },
+  { name: 'Alert Notification', uuid: '0x1811' },
+  { name: 'Human Interface Device', uuid: '0x1812' },
+  { name: 'Scan Parameters', uuid: '0x1813' },
+  { name: 'Running Speed & Cadence', uuid: '0x1814' },
+  { name: 'Automation IO', uuid: '0x1815' },
+  { name: 'Cycling Speed & Cadence', uuid: '0x1816' },
+  { name: 'Cycling Power', uuid: '0x1818' },
+  { name: 'Location & Navigation', uuid: '0x1819' },
+  { name: 'Environmental Sensing', uuid: '0x181A' },
+  { name: 'Body Composition', uuid: '0x181B' },
+  { name: 'User Data', uuid: '0x181C' },
+  { name: 'Weight Scale', uuid: '0x181D' },
+  { name: 'Bond Management', uuid: '0x181E' },
+  { name: 'Continuous Glucose', uuid: '0x181F' },
+  { name: 'Internet Protocol', uuid: '0x1820' },
+  { name: 'Indoor Positioning', uuid: '0x1821' },
+  { name: 'Pulse Oximeter', uuid: '0x1822' },
+  { name: 'HTTP Proxy', uuid: '0x1823' },
+  { name: 'Fitness Machine', uuid: '0x1826' },
+  { name: 'Mesh Provisioning', uuid: '0x1827' },
+  { name: 'Mesh Proxy', uuid: '0x1828' },
+];
+
+const knownCharacteristics = {
+  '00002a00': 'Device Name',
+  '00002a01': 'Appearance',
+  '00002a04': 'Peripheral Preferred Connection Parameters',
+  '00002a05': 'Service Changed',
+  '00002a19': 'Battery Level',
+  '00002a23': 'System ID',
+  '00002a24': 'Model Number String',
+  '00002a25': 'Serial Number String',
+  '00002a26': 'Firmware Revision String',
+  '00002a27': 'Hardware Revision String',
+  '00002a28': 'Software Revision String',
+  '00002a29': 'Manufacturer Name String',
+  '00002a37': 'Heart Rate Measurement',
+  '00002a38': 'Body Sensor Location',
+  '00002a39': 'Heart Rate Control Point',
+  '00002a6e': 'Temperature',
+  '00002a6f': 'Humidity',
+};
+
+function getServiceName(uuid) {
+  const short = typeof uuid === 'number' ? uuid : parseInt(uuid, 16);
+  const found = knownServices.find(s => parseInt(s.uuid, 16) === short);
+  if (found) return found.name;
+  // Check string UUID
+  const uuidStr = String(uuid).toLowerCase();
+  for (const s of knownServices) {
+    if (uuidStr.includes(s.uuid.toLowerCase().replace('0x', ''))) return s.name;
+  }
+  return null;
+}
+
+function getCharName(uuid) {
+  const uuidStr = String(uuid).toLowerCase().replace(/-/g, '');
+  for (const [k, v] of Object.entries(knownCharacteristics)) {
+    if (uuidStr.includes(k)) return v;
+  }
+  return null;
+}
+
+/* ── UUID Grid ── */
+const uuidGrid = document.getElementById('uuidGrid');
+function renderUUIDs(filter = '') {
+  uuidGrid.innerHTML = '';
+  const lower = filter.toLowerCase();
+  knownServices.filter(s => !filter || s.name.toLowerCase().includes(lower) || s.uuid.toLowerCase().includes(lower))
+    .forEach(s => {
+      const item = document.createElement('div');
+      item.className = 'uuid-item';
+      item.innerHTML = `<span class="name">${s.name}</span><span class="hex">${s.uuid}</span>`;
+      item.onclick = () => {
+        navigator.clipboard?.writeText(s.uuid);
+        addLog(`Copied ${s.name} UUID: ${s.uuid}`, 'info');
+      };
+      uuidGrid.appendChild(item);
+    });
+}
+function filterUUIDs() { renderUUIDs(document.getElementById('uuidSearch').value); }
+renderUUIDs();
+
+/* ── Logging ── */
+const logEl = document.getElementById('eventLog');
+function addLog(msg, type = 'info') {
+  const now = new Date();
+  const ts = [now.getHours(), now.getMinutes(), now.getSeconds()]
+    .map(n => String(n).padStart(2, '0')).join(':');
+  const entry = document.createElement('div');
+  entry.className = 'log-entry';
+  entry.innerHTML = `<span style="color:var(--text2)">[${ts}]</span> <span class="log-${type}">${escapeHtml(msg)}</span>`;
+  logEl.appendChild(entry);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+function clearLog() { logEl.innerHTML = ''; addLog('Log cleared'); }
+function escapeHtml(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+/* ── State ── */
+let device = null;
+let server = null;
+let activeNotifications = new Map();
+let writeTargetChar = null;
+
+/* ── Filter UI ── */
+function updateFilterUI() {
+  const mode = document.getElementById('filterMode').value;
+  document.getElementById('filtersSection').style.display = mode === 'filters' ? 'block' : 'none';
+}
+
+function addFilter() {
+  const list = document.getElementById('filterList');
+  const row = document.createElement('div');
+  row.className = 'filter-row';
+  row.innerHTML = `
+    <select onchange="this.nextElementSibling.style.display=this.value==='custom'?'block':'none'">
+      <option value="heart_rate">Heart Rate (0x180D)</option>
+      <option value="battery_service">Battery (0x180F)</option>
+      <option value="device_information">Device Info (0x180A)</option>
+      <option value="generic_access">Generic Access (0x1800)</option>
+      <option value="health_thermometer">Health Thermometer (0x1809)</option>
+      <option value="custom">Custom UUID...</option>
+    </select>
+    <input type="text" style="display:none" placeholder="Custom UUID">
+    <button class="danger" onclick="this.parentElement.remove()">&#x2715;</button>
+  `;
+  list.appendChild(row);
+}
+
+/* ── Request Device ── */
+async function requestDevice() {
+  if (!hasBluetooth) {
+    addLog('Web Bluetooth API not supported', 'err');
+    return;
+  }
+
+  const filterMode = document.getElementById('filterMode').value;
+  const optionalStr = document.getElementById('optionalServices').value.trim();
+  const optionalServices = optionalStr ? optionalStr.split(',').map(s => s.trim()).filter(Boolean) : [];
+
+  const options = {};
+
+  if (filterMode === 'acceptAllDevices') {
+    options.acceptAllDevices = true;
+    if (optionalServices.length > 0) options.optionalServices = optionalServices;
+  } else {
+    const filterRows = document.querySelectorAll('#filterList .filter-row');
+    const filters = [];
+    filterRows.forEach(row => {
+      const select = row.querySelector('select');
+      const customInput = row.querySelector('input');
+      let service = select.value === 'custom' ? customInput.value.trim() : select.value;
+      if (service) filters.push({ services: [service] });
+    });
+
+    const namePrefix = document.getElementById('namePrefix').value.trim();
+    if (namePrefix && filters.length === 0) {
+      filters.push({ namePrefix });
+    } else if (namePrefix && filters.length > 0) {
+      filters.forEach(f => f.namePrefix = namePrefix);
+    }
+
+    if (filters.length > 0) {
+      options.filters = filters;
+    } else {
+      options.acceptAllDevices = true;
+    }
+    if (optionalServices.length > 0) options.optionalServices = optionalServices;
+  }
+
+  addLog(`requestDevice(${JSON.stringify(options)})`, 'bt');
+
+  try {
+    device = await navigator.bluetooth.requestDevice(options);
+    addLog(`Device selected: ${device.name || device.id}`, 'ok');
+
+    device.addEventListener('gattserverdisconnected', onDisconnected);
+
+    // Connect GATT
+    addLog('Connecting to GATT server...', 'bt');
+    server = await device.gatt.connect();
+    addLog('GATT server connected', 'ok');
+
+    updateConnectionUI(true);
+    document.getElementById('btnDiscover').disabled = false;
+  } catch (e) {
+    addLog(`Error: ${e.name}: ${e.message}`, 'err');
+  }
+}
+
+function onDisconnected() {
+  addLog('Device disconnected (gattserverdisconnected event)', 'warn');
+  server = null;
+  activeNotifications.clear();
+  updateConnectionUI(false);
+}
+
+async function disconnect() {
+  if (device && device.gatt.connected) {
+    // Stop all notifications
+    for (const [, char] of activeNotifications) {
+      try { await char.stopNotifications(); } catch {}
+    }
+    activeNotifications.clear();
+    device.gatt.disconnect();
+    addLog('Disconnected', 'warn');
+  }
+  updateConnectionUI(false);
+}
+
+/* ── Connection UI ── */
+function updateConnectionUI(connected) {
+  const status = document.getElementById('connStatus');
+  const icon = document.getElementById('connIcon');
+  const name = document.getElementById('connName');
+  const details = document.getElementById('connDetails');
+  const infoTable = document.getElementById('deviceInfoTable');
+  const infoBody = document.getElementById('deviceInfoBody');
+
+  document.getElementById('btnScan').disabled = connected;
+  document.getElementById('btnDisconnect').disabled = !connected;
+  document.getElementById('btnDiscover').disabled = !connected;
+
+  if (connected && device) {
+    status.className = 'conn-status connected';
+    icon.textContent=T("jtc_u_1f7e2");
+    name.textContent = device.name || 'Unknown Device';
+    details.textContent = `ID: ${device.id.slice(0, 20)}...`;
+
+    infoTable.style.display = 'block';
+    infoBody.innerHTML = '';
+    const rows = [
+      ['Name', device.name || 'N/A'],
+      ['ID', device.id],
+      ['GATT Connected', device.gatt.connected],
+    ];
+    rows.forEach(([k, v]) => {
+      const tr = document.createElement('tr');
+      tr.style.borderBottom = '1px solid var(--border)';
+      tr.innerHTML = `<td style="padding:6px;color:var(--text2);width:40%">${k}</td><td style="padding:6px;font-family:var(--mono);font-size:.78rem">${v}</td>`;
+      infoBody.appendChild(tr);
+    });
+  } else {
+    status.className = 'conn-status disconnected';
+    icon.textContent=T("jtc_u_1f534");
+    name.textContent=T("jtc_no_device_connected");
+    details.textContent=T("jtc_scan_for_a_device_to_conn");
+    infoTable.style.display = 'none';
+    document.getElementById('serviceTree').innerHTML = '<p style="color:var(--text2);font-size:.85rem">Connect to a device and click "Discover Services" to explore.</p>';
+  }
+}
+
+/* ── Discover Services ── */
+async function discoverServices() {
+  if (!server || !server.connected) {
+    addLog('Not connected to GATT server', 'err');
+    return;
+  }
+
+  const treeEl = document.getElementById('serviceTree');
+  treeEl.innerHTML = '<p style="color:var(--text2)">Discovering services...</p>';
+
+  try {
+    const services = await server.getPrimaryServices();
+    addLog(`Found ${services.length} service(s)`, 'ok');
+
+    treeEl.innerHTML = '';
+
+    for (const service of services) {
+      const svcName = getServiceName(service.uuid) || 'Unknown Service';
+      addLog(`Service: ${svcName} (${service.uuid})`, 'bt');
+
+      const node = document.createElement('div');
+      node.className = 'service-node';
+
+      const header = document.createElement('div');
+      header.className = 'service-header';
+      header.innerHTML = `<span class="arrow">&#x25b6;</span><span style="color:var(--accent)">${escapeHtml(svcName)}</span><span style="color:var(--text2);font-size:.7rem;font-family:var(--mono)">${service.uuid}</span>`;
+
+      const charList = document.createElement('div');
+      charList.className = 'char-list';
+      charList.style.display = 'none';
+
+      header.onclick = async () => {
+        const arrow = header.querySelector('.arrow');
+        if (charList.style.display === 'none') {
+          charList.style.display = 'block';
+          arrow.classList.add('open');
+          if (charList.children.length === 0) {
+            await loadCharacteristics(service, charList);
+          }
+        } else {
+          charList.style.display = 'none';
+          arrow.classList.remove('open');
+        }
+      };
+
+      node.appendChild(header);
+      node.appendChild(charList);
+      treeEl.appendChild(node);
+    }
+  } catch (e) {
+    addLog(`Error discovering services: ${e.message}`, 'err');
+    treeEl.innerHTML = `<p style="color:var(--err)">Error: ${escapeHtml(e.message)}</p>`;
+  }
+}
+
+async function loadCharacteristics(service, container) {
+  try {
+    const chars = await service.getCharacteristics();
+    addLog(`  Found ${chars.length} characteristic(s) in ${service.uuid}`, 'bt');
+
+    for (const char of chars) {
+      const charName = getCharName(char.uuid) || 'Unknown';
+      const props = char.properties;
+      const item = document.createElement('div');
+      item.className = 'char-item';
+
+      let propsHtml = '';
+      if (props.read) propsHtml += '<span class="char-prop read">read</span>';
+      if (props.write) propsHtml += '<span class="char-prop write">write</span>';
+      if (props.writeWithoutResponse) propsHtml += '<span class="char-prop write">writeNoResp</span>';
+      if (props.notify) propsHtml += '<span class="char-prop notify">notify</span>';
+      if (props.indicate) propsHtml += '<span class="char-prop indicate">indicate</span>';
+
+      let actionsHtml = '';
+      if (props.read) actionsHtml += `<button onclick="readChar('${char.uuid}', '${service.uuid}')" ti="btn_read">Read</button>`;
+      if (props.write || props.writeWithoutResponse) actionsHtml += `<button class="warn" onclick="openWritePanel('${char.uuid}', '${service.uuid}', '${charName}')">Write</button>`;
+      if (props.notify) {
+        const notifyId = `notify-${char.uuid}`;
+        actionsHtml += `<button class="success" id="${notifyId}" onclick="toggleNotify('${char.uuid}', '${service.uuid}', this)" ti="btn_start_notify">Start Notify</button>`;
+      }
+
+      item.innerHTML = `
+        <div class="char-name">${escapeHtml(charName)}</div>
+        <div style="font-family:var(--mono);font-size:.7rem;color:var(--text2)">${char.uuid}</div>
+        <div class="char-props">${propsHtml}</div>
+        <div class="char-actions">${actionsHtml}</div>
+        <div class="char-value" id="val-${char.uuid.replace(/-/g,'')}" style="display:none"></div>
+      `;
+      container.appendChild(item);
+    }
+  } catch (e) {
+    container.innerHTML = `<p style="color:var(--err);padding:8px">Error: ${escapeHtml(e.message)}</p>`;
+    addLog(`Error loading characteristics: ${e.message}`, 'err');
+  }
+}
+
+/* ── Read ── */
+async function readChar(charUuid, serviceUuid) {
+  if (!server?.connected) { addLog('Not connected', 'err'); return; }
+  try {
+    const service = await server.getPrimaryService(serviceUuid);
+    const char = await service.getCharacteristic(charUuid);
+    const value = await char.readValue();
+    const decoded = decodeValue(value);
+    addLog(`Read ${charUuid}: ${decoded}`, 'ok');
+    showCharValue(charUuid, decoded);
+  } catch (e) {
+    addLog(`Read error: ${e.message}`, 'err');
+  }
+}
+
+/* ── Write ── */
+function openWritePanel(charUuid, serviceUuid, charName) {
+  writeTargetChar = { charUuid, serviceUuid };
+  document.getElementById('writePanelLabel').textContent = `Write to: ${charName} (${charUuid})`;
+  document.getElementById('writePanel').style.display = 'block';
+  document.getElementById('writeValue').focus();
+}
+
+function closeWritePanel() {
+  document.getElementById('writePanel').style.display = 'none';
+  writeTargetChar = null;
+}
+
+async function doWrite() {
+  if (!writeTargetChar || !server?.connected) return;
+  try {
+    const data = encodeWriteValue();
+    const service = await server.getPrimaryService(writeTargetChar.serviceUuid);
+    const char = await service.getCharacteristic(writeTargetChar.charUuid);
+    await char.writeValue(data);
+    addLog(`Written to ${writeTargetChar.charUuid}`, 'ok');
+    closeWritePanel();
+  } catch (e) {
+    addLog(`Write error: ${e.message}`, 'err');
+  }
+}
+
+async function doWriteWithoutResponse() {
+  if (!writeTargetChar || !server?.connected) return;
+  try {
+    const data = encodeWriteValue();
+    const service = await server.getPrimaryService(writeTargetChar.serviceUuid);
+    const char = await service.getCharacteristic(writeTargetChar.charUuid);
+    await char.writeValueWithoutResponse(data);
+    addLog(`Written (no response) to ${writeTargetChar.charUuid}`, 'ok');
+    closeWritePanel();
+  } catch (e) {
+    addLog(`Write error: ${e.message}`, 'err');
+  }
+}
+
+function encodeWriteValue() {
+  const format = document.getElementById('writeFormat').value;
+  const val = document.getElementById('writeValue').value;
+  switch (format) {
+    case 'utf8': return new TextEncoder().encode(val);
+    case 'hex': {
+      const hex = val.replace(/\s/g, '');
+      const bytes = new Uint8Array(hex.length / 2);
+      for (let i = 0; i < bytes.length; i++) bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
+      return bytes.buffer;
+    }
+    case 'uint8': return new Uint8Array([parseInt(val)]).buffer;
+    case 'uint16': { const dv = new DataView(new ArrayBuffer(2)); dv.setUint16(0, parseInt(val), true); return dv.buffer; }
+    default: return new TextEncoder().encode(val);
+  }
+}
+
+/* ── Notify ── */
+async function toggleNotify(charUuid, serviceUuid, btn) {
+  if (!server?.connected) { addLog('Not connected', 'err'); return; }
+
+  const key = charUuid;
+  if (activeNotifications.has(key)) {
+    try {
+      const char = activeNotifications.get(key);
+      await char.stopNotifications();
+      char.removeEventListener('characteristicvaluechanged', onNotify);
+      activeNotifications.delete(key);
+      btn.textContent=T("jtc_start_notify");
+      btn.classList.remove('danger');
+      btn.classList.add('success');
+      addLog(`Stopped notifications for ${charUuid}`, 'warn');
+    } catch (e) {
+      addLog(`Stop notify error: ${e.message}`, 'err');
+    }
+  } else {
+    try {
+      const service = await server.getPrimaryService(serviceUuid);
+      const char = await service.getCharacteristic(charUuid);
+      char.addEventListener('characteristicvaluechanged', onNotify);
+      await char.startNotifications();
+      activeNotifications.set(key, char);
+      btn.textContent=T("jtc_stop_notify");
+      btn.classList.remove('success');
+      btn.classList.add('danger');
+      addLog(`Started notifications for ${charUuid}`, 'ok');
+    } catch (e) {
+      addLog(`Start notify error: ${e.message}`, 'err');
+    }
+  }
+}
+
+function onNotify(event) {
+  const char = event.target;
+  const value = decodeValue(char.value);
+  addLog(`Notify ${char.uuid}: ${value}`, 'bt');
+  showCharValue(char.uuid, value);
+}
+
+/* ── Helpers ── */
+function decodeValue(dataView) {
+  // Try UTF-8 first
+  const bytes = new Uint8Array(dataView.buffer);
+  const textDecoder = new TextDecoder();
+  const text = textDecoder.decode(bytes);
+
+  // If it looks like printable text, show it
+  if (/^[\x20-\x7E\n\r\t]+$/.test(text) && text.length > 0) {
+    return `"${text}" [${bytesToHex(bytes)}]`;
+  }
+
+  // Otherwise show hex + numeric
+  if (bytes.length === 1) return `0x${bytesToHex(bytes)} (${bytes[0]})`;
+  if (bytes.length === 2) return `0x${bytesToHex(bytes)} (${dataView.getUint16(0, true)})`;
+  return `0x${bytesToHex(bytes)} (${bytes.length} bytes)`;
+}
+
+function bytesToHex(bytes) {
+  return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function showCharValue(uuid, value) {
+  const el = document.getElementById('val-' + uuid.replace(/-/g, ''));
+  if (el) {
+    el.style.display = 'block';
+    el.textContent = value;
+  }
+}
+
+/* ── Init ── */
+if (!hasBluetooth) {
+  addLog('Web Bluetooth API not supported. Use Chrome on desktop/Android with HTTPS.', 'err');
+}
+
+// Check availability
+if (hasBluetooth && navigator.bluetooth.getAvailability) {
+  navigator.bluetooth.getAvailability().then(available => {
+    addLog(`Bluetooth available: ${available}`, available ? 'ok' : 'warn');
+  }).catch(() => {});
+}
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+</body>
+</html>

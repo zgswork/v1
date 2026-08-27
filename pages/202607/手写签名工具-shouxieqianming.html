@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>手写签名工具</title>
+    <style>
+        :root {
+            --primary-color: #4a90e2;
+            --secondary-color: #f5f5f5;
+            --text-primary: #333333;
+            --text-secondary: #666666;
+            --border-color: #dddddd;
+            --success-color: #28a745;
+            --danger-color: #dc3545;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+            max-width: 800px;
+            width: 100%;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            color: var(--text-primary);
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            font-weight: 300;
+        }
+
+        .header p {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+        }
+
+        .signature-area {
+            border: 3px dashed var(--border-color);
+            border-radius: 15px;
+            margin-bottom: 20px;
+            position: relative;
+            background: #fafafa;
+            transition: border-color 0.3s ease;
+        }
+
+        .signature-area:hover {
+            border-color: var(--primary-color);
+        }
+
+        .signature-area.active {
+            border-color: var(--primary-color);
+            border-style: solid;
+        }
+
+        #signatureCanvas {
+            display: block;
+            border-radius: 12px;
+            cursor: crosshair;
+            background: white;
+        }
+
+        .placeholder {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: var(--text-secondary);
+            font-size: 1.2rem;
+            pointer-events: none;
+            opacity: 0.7;
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: var(--secondary-color);
+            padding: 10px 15px;
+            border-radius: 10px;
+        }
+
+        .control-group label {
+            color: var(--text-primary);
+            font-weight: 500;
+            min-width: 60px;
+        }
+
+        input[type="range"] {
+            width: 100px;
+            accent-color: var(--primary-color);
+        }
+
+        input[type="color"] {
+            width: 40px;
+            height: 40px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        .buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .btn-primary {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .btn-secondary {
+            background: var(--text-secondary);
+            color: white;
+        }
+
+        .btn-success {
+            background: var(--success-color);
+            color: white;
+        }
+
+        .btn-danger {
+            background: var(--danger-color);
+            color: white;
+        }
+
+        .value-display {
+            background: white;
+            padding: 5px 10px;
+            border-radius: 5px;
+            min-width: 30px;
+            text-align: center;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px;
+            }
+
+            .header h1 {
+                font-size: 2rem;
+            }
+
+            .controls {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .control-group {
+                width: 100%;
+                justify-content: space-between;
+            }
+
+            .buttons {
+                flex-direction: column;
+            }
+
+            .btn {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>✍️ 手写签名工具</h1>
+            <p>在下方画布上绘制您的签名，支持鼠标和触摸操作</p>
+        </div>
+
+        <div class="signature-area" id="signatureArea">
+            <canvas id="signatureCanvas" width="740" height="300"></canvas>
+            <div class="placeholder" id="placeholder">点击开始签名</div>
+        </div>
+
+        <div class="controls">
+            <div class="control-group">
+                <label for="penSize">笔触:</label>
+                <input type="range" id="penSize" min="1" max="20" value="3">
+                <span class="value-display" id="penSizeValue">3</span>
+            </div>
+            <div class="control-group">
+                <label for="penColor">颜色:</label>
+                <input type="color" id="penColor" value="#000000">
+            </div>
+        </div>
+
+        <div class="buttons">
+            <button class="btn btn-danger" id="clearBtn">
+                🗑️ 清除
+            </button>
+            <button class="btn btn-secondary" id="undoBtn">
+                ↶ 撤销
+            </button>
+            <button class="btn btn-success" id="downloadBtn">
+                💾 下载签名
+            </button>
+            <button class="btn btn-primary" id="saveBtn">
+                📋 复制到剪贴板
+            </button>
+        </div>
+    </div>
+
+    <script>
+        class SignaturePad {
+            constructor() {
+                this.canvas = document.getElementById('signatureCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.isDrawing = false;
+                this.lastX = 0;
+                this.lastY = 0;
+                this.penSize = 3;
+                this.penColor = '#000000';
+                this.paths = [];
+                this.currentPath = [];
+                
+                this.initializeCanvas();
+                this.bindEvents();
+                this.updateControls();
+            }
+
+            initializeCanvas() {
+                // 设置canvas尺寸
+                this.canvas.width = 740;
+                this.canvas.height = 300;
+                
+                // 设置绘图属性
+                this.ctx.lineCap = 'round';
+                this.ctx.lineJoin = 'round';
+                this.ctx.imageSmoothingEnabled = true;
+            }
+
+            bindEvents() {
+                // 鼠标事件
+                this.canvas.addEventListener('mousedown', this.startDrawing.bind(this));
+                this.canvas.addEventListener('mousemove', this.draw.bind(this));
+                this.canvas.addEventListener('mouseup', this.stopDrawing.bind(this));
+                this.canvas.addEventListener('mouseout', this.stopDrawing.bind(this));
+
+                // 触摸事件
+                this.canvas.addEventListener('touchstart', this.handleTouch.bind(this));
+                this.canvas.addEventListener('touchmove', this.handleTouch.bind(this));
+                this.canvas.addEventListener('touchend', this.stopDrawing.bind(this));
+
+                // 控制事件
+                document.getElementById('penSize').addEventListener('input', this.updatePenSize.bind(this));
+                document.getElementById('penColor').addEventListener('change', this.updatePenColor.bind(this));
+                document.getElementById('clearBtn').addEventListener('click', this.clear.bind(this));
+                document.getElementById('undoBtn').addEventListener('click', this.undo.bind(this));
+                document.getElementById('downloadBtn').addEventListener('click', this.download.bind(this));
+                document.getElementById('saveBtn').addEventListener('click', this.copyToClipboard.bind(this));
+
+                // 防止页面滚动
+                document.addEventListener('touchstart', (e) => {
+                    if (e.target === this.canvas) {
+                        e.preventDefault();
+                    }
+                }, { passive: false });
+
+                document.addEventListener('touchend', (e) => {
+                    if (e.target === this.canvas) {
+                        e.preventDefault();
+                    }
+                }, { passive: false });
+
+                document.addEventListener('touchmove', (e) => {
+                    if (e.target === this.canvas) {
+                        e.preventDefault();
+                    }
+                }, { passive: false });
+            }
+
+            getEventPos(e) {
+                const rect = this.canvas.getBoundingClientRect();
+                const scaleX = this.canvas.width / rect.width;
+                const scaleY = this.canvas.height / rect.height;
+                
+                return {
+                    x: (e.clientX - rect.left) * scaleX,
+                    y: (e.clientY - rect.top) * scaleY
+                };
+            }
+
+            handleTouch(e) {
+                e.preventDefault();
+                const touch = e.touches[0];
+                const mouseEvent = new MouseEvent(e.type === 'touchstart' ? 'mousedown' : 'mousemove', {
+                    clientX: touch.clientX,
+                    clientY: touch.clientY
+                });
+                this.canvas.dispatchEvent(mouseEvent);
+            }
+
+            startDrawing(e) {
+                this.isDrawing = true;
+                const pos = this.getEventPos(e);
+                this.lastX = pos.x;
+                this.lastY = pos.y;
+                
+                this.currentPath = [{
+                    x: pos.x,
+                    y: pos.y,
+                    size: this.penSize,
+                    color: this.penColor
+                }];
+                
+                document.getElementById('placeholder').style.display = 'none';
+                document.getElementById('signatureArea').classList.add('active');
+            }
+
+            draw(e) {
+                if (!this.isDrawing) return;
+                
+                const pos = this.getEventPos(e);
+                
+                this.ctx.globalCompositeOperation = 'source-over';
+                this.ctx.strokeStyle = this.penColor;
+                this.ctx.lineWidth = this.penSize;
+                
+                this.ctx.beginPath();
+                this.ctx.moveTo(this.lastX, this.lastY);
+                this.ctx.lineTo(pos.x, pos.y);
+                this.ctx.stroke();
+                
+                this.currentPath.push({
+                    x: pos.x,
+                    y: pos.y,
+                    size: this.penSize,
+                    color: this.penColor
+                });
+                
+                this.lastX = pos.x;
+                this.lastY = pos.y;
+            }
+
+            stopDrawing() {
+                if (!this.isDrawing) return;
+                
+                this.isDrawing = false;
+                if (this.currentPath.length > 0) {
+                    this.paths.push([...this.currentPath]);
+                }
+                document.getElementById('signatureArea').classList.remove('active');
+            }
+
+            updatePenSize() {
+                this.penSize = document.getElementById('penSize').value;
+                document.getElementById('penSizeValue').textContent = this.penSize;
+            }
+
+            updatePenColor() {
+                this.penColor = document.getElementById('penColor').value;
+            }
+
+            updateControls() {
+                document.getElementById('penSizeValue').textContent = this.penSize;
+            }
+
+            clear() {
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                this.paths = [];
+                this.currentPath = [];
+                document.getElementById('placeholder').style.display = 'block';
+            }
+
+            undo() {
+                if (this.paths.length === 0) return;
+                
+                this.paths.pop();
+                this.redraw();
+                
+                if (this.paths.length === 0) {
+                    document.getElementById('placeholder').style.display = 'block';
+                }
+            }
+
+            redraw() {
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                
+                this.paths.forEach(path => {
+                    if (path.length === 0) return;
+                    
+                    this.ctx.strokeStyle = path[0].color;
+                    this.ctx.lineWidth = path[0].size;
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(path[0].x, path[0].y);
+                    
+                    for (let i = 1; i < path.length; i++) {
+                        this.ctx.lineTo(path[i].x, path[i].y);
+                    }
+                    this.ctx.stroke();
+                });
+            }
+
+            download() {
+                const link = document.createElement('a');
+                link.download = `signature_${new Date().getTime()}.png`;
+                link.href = this.canvas.toDataURL();
+                link.click();
+            }
+
+            async copyToClipboard() {
+                try {
+                    const blob = await new Promise(resolve => {
+                        this.canvas.toBlob(resolve, 'image/png');
+                    });
+                    
+                    await navigator.clipboard.write([
+                        new ClipboardItem({ 'image/png': blob })
+                    ]);
+                    
+                    // 显示成功提示
+                    const btn = document.getElementById('saveBtn');
+                    const originalText = btn.innerHTML;
+                    btn.innerHTML = '✅ 已复制';
+                    btn.style.background = '#28a745';
+                    
+                    setTimeout(() => {
+                        btn.innerHTML = originalText;
+                        btn.style.background = '';
+                    }, 2000);
+                } catch (err) {
+                    console.error('复制失败:', err);
+                    alert('复制到剪贴板失败，请尝试下载功能');
+                }
+            }
+        }
+
+        // 初始化签名板
+        document.addEventListener('DOMContentLoaded', () => {
+            new SignaturePad();
+        });
+    </script>

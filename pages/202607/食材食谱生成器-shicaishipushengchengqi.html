@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>食材食谱生成器</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;700&display=swap');
+        
+        :root {
+            --primary: #FF6B6B;
+            --secondary: #4ECDC4;
+            --accent: #FFE66D;
+            --dark: #292F36;
+            --light: #F7FFF7;
+        }
+        
+        body {
+            font-family: 'Noto Sans SC', sans-serif;
+            line-height: 1.6;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+        }
+        
+        h1 {
+            color: var(--dark);
+            text-align: center;
+            font-size: 2.5rem;
+            margin-bottom: 30px;
+            position: relative;
+            display: inline-block;
+        }
+        
+        h1:after {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 4px;
+            bottom: -10px;
+            left: 0;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            border-radius: 2px;
+        }
+        
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+        }
+        
+        .container:hover {
+            transform: translateY(-5px);
+        }
+        
+        #new-ingredient {
+            width: 70%;
+            padding: 12px 15px;
+            margin-right: 10px;
+            border: 2px solid #ddd;
+            border-radius: 25px;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+        
+        #new-ingredient:focus {
+            border-color: var(--primary);
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(255, 107, 107, 0.2);
+        }
+        
+        button {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: all 0.3s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        button:hover {
+            background-color: #ff5252;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 8px rgba(0,0,0,0.15);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        #selected-ingredients {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin: 15px 0;
+        }
+        
+        .ingredient-tag {
+            background-color: var(--secondary);
+            color: white;
+            padding: 8px 15px;
+            border-radius: 20px;
+            display: inline-flex;
+            align-items: center;
+            font-weight: bold;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            transition: all 0.3s;
+        }
+        
+        .ingredient-tag:hover {
+            background-color: #3dbeb6;
+            transform: scale(1.05);
+        }
+        
+        #results {
+            margin-top: 30px;
+        }
+        
+        .recipe {
+            background-color: white;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+            transition: all 0.3s;
+            border-left: 5px solid var(--primary);
+        }
+        
+        .recipe:hover {
+            transform: translateX(5px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+        }
+        
+        .recipe h3 {
+            margin-top: 0;
+            color: var(--dark);
+            font-size: 1.5rem;
+            margin-bottom: 10px;
+        }
+        
+        .recipe p {
+            color: #666;
+            margin-bottom: 0;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        
+        .food-icon {
+            font-size: 2rem;
+            margin-right: 10px;
+            vertical-align: middle;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .recipe {
+            animation: fadeIn 0.5s ease forwards;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1><span class="food-icon">🍳</span>食材食谱生成器</h1>
+        <p>添加您的食材:</p>
+        <div>
+            <input type="text" id="new-ingredient" placeholder="输入食材名称">
+            <button onclick="addIngredient()">添加</button>
+        </div>
+        <div id="selected-ingredients" style="margin: 10px 0;"></div>
+        <div class="button-group">
+            <button onclick="generateRecipes()">生成菜谱 🍽️</button>
+            <button onclick="clearIngredients()" style="background-color: var(--secondary);">清除食材 🗑️</button>
+            <button onclick="clearRecipes()" style="background-color: var(--accent); color: var(--dark);">清除菜谱 🗑️</button>
+        </div>
+        
+        <div id="results"></div>
+    </div>
+
+    <script>
+        const recipeDatabase = {
+            "鸡蛋, 西红柿": [
+                {
+                    "name": "西红柿炒鸡蛋",
+                    "description": "经典家常菜，简单易做，酸甜可口。"
+                },
+                {
+                    "name": "西红柿鸡蛋汤",
+                    "description": "清淡美味的汤品，营养丰富。"
+                }
+            ],
+            "土豆, 牛肉": [
+                {
+                    "name": "土豆炖牛肉",
+                    "description": "香浓软烂，牛肉和土豆完美搭配。"
+                },
+                {
+                    "name": "咖喱牛肉土豆",
+                    "description": "异国风味，香辣开胃。"
+                }
+            ],
+            "鸡蛋, 土豆": [
+                {
+                    "name": "土豆煎蛋饼",
+                    "description": "香脆可口，早餐佳选。"
+                }
+            ],
+            "鸡蛋, 西红柿, 土豆": [
+                {
+                    "name": "西红柿土豆炒鸡蛋",
+                    "description": "三色搭配，营养均衡。"
+                },
+                {
+                    "name": "西红柿土豆鸡蛋汤",
+                    "description": "温暖身心的汤品。"
+                }
+            ],
+            "鸡蛋, 西红柿, 牛肉": [
+                {
+                    "name": "西红柿牛肉炒鸡蛋",
+                    "description": "蛋白质丰富的美味组合。"
+                }
+            ],
+            "鸡蛋, 土豆, 牛肉": [
+                {
+                    "name": "牛肉土豆煎蛋",
+                    "description": "能量满满的主食。"
+                }
+            ],
+            "鸡蛋, 西红柿, 土豆, 牛肉": [
+                {
+                    "name": "丰盛大杂烩",
+                    "description": "所有食材一起烹饪，简单又美味。"
+                },
+                {
+                    "name": "西红柿牛肉炖土豆配煎蛋",
+                    "description": "营养均衡的主菜搭配。"
+                }
+            ],
+            "鸡蛋, 西红柿": [
+                {
+                    "name": "西红柿炒鸡蛋",
+                    "description": "经典家常菜，简单易做，酸甜可口。"
+                },
+                {
+                    "name": "西红柿鸡蛋汤",
+                    "description": "清淡美味的汤品，营养丰富。"
+                },
+                {
+                    "name": "西红柿鸡蛋面",
+                    "description": "简单快捷的面食。"
+                }
+            ],
+            "土豆, 牛肉": [
+                {
+                    "name": "土豆炖牛肉",
+                    "description": "香浓软烂，牛肉和土豆完美搭配。"
+                },
+                {
+                    "name": "咖喱牛肉土豆",
+                    "description": "异国风味，香辣开胃。"
+                },
+                {
+                    "name": "牛肉土豆饼",
+                    "description": "香脆可口的煎饼。"
+                }
+            ],
+            "鸡蛋, 土豆": [
+                {
+                    "name": "土豆煎蛋饼",
+                    "description": "香脆可口，早餐佳选。"
+                },
+                {
+                    "name": "土豆蛋花汤",
+                    "description": "简单暖胃的汤品。"
+                }
+            ],
+            "鸡蛋, 西红柿, 土豆": [
+                {
+                    "name": "西红柿土豆炒鸡蛋",
+                    "description": "三色搭配，营养均衡。"
+                },
+                {
+                    "name": "西红柿土豆鸡蛋汤",
+                    "description": "温暖身心的汤品。"
+                }
+            ],
+            "鸡蛋, 西红柿, 牛肉": [
+                {
+                    "name": "西红柿牛肉炒鸡蛋",
+                    "description": "蛋白质丰富的美味组合。"
+                },
+                {
+                    "name": "西红柿牛肉蛋花汤",
+                    "description": "营养丰富的汤品。"
+                }
+            ],
+            "鸡蛋, 土豆, 牛肉": [
+                {
+                    "name": "牛肉土豆煎蛋",
+                    "description": "能量满满的主食。"
+                },
+                {
+                    "name": "牛肉土豆蛋饼",
+                    "description": "香脆可口的煎饼。"
+                }
+            ]
+        };
+
+        let ingredientsList = [];
+        
+        function addIngredient() {
+            const input = document.getElementById('new-ingredient');
+            const ingredient = input.value.trim();
+            
+            if (ingredient && !ingredientsList.includes(ingredient)) {
+                ingredientsList.push(ingredient);
+                updateSelectedIngredients();
+                input.value = '';
+            }
+        }
+        
+        function clearRecipes() {
+            document.getElementById('results').innerHTML = '';
+        }
+        
+        function clearIngredients() {
+            ingredientsList = [];
+            updateSelectedIngredients();
+        }
+        
+        function updateSelectedIngredients() {
+            const container = document.getElementById('selected-ingredients');
+            container.innerHTML = ingredientsList.map(ing => 
+                `<span class="ingredient-tag" data-ingredient="${ing}">${ing} 
+                <span onclick="removeIngredient('${ing}')" style="cursor:pointer;">×</span></span>`
+            ).join(' ');
+        }
+        
+        function removeIngredient(ingredient) {
+            ingredientsList = ingredientsList.filter(ing => ing !== ingredient);
+            updateSelectedIngredients();
+        }
+        
+        function generateRecipes() {
+            const ingredients = Array.from(document.querySelectorAll('#selected-ingredients .ingredient-tag')).map(el => el.dataset.ingredient);
+            
+            if (ingredients.length === 0) {
+                alert('请输入至少一种食材！');
+                return;
+            }
+            
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '';
+            
+            // 查找匹配的菜谱
+            const matchedRecipes = [];
+            
+            // 检查所有可能的食材组合
+            for (const key in recipeDatabase) {
+                const requiredIngredients = key.split(',').map(item => item.trim());
+                
+                // 检查用户输入的食材是否包含当前菜谱所需的所有食材
+                const hasAllIngredients = requiredIngredients.every(ing => 
+                    ingredients.includes(ing)
+                );
+                
+                // 检查是否有部分食材匹配（降低匹配阈值至30%）
+                const matchedCount = requiredIngredients.filter(ing => 
+                    ingredients.includes(ing)
+                ).length;
+                const partialMatch = matchedCount / requiredIngredients.length >= 0.3;
+                
+                if (hasAllIngredients || partialMatch) {
+                    // 添加匹配度信息
+                    const recipes = recipeDatabase[key].map(recipe => ({
+                        ...recipe,
+                        matchScore: hasAllIngredients ? 1 : matchedCount / requiredIngredients.length
+                    }));
+                    matchedRecipes.push(...recipes);
+                }
+            }
+            
+            // 按匹配度排序
+            matchedRecipes.sort((a, b) => b.matchScore - a.matchScore);
+            
+            if (matchedRecipes.length === 0) {
+                // 提供更友好的提示和建议
+                resultsDiv.innerHTML = `
+                    <p>没有找到完全匹配的菜谱，但您可以尝试以下组合：</p>
+                    <ul>
+                        <li>${ingredients.slice(0, 2).join(' + ')}</li>
+                        <li>${ingredients.slice(1, 3).join(' + ')}</li>
+                        <li>${ingredients.slice(0, 1).concat(ingredients.slice(2)).join(' + ')}</li>
+                    </ul>
+                `;
+                return;
+            }
+            
+            // 显示匹配的菜谱
+            matchedRecipes.forEach(recipe => {
+                const recipeDiv = document.createElement('div');
+                recipeDiv.className = 'recipe';
+                recipeDiv.innerHTML = `
+                    <h3>${recipe.name}</h3>
+                    <p>${recipe.description}</p>
+                `;
+                resultsDiv.appendChild(recipeDiv);
+            });
+        }
+    </script>
+</body>
+</html>

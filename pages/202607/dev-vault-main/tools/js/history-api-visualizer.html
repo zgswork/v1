@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html tk="title_history_api_visualizer_in" lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>History API Visualizer — Interactive Browser Navigation Explorer</title>
+<meta name="description" content="Visualize the browser History API in real time. See pushState, replaceState, popstate events, inspect state objects, and explore URL pattern matching with 7 presets.">
+<meta property="og:title" content="History API Visualizer">
+<meta property="og:description" content="Interactive browser History API explorer. Visual history stack, state inspector, popstate event log.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://gokuscraper.github.io/dev-vault/history-api-visualizer/">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="canonical" href="https://gokuscraper.github.io/dev-vault/history-api-visualizer/">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  "name": "History API Visualizer",
+  "description": "Interactive browser History API explorer with visual history stack, pushState/replaceState controls, popstate event log, and state object inspector.",
+  "url": "https://gokuscraper.github.io/dev-vault/history-api-visualizer/",
+  "applicationCategory": "DeveloperApplication",
+  "operatingSystem": "Any",
+  "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"},
+  "author": {"@type": "Organization", "name": "gokuscraper", "url": "https://github.com/gokuscraper"}
+}
+</script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0a0a;color:#e6e6e6;min-height:100vh}
+.container{max-width:1100px;margin:0 auto;padding:24px 16px}
+header{text-align:center;padding:32px 0 24px}
+header h1{font-size:1.8rem;color:#fff;margin-bottom:6px}
+header p{color:#888;font-size:0.95rem}
+
+/* Preset bar */
+.presets{display:flex;gap:8px;justify-content:center;margin-bottom:24px;flex-wrap:wrap}
+.preset-btn{padding:7px 14px;border-radius:8px;border:1px solid #333;background:#161616;color:#888;font-size:0.8rem;cursor:pointer;font-weight:600;transition:all .15s}
+.preset-btn.active{background:#1a2744;color:#4da6ff;border-color:#2a4a7a}
+.preset-btn:hover:not(.active){background:#1c1c1c;color:#bbb}
+
+/* Layout */
+.main-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+@media(max-width:768px){.main-grid{grid-template-columns:1fr}}
+
+.panel{background:#161616;border:1px solid #222;border-radius:12px;padding:20px;min-height:200px}
+.panel h2{font-size:0.95rem;color:#4da6ff;margin-bottom:14px;font-weight:600;display:flex;align-items:center;gap:8px}
+.panel h2 .badge{font-size:0.7rem;background:#1a2744;color:#4da6ff;padding:2px 8px;border-radius:10px}
+
+/* Controls */
+.control-row{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.control-row label{font-size:0.78rem;color:#888;display:block;margin-bottom:4px}
+.control-row .field{flex:1;min-width:140px}
+.control-row input,.control-row textarea{width:100%;padding:8px 12px;border-radius:8px;border:1px solid #333;background:#0d0d0d;color:#e6e6e6;font-size:0.85rem;font-family:monospace;outline:none}
+.control-row input:focus,.control-row textarea:focus{border-color:#3b82f6}
+.control-row textarea{resize:vertical;min-height:60px}
+
+.btn-row{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.btn{padding:8px 16px;border-radius:8px;border:none;font-size:0.82rem;font-weight:600;cursor:pointer;transition:all .15s}
+.btn-push{background:#22c55e;color:#000}.btn-push:hover{background:#16a34a}
+.btn-replace{background:#f59e0b;color:#000}.btn-replace:hover{background:#d97706}
+.btn-back{background:#3b82f6;color:#fff}.btn-back:hover{background:#2563eb}
+.btn-forward{background:#8b5cf6;color:#fff}.btn-forward:hover{background:#7c3aed}
+.btn-go{background:#ef4444;color:#fff}.btn-go:hover{background:#dc2626}
+.btn-clear{background:#333;color:#ccc}.btn-clear:hover{background:#444}
+.btn-reset{background:#dc2626;color:#fff}.btn-reset:hover{background:#b91c1c}
+
+/* Stack */
+.stack{display:flex;flex-direction:column;gap:6px;max-height:400px;overflow-y:auto}
+.stack-entry{padding:10px 14px;border-radius:8px;border:1px solid #333;background:#0d0d0d;font-size:0.82rem;font-family:monospace;cursor:pointer;transition:all .15s;position:relative}
+.stack-entry:hover{border-color:#555}
+.stack-entry.current{border-color:#3b82f6;background:#0d1b2a}
+.stack-entry .entry-index{font-size:0.7rem;color:#555;position:absolute;top:4px;right:8px}
+.stack-entry .entry-url{color:#e6e6e6;word-break:break-all}
+.stack-entry .entry-title{color:#888;font-size:0.75rem;margin-top:2px}
+.stack-entry .entry-method{font-size:0.68rem;padding:2px 6px;border-radius:4px;display:inline-block;margin-top:4px}
+.stack-entry .entry-method.push{background:#052e16;color:#22c55e}
+.stack-entry .entry-method.replace{background:#451a03;color:#f59e0b}
+.stack-entry .entry-method.initial{background:#1a1a2e;color:#8b8bce}
+
+/* Event log */
+.event-log{max-height:320px;overflow-y:auto;display:flex;flex-direction:column;gap:4px}
+.log-entry{padding:8px 12px;border-radius:6px;background:#0d0d0d;border:1px solid #222;font-size:0.78rem;font-family:monospace}
+.log-entry .log-time{color:#555;margin-right:8px}
+.log-entry .log-type{font-weight:700;margin-right:6px}
+.log-entry .log-type.push-log{color:#22c55e}
+.log-entry .log-type.replace-log{color:#f59e0b}
+.log-entry .log-type.popstate-log{color:#ef4444}
+.log-entry .log-type.go-log{color:#8b5cf6}
+.log-entry .log-url{color:#aaa;word-break:break-all}
+
+/* State inspector */
+.state-inspector{background:#0d0d0d;border:1px solid #333;border-radius:8px;padding:14px;font-family:monospace;font-size:0.82rem;min-height:100px;max-height:250px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;color:#a8d8a8}
+.state-inspector.empty{color:#555;font-style:italic}
+
+/* URL pattern */
+.pattern-section{margin-top:12px}
+.pattern-result{margin-top:8px;padding:10px 14px;border-radius:8px;background:#0d0d0d;border:1px solid #333;font-family:monospace;font-size:0.82rem;min-height:40px}
+.pattern-match{color:#22c55e}
+.pattern-no-match{color:#ef4444}
+.pattern-groups{margin-top:6px;color:#f59e0b}
+
+/* Current URL bar */
+.url-bar{background:#161616;border:1px solid #222;border-radius:12px;padding:14px 20px;margin-bottom:16px;display:flex;align-items:center;gap:12px}
+.url-bar .label{font-size:0.78rem;color:#888;white-space:nowrap}
+.url-bar .url{font-family:monospace;font-size:0.9rem;color:#4da6ff;word-break:break-all;flex:1}
+.url-bar .length-badge{font-size:0.7rem;color:#555;background:#1a1a1a;padding:2px 8px;border-radius:10px;white-space:nowrap}
+
+/* Bottom row */
+.bottom-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:768px){.bottom-grid{grid-template-columns:1fr}}
+
+footer{text-align:center;padding:32px 0;color:#555;font-size:0.78rem;border-top:1px solid #1a1a1a;margin-top:24px}
+footer a{color:#666;text-decoration:none}
+footer a:hover{color:#999}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-track{background:#0a0a0a}
+::-webkit-scrollbar-thumb{background:#333;border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:#555}
+</style>
+</head>
+<body>
+
+
+<div class="container" style="position:relative">
+
+<header>
+  <h1 ti="h1_history_api_visualizer">History API Visualizer</h1>
+  <p>Interactive browser navigation explorer — pushState, replaceState, popstate, state objects</p>
+</header>
+
+<div class="presets">
+  <button class="preset-btn active" data-preset="spa" ti="btn_spa_routes">SPA Routes</button>
+  <button class="preset-btn" data-preset="modal" ti="btn_modal_routing">Modal Routing</button>
+  <button class="preset-btn" data-preset="query" ti="btn_query_params">Query Params</button>
+  <button class="preset-btn" data-preset="nested" ti="btn_nested_routes">Nested Routes</button>
+  <button class="preset-btn" data-preset="hash" ti="btn_hash_navigation">Hash Navigation</button>
+  <button class="preset-btn" data-preset="wizard" ti="btn_multi_step_wizard">Multi-Step Wizard</button>
+  <button class="preset-btn" data-preset="i18n" ti="btn_i18n_routes">i18n Routes</button>
+</div>
+
+<div class="url-bar">
+  <span class="label" ti="label_current_url">Current URL:</span>
+  <span class="url" id="currentUrl"></span>
+  <span class="length-badge" id="historyLength"></span>
+</div>
+
+<div class="main-grid">
+  <!-- Controls Panel -->
+  <div class="panel">
+    <h2 ti="h2_controls">Controls</h2>
+    <div class="control-row">
+      <div class="field">
+        <label ti="label_url_path">URL Path</label>
+        <input type="text" id="urlInput" tp="placeholder_dashboard" placeholder="/dashboard" value="/home">
+      </div>
+      <div class="field">
+        <label ti="label_title_optional">Title (optional)</label>
+        <input type="text" id="titleInput" tp="placeholder_page_title" placeholder="Page title" value="Home">
+      </div>
+    </div>
+    <div class="control-row">
+      <div class="field" style="flex:1">
+        <label ti="label_state_object_json">State Object (JSON)</label>
+        <textarea id="stateInput" tp="placeholder_page_home_id_1" placeholder='{"page": "home", "id": 1}'>{}</textarea>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-push" onclick="doPush()" ti="btn_pushstate">pushState</button>
+      <button class="btn btn-replace" onclick="doReplace()" ti="btn_replacestate">replaceState</button>
+      <button class="btn btn-back" onclick="doBack()" ti="btn_back">back()</button>
+      <button class="btn btn-forward" onclick="doForward()" ti="btn_forward">forward()</button>
+      <button class="btn btn-go" onclick="doGo()" ti="btn_go_n">go(n)</button>
+      <input type="number" id="goInput" value="-2" style="width:60px;padding:6px 8px;border-radius:6px;border:1px solid #333;background:#0d0d0d;color:#e6e6e6;font-size:0.82rem;text-align:center">
+    </div>
+    <div class="btn-row" style="margin-top:6px">
+      <button class="btn btn-clear" onclick="clearLog()" ti="btn_clear_log">Clear Log</button>
+      <button class="btn btn-reset" onclick="resetAll()" ti="btn_reset_all">Reset All</button>
+    </div>
+  </div>
+
+  <!-- History Stack Panel -->
+  <div class="panel">
+    <h2>History Stack <span class="badge" id="stackCount">0 entries</span></h2>
+    <div class="stack" id="historyStack"></div>
+  </div>
+</div>
+
+<div class="bottom-grid">
+  <!-- Event Log -->
+  <div class="panel">
+    <h2>Event Log <span class="badge" id="logCount">0</span></h2>
+    <div class="event-log" id="eventLog"></div>
+  </div>
+
+  <!-- State Inspector + URL Pattern -->
+  <div class="panel">
+    <h2 ti="h2_state_inspector">State Inspector</h2>
+    <div class="state-inspector empty" id="stateInspector">Click a stack entry to inspect its state object</div>
+
+    <div class="pattern-section">
+      <h2 style="margin-top:16px" ti="h2_url_pattern_matching">URL Pattern Matching</h2>
+      <div class="control-row">
+        <div class="field">
+          <label ti="label_pattern_urlpattern_syntax">Pattern (URLPattern syntax)</label>
+          <input type="text" id="patternInput" tp="placeholder_users_id" placeholder="/users/:id" value="/users/:id">
+        </div>
+        <div class="field" style="flex:0 0 auto">
+          <label>&nbsp;</label>
+          <button class="btn btn-push" onclick="testPattern()" style="background:#6366f1" ti="btn_test">Test</button>
+        </div>
+      </div>
+      <div class="pattern-result" id="patternResult">Enter a pattern and click Test</div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <a href="https://github.com/gokuscraper/history-api-visualizer" ti="link_github">GitHub</a> ·
+  <a href="https://gokuscraper.github.io/dev-vault/" ti="footer_dev_vault" ti="link_dev_vault">Dev Vault</a> ·
+  Built by <a href="https://github.com/gokuscraper" ti="link_gokuscraper">gokuscraper</a>
+</footer>
+
+</div>
+
+
+<script>var _LANG={'title_history_api_visualizer_in':["History API Visualizer — Interactive Browser Navigation Explorer", "历史 API 可视化工具 — 交互式浏览器导航浏览器"],'metadesc_visualize_the_browser_his':["Visualize the browser History API in real time. See pushState, replaceState, popstate events, inspect state objects, and explore URL pattern matching with 7 presets.", "实时可视化浏览器历史记录 API。查看 pushState、replaceState、popstate 事件，检查状态对象，并使用 7 个预设探索 URL 模式匹配。"],'h1_history_api_visualizer':["History API Visualizer", "历史 API 可视化工具"],'h2_controls':["Controls", "控制"],'h2_state_inspector':["State Inspector", "州督察"],'h2_url_pattern_matching':["URL Pattern Matching", "URL模式匹配"],'btn_spa_routes':["SPA Routes", "SPA路线"],'btn_modal_routing':["Modal Routing", "模态路由"],'btn_query_params':["Query Params", "查询参数"],'btn_nested_routes':["Nested Routes", "嵌套路由"],'btn_hash_navigation':["Hash Navigation", "哈希导航"],'btn_multi_step_wizard':["Multi-Step Wizard", "多步骤向导"],'btn_i18n_routes':["i18n Routes", "i18n 路线"],'btn_pushstate':["pushState", "推送状态"],'btn_replacestate':["replaceState", "替换状态"],'btn_back':["back()", "后退（）"],'btn_forward':["forward()", "向前（）"],'btn_go_n':["go(n)", "go(n)"],'btn_clear_log':["Clear Log", "清除日志"],'btn_reset_all':["Reset All", "全部重置"],'btn_test':["Test", "测试"],'label_current_url':["Current URL:", "当前网址："],'placeholder_dashboard':["/dashboard", "/仪表板"],'placeholder_page_title':["Page title", "页面标题"],'placeholder_page_home_id_1':["{\"page\": \"home\", \"id\": 1}", "{&quot;page&quot;: &quot;首页&quot;, &quot;id&quot;: 1}"],'placeholder_users_id':["/users/:id", "/users/:id"],'label_url_path':["URL Path", "URL 路径"],'label_title_optional':["Title (optional)", "标题（可选）"],'label_state_object_json':["State Object (JSON)", "状态对象（JSON）"],'label_pattern_urlpattern_syntax':["Pattern (URLPattern syntax)", "模式（URLPattern 语法）"],'footer_dev_vault':["Dev Vault", "开发者宝库"],'link_github':["GitHub", "GitHub"],'link_dev_vault':["Dev Vault", "开发者宝库"],'link_gokuscraper':["gokuscraper", "悟空摩天大楼"],'jtc_click_a_stack_entry_to_in':["Click a stack entry to inspect its state object", "单击堆栈条目以检查其状态对象"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>
+// -- Internal tracking (browser history API is opaque, so we mirror it) --
+let stack = [];
+let stackIndex = -1;
+let logEntries = [];
+let logId = 0;
+
+const $url = document.getElementById('currentUrl');
+const $length = document.getElementById('historyLength');
+const $stack = document.getElementById('historyStack');
+const $log = document.getElementById('eventLog');
+const $logCount = document.getElementById('logCount');
+const $stackCount = document.getElementById('stackCount');
+const $stateInspector = document.getElementById('stateInspector');
+const $urlInput = document.getElementById('urlInput');
+const $titleInput = document.getElementById('titleInput');
+const $stateInput = document.getElementById('stateInput');
+const $patternInput = document.getElementById('patternInput');
+const $patternResult = document.getElementById('patternResult');
+const $goInput = document.getElementById('goInput');
+
+// -- Presets --
+const presets = {
+  spa: {
+    label: 'SPA Routes',
+    steps: [
+      { url: '/home', title: 'Home', state: { page: 'home' } },
+      { url: '/dashboard', title: 'Dashboard', state: { page: 'dashboard', role: 'admin' } },
+      { url: '/users', title: 'Users List', state: { page: 'users', filter: 'active' } },
+      { url: '/users/42', title: 'User Profile', state: { page: 'user-detail', userId: 42 } },
+      { url: '/settings', title: 'Settings', state: { page: 'settings', tab: 'general' } },
+    ],
+    pattern: '/users/:id'
+  },
+  modal: {
+    label: 'Modal Routing',
+    steps: [
+      { url: '/gallery', title: 'Gallery', state: { page: 'gallery' } },
+      { url: '/gallery?modal=photo-1', title: 'Photo 1', state: { page: 'gallery', modal: 'photo-1', isModal: true } },
+      { url: '/gallery', title: 'Gallery', state: { page: 'gallery' }, method: 'replace' },
+      { url: '/gallery?modal=photo-2', title: 'Photo 2', state: { page: 'gallery', modal: 'photo-2', isModal: true } },
+      { url: '/gallery?modal=photo-3', title: 'Photo 3', state: { page: 'gallery', modal: 'photo-3', isModal: true } },
+    ],
+    pattern: '/gallery'
+  },
+  query: {
+    label: 'Query Params',
+    steps: [
+      { url: '/search', title: 'Search', state: { query: '' } },
+      { url: '/search?q=javascript', title: 'Search: javascript', state: { query: 'javascript', results: 1250 } },
+      { url: '/search?q=javascript&sort=date', title: 'Sorted', state: { query: 'javascript', sort: 'date', results: 1250 } },
+      { url: '/search?q=javascript&sort=date&page=2', title: 'Page 2', state: { query: 'javascript', sort: 'date', page: 2, results: 1250 } },
+      { url: '/search?q=history+api', title: 'New Search', state: { query: 'history api', results: 89 } },
+    ],
+    pattern: '/search'
+  },
+  nested: {
+    label: 'Nested Routes',
+    steps: [
+      { url: '/app', title: 'App', state: { level: 0 } },
+      { url: '/app/projects', title: 'Projects', state: { level: 1, section: 'projects' } },
+      { url: '/app/projects/web-app', title: 'Web App Project', state: { level: 2, section: 'projects', project: 'web-app' } },
+      { url: '/app/projects/web-app/tasks', title: 'Tasks', state: { level: 3, section: 'projects', project: 'web-app', view: 'tasks' } },
+      { url: '/app/projects/web-app/tasks/123', title: 'Task #123', state: { level: 4, section: 'projects', project: 'web-app', view: 'tasks', taskId: 123 } },
+    ],
+    pattern: '/app/projects/:project/tasks/:taskId'
+  },
+  hash: {
+    label: 'Hash Navigation',
+    steps: [
+      { url: '/docs', title: 'Documentation', state: { section: 'intro' } },
+      { url: '/docs#installation', title: 'Installation', state: { section: 'installation', anchor: true } },
+      { url: '/docs#configuration', title: 'Configuration', state: { section: 'configuration', anchor: true } },
+      { url: '/docs#api-reference', title: 'API Reference', state: { section: 'api-reference', anchor: true } },
+      { url: '/docs#troubleshooting', title: 'Troubleshooting', state: { section: 'troubleshooting', anchor: true } },
+    ],
+    pattern: '/docs'
+  },
+  wizard: {
+    label: 'Multi-Step Wizard',
+    steps: [
+      { url: '/checkout/cart', title: 'Cart', state: { step: 1, name: 'cart', canGoBack: false } },
+      { url: '/checkout/shipping', title: 'Shipping', state: { step: 2, name: 'shipping', canGoBack: true } },
+      { url: '/checkout/payment', title: 'Payment', state: { step: 3, name: 'payment', canGoBack: true } },
+      { url: '/checkout/review', title: 'Review Order', state: { step: 4, name: 'review', canGoBack: true } },
+      { url: '/checkout/confirmation', title: 'Confirmed!', state: { step: 5, name: 'confirmation', orderId: 'ORD-2026-4821', canGoBack: false }, method: 'replace' },
+    ],
+    pattern: '/checkout/:step'
+  },
+  i18n: {
+    label: 'i18n Routes',
+    steps: [
+      { url: '/en/home', title: 'Home', state: { lang: 'en', page: 'home' } },
+      { url: '/en/about', title: 'About', state: { lang: 'en', page: 'about' } },
+      { url: '/ja/about', title: 'アバウト', state: { lang: 'ja', page: 'about' }, method: 'replace' },
+      { url: '/ja/contact', title: 'お問い合わせ', state: { lang: 'ja', page: 'contact' } },
+      { url: '/fr/contact', title: 'Contact', state: { lang: 'fr', page: 'contact' }, method: 'replace' },
+    ],
+    pattern: '/:lang/contact'
+  }
+};
+
+// -- Init --
+function init() {
+  const entry = { url: location.pathname + location.search + location.hash, title: document.title, state: null, method: 'initial' };
+  stack = [entry];
+  stackIndex = 0;
+  logEntries = [];
+  logId = 0;
+  updateUI();
+}
+
+// -- Core operations --
+function parseState() {
+  const raw = $stateInput.value.trim();
+  if (!raw || raw === '') return null;
+  try { return JSON.parse(raw); }
+  catch (e) { addLog('error', 'Invalid JSON: ' + e.message, ''); return null; }
+}
+
+function doPush() {
+  const url = $urlInput.value || '/';
+  const title = $titleInput.value || '';
+  const state = parseState();
+  try {
+    history.pushState(state, title, url);
+    // Trim forward entries (browser behavior)
+    stack = stack.slice(0, stackIndex + 1);
+    stack.push({ url, title, state, method: 'push' });
+    stackIndex = stack.length - 1;
+    addLog('push', url, state);
+    updateUI();
+  } catch (e) { addLog('error', e.message, ''); }
+}
+
+function doReplace() {
+  const url = $urlInput.value || '/';
+  const title = $titleInput.value || '';
+  const state = parseState();
+  try {
+    history.replaceState(state, title, url);
+    stack[stackIndex] = { url, title, state, method: 'replace' };
+    addLog('replace', url, state);
+    updateUI();
+  } catch (e) { addLog('error', e.message, ''); }
+}
+
+function doBack() {
+  if (stackIndex > 0) {
+    history.back();
+    // popstate handler will update
+  } else {
+    addLog('error', 'Cannot go back — at start of stack', '');
+  }
+}
+
+function doForward() {
+  if (stackIndex < stack.length - 1) {
+    history.forward();
+  } else {
+    addLog('error', 'Cannot go forward — at end of stack', '');
+  }
+}
+
+function doGo() {
+  const n = parseInt($goInput.value) || 0;
+  const target = stackIndex + n;
+  if (target < 0 || target >= stack.length) {
+    addLog('error', `go(${n}) out of range (index ${target}, stack size ${stack.length})`, '');
+    return;
+  }
+  history.go(n);
+}
+
+function resetAll() {
+  // Replace current state to clean URL, clear internal tracking
+  history.replaceState(null, '', location.pathname.split('/').slice(0, -1).join('/') || '/');
+  stack = [{ url: location.pathname, title: '', state: null, method: 'initial' }];
+  stackIndex = 0;
+  logEntries = [];
+  logId = 0;
+  $stateInspector.textContent=T("jtc_click_a_stack_entry_to_in");
+  $stateInspector.className = 'state-inspector empty';
+  updateUI();
+}
+
+function clearLog() {
+  logEntries = [];
+  logId = 0;
+  updateLogUI();
+}
+
+// -- popstate listener --
+window.addEventListener('popstate', (e) => {
+  // Figure out new position
+  const currentUrl = location.pathname + location.search + location.hash;
+  // Find which stack entry matches
+  let found = -1;
+  // Try to find by looking near current index
+  for (let i = 0; i < stack.length; i++) {
+    if (stack[i].url === currentUrl) {
+      // Prefer the closest match to expected direction
+      found = i;
+      if (i !== stackIndex) break; // found a different one
+    }
+  }
+  if (found === -1) found = Math.max(0, stackIndex - 1);
+  stackIndex = found;
+  if (stack[stackIndex]) {
+    stack[stackIndex].state = e.state;
+  }
+  addLog('popstate', currentUrl, e.state);
+  updateUI();
+});
+
+// -- Logging --
+function addLog(type, url, state) {
+  const now = new Date();
+  const time = now.toLocaleTimeString('en', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }) + '.' + String(now.getMilliseconds()).padStart(3, '0');
+  logEntries.unshift({ id: logId++, type, url, state, time });
+  if (logEntries.length > 100) logEntries.pop();
+  updateLogUI();
+}
+
+// -- UI Updates --
+function updateUI() {
+  // URL bar
+  const currentUrl = location.pathname + location.search + location.hash;
+  $url.textContent = currentUrl;
+  $length.textContent = `history.length: ${history.length}`;
+
+  // Stack
+  $stackCount.textContent = `${stack.length} entries`;
+  let stackHtml = '';
+  for (let i = stack.length - 1; i >= 0; i--) {
+    const e = stack[i];
+    const isCurrent = i === stackIndex;
+    stackHtml += `<div class="stack-entry${isCurrent ? ' current' : ''}" onclick="inspectState(${i})">
+      <span class="entry-index">#${i}</span>
+      <div class="entry-url">${esc(e.url)}</div>
+      ${e.title ? `<div class="entry-title">${esc(e.title)}</div>` : ''}
+      <span class="entry-method ${e.method}">${e.method}</span>
+    </div>`;
+  }
+  $stack.innerHTML = stackHtml;
+  updateLogUI();
+}
+
+function updateLogUI() {
+  $logCount.textContent = logEntries.length;
+  let html = '';
+  for (const e of logEntries) {
+    const typeClass = e.type === 'push' ? 'push-log' : e.type === 'replace' ? 'replace-log' : e.type === 'popstate' ? 'popstate-log' : 'go-log';
+    html += `<div class="log-entry">
+      <span class="log-time">${e.time}</span>
+      <span class="log-type ${typeClass}">${e.type}</span>
+      <span class="log-url">${esc(String(e.url))}</span>
+    </div>`;
+  }
+  $log.innerHTML = html;
+}
+
+function inspectState(index) {
+  const entry = stack[index];
+  if (!entry) return;
+  if (entry.state === null || entry.state === undefined) {
+    $stateInspector.textContent = `[#${index}] null (no state object)`;
+    $stateInspector.className = 'state-inspector empty';
+  } else {
+    $stateInspector.textContent = `[#${index}] ${JSON.stringify(entry.state, null, 2)}`;
+    $stateInspector.className = 'state-inspector';
+  }
+}
+
+// -- URL Pattern Matching --
+function testPattern() {
+  const pattern = $patternInput.value.trim();
+  const currentUrl = location.pathname + location.search + location.hash;
+
+  if (!pattern) {
+    $patternResult.innerHTML = '<span class="pattern-no-match">Enter a pattern</span>';
+    return;
+  }
+
+  // Use URLPattern API if available, otherwise do manual matching
+  if (typeof URLPattern !== 'undefined') {
+    try {
+      const urlPattern = new URLPattern({ pathname: pattern });
+      const result = urlPattern.exec({ pathname: location.pathname });
+      if (result) {
+        const groups = result.pathname.groups;
+        let html = `<span class="pattern-match">Match!</span> <code>${esc(currentUrl)}</code> matches <code>${esc(pattern)}</code>`;
+        if (Object.keys(groups).length > 0) {
+          html += `<div class="pattern-groups">Groups: ${JSON.stringify(groups)}</div>`;
+        }
+        $patternResult.innerHTML = html;
+      } else {
+        $patternResult.innerHTML = `<span class="pattern-no-match">No match.</span> <code>${esc(currentUrl)}</code> does not match <code>${esc(pattern)}</code>`;
+      }
+    } catch (e) {
+      $patternResult.innerHTML = `<span class="pattern-no-match">Error: ${esc(e.message)}</span>`;
+    }
+  } else {
+    // Fallback: simple :param matching
+    const patternParts = pattern.split('/');
+    const urlParts = location.pathname.split('/');
+    if (patternParts.length !== urlParts.length) {
+      $patternResult.innerHTML = `<span class="pattern-no-match">No match</span> (segment count differs)`;
+      return;
+    }
+    const groups = {};
+    let match = true;
+    for (let i = 0; i < patternParts.length; i++) {
+      if (patternParts[i].startsWith(':')) {
+        groups[patternParts[i].slice(1)] = urlParts[i];
+      } else if (patternParts[i] !== urlParts[i]) {
+        match = false;
+        break;
+      }
+    }
+    if (match) {
+      let html = `<span class="pattern-match">Match!</span> <code>${esc(currentUrl)}</code>`;
+      if (Object.keys(groups).length > 0) {
+        html += `<div class="pattern-groups">Groups: ${JSON.stringify(groups)}</div>`;
+      }
+      $patternResult.innerHTML = html;
+    } else {
+      $patternResult.innerHTML = `<span class="pattern-no-match">No match.</span>`;
+    }
+  }
+}
+
+// -- Preset handling --
+document.querySelectorAll('.preset-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    loadPreset(btn.dataset.preset);
+  });
+});
+
+function loadPreset(name) {
+  const preset = presets[name];
+  if (!preset) return;
+  resetAll();
+
+  // Set the pattern input
+  $patternInput.value = preset.pattern;
+
+  // Execute steps with slight visual delay
+  let i = 0;
+  function runStep() {
+    if (i >= preset.steps.length) {
+      testPattern();
+      return;
+    }
+    const step = preset.steps[i];
+    $urlInput.value = step.url;
+    $titleInput.value = step.title || '';
+    $stateInput.value = JSON.stringify(step.state || {}, null, 2);
+
+    if (step.method === 'replace') {
+      doReplace();
+    } else {
+      doPush();
+    }
+    i++;
+    setTimeout(runStep, 120);
+  }
+  // First step replaces initial entry
+  if (preset.steps.length > 0) {
+    const first = preset.steps[0];
+    $urlInput.value = first.url;
+    $titleInput.value = first.title || '';
+    $stateInput.value = JSON.stringify(first.state || {}, null, 2);
+    doReplace();
+    i = 1;
+    setTimeout(runStep, 120);
+  }
+}
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// -- Start --
+init();
+// Auto-load SPA preset
+setTimeout(() => loadPreset('spa'), 200);
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+</body>
+</html>

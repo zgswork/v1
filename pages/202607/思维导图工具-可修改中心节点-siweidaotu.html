@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>思维导图工具 - 可修改中心节点</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/docx@7.8.2/build/index.min.js"></script>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f7fa;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e1e5eb;
+        }
+        
+        h1 {
+            margin: 0;
+            color: #2c3e50;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+        
+        button:hover {
+            background-color: #2980b9;
+        }
+        
+        .export-btn {
+            background-color: #27ae60;
+        }
+        
+        .export-btn:hover {
+            background-color: #219653;
+        }
+        
+        .reset-btn {
+            background-color: #e74c3c;
+        }
+        
+        .reset-btn:hover {
+            background-color: #c0392b;
+        }
+        
+        .center-edit-btn {
+            background-color: #9b59b6;
+        }
+        
+        .center-edit-btn:hover {
+            background-color: #8e44ad;
+        }
+        
+        #mindmap-container {
+            width: 100%;
+            height: 600px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        
+        .node-form {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        
+        input, textarea, select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        textarea {
+            height: 80px;
+            resize: vertical;
+        }
+        
+        .export-options {
+            display: none;
+            background-color: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            margin-top: 10px;
+        }
+        
+        .export-options button {
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        
+        @media (max-width: 768px) {
+            header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+            
+            #mindmap-container {
+                height: 400px;
+            }
+            
+            .controls {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>思维导图工具 - 可修改中心节点</h1>
+            <div class="author">by 老木头 | <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="117a7468647421232123517e64657d7e7e7a3f727e7c">[email&#160;protected]</a></div>
+        </header>
+        
+        <div class="controls">
+            <button id="editCenterBtn" class="center-edit-btn">编辑中心节点</button>
+            <button id="addNodeBtn">添加节点</button>
+            <button id="editNodeBtn">编辑节点</button>
+            <button id="deleteNodeBtn">删除节点</button>
+            <button class="export-btn" id="exportBtn">导出思维导图 ▼</button>
+            <div class="export-options" id="exportOptions">
+                <button id="exportPngBtn">导出PNG图片</button>
+                <button id="exportJpgBtn">导出JPG图片</button>
+                <button id="exportSvgBtn">导出SVG矢量图</button>
+                <button id="exportPdfBtn">导出PDF文档</button>
+                <button id="exportDocxBtn">导出Word文档</button>
+            </div>
+            <button class="reset-btn" id="resetBtn">重置导图</button>
+        </div>
+        
+        <div id="mindmap-container"></div>
+        
+        <div class="node-form" id="nodeForm" style="display: none;">
+            <h3 id="formTitle">添加节点</h3>
+            <div class="form-group">
+                <label for="nodeName">节点名称</label>
+                <input type="text" id="nodeName" placeholder="输入节点名称">
+            </div>
+            <div class="form-group">
+                <label for="nodeContent">节点内容</label>
+                <textarea id="nodeContent" placeholder="输入节点内容（可选）"></textarea>
+            </div>
+            <div class="form-group">
+                <label for="nodeParent">父节点</label>
+                <select id="nodeParent">
+                    <option value="root">根节点</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="nodeColor">节点颜色</label>
+                <select id="nodeColor">
+                    <option value="#4CAF50">绿色</option>
+                    <option value="#2196F3">蓝色</option>
+                    <option value="#FFC107">黄色</option>
+                    <option value="#FF5722">橙色</option>
+                    <option value="#9C27B0">紫色</option>
+                </select>
+            </div>
+            <button id="saveNodeBtn">保存</button>
+            <button id="cancelNodeBtn">取消</button>
+        </div>
+    </div>
+
+    <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+        // 使用jsPDF
+        const { jsPDF } = window.jspdf;
+        const { Document, Paragraph, TextRun, Packer, HeadingLevel } = window.docx;
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            // 初始化ECharts
+            const mindmapChart = echarts.init(document.getElementById('mindmap-container'));
+            
+            // 思维导图数据
+            let mindmapData = {
+                id: 'center_node',
+                name: '中心主题',
+                children: []
+            };
+            
+            // 当前选中的节点
+            let selectedNode = null;
+            
+            // 节点ID计数器
+            let nodeIdCounter = 1;
+            
+            // DOM元素
+            const editCenterBtn = document.getElementById('editCenterBtn');
+            const addNodeBtn = document.getElementById('addNodeBtn');
+            const editNodeBtn = document.getElementById('editNodeBtn');
+            const deleteNodeBtn = document.getElementById('deleteNodeBtn');
+            const exportBtn = document.getElementById('exportBtn');
+            const exportOptions = document.getElementById('exportOptions');
+            const exportPngBtn = document.getElementById('exportPngBtn');
+            const exportJpgBtn = document.getElementById('exportJpgBtn');
+            const exportSvgBtn = document.getElementById('exportSvgBtn');
+            const exportPdfBtn = document.getElementById('exportPdfBtn');
+            const exportDocxBtn = document.getElementById('exportDocxBtn');
+            const resetBtn = document.getElementById('resetBtn');
+            const nodeForm = document.getElementById('nodeForm');
+            const formTitle = document.getElementById('formTitle');
+            const nodeName = document.getElementById('nodeName');
+            const nodeContent = document.getElementById('nodeContent');
+            const nodeParent = document.getElementById('nodeParent');
+            const nodeColor = document.getElementById('nodeColor');
+            const saveNodeBtn = document.getElementById('saveNodeBtn');
+            const cancelNodeBtn = document.getElementById('cancelNodeBtn');
+            
+            // 初始化思维导图
+            renderMindmap();
+            
+            // 事件监听
+            editCenterBtn.addEventListener('click', editCenterNode);
+            addNodeBtn.addEventListener('click', showAddNodeForm);
+            editNodeBtn.addEventListener('click', showEditNodeForm);
+            deleteNodeBtn.addEventListener('click', deleteSelectedNode);
+            exportBtn.addEventListener('click', toggleExportOptions);
+            exportPngBtn.addEventListener('click', () => exportAsImage('png'));
+            exportJpgBtn.addEventListener('click', () => exportAsImage('jpg'));
+            exportSvgBtn.addEventListener('click', exportAsSvg);
+            exportPdfBtn.addEventListener('click', exportAsPdf);
+            exportDocxBtn.addEventListener('click', exportAsDocx);
+            resetBtn.addEventListener('click', resetMindmap);
+            saveNodeBtn.addEventListener('click', saveNode);
+            cancelNodeBtn.addEventListener('click', hideNodeForm);
+            
+            // 图表点击事件
+            mindmapChart.on('click', function(params) {
+                if (params.data && params.data.id) {
+                    selectedNode = findNodeById(mindmapData, params.data.id);
+                    updateUI();
+                } else {
+                    selectedNode = null;
+                    updateUI();
+                }
+            });
+            
+            // 点击其他地方隐藏导出选项
+            document.addEventListener('click', function(e) {
+                if (!exportBtn.contains(e.target) && !exportOptions.contains(e.target)) {
+                    exportOptions.style.display = 'none';
+                }
+            });
+            
+            // 函数定义
+            function renderMindmap() {
+                // 准备ECharts数据
+                const option = {
+                    tooltip: {
+                        trigger: 'item',
+                        triggerOn: 'mousemove',
+                        formatter: function(params) {
+                            if (params.data.content) {
+                                return `<b>${params.name}</b><br/>${params.data.content}`;
+                            }
+                            return params.name;
+                        }
+                    },
+                    series: [{
+                        type: 'tree',
+                        data: [convertToEChartsData(mindmapData)],
+                        symbol: 'roundRect',
+                        symbolSize: 20,  // 增大中心节点大小
+                        orient: 'horizontal',
+                        expandAndCollapse: false,
+                        initialTreeDepth: -1,
+                        label: {
+                            position: 'left',
+                            verticalAlign: 'middle',
+                            align: 'right',
+                            fontSize: 14,
+                            color: '#333',
+                            fontWeight: 'bold'  // 中心节点加粗
+                        },
+                        leaves: {
+                            label: {
+                                position: 'right',
+                                verticalAlign: 'middle',
+                                align: 'left'
+                            }
+                        },
+                        emphasis: {
+                            focus: 'descendant'
+                        },
+                        roam: true,
+                        lineStyle: {
+                            width: 2
+                        }
+                    }]
+                };
+                
+                mindmapChart.setOption(option);
+                updateParentSelect();
+                updateUI();
+            }
+            
+            function convertToEChartsData(node) {
+                const result = {
+                    name: node.name,
+                    id: node.id,
+                    itemStyle: {
+                        color: node.color || '#4CAF50'
+                    }
+                };
+                
+                // 如果是中心节点，使用特殊样式
+                if (node.id === 'center_node') {
+                    result.itemStyle = {
+                        color: '#9b59b6',  // 紫色表示中心节点
+                        borderWidth: 2,
+                        borderColor: '#8e44ad'
+                    };
+                    result.symbolSize = 20;
+                }
+                
+                if (node.content) {
+                    result.content = node.content;
+                }
+                
+                if (node.children && node.children.length > 0) {
+                    result.children = node.children.map(child => convertToEChartsData(child));
+                }
+                
+                return result;
+            }
+            
+            function editCenterNode() {
+                formTitle.textContent = '编辑中心节点';
+                nodeName.value = mindmapData.name;
+                nodeContent.value = mindmapData.content || '';
+                nodeColor.value = mindmapData.color || '#9b59b6';
+                nodeForm.style.display = 'block';
+                
+                // 保存时特殊处理中心节点
+                saveNodeBtn.onclick = function() {
+                    const name = nodeName.value.trim();
+                    const content = nodeContent.value.trim();
+                    const color = nodeColor.value;
+                    
+                    if (!name) {
+                        alert('请输入中心节点名称');
+                        return;
+                    }
+                    
+                    mindmapData.name = name;
+                    mindmapData.content = content;
+                    mindmapData.color = color;
+                    
+                    hideNodeForm();
+                    renderMindmap();
+                    
+                    // 恢复原来的保存函数
+                    saveNodeBtn.onclick = saveNode;
+                };
+            }
+            
+            function showAddNodeForm() {
+                formTitle.textContent = '添加节点';
+                nodeName.value = '';
+                nodeContent.value = '';
+                nodeColor.value = '#4CAF50';
+                nodeForm.style.display = 'block';
+            }
+            
+            function showEditNodeForm() {
+                if (!selectedNode) {
+                    alert('请先选择一个节点');
+                    return;
+                }
+                
+                formTitle.textContent = '编辑节点';
+                nodeName.value = selectedNode.name;
+                nodeContent.value = selectedNode.content || '';
+                nodeColor.value = selectedNode.color || '#4CAF50';
+                nodeForm.style.display = 'block';
+            }
+            
+            function hideNodeForm() {
+                nodeForm.style.display = 'none';
+            }
+            
+            function saveNode() {
+                const name = nodeName.value.trim();
+                const content = nodeContent.value.trim();
+                const color = nodeColor.value;
+                const parentId = nodeParent.value;
+                
+                if (!name) {
+                    alert('请输入节点名称');
+                    return;
+                }
+                
+                if (formTitle.textContent === '添加节点') {
+                    // 添加新节点
+                    const newNode = {
+                        id: 'node_' + nodeIdCounter++,
+                        name: name,
+                        content: content,
+                        color: color
+                    };
+                    
+                    if (parentId === 'root') {
+                        if (!mindmapData.children) {
+                            mindmapData.children = [];
+                        }
+                        mindmapData.children.push(newNode);
+                    } else {
+                        const parentNode = findNodeById(mindmapData, parentId);
+                        if (parentNode) {
+                            if (!parentNode.children) {
+                                parentNode.children = [];
+                            }
+                            parentNode.children.push(newNode);
+                        }
+                    }
+                } else {
+                    // 编辑现有节点
+                    if (selectedNode) {
+                        selectedNode.name = name;
+                        selectedNode.content = content;
+                        selectedNode.color = color;
+                    }
+                }
+                
+                hideNodeForm();
+                renderMindmap();
+            }
+            
+            function deleteSelectedNode() {
+                if (!selectedNode) {
+                    alert('请先选择一个节点');
+                    return;
+                }
+                
+                // 防止删除中心节点
+                if (selectedNode.id === 'center_node') {
+                    alert('不能删除中心节点！');
+                    return;
+                }
+                
+                if (confirm('确定要删除这个节点及其所有子节点吗？')) {
+                    deleteNode(mindmapData, selectedNode.id);
+                    selectedNode = null;
+                    renderMindmap();
+                }
+            }
+            
+            function deleteNode(tree, id) {
+                if (tree.children) {
+                    tree.children = tree.children.filter(child => {
+                        if (child.id === id) {
+                            return false;
+                        }
+                        deleteNode(child, id);
+                        return true;
+                    });
+                }
+            }
+            
+            function findNodeById(tree, id) {
+                if (tree.id === id) {
+                    return tree;
+                }
+                
+                if (tree.children) {
+                    for (const child of tree.children) {
+                        const found = findNodeById(child, id);
+                        if (found) {
+                            return found;
+                        }
+                    }
+                }
+                
+                return null;
+            }
+            
+            function updateParentSelect() {
+                // 保存当前选择的值
+                const currentValue = nodeParent.value;
+                
+                // 清空选项
+                nodeParent.innerHTML = '<option value="root">根节点</option>';
+                
+                // 添加所有节点作为可能的父节点
+                addNodesToSelect(mindmapData, '');
+                
+                // 恢复之前选择的值（如果还存在）
+                if (nodeParent.querySelector(`option[value="${currentValue}"]`)) {
+                    nodeParent.value = currentValue;
+                }
+            }
+            
+            function addNodesToSelect(node, prefix) {
+                if (node.id && node.id !== (selectedNode ? selectedNode.id : null)) {
+                    const option = document.createElement('option');
+                    option.value = node.id;
+                    option.textContent = prefix + node.name;
+                    nodeParent.appendChild(option);
+                }
+                
+                if (node.children) {
+                    node.children.forEach(child => {
+                        addNodesToSelect(child, prefix + '    ');
+                    });
+                }
+            }
+            
+            function updateUI() {
+                editNodeBtn.disabled = !selectedNode;
+                deleteNodeBtn.disabled = !selectedNode;
+            }
+            
+            function toggleExportOptions() {
+                exportOptions.style.display = exportOptions.style.display === 'block' ? 'none' : 'block';
+            }
+            
+            async function exportAsImage(format) {
+                try {
+                    const canvas = await html2canvas(document.getElementById('mindmap-container'), {
+                        backgroundColor: '#ffffff',
+                        scale: 2 // 提高导出图片质量
+                    });
+                    
+                    let mimeType, extension;
+                    if (format === 'png') {
+                        mimeType = 'image/png';
+                        extension = 'png';
+                    } else {
+                        mimeType = 'image/jpeg';
+                        extension = 'jpg';
+                    }
+                    
+                    canvas.toBlob(function(blob) {
+                        saveAs(blob, `思维导图_${new Date().toISOString().slice(0, 10)}.${extension}`);
+                    }, mimeType);
+                } catch (error) {
+                    console.error('导出图片失败:', error);
+                    alert('导出图片失败，请重试');
+                }
+            }
+            
+            function exportAsSvg() {
+                try {
+                    const svgData = mindmapChart.getDataURL({
+                        type: 'svg',
+                        backgroundColor: '#ffffff',
+                        pixelRatio: 2
+                    });
+                    
+                    const link = document.createElement('a');
+                    link.download = `思维导图_${new Date().toISOString().slice(0, 10)}.svg`;
+                    link.href = svgData;
+                    link.click();
+                } catch (error) {
+                    console.error('导出SVG失败:', error);
+                    alert('导出SVG失败，请重试');
+                }
+            }
+            
+            async function exportAsPdf() {
+                try {
+                    const canvas = await html2canvas(document.getElementById('mindmap-container'), {
+                        backgroundColor: '#ffffff',
+                        scale: 2 // 提高导出图片质量
+                    });
+                    
+                    const pdf = new jsPDF({
+                        orientation: canvas.width > canvas.height ? 'landscape' : 'portrait',
+                        unit: 'mm'
+                    });
+                    
+                    // 计算PDF尺寸
+                    const imgWidth = 210; // A4宽度 (mm)
+                    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+                    
+                    // 添加图片到PDF
+                    pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, imgWidth, imgHeight);
+                    
+                    // 保存PDF
+                    pdf.save(`思维导图_${new Date().toISOString().slice(0, 10)}.pdf`);
+                } catch (error) {
+                    console.error('导出PDF失败:', error);
+                    alert('导出PDF失败，请重试');
+                }
+            }
+            
+            async function exportAsDocx() {
+                try {
+                    // 创建Word文档结构
+                    const doc = new Document({
+                        sections: [{
+                            properties: {},
+                            children: [
+                                new Paragraph({
+                                    text: "思维导图内容",
+                                    heading: HeadingLevel.HEADING_1,
+                                    spacing: { after: 200 }
+                                }),
+                                ...generateDocxContent(mindmapData)
+                            ]
+                        }]
+                    });
+                    
+                    // 生成Word文档
+                    const blob = await Packer.toBlob(doc);
+                    saveAs(blob, `思维导图_${new Date().toISOString().slice(0, 10)}.docx`);
+                } catch (error) {
+                    console.error('导出Word失败:', error);
+                    alert('导出Word失败，请重试');
+                }
+            }
+            
+            function generateDocxContent(node, level = 1) {
+                const paragraphs = [];
+                const headingLevel = Math.min(level + 1, 6); // 限制最大标题级别
+                
+                // 添加当前节点
+                paragraphs.push(new Paragraph({
+                    text: node.name,
+                    heading: HeadingLevel[`HEADING_${headingLevel}`],
+                    spacing: { after: 100 }
+                }));
+                
+                // 添加节点内容（如果有）
+                if (node.content) {
+                    paragraphs.push(new Paragraph({
+                        children: [new TextRun({
+                            text: node.content,
+                            size: 22
+                        })],
+                        spacing: { after: 150 }
+                    }));
+                }
+                
+                // 递归添加子节点
+                if (node.children) {
+                    node.children.forEach(child => {
+                        paragraphs.push(...generateDocxContent(child, level + 1));
+                    });
+                }
+                
+                return paragraphs;
+            }
+            
+            function resetMindmap() {
+                if (confirm('确定要重置思维导图吗？所有数据将丢失。')) {
+                    mindmapData = {
+                        id: 'center_node',
+                        name: '中心主题',
+                        children: []
+                    };
+                    selectedNode = null;
+                    nodeIdCounter = 1;
+                    renderMindmap();
+                }
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>火箭躲避游戏</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background: #000;
+            color: #fff;
+            font-family: Arial, sans-serif;
+        }
+        #gameCanvas {
+            background: linear-gradient(to bottom, #000033, #000066);
+            max-width: 100%;
+            max-height: 80vh;
+        }
+        .game-container {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .info {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        .game-over {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.8);
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            display: none;
+        }
+        .game-over button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        .game-over button:hover {
+            background: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <canvas id="gameCanvas"></canvas>
+        <div class="game-over" id="gameOver">
+            <h2>游戏结束</h2>
+            <p>得分: <span id="finalScore">0</span></p>
+            <button onclick="restartGame()">重新开始</button>
+        </div>
+        <div class="info">
+            <p>本工具由叁贰壹制作</p>
+            <p>微信 coolman88886666</p>
+            <p>QQ邮箱<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="6f575b5c5d5d59565f5b2f1e1e410c0002">[email&#160;protected]</a></p>
+            <p>gmail <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="d8abe0ecebeaeaeee1e8ec98bfb5b9b1b4f6bbb7b5">[email&#160;protected]</a></p>
+        </div>
+    </div>
+
+    <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const gameOverDiv = document.getElementById('gameOver');
+        const finalScoreSpan = document.getElementById('finalScore');
+
+        // 设置画布大小
+        function setCanvasSize() {
+            const maxWidth = Math.min(800, window.innerWidth - 20);
+            const maxHeight = Math.min(600, window.innerHeight * 0.7);
+            canvas.width = maxWidth;
+            canvas.height = maxHeight;
+        }
+
+        // 初始化画布大小
+        setCanvasSize();
+        window.addEventListener('resize', setCanvasSize);
+
+        // 游戏状态
+        let gameState = {
+            rocket: {
+                x: canvas.width / 2,
+                y: canvas.height - 50,
+                width: 30,
+                height: 50,
+                speed: 5,
+                health: 100
+            },
+            obstacles: [],
+            score: 0,
+            isGameOver: false,
+            lastObstacleTime: 0,
+            obstacleInterval: 1500
+        };
+
+        // 控制状态
+        const controls = {
+            left: false,
+            right: false
+        };
+
+        // 事件监听器
+        function setupEventListeners() {
+            // 键盘控制
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'ArrowLeft') controls.left = true;
+                if (e.key === 'ArrowRight') controls.right = true;
+            });
+
+            document.addEventListener('keyup', (e) => {
+                if (e.key === 'ArrowLeft') controls.left = false;
+                if (e.key === 'ArrowRight') controls.right = false;
+            });
+
+            // 触摸控制
+            let touchStartX = 0;
+            canvas.addEventListener('touchstart', (e) => {
+                touchStartX = e.touches[0].clientX;
+            });
+
+            canvas.addEventListener('touchmove', (e) => {
+                e.preventDefault();
+                const touchX = e.touches[0].clientX;
+                const diff = touchX - touchStartX;
+                if (diff > 0) {
+                    controls.right = true;
+                    controls.left = false;
+                } else {
+                    controls.left = true;
+                    controls.right = false;
+                }
+                touchStartX = touchX;
+            });
+
+            canvas.addEventListener('touchend', () => {
+                controls.left = false;
+                controls.right = false;
+            });
+        }
+
+        // 绘制火箭
+        function drawRocket() {
+            ctx.save();
+            ctx.translate(gameState.rocket.x, gameState.rocket.y);
+
+            // 火箭主体
+            ctx.fillStyle = '#silver';
+            ctx.beginPath();
+            ctx.moveTo(0, -gameState.rocket.height/2);
+            ctx.lineTo(gameState.rocket.width/2, gameState.rocket.height/2);
+            ctx.lineTo(-gameState.rocket.width/2, gameState.rocket.height/2);
+            ctx.closePath();
+            ctx.fill();
+
+            // 火焰效果
+            ctx.fillStyle = '#ff6b00';
+            ctx.beginPath();
+            ctx.moveTo(-gameState.rocket.width/4, gameState.rocket.height/2);
+            ctx.lineTo(gameState.rocket.width/4, gameState.rocket.height/2);
+            ctx.lineTo(0, gameState.rocket.height/2 + 20);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.restore();
+        }
+
+        // 绘制障碍物
+        function drawObstacle(obstacle) {
+            ctx.fillStyle = '#ff0000';
+            ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+        }
+
+        // 绘制血条
+        function drawHealthBar() {
+            const barWidth = 200;
+            const barHeight = 20;
+            const x = (canvas.width - barWidth) / 2;
+            const y = 20;
+
+            // 背景
+            ctx.fillStyle = '#333';
+            ctx.fillRect(x, y, barWidth, barHeight);
+
+            // 血量
+            ctx.fillStyle = `hsl(${gameState.rocket.health}, 100%, 50%)`;
+            ctx.fillRect(x, y, barWidth * (gameState.rocket.health / 100), barHeight);
+
+            // 边框
+            ctx.strokeStyle = '#fff';
+            ctx.strokeRect(x, y, barWidth, barHeight);
+        }
+
+        // 绘制分数
+        function drawScore() {
+            ctx.fillStyle = '#fff';
+            ctx.font = '20px Arial';
+            ctx.textAlign = 'right';
+            ctx.fillText(`得分: ${Math.floor(gameState.score)}`, canvas.width - 20, 30);
+        }
+
+        // 更新游戏状态
+        function update() {
+            if (gameState.isGameOver) return;
+
+            // 更新火箭位置
+            if (controls.left) {
+                gameState.rocket.x -= gameState.rocket.speed;
+            }
+            if (controls.right) {
+                gameState.rocket.x += gameState.rocket.speed;
+            }
+
+            // 限制火箭在画布范围内
+            gameState.rocket.x = Math.max(gameState.rocket.width/2, Math.min(canvas.width - gameState.rocket.width/2, gameState.rocket.x));
+
+            // 生成新障碍物
+            const currentTime = Date.now();
+            if (currentTime - gameState.lastObstacleTime > gameState.obstacleInterval) {
+                const obstacleWidth = Math.random() * 30 + 20;
+                gameState.obstacles.push({
+                    x: Math.random() * (canvas.width - obstacleWidth),
+                    y: -20,
+                    width: obstacleWidth,
+                    height: 20,
+                    speed: Math.random() * 2 + 2
+                });
+                gameState.lastObstacleTime = currentTime;
+            }
+
+            // 更新障碍物位置和检测碰撞
+            gameState.obstacles = gameState.obstacles.filter(obstacle => {
+                obstacle.y += obstacle.speed;
+
+                // 检测碰撞
+                if (checkCollision(gameState.rocket, obstacle)) {
+                    gameState.rocket.health -= 10;
+                    if (gameState.rocket.health <= 0) {
+                        gameOver();
+                    }
+                    return false;
+                }
+
+                return obstacle.y < canvas.height;
+            });
+
+            // 更新分数
+            gameState.score += 0.1;
+        }
+
+        // 碰撞检测
+        function checkCollision(rocket, obstacle) {
+            const rocketLeft = rocket.x - rocket.width/2;
+            const rocketRight = rocket.x + rocket.width/2;
+            const rocketTop = rocket.y - rocket.height/2;
+            const rocketBottom = rocket.y + rocket.height/2;
+
+            return !(rocketLeft > obstacle.x + obstacle.width ||
+                    rocketRight < obstacle.x ||
+                    rocketTop > obstacle.y + obstacle.height ||
+                    rocketBottom < obstacle.y);
+        }
+
+        // 游戏结束
+        function gameOver() {
+            gameState.isGameOver = true;
+            gameOverDiv.style.display = 'block';
+            finalScoreSpan.textContent = Math.floor(gameState.score);
+        }
+
+        // 重新开始游戏
+        function restartGame() {
+            gameState = {
+                rocket: {
+                    x: canvas.width / 2,
+                    y: canvas.height - 50,
+                    width: 30,
+                    height: 50,
+                    speed: 5,
+                    health: 100
+                },
+                obstacles: [],
+                score: 0,
+                isGameOver: false,
+                lastObstacleTime: 0,
+                obstacleInterval: 1500
+            };
+            gameOverDiv.style.display = 'none';
+        }
+
+        // 游戏主循环
+        function gameLoop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            update();
+            
+            drawRocket();
+            gameState.obstacles.forEach(drawObstacle);
+            drawHealthBar();
+            drawScore();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // 启动游戏
+        setupEventListeners();
+        gameLoop();
+    </script>
+</body>
+</html>

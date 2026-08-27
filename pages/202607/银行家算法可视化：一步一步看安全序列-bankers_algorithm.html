@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>银行家算法可视化：一步一步看安全序列</title>
+  <style>
+:root{--bg:#fff;--bg2:#f5f5f4;--tx:#1a1a1a;--tx2:#6b6b6b;--tx3:#9a9a9a;--bd:rgba(0,0,0,.12);--bd2:rgba(0,0,0,.25);--bl:#378ADD;--blb:#E6F1FB;--gn:#1D9E75;--gnb:#E1F5EE;--rd:#E24B4A;--rdb:#FCEBEB;--or:#D08B1A;--orb:#FDF3E0;--gy:#B4B2A9;--gyb:#F1EFE8;--pp:#534AB7;--ppb:#EEEDFE;--mono:'SF Mono','Cascadia Code','Consolas',monospace;--sans:system-ui,-apple-system,sans-serif}
+@media(prefers-color-scheme:dark){:root{--bg:#1a1a1a;--bg2:#2c2c2a;--tx:#e8e8e8;--tx2:#b3b3b3;--tx3:#7b7b7b;--bd:rgba(255,255,255,.12);--bd2:rgba(255,255,255,.25);--bl:#85B7EB;--blb:#0C447C;--gn:#5DCAA5;--gnb:#085041;--rd:#F09595;--rdb:#501313;--or:#E8B84D;--orb:#5C3D00;--gy:#888780;--gyb:#444441;--pp:#AFA9EC;--ppb:#26215C}}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:var(--sans);background:var(--bg);color:var(--tx);display:flex;justify-content:center;padding:32px 16px;line-height:1.75}
+.c{max-width:920px;width:100%}
+h1{font-size:28px;font-weight:600;margin-bottom:6px}
+h2{font-size:18px;font-weight:600;margin:34px 0 12px;padding-bottom:6px;border-bottom:1px solid var(--bd)}
+h3{font-size:15px;font-weight:600;margin:18px 0 10px}
+p{font-size:14px;color:var(--tx2);margin-bottom:10px}
+p b{color:var(--tx);font-weight:600}
+.sub{font-size:14px;color:var(--tx2);margin-bottom:24px}
+code{font-family:var(--mono);font-size:12px;background:var(--bg2);padding:1px 5px;border-radius:4px}
+pre{background:var(--bg2);border:1px solid var(--bd);border-radius:10px;padding:14px 16px;overflow-x:auto;margin:10px 0 16px;font-family:var(--mono);font-size:12px;color:var(--tx)}
+table{width:100%;border-collapse:collapse;font-size:13px;margin:12px 0}
+th{text-align:left;padding:8px 10px;background:var(--bg2);border:1px solid var(--bd);font-weight:600}
+td{padding:8px 10px;border:1px solid var(--bd);color:var(--tx2)}
+.toc{background:var(--bg2);border:1px solid var(--bd);border-radius:10px;padding:16px 20px;margin:16px 0 28px}
+.toc a{display:block;font-size:13px;color:var(--bl);text-decoration:none;padding:3px 0}
+.toc a:hover{text-decoration:underline}
+.info,.warn,.ok{padding:10px 14px;border-radius:0 8px 8px 0;margin:14px 0;font-size:13px}
+.info{border-left:3px solid var(--bl);background:var(--blb);color:var(--tx)}
+.warn{border-left:3px solid var(--or);background:var(--orb);color:var(--tx)}
+.ok{border-left:3px solid var(--gn);background:var(--gnb);color:var(--tx)}
+.w{border:1px solid var(--bd);border-radius:12px;padding:20px;margin:18px 0;background:var(--bg)}
+.ctrl{display:flex;align-items:center;gap:12px;margin:12px 0}
+.btn{padding:6px 16px;border:1px solid var(--bd);border-radius:8px;background:var(--bg2);color:var(--tx);cursor:pointer;font-size:13px}
+.btn:disabled{opacity:.35;cursor:default}
+.dots{display:flex;gap:6px;align-items:center}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--bd2)}
+.dot.on{background:var(--bl)}
+.cap{font-size:13px;color:var(--tx2);line-height:1.7;min-height:64px;margin-top:8px}
+.grid{display:grid;grid-template-columns:2fr 1fr;gap:16px}
+.panel{border:1px solid var(--bd);border-radius:10px;padding:14px;background:var(--bg2)}
+.panel h4{font-size:13px;font-weight:700;margin-bottom:10px}
+.matrix{width:100%;border-collapse:separate;border-spacing:0}
+.matrix th,.matrix td{text-align:center}
+.matrix td.hl{background:var(--blb);color:var(--bl);font-weight:700}
+.matrix td.ok{background:var(--gnb);color:var(--gn);font-weight:700;border-radius:0}
+.matrix td.dim{opacity:.35}
+.vec{display:flex;gap:8px;flex-wrap:wrap}
+.chip{min-width:56px;padding:10px 12px;border:1px solid var(--bd);border-radius:10px;background:var(--bg);text-align:center}
+.chip .k{font-size:11px;color:var(--tx3);margin-bottom:4px}
+.chip .v{font-size:18px;font-weight:700;color:var(--tx)}
+.seq{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.sq{padding:8px 12px;border-radius:999px;border:1px solid var(--bd);background:var(--bg2);font-size:13px}
+.sq.on{background:var(--blb);border-color:var(--bl);color:var(--bl);font-weight:700}
+.sq.done{background:var(--gnb);border-color:var(--gn);color:var(--gn);font-weight:700}
+@media (max-width:760px){.grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<div class="c">
+  <h1>银行家算法可视化</h1>
+  <p class="sub">别把它想得太玄。你可以把银行家算法理解成一句大白话：<b>钱不是不能借，而是借出去以后，后面还得有路可走</b>。</p>
+
+  <div class="toc">
+    <a href="#s1">1. 先把它想成什么</a>
+    <a href="#s2">2. 这道例题的数据</a>
+    <a href="#s3">3. 交互式一步一步检查</a>
+    <a href="#s4">4. 手算怎么跟</a>
+    <a href="#s5">5. 总结</a>
+  </div>
+
+  <h2 id="s1">1. 先把它想成什么</h2>
+  <p>银行家算法最容易把人绕晕的地方，是一上来就看到一堆矩阵。其实你先别管矩阵，先记一句人话：<b>系统手里现在剩下的资源，能不能一个一个把大家安全送走</b>。</p>
+  <p>如果能，那当前状态就叫<b>安全</b>。如果怎么排都排不出一条“都能顺利做完”的路线，那这个状态就危险，系统就不该再乱答应新的资源请求。</p>
+  <div class="info">所以它不是在问“现在会不会立刻死锁”，而是在问“再往后走，还有没有一条稳妥的活路”。</div>
+
+  <h2 id="s2">2. 这道例题的数据</h2>
+  <p>下面这组数据是经典练手规模，不大，正适合拿纸笔一步一步跟。</p>
+  <table>
+    <thead>
+      <tr><th>进程</th><th>Allocation</th><th>Max</th><th>Need = Max - Allocation</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>P0</td><td>(0,1,0)</td><td>(7,5,3)</td><td>(7,4,3)</td></tr>
+      <tr><td>P1</td><td>(2,0,0)</td><td>(3,2,2)</td><td>(1,2,2)</td></tr>
+      <tr><td>P2</td><td>(3,0,2)</td><td>(9,0,2)</td><td>(6,0,0)</td></tr>
+      <tr><td>P3</td><td>(2,1,1)</td><td>(2,2,2)</td><td>(0,1,1)</td></tr>
+      <tr><td>P4</td><td>(0,0,2)</td><td>(4,3,3)</td><td>(4,3,1)</td></tr>
+    </tbody>
+  </table>
+  <p>当前系统手里还剩下的资源是 <code>Available = (3,3,2)</code>。接下来要做的事很朴素：看看这点家底，先能不能满足某一个进程的 <code>Need</code>。</p>
+
+  <h2 id="s3">3. 交互式一步一步检查</h2>
+  <p>下面这个动画只做一件事：按安全性检查的思路，一步一步找安全序列。每一步我都尽量用做题时会冒出来的那种口语去讲，不走教材腔。</p>
+
+  <div class="w">
+    <div class="grid">
+      <div class="panel">
+        <h4>Need 矩阵</h4>
+        <table class="matrix" id="needTable"></table>
+      </div>
+      <div class="panel">
+        <h4>当前手里还剩多少</h4>
+        <div class="vec" id="availVec"></div>
+        <h4 style="margin-top:14px">已经排出的安全序列</h4>
+        <div class="seq" id="safeSeq"></div>
+      </div>
+    </div>
+    <div class="ctrl">
+      <button class="btn" id="prevBtn">上一步</button>
+      <div class="dots" id="dots"></div>
+      <button class="btn" id="nextBtn">下一步</button>
+    </div>
+    <div class="cap" id="cap"></div>
+  </div>
+
+  <h2 id="s4">4. 手算怎么跟</h2>
+  <p>手算时不要一口气盯着五行一起看，那样最容易乱。你就像排队放人一样，一次只看一个问题：<b>它现在缺的，系统给不给得起</b>。</p>
+  <pre>初始 Available = (3,3,2)
+
+先看 P1：Need = (1,2,2)
+因为 (1,2,2) <= (3,3,2)，所以 P1 能先做完
+P1 做完后会归还 Allocation = (2,0,0)
+新的 Available = (3,3,2) + (2,0,0) = (5,3,2)
+
+再看 P3：Need = (0,1,1)
+因为 (0,1,1) <= (5,3,2)，所以 P3 也能做完
+P3 归还 (2,1,1)
+新的 Available = (7,4,3)
+
+接下来 P4：Need = (4,3,1) <= (7,4,3)
+P4 做完后归还 (0,0,2)
+新的 Available = (7,4,5)
+
+接下来 P0：Need = (7,4,3) <= (7,4,5)
+P0 做完后归还 (0,1,0)
+新的 Available = (7,5,5)
+
+最后 P2：Need = (6,0,0) <= (7,5,5)
+P2 也能做完
+
+所以一条安全序列可以是：
+<P1, P3, P4, P0, P2></pre>
+  <div class="warn">做题时最常见的失误，不是不会减法，而是看见一个进程能执行，就忘了它做完之后会把手里的资源还回来。银行家算法能继续往下走，靠的就是这一步“还资源”。</div>
+
+  <h2 id="s5">5. 总结</h2>
+  <p>如果你只想记住最核心的话，那就是：<b>先找一个现在就能完成的人，让他做完并归还资源，再看下一个</b>。只要能一直找下去，直到所有进程都能排进去，这个状态就是安全的。</p>
+  <div class="ok">这页参考实现最适合拿来当 Skill 的“矩阵 + 逐步推导”样板。因为它既有数值变化，又有明确时序，而且特别适合用大白话把抽象概念讲顺。</div>
+</div>
+
+<script>
+var cols=['A','B','C'];
+var rows=[
+  {pid:'P0',alloc:[0,1,0],need:[7,4,3]},
+  {pid:'P1',alloc:[2,0,0],need:[1,2,2]},
+  {pid:'P2',alloc:[3,0,2],need:[6,0,0]},
+  {pid:'P3',alloc:[2,1,1],need:[0,1,1]},
+  {pid:'P4',alloc:[0,0,2],need:[4,3,1]}
+];
+var steps=[
+  {check:1,avail:[3,3,2],done:[],cap:'先从最容易的开始。当前 <code>Available = (3,3,2)</code>，看 <b>P1</b> 的 <code>Need = (1,2,2)</code>。三个位置都不超过 Available，所以它现在就能顺利做完。'},
+  {check:1,avail:[5,3,2],done:[1],cap:'让 <b>P1</b> 做完，然后把它手里原来占着的 <code>Allocation = (2,0,0)</code> 还回来。于是 Available 变成 <code>(5,3,2)</code>。这一步特别关键：银行家算法靠的就是“做完的人会还资源”。'},
+  {check:3,avail:[5,3,2],done:[1],cap:'接着看 <b>P3</b>。它只缺 <code>(0,1,1)</code>，现在系统手里完全拿得出来，所以 P3 也能先走。'},
+  {check:3,avail:[7,4,3],done:[1,3],cap:'P3 做完后归还 <code>(2,1,1)</code>，Available 变成 <code>(7,4,3)</code>。这时系统明显宽松多了，后面就更好排。'},
+  {check:4,avail:[7,4,3],done:[1,3],cap:'现在看 <b>P4</b>，它缺 <code>(4,3,1)</code>，也已经压在 Available 下面，所以可以安全执行。'},
+  {check:4,avail:[7,4,5],done:[1,3,4],cap:'P4 做完归还 <code>(0,0,2)</code>，Available 变成 <code>(7,4,5)</code>。你会发现，资源是越放越活的。'},
+  {check:0,avail:[7,4,5],done:[1,3,4],cap:'这时候回头看 <b>P0</b>。它之前卡住，是因为缺得太多；现在 Available 已经涨到 <code>(7,4,5)</code>，终于够它用了。'},
+  {check:0,avail:[7,5,5],done:[1,3,4,0],cap:'P0 做完归还 <code>(0,1,0)</code>，Available 变成 <code>(7,5,5)</code>。只剩最后一个进程了。'},
+  {check:2,avail:[7,5,5],done:[1,3,4,0],cap:'最后看 <b>P2</b>。它的 Need 是 <code>(6,0,0)</code>，现在系统当然拿得出来，所以它也能结束。'},
+  {check:2,avail:[10,5,7],done:[1,3,4,0,2],cap:'P2 做完归还 <code>(3,0,2)</code>。到这里，五个进程都能排进去，所以这组数据是<b>安全状态</b>，一条安全序列是 <code>&lt;P1, P3, P4, P0, P2&gt;</code>。'}
+];
+var cur=0;
+function dots(){
+  var host=document.getElementById('dots');host.innerHTML='';
+  for(var i=0;i<steps.length;i++){var d=document.createElement('div');d.className='dot'+(i===cur?' on':'');host.appendChild(d)}
+}
+function renderNeed(){
+  var s=steps[cur],h='<thead><tr><th>进程</th><th>A</th><th>B</th><th>C</th></tr></thead><tbody>';
+  for(var i=0;i<rows.length;i++){
+    h+='<tr><th>'+rows[i].pid+'</th>';
+    for(var j=0;j<3;j++){
+      var cls='';
+      if(s.done.indexOf(i)>=0) cls='ok';
+      else if(s.check===i) cls='hl';
+      h+='<td class="'+cls+'">'+rows[i].need[j]+'</td>';
+    }
+    h+='</tr>';
+  }
+  h+='</tbody>';
+  document.getElementById('needTable').innerHTML=h;
+}
+function renderAvail(){
+  var s=steps[cur],host=document.getElementById('availVec');host.innerHTML='';
+  for(var i=0;i<3;i++){
+    var chip=document.createElement('div');
+    chip.className='chip';
+    chip.innerHTML='<div class="k">'+cols[i]+'</div><div class="v">'+s.avail[i]+'</div>';
+    host.appendChild(chip);
+  }
+}
+function renderSeq(){
+  var s=steps[cur],host=document.getElementById('safeSeq');host.innerHTML='';
+  for(var i=0;i<rows.length;i++){
+    var item=document.createElement('div');
+    var pos=s.done.indexOf(i);
+    item.className='sq'+(pos>=0?' done':'')+(s.check===i&&pos<0?' on':'');
+    item.textContent=rows[i].pid;
+    host.appendChild(item);
+  }
+}
+function render(){
+  renderNeed();
+  renderAvail();
+  renderSeq();
+  document.getElementById('cap').innerHTML=steps[cur].cap;
+  document.getElementById('prevBtn').disabled=cur===0;
+  document.getElementById('nextBtn').disabled=cur===steps.length-1;
+  dots();
+}
+document.getElementById('prevBtn').onclick=function(){if(cur>0){cur--;render()}};
+document.getElementById('nextBtn').onclick=function(){if(cur<steps.length-1){cur++;render()}};
+document.addEventListener('keydown',function(e){
+  if(e.key==='ArrowLeft'&&cur>0){cur--;render()}
+  if(e.key==='ArrowRight'&&cur<steps.length-1){cur++;render()}
+});
+render();
+</script>
+</body>
+</html>

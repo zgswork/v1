@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>成语拆字重排 · DKFile</title>
+  <meta name="description" content="把打乱的四个汉字按正确顺序摆回一条成语。">
+  <style>
+    :root {
+      --green: #059669;
+      --green-mid: #10b981;
+      --green-soft: #d1fae5;
+      --green-faint: #ecfdf5;
+      --ink: #0f172a;
+      --ink-soft: #475569;
+      --muted: #94a3b8;
+      --line: #e2e8f0;
+      --card: #ffffff;
+      --shadow-lg: 0 22px 50px -12px rgba(15, 23, 42, 0.12);
+      --radius: 16px;
+      --radius-sm: 12px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: var(--ink);
+      line-height: 1.55;
+      background: linear-gradient(165deg, var(--green-faint) 0%, #f8fafc 42%, #ffffff 100%);
+      background-attachment: fixed;
+    }
+    .wrap { max-width: 640px; margin: 0 auto; padding: clamp(20px, 4vw, 40px) clamp(16px, 4vw, 28px) 48px; }
+    .hero { text-align: center; margin-bottom: clamp(18px, 3vw, 28px); }
+    .hero-badge {
+      display: inline-block; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+      color: var(--green); background: rgba(16, 185, 129, 0.12); padding: 6px 12px; border-radius: 999px; margin-bottom: 12px;
+    }
+    .hero-title { margin: 0; font-size: clamp(1.45rem, 4vw, 1.8rem); font-weight: 700; color: var(--ink); }
+    .hero-desc { margin: 10px auto 0; max-width: 440px; font-size: 0.9rem; color: var(--ink-soft); }
+    .hero-hosted { margin: 14px auto 0; max-width: 480px; font-size: 0.86rem; color: var(--ink-soft); line-height: 1.55; }
+    .hero-hosted a { color: var(--green); font-weight: 600; text-decoration: none; }
+    .hero-hosted a:hover { text-decoration: underline; }
+    .card {
+      background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow-lg);
+      border: 1px solid rgba(226, 232, 240, 0.85); padding: clamp(22px, 4vw, 32px);
+    }
+    .status { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; margin-bottom: 16px; font-size: 0.85rem; color: var(--ink-soft); }
+    .status strong { color: var(--green); font-weight: 700; }
+    .load-panel { text-align: center; padding: 28px 12px; color: var(--ink-soft); font-size: 0.95rem; }
+    .load-panel.err { color: #b91c1c; }
+    .spinner {
+      width: 36px; height: 36px; border: 3px solid var(--line); border-top-color: var(--green-mid);
+      border-radius: 50%; margin: 0 auto 14px; animation: spin 0.75s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .hidden { display: none !important; }
+    .row-label { font-size: 0.78rem; font-weight: 600; color: var(--green); margin-bottom: 8px; text-align: center; }
+    .slots {
+      display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; min-height: 64px;
+    }
+    .slot {
+      width: clamp(52px, 14vw, 68px); height: clamp(56px, 15vw, 72px); border-radius: var(--radius-sm);
+      border: 2px dashed var(--line); display: flex; align-items: center; justify-content: center;
+      font-size: clamp(1.35rem, 5vw, 1.75rem); font-weight: 800; color: var(--ink); background: #fafafa; cursor: pointer;
+    }
+    .slot.filled { border-style: solid; border-color: var(--green-mid); background: var(--green-faint); }
+    .pool {
+      display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; min-height: 64px;
+    }
+    .tile {
+      width: clamp(52px, 14vw, 68px); height: clamp(56px, 15vw, 72px); border-radius: var(--radius-sm);
+      border: 2px solid var(--line); display: flex; align-items: center; justify-content: center;
+      font-size: clamp(1.35rem, 5vw, 1.75rem); font-weight: 800; color: var(--ink); background: #fff; cursor: pointer;
+      transition: transform 0.1s ease, border-color 0.15s ease;
+    }
+    .tile:hover { border-color: rgba(16, 185, 129, 0.45); }
+    .tile:active { transform: scale(0.98); }
+    .tile:disabled { opacity: 0.35; cursor: default; pointer-events: none; }
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 16px; }
+    button.nav-btn {
+      font-family: inherit; font-size: 0.95rem; font-weight: 600; padding: 12px 22px; border-radius: 999px;
+      border: none; cursor: pointer; transition: transform 0.12s ease;
+    }
+    button.nav-btn:active { transform: scale(0.98); }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--green-mid), var(--green)); color: #fff;
+      box-shadow: 0 8px 20px rgba(5, 150, 105, 0.28);
+    }
+    .btn-ghost {
+      background: #fff; color: var(--ink-soft); border: 1px solid var(--line); box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+    }
+    .feedback { min-height: 1.5em; text-align: center; font-size: 0.95rem; font-weight: 600; margin-top: 12px; }
+    .feedback.ok { color: var(--green); }
+    .feedback.bad { color: #b45309; }
+    .hint {
+      margin-top: 16px; padding: 12px 14px; border-radius: var(--radius-sm);
+      background: rgba(236, 253, 245, 0.9); border: 1px solid rgba(16, 185, 129, 0.2);
+      font-size: 0.82rem; color: var(--ink-soft); line-height: 1.5;
+    }
+    .footer-note { margin-top: 28px; text-align: center; font-size: 0.78rem; color: var(--muted); }
+    .footer-note a { color: var(--green); text-decoration: none; }
+    .footer-note a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="hero">
+      <div class="hero-badge">DKFile · 静态小工具</div>
+      <h1 class="hero-title">成语拆字重排</h1>
+      <p class="hero-desc">四字被拆散打乱。先点下面字块填入上方空位；点已填的字可退回。排好后点「核对」。</p>
+      <p class="hero-hosted">
+        词库来自 DKFile
+        <a href="https://dkfile.net/hosted-data" target="_blank" rel="noopener noreferrer">数据托管</a>
+        ，在线维护、刷新即更新。
+      </p>
+    </header>
+
+    <main class="card">
+      <div id="loadPanel" class="load-panel">
+        <div class="spinner" aria-hidden="true"></div>
+        <div>正在加载词库…</div>
+      </div>
+
+      <div id="gamePanel" class="hidden">
+        <div class="status">
+          <span>词条：<strong id="libCount">—</strong></span>
+          <span>连续答对：<strong id="streak">0</strong></span>
+        </div>
+        <div class="row-label">作答区（左→右）</div>
+        <div class="slots" id="slots" aria-label="作答槽位"></div>
+        <div class="row-label">字块池（点选填入）</div>
+        <div class="pool" id="pool" aria-label="字块"></div>
+        <div class="actions">
+          <button type="button" class="nav-btn btn-primary" id="btnCheck">核对</button>
+          <button type="button" class="nav-btn btn-ghost" id="btnClear">清空槽位</button>
+          <button type="button" class="nav-btn btn-ghost hidden" id="btnNext">下一题</button>
+          <button type="button" class="nav-btn btn-ghost" id="btnSkip">换一题</button>
+        </div>
+        <div class="feedback" id="feedback" aria-live="assertive"></div>
+        <div class="hint">重复字（如两个「一」）会各有一块，请按成语实际用字摆放。随时可点「换一题」跳过。</div>
+      </div>
+    </main>
+
+    <p class="footer-note">
+      词库：<a href="https://dkfile.net/dkfile-data/pub/f5d8d830b8487f558005acca25e705e6" target="_blank" rel="noopener noreferrer">dkfile 公开数据</a>
+    </p>
+  </div>
+
+  <script>
+(function () {
+  var DATA_URL = 'https://dkfile.net/dkfile-data/pub/f5d8d830b8487f558005acca25e705e6';
+
+  var loadPanel = document.getElementById('loadPanel');
+  var gamePanel = document.getElementById('gamePanel');
+  var slotsEl = document.getElementById('slots');
+  var poolEl = document.getElementById('pool');
+  var feedbackEl = document.getElementById('feedback');
+  var streakEl = document.getElementById('streak');
+  var libCountEl = document.getElementById('libCount');
+  var btnCheck = document.getElementById('btnCheck');
+  var btnClear = document.getElementById('btnClear');
+  var btnNext = document.getElementById('btnNext');
+  var btnSkip = document.getElementById('btnSkip');
+
+  var words = [];
+  var streak = 0;
+  var answer = '';
+  var tiles = [];
+  var slots = [null, null, null, null];
+  var solved = false;
+
+  function isFourHan(s) {
+    return typeof s === 'string' && /^[\u4e00-\u9fff]{4}$/.test(s);
+  }
+
+  function shuffleInPlace(a) {
+    var i = a.length;
+    while (i > 1) {
+      i -= 1;
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = a[i];
+      a[i] = a[j];
+      a[j] = t;
+    }
+    return a;
+  }
+
+  function showLoadError(msg) {
+    loadPanel.classList.add('err');
+    loadPanel.innerHTML = '<div style="margin-bottom:10px;font-weight:600;">' + (msg || '加载失败') + '</div>' +
+      '<button type="button" class="nav-btn btn-primary" id="btnRetry" style="margin-top:6px;">重试</button>';
+    document.getElementById('btnRetry').addEventListener('click', function () {
+      loadPanel.classList.remove('err');
+      loadPanel.innerHTML = '<div class="spinner" aria-hidden="true"></div><div>正在加载词库…</div>';
+      fetchWords();
+    });
+  }
+
+  function fetchWords() {
+    fetch(DATA_URL, { credentials: 'omit' })
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function (data) {
+        var raw = (data && data.words) ? data.words : [];
+        words = raw.filter(isFourHan);
+        if (!words.length) {
+          showLoadError('词库为空或格式不符');
+          return;
+        }
+        loadPanel.classList.add('hidden');
+        gamePanel.classList.remove('hidden');
+        libCountEl.textContent = String(words.length);
+        newRound();
+      })
+      .catch(function () {
+        showLoadError('无法拉取词库。请在本站域名下打开，或稍后重试。');
+      });
+  }
+
+  function renderSlots() {
+    slotsEl.innerHTML = '';
+    for (var i = 0; i < 4; i++) {
+      (function (idx) {
+        var d = document.createElement('div');
+        d.className = 'slot' + (slots[idx] != null ? ' filled' : '');
+        d.textContent = slots[idx] != null ? slots[idx].ch : '';
+        d.addEventListener('click', function () {
+          if (solved) return;
+          if (slots[idx] != null) {
+            var t = slots[idx];
+            slots[idx] = null;
+            t.inPool = true;
+            t.btn.disabled = false;
+            renderSlots();
+          }
+        });
+        slotsEl.appendChild(d);
+      })(i);
+    }
+  }
+
+  function renderPool() {
+    poolEl.innerHTML = '';
+    for (var i = 0; i < tiles.length; i++) {
+      (function (t) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'tile';
+        b.textContent = t.ch;
+        b.disabled = !t.inPool;
+        t.btn = b;
+        b.addEventListener('click', function () {
+          if (solved || !t.inPool) return;
+          var pos = -1;
+          for (var k = 0; k < 4; k++) {
+            if (slots[k] == null) { pos = k; break; }
+          }
+          if (pos < 0) return;
+          slots[pos] = t;
+          t.inPool = false;
+          b.disabled = true;
+          renderSlots();
+          renderPool();
+        });
+        poolEl.appendChild(b);
+      })(tiles[i]);
+    }
+  }
+
+  function newRound() {
+    solved = false;
+    answer = words[Math.floor(Math.random() * words.length)];
+    var arr = answer.split('');
+    tiles = [];
+    for (var i = 0; i < arr.length; i++) {
+      tiles.push({ id: i, ch: arr[i], inPool: true, btn: null });
+    }
+    shuffleInPlace(tiles);
+    slots = [null, null, null, null];
+    feedbackEl.textContent = '';
+    feedbackEl.className = 'feedback';
+    btnCheck.classList.remove('hidden');
+    btnClear.classList.remove('hidden');
+    btnNext.classList.add('hidden');
+    renderSlots();
+    renderPool();
+  }
+
+  function check() {
+    if (solved) return;
+    var s = '';
+    for (var i = 0; i < 4; i++) {
+      if (slots[i] == null) {
+        feedbackEl.textContent = '请先填满四个位置。';
+        feedbackEl.className = 'feedback bad';
+        return;
+      }
+      s += slots[i].ch;
+    }
+    if (s === answer) {
+      solved = true;
+      streak += 1;
+      streakEl.textContent = String(streak);
+      feedbackEl.textContent = '对，正是「' + answer + '」。';
+      feedbackEl.className = 'feedback ok';
+      btnCheck.classList.add('hidden');
+      btnClear.classList.add('hidden');
+      btnNext.classList.remove('hidden');
+    } else {
+      streak = 0;
+      streakEl.textContent = '0';
+      feedbackEl.textContent = '顺序不对，可点槽位退回字块重排。';
+      feedbackEl.className = 'feedback bad';
+    }
+  }
+
+  function clearSlots() {
+    if (solved) return;
+    for (var i = 0; i < tiles.length; i++) {
+      tiles[i].inPool = true;
+      if (tiles[i].btn) tiles[i].btn.disabled = false;
+    }
+    slots = [null, null, null, null];
+    feedbackEl.textContent = '';
+    feedbackEl.className = 'feedback';
+    renderSlots();
+    renderPool();
+  }
+
+  btnCheck.addEventListener('click', check);
+  btnClear.addEventListener('click', clearSlots);
+  btnNext.addEventListener('click', newRound);
+  btnSkip.addEventListener('click', newRound);
+
+  fetchWords();
+})();
+  </script>
+</body>
+</html>

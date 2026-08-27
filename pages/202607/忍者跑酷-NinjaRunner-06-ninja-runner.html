@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>忍者跑酷 - Ninja Runner</title>
+    <style>
+        /* 
+        游戏介绍：日式动漫风格的忍者跑酷游戏
+        游戏规则：控制忍者在屋顶间跳跃，收集金币，避开障碍
+        详细玩法：
+        1. 点击屏幕或按空格键让忍者跳跃
+        2. 长按可以进行更高的跳跃
+        3. 收集金币获得分数
+        4. 避开尖刺和深坑等障碍
+        5. 日式动漫风格的视觉效果和背景
+        */
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ffa500 50%, #ff1744 100%);
+            font-family: 'Hiragino Sans', 'Microsoft YaHei', sans-serif;
+            color: #2c3e50;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding-bottom: 90px;
+            overflow: hidden;
+        }
+
+        .game-container {
+            background: linear-gradient(135deg, #87ceeb 0%, #98fb98 50%, #dda0dd 100%);
+            border: 4px solid #ff6b6b;
+            border-radius: 20px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 
+                0 8px 25px rgba(255, 107, 107, 0.4),
+                inset 0 2px 10px rgba(255, 255, 255, 0.3);
+            padding: 25px;
+        }
+
+        .title {
+            font-size: 2.5em;
+            text-align: center;
+            margin-bottom: 10px;
+            background: linear-gradient(45deg, #ff6b6b, #ffa500, #ff1744);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            animation: animeGlow 2s infinite alternate;
+            font-weight: bold;
+        }
+
+        @keyframes animeGlow {
+            0% { 
+                transform: scale(1);
+                filter: brightness(1);
+            }
+            100% { 
+                transform: scale(1.02);
+                filter: brightness(1.1);
+            }
+        }
+
+        .stats {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            font-size: 1.2em;
+            color: #2c3e50;
+            font-weight: bold;
+        }
+
+        #gameCanvas {
+            display: block;
+            border: 2px solid #ff6b6b;
+            cursor: pointer;
+            background: linear-gradient(to bottom, #87ceeb 0%, #98fb98 70%, #8fbc8f 100%);
+        }
+
+        .controls {
+            margin-top: 10px;
+            text-align: center;
+            font-size: 1em;
+            color: #2c3e50;
+            font-weight: bold;
+        }
+
+        .game-over {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 255, 255, 0.95);
+            color: #2c3e50;
+            padding: 30px;
+            border: 3px solid #ff6b6b;
+            border-radius: 20px;
+            text-align: center;
+            display: none;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        .restart-btn {
+            background: linear-gradient(45deg, #ff6b6b, #ffa500);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-family: 'Hiragino Sans', 'Microsoft YaHei', sans-serif;
+            font-size: 1em;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 15px;
+            border-radius: 25px;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(255, 107, 107, 0.3);
+        }
+
+        .restart-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 20px rgba(255, 107, 107, 0.4);
+        }
+
+        .start-screen {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 255, 255, 0.95);
+            color: #2c3e50;
+            padding: 30px;
+            border: 3px solid #ff6b6b;
+            border-radius: 20px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        @media (max-width: 768px) {
+            .game-container {
+                width: 90vw;
+                height: 60vh;
+            }
+            
+            .title {
+                font-size: 2em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="title">🥷 忍者跑酷 🏃‍♂️</div>
+        <div class="stats">
+            <span>金币: <span id="coins">0</span></span>
+            <span>距离: <span id="distance">0</span>m</span>
+            <span>最远: <span id="maxDistance">0</span>m</span>
+            <span>速度: <span id="speed">1.0x</span></span>
+        </div>
+        <canvas id="gameCanvas" width="600" height="400"></canvas>
+        <div class="controls">
+            点击跳跃 | 长按高跳 | 收集金币避开障碍！
+        </div>
+        
+        <div class="start-screen" id="startScreen">
+            <h2>🥷 准备开始忍者修行！</h2>
+            <p>在屋顶间跳跃，收集金币</p>
+            <p style="margin-top: 10px; font-size: 0.9em;">点击屏幕开始游戏</p>
+        </div>
+        
+        <div class="game-over" id="gameOver">
+            <h2>🎌 修行结束！</h2>
+            <p>收集金币: <span id="finalCoins">0</span></p>
+            <p>跑步距离: <span id="finalDistance">0</span>米</p>
+            <p>最远记录: <span id="finalMaxDistance">0</span>米</p>
+            <p id="newDistanceRecord" style="display: none; color: #ff6b6b;">🎉 距离新纪录！</p>
+            <button class="restart-btn" onclick="restartGame()">🔄 重新开始修行</button>
+        </div>
+    </div>
+
+    <template id="site-footer">
+        <style>
+            .footer {
+            position: fixed;
+            bottom: 55px;
+            left: 0;
+            width: 100%;
+            padding: .75rem 1rem;
+            font-size: 14px;
+            background: #fafafa;
+            border-top: 1px solid #eaeaea;
+            display: flex;
+            flex-wrap: wrap;
+            gap: .5rem;
+            justify-content: center;
+            align-items: center;
+            z-index: 999;
+            }
+
+            @media (max-width: 768px) {
+                    .footer {
+                        bottom: 47px;
+                    }
+                }
+            .footer a { color: #0077cc; text-decoration: none; }
+            .footer a:hover { text-decoration: underline; }
+
+            .qr-wrapper { position: relative; display: inline-block; }
+            .qr-img {
+            display: none;
+            position: absolute;
+            bottom: 1.8rem;
+            left: 50%;
+            transform: translateX(-50%);
+            max-width: 140px;
+            border: 1px solid #ddd;
+            background: #fff;
+            padding: 4px;
+            border-radius: 6px;
+            box-shadow: 0 4px 12px rgba(0,0,0,.15);
+            }
+            .qr-wrapper:hover .qr-img { display: block; }
+        </style>
+
+        <div class="footer card">
+            Created&nbsp;by：
+            <span class="qr-wrapper">
+            <a class="qr-link"
+                href="https://mp.weixin.qq.com/mp/profile_ext?action=home&__biz=MzI0MzUzOTEwMw==&scene=124#wechat_redirect"
+                target="_blank"
+                data-img="https://raw.githubusercontent.com/anneeeee/programming_exercise/refs/heads/main/ad_pics/qrcode_for_gh_87351941139e_258%20(2).jpg">系统1与系统2</a>
+            <img class="qr-img" alt="系统1与系统2公众号二维码">
+            </span>
+            &nbsp;||&nbsp;广告位：
+            <span class="qr-wrapper">
+            <a class="qr-link"
+                href="https://t.zsxq.com/SjYuX"
+                target="_blank"
+                data-img="https://raw.githubusercontent.com/anneeeee/programming_exercise/refs/heads/main/ad_pics/AI_programming.pic.jpg">AI编程星球</a>
+            <img class="qr-img" alt="AI编程星球二维码">
+            </span> |
+            <span class="qr-wrapper">
+            <a class="qr-link"
+                href="https://t.zsxq.com/VTCya"
+                target="_blank"
+                data-img="https://raw.githubusercontent.com/anneeeee/programming_exercise/refs/heads/main/ad_pics/laoxu.pic.jpg">副业避坑星球</a>
+            <img class="qr-img" alt="副业避坑星球二维码">
+            </span> |
+            <span class="qr-wrapper">
+            <a class="qr-link"
+                href="https://www.xiaobot.net/p/ai08?refer=a9625ad2-ec04-4cc8-8549-7511079cb3b5"
+                target="_blank"
+                data-img="https://raw.githubusercontent.com/anneeeee/programming_exercise/refs/heads/main/ad_pics/hani-xiaobot-8.png">AI&nbsp;产品日报</a>
+            <img class="qr-img" alt="AI产品日报二维码">
+            </span> |
+            <span class="qr-wrapper">
+            <a class="qr-link"
+                href="https://t.zsxq.com/jcaEa"
+                target="_blank"
+                data-img="https://raw.githubusercontent.com/anneeeee/programming_exercise/refs/heads/main/ad_pics/aipm.pic.jpg">AI&nbsp;产品经理大本营</a>
+            <img class="qr-img" alt="AI产品经理大本营二维码">
+            </span>
+        </div>
+    </template>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const coinsElement = document.getElementById('coins');
+        const distanceElement = document.getElementById('distance');
+        const maxDistanceElement = document.getElementById('maxDistance');
+        const speedElement = document.getElementById('speed');
+        const gameOverElement = document.getElementById('gameOver');
+        const finalCoinsElement = document.getElementById('finalCoins');
+        const finalDistanceElement = document.getElementById('finalDistance');
+        const finalMaxDistanceElement = document.getElementById('finalMaxDistance');
+        const startScreenElement = document.getElementById('startScreen');
+
+        // 游戏状态
+        let gameState = 'start'; // start, playing, gameOver
+        let coins = 0;
+        let distance = 0;
+        let maxDistance = localStorage.getItem('ninjaMaxDistance') || 0;
+        let gameSpeed = 2;
+        let frameCount = 0;
+
+        // 忍者对象
+        let ninja = {
+            x: 120,
+            y: canvas.height - 80,
+            width: 30,
+            height: 40,
+            velocity: 0,
+            velocityX: 0,
+            gravity: 0.6,
+            jumpPower: -16,
+            jumpSpeedX: 2.5,
+            isJumping: false,
+            groundY: canvas.height - 80,
+            color: '#2c3e50'
+        };
+
+        // 平台数组
+        let platforms = [];
+        
+        // 障碍物数组
+        let obstacles = [];
+        
+        // 金币数组
+        let coinItems = [];
+        
+        // 背景云朵
+        let clouds = [];
+        
+        // 粒子效果
+        let particles = [];
+
+        // 按键状态
+        let isPressed = false;
+        let pressStartTime = 0;
+        let hasJumped = false;
+
+        // 初始化游戏对象
+        function initGame() {
+            platforms = [];
+            obstacles = [];
+            coinItems = [];
+            particles = [];
+            
+            // 创建初始平台
+            for (let i = 0; i < 12; i++) {
+                platforms.push({
+                    x: i * 120,
+                    y: canvas.height - 20,
+                    width: 100,
+                    height: 20,
+                    color: '#8fbc8f'
+                });
+            }
+            
+            // 创建云朵
+            clouds = [];
+            for (let i = 0; i < 4; i++) {
+                clouds.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * 150,
+                    width: 60 + Math.random() * 40,
+                    height: 30 + Math.random() * 20,
+                    speed: 0.5 + Math.random() * 1
+                });
+            }
+        }
+
+        // 绘制云朵
+        function drawClouds() {
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+            clouds.forEach(cloud => {
+                ctx.beginPath();
+                ctx.arc(cloud.x, cloud.y, cloud.width/3, 0, Math.PI * 2);
+                ctx.arc(cloud.x + cloud.width/3, cloud.y, cloud.width/4, 0, Math.PI * 2);
+                ctx.arc(cloud.x + cloud.width/2, cloud.y, cloud.width/3, 0, Math.PI * 2);
+                ctx.fill();
+                
+                cloud.x -= cloud.speed;
+                if (cloud.x + cloud.width < 0) {
+                    cloud.x = canvas.width + Math.random() * 100;
+                }
+            });
+        }
+
+        // 绘制忍者
+        function drawNinja() {
+            ctx.save();
+            ctx.translate(ninja.x + ninja.width/2, ninja.y + ninja.height/2);
+            
+            // 忍者身体
+            ctx.fillStyle = '#2c3e50';
+            ctx.fillRect(-ninja.width/2, -ninja.height/2, ninja.width, ninja.height/2);
+            
+            // 忍者头部
+            ctx.fillStyle = '#34495e';
+            ctx.fillRect(-12, -ninja.height/2, 24, 18);
+            
+            // 忍者面罩
+            ctx.fillStyle = '#e74c3c';
+            ctx.fillRect(-10, -ninja.height/2 + 3, 20, 12);
+            
+            // 眼睛
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(-8, -ninja.height/2 + 5, 4, 3);
+            ctx.fillRect(4, -ninja.height/2 + 5, 4, 3);
+            
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(-7, -ninja.height/2 + 6, 2, 1);
+            ctx.fillRect(5, -ninja.height/2 + 6, 2, 1);
+            
+            // 忍者腿部
+            ctx.fillStyle = '#2c3e50';
+            ctx.fillRect(-8, ninja.height/4, 6, 12);
+            ctx.fillRect(2, ninja.height/4, 6, 12);
+            
+            // 忍者手臂 (跳跃时摆动)
+            const armAngle = ninja.isJumping ? -0.5 : 0.2;
+            ctx.rotate(armAngle);
+            ctx.fillStyle = '#34495e';
+            ctx.fillRect(-15, -5, 8, 15);
+            ctx.fillRect(7, -5, 8, 15);
+            
+            ctx.restore();
+        }
+
+        // 绘制平台
+        function drawPlatforms() {
+            platforms.forEach(platform => {
+                // 平台主体
+                ctx.fillStyle = platform.color;
+                ctx.fillRect(platform.x, platform.y, platform.width, platform.height);
+                
+                // 平台装饰
+                ctx.fillStyle = '#90ee90';
+                ctx.fillRect(platform.x, platform.y, platform.width, 5);
+                
+                // 瓦片效果
+                ctx.strokeStyle = '#228b22';
+                ctx.lineWidth = 1;
+                for (let i = 0; i < platform.width; i += 20) {
+                    ctx.beginPath();
+                    ctx.moveTo(platform.x + i, platform.y);
+                    ctx.lineTo(platform.x + i, platform.y + platform.height);
+                    ctx.stroke();
+                }
+            });
+        }
+
+        // 绘制障碍物
+        function drawObstacles() {
+            obstacles.forEach(obstacle => {
+                ctx.fillStyle = obstacle.color;
+                
+                if (obstacle.type === 'spike') {
+                    // 尖刺
+                    ctx.beginPath();
+                    ctx.moveTo(obstacle.x, obstacle.y + obstacle.height);
+                    ctx.lineTo(obstacle.x + obstacle.width/2, obstacle.y);
+                    ctx.lineTo(obstacle.x + obstacle.width, obstacle.y + obstacle.height);
+                    ctx.closePath();
+                    ctx.fill();
+                } else if (obstacle.type === 'block') {
+                    // 方块障碍
+                    ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+                    
+                    // 装饰线条
+                    ctx.strokeStyle = '#c0392b';
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+                }
+            });
+        }
+
+        // 绘制金币
+        function drawCoins() {
+            coinItems.forEach(coin => {
+                ctx.save();
+                ctx.translate(coin.x + coin.size/2, coin.y + coin.size/2);
+                ctx.rotate(coin.rotation);
+                
+                // 金币外圈
+                ctx.fillStyle = '#ffd700';
+                ctx.beginPath();
+                ctx.arc(0, 0, coin.size/2, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 金币内圈
+                ctx.fillStyle = '#ffff00';
+                ctx.beginPath();
+                ctx.arc(0, 0, coin.size/3, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 金币符号
+                ctx.fillStyle = '#ff8c00';
+                ctx.font = '12px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('¥', 0, 4);
+                
+                coin.rotation += 0.1;
+                
+                ctx.restore();
+            });
+        }
+
+        // 绘制粒子效果
+        function drawParticles() {
+            particles.forEach(particle => {
+                ctx.fillStyle = particle.color;
+                ctx.globalAlpha = particle.life;
+                ctx.beginPath();
+                ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.globalAlpha = 1;
+            });
+        }
+
+        // 创建平台
+        function createPlatform() {
+            const lastPlatform = platforms[platforms.length - 1];
+            const gap = 80 + Math.random() * 60;
+            const height = Math.random() * 100 + canvas.height - 150;
+            
+            platforms.push({
+                x: lastPlatform.x + lastPlatform.width + gap,
+                y: height,
+                width: 80 + Math.random() * 40,
+                height: 20,
+                color: '#8fbc8f'
+            });
+        }
+
+        // 创建障碍物
+        function createObstacle() {
+            const lastPlatform = platforms[platforms.length - 1];
+            
+            if (Math.random() < 0.2) {
+                const type = Math.random() < 0.5 ? 'spike' : 'block';
+                
+                obstacles.push({
+                    x: lastPlatform.x + Math.random() * (lastPlatform.width - 20),
+                    y: type === 'spike' ? lastPlatform.y - 18 : lastPlatform.y - 22,
+                    width: type === 'spike' ? 15 : 18,
+                    height: type === 'spike' ? 18 : 22,
+                    type: type,
+                    color: '#e74c3c'
+                });
+            }
+        }
+
+        // 创建金币
+        function createCoin() {
+            const lastPlatform = platforms[platforms.length - 1];
+            
+            if (Math.random() < 0.6) {
+                coinItems.push({
+                    x: lastPlatform.x + Math.random() * lastPlatform.width,
+                    y: lastPlatform.y - 40 - Math.random() * 30,
+                    size: 16,
+                    rotation: 0,
+                    collected: false
+                });
+            }
+        }
+
+        // 创建粒子
+        function createParticle(x, y, color, count = 5) {
+            for (let i = 0; i < count; i++) {
+                particles.push({
+                    x: x + (Math.random() - 0.5) * 20,
+                    y: y + (Math.random() - 0.5) * 20,
+                    vx: (Math.random() - 0.5) * 4,
+                    vy: (Math.random() - 0.5) * 4,
+                    life: 1,
+                    decay: 0.02,
+                    color: color,
+                    size: Math.random() * 4 + 2
+                });
+            }
+        }
+
+        // 更新游戏逻辑
+        function update() {
+            if (gameState !== 'playing') return;
+            
+            frameCount++;
+            
+            // 更新忍者物理
+            ninja.velocity += ninja.gravity;
+            ninja.y += ninja.velocity;
+            
+            // 更新忍者水平位置
+            ninja.x += ninja.velocityX;
+            
+            // 水平摩擦力，让忍者逐渐减速
+            ninja.velocityX *= 0.95;
+            
+            // 限制忍者的水平位置，防止跑出屏幕
+            if (ninja.x < 20) {
+                ninja.x = 20;
+                ninja.velocityX = 0;
+            } else if (ninja.x > canvas.width - ninja.width - 50) {
+                ninja.x = canvas.width - ninja.width - 50;
+                ninja.velocityX = 0;
+            }
+            
+            // 检查忍者是否在平台上
+            ninja.isJumping = true;
+            platforms.forEach(platform => {
+                if (ninja.x + ninja.width > platform.x && 
+                    ninja.x < platform.x + platform.width &&
+                    ninja.y + ninja.height > platform.y &&
+                    ninja.y + ninja.height < platform.y + platform.height + 10 &&
+                    ninja.velocity >= 0) {
+                    ninja.y = platform.y - ninja.height;
+                    ninja.velocity = 0;
+                    ninja.isJumping = false;
+                }
+            });
+            
+            // 长按跳跃已经在按键事件中处理，这里不需要额外逻辑
+            
+            // 移动所有游戏对象
+            platforms.forEach(platform => platform.x -= gameSpeed);
+            obstacles.forEach(obstacle => obstacle.x -= gameSpeed);
+            coinItems.forEach(coin => coin.x -= gameSpeed);
+            
+            // 清理离开屏幕的对象
+            platforms = platforms.filter(platform => platform.x + platform.width > -50);
+            obstacles = obstacles.filter(obstacle => obstacle.x + obstacle.width > -50);
+            coinItems = coinItems.filter(coin => coin.x + coin.size > -50);
+            
+            // 生成新的游戏对象
+            if (platforms.length < 12) {
+                createPlatform();
+                createObstacle();
+                createCoin();
+            }
+            
+            // 碰撞检测 - 障碍物（稍微放宽边界）
+            obstacles.forEach(obstacle => {
+                if (ninja.x + ninja.width - 3 > obstacle.x && 
+                    ninja.x + 3 < obstacle.x + obstacle.width &&
+                    ninja.y + ninja.height - 2 > obstacle.y &&
+                    ninja.y + 2 < obstacle.y + obstacle.height) {
+                    gameOver();
+                }
+            });
+            
+            // 碰撞检测 - 金币
+            coinItems.forEach((coin, index) => {
+                if (!coin.collected && 
+                    ninja.x + ninja.width > coin.x && 
+                    ninja.x < coin.x + coin.size &&
+                    ninja.y + ninja.height > coin.y &&
+                    ninja.y < coin.y + coin.size) {
+                    coin.collected = true;
+                    coins++;
+                    coinsElement.textContent = coins;
+                    createParticle(coin.x, coin.y, '#ffd700', 8);
+                    coinItems.splice(index, 1);
+                }
+            });
+            
+            // 更新距离和速度
+            distance += gameSpeed * 0.1;
+            distanceElement.textContent = Math.floor(distance);
+            
+            // 更新最远距离显示
+            if (Math.floor(distance) > maxDistance) {
+                maxDistance = Math.floor(distance);
+                maxDistanceElement.textContent = maxDistance;
+            }
+            
+            if (frameCount % 600 === 0) {
+                gameSpeed += 0.5;
+                speedElement.textContent = (gameSpeed / 2).toFixed(1) + 'x';
+            }
+            
+            // 更新粒子
+            particles = particles.filter(particle => {
+                particle.x += particle.vx;
+                particle.y += particle.vy;
+                particle.vx *= 0.98;
+                particle.vy *= 0.98;
+                particle.life -= particle.decay;
+                return particle.life > 0;
+            });
+            
+            // 检查忍者是否掉落
+            if (ninja.y > canvas.height) {
+                gameOver();
+            }
+        }
+
+        // 绘制游戏画面
+        function draw() {
+            // 绘制天空背景
+            const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            gradient.addColorStop(0, '#87ceeb');
+            gradient.addColorStop(0.7, '#98fb98');
+            gradient.addColorStop(1, '#dda0dd');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            drawClouds();
+            
+            if (gameState === 'playing') {
+                drawPlatforms();
+                drawObstacles();
+                drawCoins();
+                drawParticles();
+                drawNinja();
+            } else if (gameState === 'start') {
+                drawPlatforms();
+                drawNinja();
+            }
+        }
+
+        // 游戏循环
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // 忍者跳跃
+        function jump(jumpForce = null) {
+            if (gameState === 'start') {
+                startGame();
+            } else if (gameState === 'playing' && !ninja.isJumping) {
+                // 如果没有指定跳跃力度，使用默认跳跃力度
+                ninja.velocity = jumpForce !== null ? jumpForce : ninja.jumpPower;
+                // 跳跃时给予向前的水平速度
+                ninja.velocityX = ninja.jumpSpeedX;
+                ninja.isJumping = true;
+            }
+        }
+        
+        // 计算长按跳跃力度
+        function calculateJumpForce(pressDuration) {
+            // 基础跳跃力度是 -16
+            // 长按最多增加 -10 的额外力度（更强的向上速度）
+            const maxExtraForce = -10;
+            const maxPressDuration = 15; // 最大长按时间（帧）
+            
+            const extraForce = Math.min(pressDuration / maxPressDuration, 1) * maxExtraForce;
+            return ninja.jumpPower + extraForce;
+        }
+
+        // 开始游戏
+        function startGame() {
+            gameState = 'playing';
+            startScreenElement.style.display = 'none';
+            ninja.velocity = ninja.jumpPower;
+        }
+
+        // 游戏结束
+        function gameOver() {
+            gameState = 'gameOver';
+            finalCoinsElement.textContent = coins;
+            finalDistanceElement.textContent = Math.floor(distance);
+            finalMaxDistanceElement.textContent = maxDistance;
+            
+            // 检查是否创造新的距离纪录
+            const currentDistance = Math.floor(distance);
+            if (currentDistance > localStorage.getItem('ninjaMaxDistance') || 0) {
+                localStorage.setItem('ninjaMaxDistance', currentDistance);
+                document.getElementById('newDistanceRecord').style.display = 'block';
+            } else {
+                document.getElementById('newDistanceRecord').style.display = 'none';
+            }
+            
+            gameOverElement.style.display = 'block';
+        }
+
+        // 重新开始游戏
+        function restartGame() {
+            gameState = 'start';
+            coins = 0;
+            distance = 0;
+            gameSpeed = 2;
+            frameCount = 0;
+            pressStartTime = 0;
+            isPressed = false;
+            hasJumped = false;
+            
+            coinsElement.textContent = coins;
+            distanceElement.textContent = distance;
+            maxDistanceElement.textContent = maxDistance;
+            speedElement.textContent = '1.0x';
+            gameOverElement.style.display = 'none';
+            startScreenElement.style.display = 'block';
+            
+            // 重置忍者
+            ninja.x = 120;
+            ninja.y = ninja.groundY;
+            ninja.velocity = 0;
+            ninja.velocityX = 0;
+            ninja.isJumping = false;
+            
+            // 重新初始化游戏
+            initGame();
+        }
+
+        // 事件监听
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                if (!isPressed && !hasJumped) {
+                    isPressed = true;
+                    pressStartTime = Date.now();
+                    hasJumped = true;
+                    // 立即执行一个基础跳跃
+                    jump();
+                }
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                if (isPressed && gameState === 'playing' && ninja.isJumping) {
+                    // 计算长按时间（毫秒转换为帧，假设60fps）
+                    const pressDuration = Math.min((Date.now() - pressStartTime) / 16.67, 20);
+                    
+                    // 如果长按时间足够长，给予额外的向上速度和水平速度
+                    if (pressDuration > 2) {
+                        const extraForce = calculateJumpForce(pressDuration) - ninja.jumpPower;
+                        ninja.velocity += extraForce;
+                        // 长按跳跃时增加额外的水平速度
+                        ninja.velocityX += pressDuration * 0.15;
+                    }
+                }
+                
+                isPressed = false;
+                hasJumped = false;
+            }
+        });
+
+        canvas.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            if (!isPressed && !hasJumped) {
+                isPressed = true;
+                pressStartTime = Date.now();
+                hasJumped = true;
+                jump();
+            }
+        });
+
+        canvas.addEventListener('mouseup', (e) => {
+            e.preventDefault();
+            if (isPressed && gameState === 'playing' && ninja.isJumping) {
+                const pressDuration = Math.min((Date.now() - pressStartTime) / 16.67, 20);
+                
+                if (pressDuration > 2) {
+                    const extraForce = calculateJumpForce(pressDuration) - ninja.jumpPower;
+                    ninja.velocity += extraForce;
+                    // 长按跳跃时增加额外的水平速度
+                    ninja.velocityX += pressDuration * 0.3;
+                }
+            }
+            
+            isPressed = false;
+            hasJumped = false;
+        });
+
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            if (!isPressed && !hasJumped) {
+                isPressed = true;
+                pressStartTime = Date.now();
+                hasJumped = true;
+                jump();
+            }
+        });
+
+        canvas.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            if (isPressed && gameState === 'playing' && ninja.isJumping) {
+                const pressDuration = Math.min((Date.now() - pressStartTime) / 16.67, 20);
+                
+                if (pressDuration > 2) {
+                    const extraForce = calculateJumpForce(pressDuration) - ninja.jumpPower;
+                    ninja.velocity += extraForce;
+                    // 长按跳跃时增加额外的水平速度
+                    ninja.velocityX += pressDuration * 0.3;
+                }
+            }
+            
+            isPressed = false;
+            hasJumped = false;
+        });
+
+        // 响应式画布
+        function resizeCanvas() {
+            if (window.innerWidth <= 768) {
+                canvas.width = Math.min(500, window.innerWidth - 20);
+                canvas.height = Math.min(350, window.innerHeight * 0.55);
+            } else {
+                canvas.width = 600;
+                canvas.height = 400;
+            }
+            ninja.groundY = canvas.height - 80;
+            ninja.y = ninja.groundY;
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // 初始化游戏
+        initGame();
+        gameLoop();
+
+        // Footer 脚本
+        document.addEventListener('DOMContentLoaded', () => {
+            const tpl = document.getElementById('site-footer');
+            if (tpl && 'content' in tpl) {
+                document.body.appendChild(tpl.content.cloneNode(true));
+            }
+
+            document.querySelectorAll('.qr-wrapper').forEach(w => {
+                const link = w.querySelector('.qr-link');
+                const img = w.querySelector('.qr-img');
+                if (link && img && link.dataset.img) {
+                    img.src = link.dataset.img.trim();
+                }
+            });
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>简易笔记板</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #f7f7f8;
+        --fg: #222;
+        --muted: #666;
+        --accent: #4f6ef7;
+        --border: #ddd;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #121212;
+          --fg: #eaeaea;
+          --muted: #a0a0a0;
+          --accent: #7996ff;
+          --border: #2a2a2a;
+        }
+      }
+
+      html, body {
+        height: 100%;
+      }
+      body {
+        margin: 0;
+        padding: 0;
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Noto Sans", "PingFang SC", "Microsoft YaHei", sans-serif;
+        background: var(--bg);
+        color: var(--fg);
+      }
+      .wrap {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 16px;
+      }
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+      h1 {
+        font-size: clamp(20px, 4.8vw, 28px);
+        margin: 0;
+        letter-spacing: 0.5px;
+      }
+      .status {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .toolbar {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-bottom: 10px;
+      }
+      button {
+        appearance: none;
+        border: 1px solid var(--border);
+        background: transparent;
+        color: var(--fg);
+        padding: 8px 12px;
+        border-radius: 8px;
+        font-size: 14px;
+        cursor: pointer;
+      }
+      button.primary {
+        background: var(--accent);
+        color: white;
+        border-color: transparent;
+      }
+      button:active { transform: translateY(1px); }
+
+      textarea {
+        width: 100%;
+        min-height: clamp(50vh, 65vh, 75vh);
+        box-sizing: border-box;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 12px 14px;
+        font-size: clamp(14px, 3.5vw, 16px);
+        line-height: 1.6;
+        resize: vertical;
+        background: transparent;
+        color: var(--fg);
+        outline: none;
+      }
+      .hint {
+        margin-top: 8px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      footer {
+        margin-top: 16px;
+        font-size: 12px;
+        color: var(--muted);
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <h1>简易笔记板</h1>
+        <div class="status" id="status" aria-live="polite">已加载</div>
+      </header>
+
+      <div class="toolbar">
+        <button class="primary" id="btnExport">导出为文件</button>
+        <button id="btnCopy">复制全部</button>
+        <button id="btnClear">清空内容</button>
+      </div>
+
+      <textarea id="note" placeholder="在这里输入你的笔记……（内容会自动保存到本地）" aria-label="笔记内容"></textarea>
+      <div class="hint" id="hint">内容会自动保存到浏览器本地（localStorage）。</div>
+
+      <footer>
+        简易笔记板 · 支持电脑与手机 · 自动保存
+      </footer>
+    </div>
+
+    <script>
+      (function () {
+        const STORAGE_KEY = 'easy-notepad-content';
+        const STATUS = document.getElementById('status');
+        const NOTE = document.getElementById('note');
+        const BTN_EXPORT = document.getElementById('btnExport');
+        const BTN_COPY = document.getElementById('btnCopy');
+        const BTN_CLEAR = document.getElementById('btnClear');
+
+        let saveTimer = null;
+        const setStatus = (text) => {
+          STATUS.textContent = text;
+        };
+
+        // 初始加载本地内容
+        try {
+          const cached = localStorage.getItem(STORAGE_KEY);
+          if (cached) {
+            NOTE.value = cached;
+            setStatus('已从本地加载');
+          } else {
+            setStatus('已加载');
+          }
+        } catch (err) {
+          console.warn('读取本地存储失败:', err);
+          setStatus('本地存储不可用');
+        }
+
+        // 自动保存（轻微防抖）
+        NOTE.addEventListener('input', () => {
+          setStatus('正在保存…');
+          if (saveTimer) clearTimeout(saveTimer);
+          saveTimer = setTimeout(() => {
+            try {
+              localStorage.setItem(STORAGE_KEY, NOTE.value || '');
+              const ts = new Date();
+              setStatus('已保存 · ' + ts.toLocaleString());
+            } catch (err) {
+              console.warn('保存失败:', err);
+              setStatus('保存失败（存储空间或权限问题）');
+            }
+          }, 300);
+        });
+
+        // 导出为txt文件
+        BTN_EXPORT.addEventListener('click', () => {
+          const blob = new Blob([NOTE.value || ''], { type: 'text/plain;charset=utf-8' });
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = '简易笔记板.txt';
+          document.body.appendChild(a);
+          a.click();
+          URL.revokeObjectURL(a.href);
+          a.remove();
+          setStatus('已导出为文件');
+        });
+
+        // 复制全部
+        BTN_COPY.addEventListener('click', async () => {
+          try {
+            await navigator.clipboard.writeText(NOTE.value || '');
+            setStatus('已复制到剪贴板');
+          } catch (err) {
+            // 兼容不支持clipboard API的环境
+            NOTE.select();
+            document.execCommand('copy');
+            setStatus('已复制（降级方式）');
+          }
+        });
+
+        // 清空内容
+        BTN_CLEAR.addEventListener('click', () => {
+          const ok = confirm('确定要清空所有内容吗？此操作不可撤销。');
+          if (!ok) return;
+          NOTE.value = '';
+          try {
+            localStorage.removeItem(STORAGE_KEY);
+            setStatus('已清空');
+          } catch (err) {
+            setStatus('清空失败');
+          }
+        });
+
+        // 当页面隐藏或关闭前尝试保存一次
+        window.addEventListener('beforeunload', () => {
+          try { localStorage.setItem(STORAGE_KEY, NOTE.value || ''); } catch {}
+        });
+      })();
+    </script>
+  </body>
+  </html>

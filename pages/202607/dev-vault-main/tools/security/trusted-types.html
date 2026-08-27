@@ -1,0 +1,865 @@
+﻿<!DOCTYPE html>
+<html tk="title_trusted_types_api_playgro" lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trusted Types API Playground</title>
+<meta name="description" content="Interactive playground for the Trusted Types API 鈥?prevent DOM XSS by requiring sanitized values for dangerous sinks.">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d1117;--surface:#161b22;--surface2:#1c2333;--border:#30363d;
+  --text:#e6edf3;--text2:#8b949e;--accent:#58a6ff;--accent2:#3fb950;
+  --danger:#f85149;--warning:#d29922;--purple:#bc8cff;
+  --radius:8px;--mono:'SF Mono','Cascadia Code','Fira Code',monospace;
+  --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+}
+html{font-size:15px;scroll-behavior:smooth}
+body{font-family:var(--sans);background:var(--bg);color:var(--text);line-height:1.6;min-height:100vh}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+
+/* Header */
+.header{background:var(--surface);border-bottom:1px solid var(--border);padding:1.2rem 1.5rem;position:sticky;top:0;z-index:100;backdrop-filter:blur(12px)}
+.header-inner{max-width:1200px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.8rem}
+.header h1{font-size:1.4rem;font-weight:700;display:flex;align-items:center;gap:.6rem}
+.header h1 .icon{font-size:1.6rem}
+.badge{display:inline-flex;align-items:center;gap:.3rem;font-size:.75rem;padding:.2rem .6rem;border-radius:12px;font-weight:600}
+.badge-support{border:1px solid var(--border);color:var(--text2)}
+.badge-support.supported{border-color:var(--accent2);color:var(--accent2)}
+.badge-support.unsupported{border-color:var(--danger);color:var(--danger)}
+.dot{width:6px;height:6px;border-radius:50%;display:inline-block}
+.dot.green{background:var(--accent2)}.dot.red{background:var(--danger)}
+
+/* Layout */
+.container{max-width:1200px;margin:0 auto;padding:1.5rem}
+.grid{display:grid;gap:1.5rem}
+.grid-2{grid-template-columns:repeat(auto-fit,minmax(min(100%,480px),1fr))}
+
+/* Sections */
+.section{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.section-head{padding:1rem 1.2rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.6rem;font-weight:600;font-size:1rem}
+.section-head .num{background:var(--accent);color:#000;font-size:.7rem;width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-weight:700}
+.section-body{padding:1.2rem}
+
+/* Code blocks */
+.code-block{background:#0d1117;border:1px solid var(--border);border-radius:6px;padding:1rem;font-family:var(--mono);font-size:.82rem;line-height:1.7;overflow-x:auto;position:relative;white-space:pre-wrap;word-break:break-word;color:var(--text2)}
+.code-block .kw{color:var(--danger)}.code-block .fn{color:var(--purple)}
+.code-block .str{color:var(--accent2)}.code-block .cmt{color:#484f58;font-style:italic}
+.code-block .num{color:var(--warning);background:none;width:auto;height:auto;border-radius:0;display:inline;font-weight:400;font-size:inherit}
+.copy-btn{position:absolute;top:.5rem;right:.5rem;background:var(--surface2);border:1px solid var(--border);color:var(--text2);padding:.3rem .6rem;border-radius:4px;font-size:.7rem;cursor:pointer;font-family:var(--sans);transition:all .15s}
+.copy-btn:hover{color:var(--text);border-color:var(--accent)}
+.copy-btn.copied{color:var(--accent2);border-color:var(--accent2)}
+
+/* Forms */
+textarea,input[type="text"],select{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:.6rem .8rem;font-family:var(--mono);font-size:.82rem;resize:vertical;outline:none;transition:border-color .15s}
+textarea:focus,input[type="text"]:focus,select:focus{border-color:var(--accent)}
+label{display:block;font-size:.82rem;color:var(--text2);margin-bottom:.3rem;font-weight:500}
+.field{margin-bottom:1rem}
+.field:last-child{margin-bottom:0}
+select{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%238b949e'%3E%3Cpath d='M6 8.5L1 3.5h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right .7rem center}
+
+/* Buttons */
+.btn{display:inline-flex;align-items:center;gap:.4rem;padding:.5rem 1rem;border-radius:6px;font-size:.82rem;font-weight:600;cursor:pointer;border:1px solid transparent;font-family:var(--sans);transition:all .15s}
+.btn-primary{background:var(--accent);color:#000}.btn-primary:hover{background:#79c0ff}
+.btn-danger{background:var(--danger);color:#fff}.btn-danger:hover{background:#ff7b72}
+.btn-outline{background:transparent;border-color:var(--border);color:var(--text)}.btn-outline:hover{border-color:var(--accent);color:var(--accent)}
+.btn-sm{padding:.35rem .7rem;font-size:.75rem}
+.btn-group{display:flex;gap:.5rem;flex-wrap:wrap}
+
+/* Output panels */
+.output{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:.8rem 1rem;min-height:60px;font-family:var(--mono);font-size:.82rem;line-height:1.6;color:var(--text2);overflow-x:auto}
+.output.success{border-color:var(--accent2)}.output.error{border-color:var(--danger)}
+.output-label{font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text2);margin-bottom:.4rem;font-weight:600}
+
+/* Comparison */
+.compare{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+.compare-col{min-width:0}
+.compare-col h4{font-size:.82rem;margin-bottom:.5rem;display:flex;align-items:center;gap:.4rem}
+.compare-col h4 .dot{width:8px;height:8px}
+@media(max-width:640px){.compare{grid-template-columns:1fr}}
+
+/* Table */
+.sink-table{width:100%;border-collapse:collapse;font-size:.82rem}
+.sink-table th,.sink-table td{padding:.55rem .8rem;text-align:left;border-bottom:1px solid var(--border)}
+.sink-table th{color:var(--text2);font-weight:600;font-size:.72rem;text-transform:uppercase;letter-spacing:.04em}
+.sink-table td{font-family:var(--mono);font-size:.78rem}
+.sink-table tr:last-child td{border-bottom:none}
+.sink-table .risk-high{color:var(--danger)}.sink-table .risk-med{color:var(--warning)}
+.tag{display:inline-block;padding:.1rem .5rem;border-radius:4px;font-size:.7rem;font-weight:600}
+.tag-html{background:#2d1f0f;color:var(--warning)}.tag-script{background:#2d0f0f;color:var(--danger)}
+.tag-url{background:#0f1f2d;color:var(--accent)}.tag-eval{background:#1f0f2d;color:var(--purple)}
+
+/* Violation log */
+.log-entries{max-height:250px;overflow-y:auto;display:flex;flex-direction:column;gap:.4rem}
+.log-entry{background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:.5rem .7rem;font-family:var(--mono);font-size:.75rem;display:flex;gap:.6rem;align-items:flex-start;animation:fadeIn .3s}
+.log-entry .time{color:var(--text2);white-space:nowrap}.log-entry .msg{color:var(--danger);word-break:break-word}
+.log-empty{color:var(--text2);font-style:italic;font-size:.82rem}
+@keyframes fadeIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+
+/* Presets */
+.preset-tabs{display:flex;gap:.3rem;flex-wrap:wrap;margin-bottom:1rem}
+.preset-tab{padding:.4rem .8rem;border-radius:6px;font-size:.78rem;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--text2);font-family:var(--sans);transition:all .15s}
+.preset-tab:hover{border-color:var(--accent);color:var(--accent)}
+.preset-tab.active{background:var(--accent);color:#000;border-color:var(--accent);font-weight:600}
+
+/* CSP */
+.csp-box{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:1rem;font-family:var(--mono);font-size:.8rem;line-height:1.7;word-break:break-all}
+.csp-box .dir{color:var(--accent)}.csp-box .val{color:var(--accent2)}
+
+/* Tabs for demo area */
+.tab-bar{display:flex;border-bottom:1px solid var(--border);gap:0}
+.tab-item{padding:.6rem 1rem;font-size:.82rem;cursor:pointer;border-bottom:2px solid transparent;color:var(--text2);transition:all .15s;background:none;border-top:none;border-left:none;border-right:none;font-family:var(--sans)}
+.tab-item:hover{color:var(--text)}.tab-item.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tab-panel{display:none;padding:1.2rem}.tab-panel.active{display:block}
+
+/* Intro */
+.intro{padding:2rem 0 .5rem;text-align:center}
+.intro h2{font-size:1.6rem;margin-bottom:.5rem}
+.intro p{color:var(--text2);max-width:680px;margin:0 auto;font-size:.95rem}
+
+/* Scroll */
+::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+
+/* Footer */
+.footer{text-align:center;padding:2rem 1rem;color:var(--text2);font-size:.78rem;border-top:1px solid var(--border);margin-top:2rem}
+
+/* Responsive */
+@media(max-width:768px){
+  .header-inner{flex-direction:column;align-items:flex-start}
+  .container{padding:1rem}
+  .section-body{padding:1rem}
+  html{font-size:14px}
+}
+</style>
+</head>
+<body>
+
+
+
+
+
+<header class="header">
+  <div class="header-inner">
+    <h1><span class="icon">&#x1f6e1;</span> Trusted Types Playground</h1>
+    <div style="display:flex;gap:.6rem;align-items:center;flex-wrap:wrap">
+      <span id="browserBadge" class="badge badge-support"><span class="dot" id="supportDot"></span> <span id="supportText">Checking...</span></span>
+      <a href="https://developer.mozilla.org/en-US/docs/Web/API/Trusted_Types_API" target="_blank" class="btn btn-outline btn-sm">MDN Docs</a>
+    </div>
+  </div>
+</header>
+
+<div class="container" style="position:relative">
+
+<div class="intro">
+  <h2 ti="h2_prevent_dom_xss_with_trus" ti="h2_prevent_dom_xss_with_trus">Prevent DOM XSS with Trusted Types</h2>
+  <p>Trusted Types lock down dangerous DOM sinks like <code>innerHTML</code> and <code>eval</code>, forcing all values through developer-defined sanitization policies.</p>
+</div>
+
+<div class="grid" style="margin-top:1.5rem">
+
+<!-- 1. XSS Attack Demo (Before/After) -->
+<div class="section">
+  <div class="section-head"><span class="num">1</span> XSS Attack Demo &mdash; Before vs After</div>
+  <div class="section-body">
+    <div class="field">
+      <label ti="label_payload_to_inject" ti="label_payload_to_inject">Payload to inject</label>
+      <input type="text" id="xssPayload" value='<img src=x onerror="alert(1)">Hello <b>World</b>'>
+    </div>
+    <div class="btn-group" style="margin-bottom:1rem">
+      <button class="btn btn-danger" onclick="runXssDemo()" ti="btn_inject_payload" ti="btn_inject_payload">Inject Payload</button>
+      <button class="btn btn-outline btn-sm" onclick="resetXssDemo()" ti="btn_reset" ti="btn_reset">Reset</button>
+    </div>
+    <div class="compare">
+      <div class="compare-col">
+        <h4><span class="dot red"></span> Unsafe (raw innerHTML)</h4>
+        <div class="output-label">Rendered output</div>
+        <div class="output" id="unsafeOutput" style="min-height:50px"></div>
+        <div class="output-label" style="margin-top:.5rem">HTML source</div>
+        <div class="output" id="unsafeSource" style="font-size:.75rem;color:var(--danger)"></div>
+      </div>
+      <div class="compare-col">
+        <h4><span class="dot green"></span> Trusted Types (sanitized)</h4>
+        <div class="output-label">Rendered output</div>
+        <div class="output" id="safeOutput" style="min-height:50px"></div>
+        <div class="output-label" style="margin-top:.5rem">HTML source</div>
+        <div class="output" id="safeSource" style="font-size:.75rem;color:var(--accent2)"></div>
+      </div>
+    </div>
+    <p style="margin-top:.8rem;font-size:.78rem;color:var(--text2)">The unsafe side uses raw innerHTML. The safe side sanitizes through a Trusted Type policy that strips event handlers and dangerous tags.</p>
+  </div>
+</div>
+
+<!-- 2. Policy Creator -->
+<div class="section">
+  <div class="section-head"><span class="num">2</span> Policy Creator</div>
+  <div class="section-body">
+    <div class="field">
+      <label ti="label_policy_name" ti="label_policy_name">Policy name</label>
+      <input type="text" id="policyName" value="my-sanitizer">
+    </div>
+    <div class="field">
+      <label ti="label_preset" ti="label_preset">Preset</label>
+      <div class="preset-tabs" id="presetTabs"></div>
+    </div>
+    <div class="field">
+      <label ti="label_createhtml_implementation" ti="label_createhtml_implementation">createHTML implementation</label>
+      <textarea id="createHTMLCode" rows="4">return input.replace(/&lt;script[\s\S]*?&lt;\/script&gt;/gi, '').replace(/on\w+\s*=/gi, 'data-blocked=');</textarea>
+    </div>
+    <div class="field">
+      <label ti="label_createscript_implementati" ti="label_createscript_implementati">createScript implementation</label>
+      <textarea id="createScriptCode" rows="3">return input; // pass-through (restrict via CSP instead)</textarea>
+    </div>
+    <div class="field">
+      <label ti="label_createscripturl_implement" ti="label_createscripturl_implement">createScriptURL implementation</label>
+      <textarea id="createScriptURLCode" rows="3">const u = new URL(input, location.origin); if (u.origin === location.origin) return u.href; throw new TypeError('Blocked cross-origin script URL: ' + input);</textarea>
+    </div>
+    <div class="btn-group">
+      <button class="btn btn-primary" onclick="createPolicy()" ti="btn_create_policy" ti="btn_create_policy">Create Policy</button>
+      <button class="btn btn-outline btn-sm" onclick="testPolicy()" ti="btn_test_with_sample" ti="btn_test_with_sample">Test with Sample</button>
+    </div>
+    <div class="output-label" style="margin-top:1rem">Result</div>
+    <div class="output" id="policyResult"></div>
+    <div class="output-label" style="margin-top:.8rem">Generated code</div>
+    <div class="code-block" id="policyCode" style="margin-top:.2rem"><span class="cmt">// Create a policy above to generate code</span></div>
+  </div>
+</div>
+
+<!-- 3. Live Sanitization Tester -->
+<div class="section">
+  <div class="section-head"><span class="num">3</span> Live Sanitization Tester</div>
+  <div class="section-body">
+    <div class="field">
+      <label ti="label_input_html_try_injecting" ti="label_input_html_try_injecting">Input HTML (try injecting scripts, event handlers, iframes)</label>
+      <textarea id="sanitizeInput" rows="5"><div>Hello <b>World</b></div>
+<script>T("jalert_xss")</script>
+<img src=x onerror="steal(cookies)">
+<a href="javascript:void(0)" ti="link_link" ti="link_link">link</a>
+<iframe src="https://evil.com"></iframe></textarea>
+    </div>
+    <div class="btn-group">
+      <button class="btn btn-primary" onclick="runSanitize()" ti="btn_sanitize" ti="btn_sanitize">Sanitize</button>
+      <button class="btn btn-outline btn-sm" onclick="document.getElementById('sanitizeInput').value='<div>Hello <b>World</b></div>\n
+<script>var _LANG={'title_trusted_types_api_playgro':["Trusted Types API Playground", "Trusted Types API Playground"],'metadesc_interactive_playground_fo':["Interactive playground for the Trusted Types API — prevent DOM XSS by requiring sanitized values for dangerous sinks.", "Trusted Types API 的交互式游乐场——通过要求对危险的接收器使用经过清理的值来防止 DOM XSS。"],'h2_prevent_dom_xss_with_trus':["Prevent DOM XSS with Trusted Types", "使用可信类型防止 DOM XSS"],'btn_inject_payload':["Inject Payload", "注入有效载荷"],'btn_reset':["Reset", "重置"],'btn_create_policy':["Create Policy", "创建策略"],'btn_test_with_sample':["Test with Sample", "用样品进行测试"],'btn_sanitize':["Sanitize", "消毒"],'btn_copy':["Copy", "复制"],'btn_copy_2':["Copy", "复制"],'btn_copy_3':["Copy", "复制"],'btn_simulate_violation':["Simulate Violation", "模拟违规"],'btn_clear_log':["Clear Log", "清除日志"],'btn_copy_4':["Copy", "复制"],'btn_basic':["Basic", "基本的"],'btn_advanced':["Advanced", "先进的"],'btn_fallback':["Fallback", "倒退"],'btn_default_policy':["Default Policy", "默认策略"],'btn_copy_5':["Copy", "复制"],'btn_copy_6':["Copy", "复制"],'btn_copy_7':["Copy", "复制"],'btn_copy_8':["Copy", "复制"],'strong_tip':["Tip:", "提示："],'strong_input':["Input:", "输入："],'strong_output':["Output:", "输出："],'th_sink':["Sink", "下沉"],'th_type_required':["Type Required", "必填项"],'th_risk':["Risk", "风险"],'th_example':["Example", "例子"],'label_payload_to_inject':["Payload to inject", "注入的有效载荷"],'label_policy_name':["Policy name", "保单名称"],'label_preset':["Preset", "预设"],'label_createhtml_implementation':["createHTML implementation", "createHTML 实现"],'label_createscript_implementati':["createScript implementation", "createScript 实现"],'label_createscripturl_implement':["createScriptURL implementation", "createScriptURL 实现"],'label_input_html_try_injecting':["Input HTML (try injecting scripts, event handlers, iframes)", "输入 HTML（尝试注入脚本、事件处理程序、iframe）"],'label_http_header':["HTTP header", "HTTP 标头"],'label_meta_tag_limited_support':["Meta tag (limited support)", "元标签（支持有限）"],'label_nginx_config':["Nginx config", "Nginx 配置"],'link_link':["link", "关联"],'jalert_xss':["xss", "xss"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>alert(\'xss\')<\/script>\n<img src=x onerror=\"steal(cookies)\">\n<a href=\"javascript:void(0)\">link</a>\n<iframe src=\"https://evil.com\"></iframe>';runSanitize()">Reset</button>
+    </div>
+    <div style="margin-top:1rem" class="compare">
+      <div class="compare-col">
+        <h4><span class="dot red"></span> Raw Input</h4>
+        <div class="output" id="rawInput"></div>
+      </div>
+      <div class="compare-col">
+        <h4><span class="dot green"></span> Sanitized Output</h4>
+        <div class="output" id="sanitizedOutput"></div>
+      </div>
+    </div>
+    <div class="output-label" style="margin-top:.8rem">Rendered preview (sanitized)</div>
+    <div class="output" id="sanitizedPreview" style="color:var(--text)"></div>
+  </div>
+</div>
+
+<!-- 4. CSP Integration -->
+<div class="section">
+  <div class="section-head"><span class="num">4</span> CSP Integration</div>
+  <div class="section-body">
+    <p style="font-size:.85rem;color:var(--text2);margin-bottom:1rem">To enforce Trusted Types, add this Content-Security-Policy header. The browser will throw a <code>TypeError</code> for any untyped assignment to dangerous sinks.</p>
+    <div class="csp-box">
+      <span class="dir">Content-Security-Policy:</span> <span class="val">require-trusted-types-for</span> <span class="str">'script'</span>; <span class="val">trusted-types</span> <span id="cspPolicyNames">my-sanitizer</span>
+    </div>
+    <div style="margin-top:1rem">
+      <label ti="label_http_header" ti="label_http_header">HTTP header</label>
+      <div class="code-block" id="cspHeader" style="font-size:.78rem">Content-Security-Policy: require-trusted-types-for 'script'; trusted-types my-sanitizer<button class="copy-btn" onclick="copyText(this,'cspHeader')" ti="btn_copy" ti="btn_copy_2" ti="btn_copy_3" ti="btn_copy_4" ti="btn_copy_5" ti="btn_copy_6" ti="btn_copy_7" ti="btn_copy_8" ti="btn_copy" ti="btn_copy_2" ti="btn_copy_3" ti="btn_copy_4" ti="btn_copy_5" ti="btn_copy_6" ti="btn_copy_7" ti="btn_copy_8">Copy</button></div>
+    </div>
+    <div style="margin-top:.8rem">
+      <label ti="label_meta_tag_limited_support" ti="label_meta_tag_limited_support">Meta tag (limited support)</label>
+      <div class="code-block" id="cspMeta">&lt;meta http-equiv="Content-Security-Policy" content="require-trusted-types-for 'script'; trusted-types my-sanitizer"&gt;<button class="copy-btn" onclick="copyText(this,'cspMeta')">Copy</button></div>
+    </div>
+    <div style="margin-top:.8rem">
+      <label ti="label_nginx_config" ti="label_nginx_config">Nginx config</label>
+      <div class="code-block" id="cspNginx">add_header Content-Security-Policy "require-trusted-types-for 'script'; trusted-types my-sanitizer" always;<button class="copy-btn" onclick="copyText(this,'cspNginx')">Copy</button></div>
+    </div>
+    <p style="font-size:.78rem;color:var(--text2);margin-top:1rem"><strong ti="strong_tip" ti="strong_tip">Tip:</strong> Start with <code>Content-Security-Policy-Report-Only</code> to test without breaking existing code. Add <code>report-uri /csp-report</code> to collect violations server-side.</p>
+  </div>
+</div>
+
+<!-- 5. Violation Logger -->
+<div class="section">
+  <div class="section-head"><span class="num">5</span> Violation Logger</div>
+  <div class="section-body">
+    <p style="font-size:.85rem;color:var(--text2);margin-bottom:1rem">
+      SecurityPolicyViolation events fire when code attempts to assign a string to a dangerous sink while Trusted Types enforcement is active. Below is a simulated log showing what violations look like.
+    </p>
+    <div class="btn-group" style="margin-bottom:1rem">
+      <button class="btn btn-danger" onclick="simulateViolation()" ti="btn_simulate_violation" ti="btn_simulate_violation">Simulate Violation</button>
+      <button class="btn btn-outline btn-sm" onclick="clearLog()" ti="btn_clear_log" ti="btn_clear_log">Clear Log</button>
+    </div>
+    <div class="log-entries" id="violationLog">
+      <div class="log-empty">No violations logged. Click "Simulate Violation" to see what a CSP Trusted Types violation event looks like.</div>
+    </div>
+    <div class="output-label" style="margin-top:1rem">Listener code</div>
+    <div class="code-block" style="margin-top:.2rem"><span class="cmt">// Listen for Trusted Types violations</span>
+<span class="kw">document</span>.<span class="fn">addEventListener</span>(<span class="str">'securitypolicyviolation'</span>, (<span class="kw">e</span>) => {
+  <span class="kw">if</span> (e.violatedDirective === <span class="str">'require-trusted-types-for'</span>) {
+    console.<span class="fn">error</span>(<span class="str">'Trusted Types violation:'</span>, {
+      type: e.violatedDirective,
+      sink: e.sample,
+      source: e.sourceFile,
+      line: e.lineNumber,
+    });
+  }
+});<button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+  </div>
+</div>
+
+<!-- 6. Common Dangerous Sinks -->
+<div class="section">
+  <div class="section-head"><span class="num">6</span> Common Dangerous Sinks</div>
+  <div class="section-body" style="overflow-x:auto">
+    <table class="sink-table">
+      <thead>
+        <tr><th ti="th_sink" ti="th_sink">Sink</th><th ti="th_type_required" ti="th_type_required">Type Required</th><th ti="th_risk" ti="th_risk">Risk</th><th ti="th_example" ti="th_example">Example</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Element.innerHTML</td>
+          <td><span class="tag tag-html">TrustedHTML</span></td>
+          <td class="risk-high">Critical</td>
+          <td>el.innerHTML = trustedHTML</td>
+        </tr>
+        <tr>
+          <td>Element.outerHTML</td>
+          <td><span class="tag tag-html">TrustedHTML</span></td>
+          <td class="risk-high">Critical</td>
+          <td>el.outerHTML = trustedHTML</td>
+        </tr>
+        <tr>
+          <td>document.write()</td>
+          <td><span class="tag tag-html">TrustedHTML</span></td>
+          <td class="risk-high">Critical</td>
+          <td>document.write(trustedHTML)</td>
+        </tr>
+        <tr>
+          <td>Document.writeln()</td>
+          <td><span class="tag tag-html">TrustedHTML</span></td>
+          <td class="risk-high">Critical</td>
+          <td>document.writeln(trustedHTML)</td>
+        </tr>
+        <tr>
+          <td>DOMParser.parseFromString()</td>
+          <td><span class="tag tag-html">TrustedHTML</span></td>
+          <td class="risk-med">High</td>
+          <td>parser.parseFromString(trustedHTML, 'text/html')</td>
+        </tr>
+        <tr>
+          <td>Element.insertAdjacentHTML()</td>
+          <td><span class="tag tag-html">TrustedHTML</span></td>
+          <td class="risk-high">Critical</td>
+          <td>el.insertAdjacentHTML('beforeend', trustedHTML)</td>
+        </tr>
+        <tr>
+          <td>Range.createContextualFragment()</td>
+          <td><span class="tag tag-html">TrustedHTML</span></td>
+          <td class="risk-high">Critical</td>
+          <td>range.createContextualFragment(trustedHTML)</td>
+        </tr>
+        <tr>
+          <td>HTMLScriptElement.src</td>
+          <td><span class="tag tag-url">TrustedScriptURL</span></td>
+          <td class="risk-high">Critical</td>
+          <td>script.src = trustedURL</td>
+        </tr>
+        <tr>
+          <td>HTMLScriptElement.text</td>
+          <td><span class="tag tag-script">TrustedScript</span></td>
+          <td class="risk-high">Critical</td>
+          <td>script.text = trustedScript</td>
+        </tr>
+        <tr>
+          <td>HTMLScriptElement.textContent</td>
+          <td><span class="tag tag-script">TrustedScript</span></td>
+          <td class="risk-high">Critical</td>
+          <td>script.textContent = trustedScript</td>
+        </tr>
+        <tr>
+          <td>eval()</td>
+          <td><span class="tag tag-eval">TrustedScript</span></td>
+          <td class="risk-high">Critical</td>
+          <td>eval(trustedScript)</td>
+        </tr>
+        <tr>
+          <td>setTimeout() / setInterval()</td>
+          <td><span class="tag tag-eval">TrustedScript</span></td>
+          <td class="risk-med">High</td>
+          <td>setTimeout(trustedScript, 0)</td>
+        </tr>
+        <tr>
+          <td>Worker()</td>
+          <td><span class="tag tag-url">TrustedScriptURL</span></td>
+          <td class="risk-med">High</td>
+          <td>new Worker(trustedURL)</td>
+        </tr>
+        <tr>
+          <td>SharedWorker()</td>
+          <td><span class="tag tag-url">TrustedScriptURL</span></td>
+          <td class="risk-med">High</td>
+          <td>new SharedWorker(trustedURL)</td>
+        </tr>
+        <tr>
+          <td>HTMLIFrameElement.srcdoc</td>
+          <td><span class="tag tag-html">TrustedHTML</span></td>
+          <td class="risk-high">Critical</td>
+          <td>iframe.srcdoc = trustedHTML</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- 7. Full Policy Code Generator -->
+<div class="section" style="grid-column:1/-1">
+  <div class="section-head"><span class="num">7</span> Complete Setup Code</div>
+  <div class="section-body">
+    <div class="tab-bar" id="codeTabBar">
+      <button class="tab-item active" onclick="switchCodeTab('basic')" ti="btn_basic" ti="btn_basic">Basic</button>
+      <button class="tab-item" onclick="switchCodeTab('advanced')" ti="btn_advanced" ti="btn_advanced">Advanced</button>
+      <button class="tab-item" onclick="switchCodeTab('fallback')" ti="btn_fallback" ti="btn_fallback">Fallback</button>
+      <button class="tab-item" onclick="switchCodeTab('default')" ti="btn_default_policy" ti="btn_default_policy">Default Policy</button>
+    </div>
+    <div id="codePanel-basic" class="tab-panel active">
+      <div class="code-block"><span class="cmt">// Basic Trusted Types setup</span>
+<span class="kw">if</span> (<span class="kw">window</span>.trustedTypes) {
+  <span class="kw">const</span> policy = trustedTypes.<span class="fn">createPolicy</span>(<span class="str">'my-sanitizer'</span>, {
+    <span class="fn">createHTML</span>: (input) => {
+      <span class="kw">const</span> el = <span class="kw">document</span>.<span class="fn">createElement</span>(<span class="str">'div'</span>);
+      el.textContent = input; <span class="cmt">// escapes all HTML</span>
+      <span class="kw">return</span> el.innerHTML;
+    }
+  });
+
+  <span class="cmt">// Usage</span>
+  element.innerHTML = policy.<span class="fn">createHTML</span>(userInput);
+}<button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+    </div>
+    <div id="codePanel-advanced" class="tab-panel">
+      <div class="code-block"><span class="cmt">// Advanced: selective sanitization (allow safe tags)</span>
+<span class="kw">const</span> ALLOWED_TAGS = <span class="kw">new</span> <span class="fn">Set</span>([<span class="str">'b'</span>,<span class="str">'i'</span>,<span class="str">'em'</span>,<span class="str">'strong'</span>,<span class="str">'a'</span>,<span class="str">'p'</span>,<span class="str">'br'</span>,<span class="str">'ul'</span>,<span class="str">'li'</span>,<span class="str">'code'</span>,<span class="str">'pre'</span>]);
+<span class="kw">const</span> ALLOWED_ATTRS = <span class="kw">new</span> <span class="fn">Set</span>([<span class="str">'href'</span>,<span class="str">'title'</span>,<span class="str">'class'</span>]);
+
+<span class="kw">const</span> policy = trustedTypes.<span class="fn">createPolicy</span>(<span class="str">'rich-text'</span>, {
+  <span class="fn">createHTML</span>: (input) => {
+    <span class="kw">const</span> doc = <span class="kw">new</span> <span class="fn">DOMParser</span>().<span class="fn">parseFromString</span>(
+      <span class="str">`&lt;body&gt;${input}&lt;/body&gt;`</span>, <span class="str">'text/html'</span>
+    );
+    <span class="kw">const</span> walk = (node) => {
+      <span class="kw">for</span> (<span class="kw">const</span> child <span class="kw">of</span> [...node.childNodes]) {
+        <span class="kw">if</span> (child.nodeType === <span class="num">1</span>) { <span class="cmt">// Element</span>
+          <span class="kw">if</span> (!ALLOWED_TAGS.<span class="fn">has</span>(child.tagName.toLowerCase())) {
+            child.<span class="fn">replaceWith</span>(...child.childNodes);
+          } <span class="kw">else</span> {
+            <span class="kw">for</span> (<span class="kw">const</span> attr <span class="kw">of</span> [...child.attributes]) {
+              <span class="kw">if</span> (!ALLOWED_ATTRS.<span class="fn">has</span>(attr.name) || attr.value.<span class="fn">startsWith</span>(<span class="str">'javascript:'</span>)) {
+                child.<span class="fn">removeAttribute</span>(attr.name);
+              }
+            }
+            <span class="fn">walk</span>(child);
+          }
+        }
+      }
+    };
+    <span class="fn">walk</span>(doc.body);
+    <span class="kw">return</span> doc.body.innerHTML;
+  }
+});<button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+    </div>
+    <div id="codePanel-fallback" class="tab-panel">
+      <div class="code-block"><span class="cmt">// Graceful fallback for browsers without Trusted Types</span>
+<span class="kw">const</span> <span class="fn">createSanitizer</span> = () => {
+  <span class="kw">const</span> sanitize = (html) => {
+    <span class="kw">return</span> html
+      .<span class="fn">replace</span>(<span class="str">/&lt;script[\s\S]*?&lt;\/script&gt;/gi</span>, <span class="str">''</span>)
+      .<span class="fn">replace</span>(<span class="str">/on\w+\s*=/gi</span>, <span class="str">'data-blocked='</span>)
+      .<span class="fn">replace</span>(<span class="str">/javascript:/gi</span>, <span class="str">'blocked:'</span>);
+  };
+
+  <span class="kw">if</span> (<span class="kw">window</span>.trustedTypes) {
+    <span class="kw">return</span> trustedTypes.<span class="fn">createPolicy</span>(<span class="str">'fallback-sanitizer'</span>, {
+      <span class="fn">createHTML</span>: sanitize,
+    });
+  }
+  <span class="cmt">// Polyfill-like wrapper</span>
+  <span class="kw">return</span> { <span class="fn">createHTML</span>: sanitize };
+};
+
+<span class="kw">const</span> policy = <span class="fn">createSanitizer</span>();
+element.innerHTML = policy.<span class="fn">createHTML</span>(untrustedInput);<button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+    </div>
+    <div id="codePanel-default" class="tab-panel">
+      <div class="code-block"><span class="cmt">// Default policy: catches ALL untyped sink assignments</span>
+<span class="cmt">// Only one default policy is allowed per document</span>
+<span class="kw">if</span> (<span class="kw">window</span>.trustedTypes) {
+  trustedTypes.<span class="fn">createPolicy</span>(<span class="str">'default'</span>, {
+    <span class="fn">createHTML</span>: (input, sink) => {
+      console.<span class="fn">warn</span>(<span class="str">'Untyped HTML assignment to'</span>, sink, input);
+      <span class="cmt">// Escape everything by default</span>
+      <span class="kw">const</span> div = <span class="kw">document</span>.<span class="fn">createElement</span>(<span class="str">'div'</span>);
+      div.textContent = input;
+      <span class="kw">return</span> div.innerHTML;
+    },
+    <span class="fn">createScript</span>: (input) => {
+      <span class="kw">throw</span> <span class="kw">new</span> <span class="fn">TypeError</span>(<span class="str">'Script execution blocked by default policy'</span>);
+    },
+    <span class="fn">createScriptURL</span>: (input) => {
+      <span class="kw">throw</span> <span class="kw">new</span> <span class="fn">TypeError</span>(<span class="str">'Script URL blocked by default policy: '</span> + input);
+    },
+  });
+}
+
+<span class="cmt">// Now ANY innerHTML = "string" will auto-escape</span>
+<span class="cmt">// ANY script.src = "url" will throw</span>
+<span class="cmt">// Migrate sinks one-by-one to named policies</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+    </div>
+  </div>
+</div>
+
+</div><!-- grid -->
+
+<footer class="footer">
+  Trusted Types API Playground &mdash; No external dependencies. Vanilla JS + CSS. &mdash; <a href="https://w3c.github.io/trusted-types/dist/spec/" target="_blank">W3C Spec</a>
+</footer>
+
+</div><!-- container -->
+
+<script>
+// 鈹€鈹€ Browser support detection 鈹€鈹€
+(function checkSupport() {
+  const dot = document.getElementById('supportDot');
+  const text = document.getElementById('supportText');
+  const badge = document.getElementById('browserBadge');
+  if (window.trustedTypes && trustedTypes.createPolicy) {
+    dot.classList.add('green');
+    badge.classList.add('supported');
+    text.textContent = 'Trusted Types supported';
+  } else {
+    dot.classList.add('red');
+    badge.classList.add('unsupported');
+    text.textContent = 'Trusted Types not supported (demo uses polyfill logic)';
+  }
+})();
+
+// 鈹€鈹€ Sanitizer function (used throughout) 鈹€鈹€
+function sanitizeHTML(input) {
+  return input
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<iframe[\s\S]*?(<\/iframe>|\/?>)/gi, '')
+    .replace(/<object[\s\S]*?(<\/object>|\/?>)/gi, '')
+    .replace(/<embed[\s\S]*?\/?\s*>/gi, '')
+    .replace(/on\w+\s*=\s*"[^"]*"/gi, 'data-blocked="removed"')
+    .replace(/on\w+\s*=\s*'[^']*'/gi, "data-blocked='removed'")
+    .replace(/on\w+\s*=[^\s>]*/gi, 'data-blocked=removed')
+    .replace(/javascript\s*:/gi, 'blocked:')
+    .replace(/vbscript\s*:/gi, 'blocked:');
+}
+
+function escapeForDisplay(str) {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// 鈹€鈹€ 1. XSS Demo 鈹€鈹€
+function runXssDemo() {
+  const payload = document.getElementById('xssPayload').value;
+  // Unsafe side: render into sandboxed iframe to prevent actual alert
+  const unsafeOut = document.getElementById('unsafeOutput');
+  const unsafeSrc = document.getElementById('unsafeSource');
+  // Use a sandboxed iframe for the unsafe demo
+  unsafeOut.innerHTML = '';
+  const iframe = document.createElement('iframe');
+  iframe.sandbox = 'allow-same-origin'; // no allow-scripts = safe
+  iframe.style.cssText = 'width:100%;border:none;min-height:40px;background:transparent';
+  unsafeOut.appendChild(iframe);
+  iframe.contentDocument.open();
+  iframe.contentDocument.write('<body style="color:#e6edf3;font-family:sans-serif;font-size:13px;margin:0;background:transparent">' + payload + '</body>');
+  iframe.contentDocument.close();
+  unsafeSrc.textContent = payload;
+
+  // Safe side
+  const safe = sanitizeHTML(payload);
+  document.getElementById('safeOutput').innerHTML = safe;
+  document.getElementById('safeSource').textContent = safe;
+}
+
+function resetXssDemo() {
+  document.getElementById('unsafeOutput').innerHTML = '';
+  document.getElementById('unsafeSource').textContent = '';
+  document.getElementById('safeOutput').innerHTML = '';
+  document.getElementById('safeSource').textContent = '';
+}
+
+// 鈹€鈹€ 2. Policy Presets 鈹€鈹€
+const PRESETS = [
+  {
+    name: 'Basic Sanitize',
+    html: "return input.replace(/<script[\\s\\S]*?<\\/script>/gi, '').replace(/on\\w+\\s*=/gi, 'data-blocked=');",
+    script: "return input;",
+    url: "return input;"
+  },
+  {
+    name: 'URL Validation',
+    html: "return input;",
+    script: "return input;",
+    url: "const u = new URL(input, location.origin);\nconst allowed = ['https:', 'http:'];\nif (!allowed.includes(u.protocol)) throw new TypeError('Blocked protocol: ' + u.protocol);\nreturn u.href;"
+  },
+  {
+    name: 'Script Loading',
+    html: "return input;",
+    script: "if (input.includes('eval') || input.includes('Function')) throw new TypeError('Blocked dangerous script');\nreturn input;",
+    url: "const ALLOWED_HOSTS = ['cdn.jsdelivr.net', 'cdnjs.cloudflare.com', 'unpkg.com'];\nconst u = new URL(input);\nif (!ALLOWED_HOSTS.includes(u.hostname)) throw new TypeError('Blocked host: ' + u.hostname);\nreturn u.href;"
+  },
+  {
+    name: 'Event Handler',
+    html: "return input.replace(/on\\w+\\s*=\\s*[\"'][^\"']*[\"']/gi, '').replace(/on\\w+\\s*=[^\\s>]*/gi, '').replace(/javascript\\s*:/gi, 'blocked:');",
+    script: "throw new TypeError('Inline scripts blocked');",
+    url: "return input;"
+  },
+  {
+    name: 'Full Lockdown',
+    html: "const div = document.createElement('div');\ndiv.textContent = input;\nreturn div.innerHTML;",
+    script: "throw new TypeError('All script execution blocked by policy');",
+    url: "if (new URL(input, location.origin).origin !== location.origin) throw new TypeError('Cross-origin blocked');\nreturn input;"
+  }
+];
+
+(function renderPresets() {
+  const tabs = document.getElementById('presetTabs');
+  PRESETS.forEach((p, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'preset-tab' + (i === 0 ? ' active' : '');
+    btn.textContent = p.name;
+    btn.onclick = () => applyPreset(i);
+    tabs.appendChild(btn);
+  });
+})();
+
+function applyPreset(index) {
+  const p = PRESETS[index];
+  document.getElementById('createHTMLCode').value = p.html;
+  document.getElementById('createScriptCode').value = p.script;
+  document.getElementById('createScriptURLCode').value = p.url;
+  document.querySelectorAll('.preset-tab').forEach((t, i) => t.classList.toggle('active', i === index));
+}
+
+// 鈹€鈹€ 2. Create Policy 鈹€鈹€
+let currentPolicy = null;
+function createPolicy() {
+  const name = document.getElementById('policyName').value.trim() || 'my-policy';
+  const htmlCode = document.getElementById('createHTMLCode').value;
+  const scriptCode = document.getElementById('createScriptCode').value;
+  const urlCode = document.getElementById('createScriptURLCode').value;
+  const result = document.getElementById('policyResult');
+
+  try {
+    // Create the policy function dynamically
+    const createHTMLFn = new Function('input', htmlCode);
+    const createScriptFn = new Function('input', scriptCode);
+    const createScriptURLFn = new Function('input', urlCode);
+
+    currentPolicy = {
+      name,
+      createHTML: createHTMLFn,
+      createScript: createScriptFn,
+      createScriptURL: createScriptURLFn,
+    };
+
+    result.textContent = 'Policy "' + name + '" created successfully. Use "Test with Sample" to try it.';
+    result.className = 'output success';
+
+    // Update CSP display
+    document.getElementById('cspPolicyNames').textContent = name;
+    updateCSPBlocks(name);
+
+    // Generate code
+    generatePolicyCode(name, htmlCode, scriptCode, urlCode);
+  } catch (e) {
+    result.textContent = 'Error: ' + e.message;
+    result.className = 'output error';
+  }
+}
+
+function testPolicy() {
+  if (!currentPolicy) {
+    createPolicy();
+    if (!currentPolicy) return;
+  }
+  const result = document.getElementById('policyResult');
+  const testHTML = '<div>Hello</div><script>T("jalert_xss")<\/script><img src=x onerror="hack()">';
+  try {
+    const out = currentPolicy.createHTML(testHTML);
+    result.innerHTML = '<strong ti="strong_input" ti="strong_input">Input:</strong> ' + escapeForDisplay(testHTML) + '\n<strong ti="strong_output" ti="strong_output">Output:</strong> ' + escapeForDisplay(out);
+    result.className = 'output success';
+  } catch (e) {
+    result.textContent = 'Policy threw: ' + e.message;
+    result.className = 'output error';
+  }
+}
+
+function generatePolicyCode(name, html, script, url) {
+  const codeEl = document.getElementById('policyCode');
+  const raw = `if (window.trustedTypes) {
+  const policy = trustedTypes.createPolicy('${name}', {
+    createHTML: (input) => {
+      ${html.split('\n').join('\n      ')}
+    },
+    createScript: (input) => {
+      ${script.split('\n').join('\n      ')}
+    },
+    createScriptURL: (input) => {
+      ${url.split('\n').join('\n      ')}
+    },
+  });
+}`;
+  codeEl.textContent = raw;
+  const copyBtn = document.createElement('button');
+  copyBtn.className = 'copy-btn';
+  copyBtn.textContent = 'Copy';
+  copyBtn.onclick = function() { copyCode(this); };
+  codeEl.appendChild(copyBtn);
+}
+
+function updateCSPBlocks(name) {
+  const h = `Content-Security-Policy: require-trusted-types-for 'script'; trusted-types ${name}`;
+  document.getElementById('cspHeader').firstChild.textContent = h;
+  document.getElementById('cspMeta').firstChild.textContent = `<meta http-equiv="Content-Security-Policy" content="require-trusted-types-for 'script'; trusted-types ${name}">`;
+  document.getElementById('cspNginx').firstChild.textContent = `add_header Content-Security-Policy "require-trusted-types-for 'script'; trusted-types ${name}" always;`;
+}
+
+// 鈹€鈹€ 3. Sanitization 鈹€鈹€
+function runSanitize() {
+  const input = document.getElementById('sanitizeInput').value;
+  document.getElementById('rawInput').textContent = input;
+  const sanitized = sanitizeHTML(input);
+  document.getElementById('sanitizedOutput').textContent = sanitized;
+  document.getElementById('sanitizedPreview').innerHTML = sanitized;
+}
+
+// 鈹€鈹€ 5. Violation Logger 鈹€鈹€
+let violationCount = 0;
+const VIOLATION_EXAMPLES = [
+  { sink: 'Element.innerHTML', sample: '<img src=x onerror=alert(1)>', source: 'app.js', line: 42 },
+  { sink: 'HTMLScriptElement.src', sample: 'https://evil.com/payload.js', source: 'loader.js', line: 17 },
+  { sink: 'document.write', sample: '<script>steal(cookies)</script>', source: 'legacy.js', line: 231 },
+  { sink: 'eval', sample: 'document.cookie', source: 'analytics.js', line: 8 },
+  { sink: 'Element.insertAdjacentHTML', sample: '<div onmouseover="hack()">hover me</div>', source: 'ui.js', line: 94 },
+  { sink: 'setTimeout', sample: 'T("jalert_xss")', source: 'utils.js', line: 55 },
+  { sink: 'HTMLIFrameElement.srcdoc', sample: '<script>parent.postMessage(document.cookie,"*")</script>', source: 'embed.js', line: 12 },
+  { sink: 'Worker()', sample: 'blob:https://evil.com/worker.js', source: 'worker-loader.js', line: 3 },
+];
+
+function simulateViolation() {
+  const log = document.getElementById('violationLog');
+  if (log.querySelector('.log-empty')) log.innerHTML = '';
+
+  const v = VIOLATION_EXAMPLES[violationCount % VIOLATION_EXAMPLES.length];
+  violationCount++;
+  const now = new Date().toISOString().slice(11, 23);
+  const entry = document.createElement('div');
+  entry.className = 'log-entry';
+  entry.innerHTML = `<span class="time">${now}</span><span class="msg">[${v.sink}] Refused to set untyped value. Sample: "${escapeForDisplay(v.sample)}" at ${v.source}:${v.line}</span>`;
+  log.prepend(entry);
+}
+
+function clearLog() {
+  document.getElementById('violationLog').innerHTML = '<div class="log-empty">No violations logged. Click "Simulate Violation" to see what a CSP Trusted Types violation event looks like.</div>';
+  violationCount = 0;
+}
+
+// Real violation listener (if browser supports and CSP is active)
+document.addEventListener('securitypolicyviolation', (e) => {
+  if (e.violatedDirective && e.violatedDirective.includes('trusted-types')) {
+    const log = document.getElementById('violationLog');
+    if (log.querySelector('.log-empty')) log.innerHTML = '';
+    const now = new Date().toISOString().slice(11, 23);
+    const entry = document.createElement('div');
+    entry.className = 'log-entry';
+    entry.innerHTML = `<span class="time">${now}</span><span class="msg">[REAL] ${escapeForDisplay(e.violatedDirective)}: ${escapeForDisplay(e.sample || '(no sample)')}</span>`;
+    log.prepend(entry);
+  }
+});
+
+// 鈹€鈹€ 7. Code tabs 鈹€鈹€
+function switchCodeTab(id) {
+  document.querySelectorAll('#codeTabBar .tab-item').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('[id^="codePanel-"]').forEach(p => p.classList.remove('active'));
+  document.getElementById('codePanel-' + id).classList.add('active');
+  event.target.classList.add('active');
+}
+
+// 鈹€鈹€ Copy helpers 鈹€鈹€
+function copyText(btn, sourceId) {
+  const el = document.getElementById(sourceId);
+  const text = el.textContent.replace(/Copy(ed)?!?$/, '').trim();
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1500);
+  });
+}
+
+function copyCode(btn) {
+  const block = btn.closest('.code-block') || btn.closest('.tab-panel')?.querySelector('.code-block');
+  if (!block) return;
+  const text = block.textContent.replace(/Copy(ed)?!?$/, '').trim();
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1500);
+  });
+}
+
+// 鈹€鈹€ Auto-run initial sanitization demo 鈹€鈹€
+runSanitize();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+</body>
+</html>

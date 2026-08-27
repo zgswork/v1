@@ -1,0 +1,1018 @@
+<!DOCTYPE html>
+<html tk="title_device_orientation_motion" lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Device Orientation &amp; Motion Playground</title>
+<meta name="description" content="Interactive playground for Device Orientation and Device Motion APIs — accelerometer, gyroscope, magnetometer sensor fusion with 3D visualization.">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0e17;--surface:#111827;--surface2:#1e293b;--border:#334155;
+  --text:#e2e8f0;--text2:#94a3b8;--accent:#3b82f6;--accent2:#8b5cf6;
+  --green:#22c55e;--red:#ef4444;--orange:#f59e0b;--cyan:#06b6d4;
+  --radius:8px;--font:'SF Mono',Consolas,'Courier New',monospace;
+}
+html{font-size:14px}
+body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;overflow-x:hidden}
+a{color:var(--accent)}
+
+/* Header */
+.header{background:var(--surface);border-bottom:1px solid var(--border);padding:12px 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.header h1{font-size:1.1rem;font-weight:700;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;white-space:nowrap}
+.badge{font-size:.7rem;padding:2px 8px;border-radius:12px;border:1px solid var(--border);color:var(--text2)}
+.badge.ok{border-color:var(--green);color:var(--green)}
+.badge.no{border-color:var(--red);color:var(--red)}
+.badge.partial{border-color:var(--orange);color:var(--orange)}
+
+/* Permission bar */
+.perm-bar{background:var(--surface2);padding:10px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;border-bottom:1px solid var(--border)}
+.perm-bar button{background:var(--accent);color:#fff;border:none;padding:6px 16px;border-radius:var(--radius);cursor:pointer;font-family:var(--font);font-size:.8rem;font-weight:600}
+.perm-bar button:hover{opacity:.85}
+.perm-bar button:disabled{opacity:.4;cursor:not-allowed}
+.status-dot{width:8px;height:8px;border-radius:50%;background:var(--red)}
+.status-dot.active{background:var(--green)}
+
+/* Layout */
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px;padding:16px}
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.panel-head{background:var(--surface2);padding:8px 14px;font-size:.8rem;font-weight:600;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
+.panel-body{padding:14px}
+
+/* 3D Device */
+.scene{width:220px;height:300px;perspective:800px;margin:0 auto}
+.device3d{width:100%;height:100%;position:relative;transform-style:preserve-3d;transition:transform .05s linear}
+.device3d .face{position:absolute;border:1px solid rgba(59,130,246,.4);display:flex;align-items:center;justify-content:center;font-size:.65rem;color:var(--text2);font-weight:600}
+.face.front{width:220px;height:300px;background:rgba(59,130,246,.08);transform:translateZ(15px)}
+.face.back{width:220px;height:300px;background:rgba(139,92,246,.08);transform:rotateY(180deg) translateZ(15px)}
+.face.left{width:30px;height:300px;background:rgba(6,182,212,.08);transform:rotateY(-90deg) translateZ(0px);left:-5px}
+.face.right{width:30px;height:300px;background:rgba(6,182,212,.08);transform:rotateY(90deg) translateZ(190px)}
+.face.top{width:220px;height:30px;background:rgba(34,197,94,.08);transform:rotateX(90deg) translateZ(0px);top:-15px}
+.face.bottom{width:220px;height:30px;background:rgba(239,68,68,.08);transform:rotateX(-90deg) translateZ(270px)}
+.face.front .screen{width:190px;height:260px;border-radius:6px;background:var(--bg);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:.7rem;color:var(--accent)}
+.euler-display{text-align:center;margin-top:10px;font-size:.75rem;color:var(--text2)}
+.euler-display span{color:var(--accent);font-weight:700}
+
+/* Dashboard */
+.sensor-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.sensor-val{background:var(--surface2);border-radius:6px;padding:8px;text-align:center}
+.sensor-val .label{font-size:.6rem;color:var(--text2);text-transform:uppercase;letter-spacing:.5px}
+.sensor-val .val{font-size:1.1rem;font-weight:700;color:var(--accent);margin-top:2px}
+.sensor-section{margin-bottom:12px}
+.sensor-section h4{font-size:.7rem;color:var(--text2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px}
+
+/* Compass */
+.compass-wrap{display:flex;flex-direction:column;align-items:center}
+.compass{width:200px;height:200px;border-radius:50%;border:2px solid var(--border);position:relative;background:radial-gradient(circle,var(--surface2),var(--surface))}
+.compass-needle{position:absolute;top:50%;left:50%;width:4px;height:80px;margin-left:-2px;margin-top:-80px;transform-origin:bottom center;transition:transform .1s linear}
+.compass-needle::before{content:'';display:block;width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:40px solid var(--red);margin-left:-4px}
+.compass-needle::after{content:'';display:block;width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:40px solid var(--text2);margin-left:-4px}
+.compass-label{position:absolute;font-size:.6rem;color:var(--text2);font-weight:700}
+.compass-label.n{top:6px;left:50%;transform:translateX(-50%);color:var(--red)}
+.compass-label.s{bottom:6px;left:50%;transform:translateX(-50%)}
+.compass-label.e{right:6px;top:50%;transform:translateY(-50%)}
+.compass-label.w{left:6px;top:50%;transform:translateY(-50%)}
+.compass-heading{margin-top:10px;font-size:1.2rem;font-weight:700;color:var(--accent)}
+
+/* Graph */
+.graph-canvas{width:100%;height:180px;background:var(--surface2);border-radius:6px;border:1px solid var(--border)}
+.graph-legend{display:flex;gap:12px;margin-top:8px;font-size:.65rem}
+.graph-legend span::before{content:'';display:inline-block;width:10px;height:3px;margin-right:4px;vertical-align:middle;border-radius:2px}
+.graph-legend .lx::before{background:var(--red)}
+.graph-legend .ly::before{background:var(--green)}
+.graph-legend .lz::before{background:var(--accent)}
+
+/* Shake */
+.shake-zone{text-align:center;padding:20px}
+.shake-indicator{width:120px;height:120px;border-radius:50%;border:3px solid var(--border);margin:0 auto 12px;display:flex;align-items:center;justify-content:center;font-size:2.5rem;transition:all .15s}
+.shake-indicator.shaking{border-color:var(--red);background:rgba(239,68,68,.1);animation:shake-anim .3s}
+@keyframes shake-anim{0%,100%{transform:translateX(0)}25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
+.shake-count{font-size:.8rem;color:var(--text2);margin-top:6px}
+.shake-threshold{margin-top:10px;font-size:.7rem;color:var(--text2)}
+.shake-threshold input{width:120px;vertical-align:middle}
+
+/* Tilt Ball */
+.tilt-arena{width:100%;height:260px;background:var(--surface2);border-radius:6px;border:1px solid var(--border);position:relative;overflow:hidden}
+.tilt-ball{width:24px;height:24px;border-radius:50%;background:var(--accent);position:absolute;top:50%;left:50%;margin:-12px;transition:none;box-shadow:0 0 12px rgba(59,130,246,.5)}
+.tilt-arena .target{width:30px;height:30px;border-radius:50%;border:2px dashed var(--green);position:absolute;display:flex;align-items:center;justify-content:center;font-size:.5rem;color:var(--green)}
+.tilt-score{text-align:center;margin-top:8px;font-size:.75rem;color:var(--text2)}
+
+/* Simulator */
+.sim-controls{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.sim-row{display:flex;align-items:center;gap:6px;font-size:.7rem}
+.sim-row label{width:60px;color:var(--text2)}
+.sim-row input[type=range]{flex:1;accent-color:var(--accent)}
+.sim-row .sv{width:50px;text-align:right;color:var(--accent);font-weight:600}
+.sim-toggle{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.sim-toggle label{font-size:.75rem;color:var(--text2)}
+.toggle{position:relative;width:40px;height:20px;background:var(--border);border-radius:10px;cursor:pointer;transition:.2s}
+.toggle.on{background:var(--accent)}
+.toggle::after{content:'';position:absolute;width:16px;height:16px;background:#fff;border-radius:50%;top:2px;left:2px;transition:.2s}
+.toggle.on::after{left:22px}
+
+/* Presets */
+.presets{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.presets button{background:var(--surface2);color:var(--text2);border:1px solid var(--border);padding:4px 10px;border-radius:var(--radius);cursor:pointer;font-family:var(--font);font-size:.7rem}
+.presets button:hover{border-color:var(--accent);color:var(--accent)}
+.presets button.active{border-color:var(--accent);color:var(--accent);background:rgba(59,130,246,.1)}
+
+/* Code snippets */
+.code-panel{margin-top:12px}
+.code-block{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px;font-size:.7rem;line-height:1.5;overflow-x:auto;position:relative;white-space:pre;color:var(--text2)}
+.code-block .copy-btn{position:absolute;top:6px;right:6px;background:var(--surface2);border:1px solid var(--border);color:var(--text2);padding:2px 8px;border-radius:4px;cursor:pointer;font-size:.6rem;font-family:var(--font)}
+.code-block .copy-btn:hover{color:var(--accent);border-color:var(--accent)}
+.code-title{font-size:.7rem;color:var(--text2);margin-bottom:4px;font-weight:600}
+.tab-bar{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:10px}
+.tab-bar button{background:none;border:none;color:var(--text2);padding:6px 12px;cursor:pointer;font-family:var(--font);font-size:.7rem;border-bottom:2px solid transparent}
+.tab-bar button.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tab-content{display:none}
+.tab-content.active{display:block}
+
+/* Support table */
+.support-table{width:100%;border-collapse:collapse;font-size:.7rem}
+.support-table th,.support-table td{padding:6px 10px;border:1px solid var(--border);text-align:left}
+.support-table th{background:var(--surface2);color:var(--text2);font-weight:600}
+.support-table td{color:var(--text)}
+
+/* Responsive */
+@media(max-width:720px){
+  .grid{grid-template-columns:1fr;padding:10px}
+  .sim-controls{grid-template-columns:1fr}
+  .sensor-grid{grid-template-columns:1fr 1fr 1fr}
+  .header{padding:10px}
+  .header h1{font-size:.95rem}
+}
+</style>
+</head>
+<body>
+
+
+
+<!-- Header -->
+<div class="header">
+  <h1>Device Orientation &amp; Motion Playground</h1>
+  <span class="badge" id="badgeOrientation">Orientation: checking...</span>
+  <span class="badge" id="badgeMotion">Motion: checking...</span>
+  <span class="badge" id="badgePermission">Permission: N/A</span>
+</div>
+
+<!-- Permission Bar -->
+<div class="perm-bar">
+  <div class="status-dot" id="statusDot"></div>
+  <span style="font-size:.75rem;color:var(--text2)" id="statusText">Sensors inactive</span>
+  <button id="btnPermission" onclick="requestSensorPermission()" ti="btn_request_sensor_access">Request Sensor Access</button>
+  <button onclick="toggleSimulator()" style="background:var(--accent2)" ti="btn_toggle_simulator">Toggle Simulator</button>
+</div>
+
+<div class="grid">
+
+  <!-- 3D Device Model -->
+  <div class="panel">
+    <div class="panel-head"><span style="color:var(--accent)">&#9638;</span> 3D Device Model</div>
+    <div class="panel-body">
+      <div class="scene">
+        <div class="device3d" id="device3d">
+          <div class="face front"><div class="screen" id="screenLabel">Rotate device</div></div>
+          <div class="face back">BACK</div>
+          <div class="face left">L</div>
+          <div class="face right">R</div>
+          <div class="face top">TOP</div>
+          <div class="face bottom">BTM</div>
+        </div>
+      </div>
+      <div class="euler-display">
+        &alpha;: <span id="euler-a">0</span>&deg; &nbsp;
+        &beta;: <span id="euler-b">0</span>&deg; &nbsp;
+        &gamma;: <span id="euler-g">0</span>&deg;
+      </div>
+      <div class="code-panel">
+        <div class="code-title">Pattern: Orientation Listener</div>
+        <div class="code-block"><button class="copy-btn" onclick="copyCode(this)" ti="btn_copy" ti="btn_copy_2" ti="btn_copy_3" ti="btn_copy_4" ti="btn_copy_5" ti="btn_copy_6" ti="btn_copy_7" ti="btn_copy_8" ti="btn_copy_9" ti="btn_copy_10" ti="btn_copy_11">Copy</button>window.addEventListener('deviceorientation', (e) => {
+  const alpha = e.alpha; // 0-360 compass
+  const beta  = e.beta;  // -180 to 180
+  const gamma = e.gamma; // -90 to 90
+  element.style.transform =
+    `rotateZ(${alpha}deg) rotateX(${beta}deg) rotateY(${gamma}deg)`;
+});</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sensor Dashboard -->
+  <div class="panel">
+    <div class="panel-head"><span style="color:var(--green)">&#9632;</span> Sensor Dashboard</div>
+    <div class="panel-body">
+      <div class="sensor-section">
+        <h4>Acceleration (m/s&sup2;)</h4>
+        <div class="sensor-grid">
+          <div class="sensor-val"><div class="label">X</div><div class="val" id="acc-x">0.00</div></div>
+          <div class="sensor-val"><div class="label">Y</div><div class="val" id="acc-y">0.00</div></div>
+          <div class="sensor-val"><div class="label">Z</div><div class="val" id="acc-z">0.00</div></div>
+        </div>
+      </div>
+      <div class="sensor-section">
+        <h4>Accel. Including Gravity</h4>
+        <div class="sensor-grid">
+          <div class="sensor-val"><div class="label">X</div><div class="val" id="grav-x">0.00</div></div>
+          <div class="sensor-val"><div class="label">Y</div><div class="val" id="grav-y">0.00</div></div>
+          <div class="sensor-val"><div class="label">Z</div><div class="val" id="grav-z">0.00</div></div>
+        </div>
+      </div>
+      <div class="sensor-section">
+        <h4>Rotation Rate (&deg;/s)</h4>
+        <div class="sensor-grid">
+          <div class="sensor-val"><div class="label">&alpha;</div><div class="val" id="rot-a">0.00</div></div>
+          <div class="sensor-val"><div class="label">&beta;</div><div class="val" id="rot-b">0.00</div></div>
+          <div class="sensor-val"><div class="label">&gamma;</div><div class="val" id="rot-g">0.00</div></div>
+        </div>
+      </div>
+      <div class="sensor-section">
+        <h4>Interval</h4>
+        <div class="sensor-grid">
+          <div class="sensor-val" style="grid-column:span 3"><div class="label">Update interval (ms)</div><div class="val" id="interval-val">--</div></div>
+        </div>
+      </div>
+      <div class="code-panel">
+        <div class="code-title">Pattern: Motion Data</div>
+        <div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button>window.addEventListener('devicemotion', (e) => {
+  const acc  = e.acceleration;         // without gravity
+  const accG = e.accelerationIncludingGravity;
+  const rot  = e.rotationRate;         // deg/s
+  const ms   = e.interval;             // ms between events
+  console.log(`Accel: ${acc.x}, ${acc.y}, ${acc.z}`);
+});</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Compass -->
+  <div class="panel">
+    <div class="panel-head"><span style="color:var(--red)">&#9650;</span> Compass / Heading</div>
+    <div class="panel-body">
+      <div class="compass-wrap">
+        <div class="compass">
+          <span class="compass-label n">N</span>
+          <span class="compass-label s">S</span>
+          <span class="compass-label e">E</span>
+          <span class="compass-label w">W</span>
+          <div class="compass-needle" id="compassNeedle"></div>
+        </div>
+        <div class="compass-heading" id="compassHeading">0&deg; N</div>
+      </div>
+      <div class="code-panel">
+        <div class="code-title">Pattern: Compass Heading</div>
+        <div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button>window.addEventListener('deviceorientation', (e) => {
+  // alpha = 0-360, where 0 = North
+  let heading = e.alpha;
+  // webkitCompassHeading for iOS (true north)
+  if (e.webkitCompassHeading !== undefined) {
+    heading = e.webkitCompassHeading;
+  }
+  needle.style.transform = `rotate(${-heading}deg)`;
+});</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Motion Graph -->
+  <div class="panel">
+    <div class="panel-head"><span style="color:var(--orange)">&#9644;</span> Acceleration Graph</div>
+    <div class="panel-body">
+      <canvas class="graph-canvas" id="graphCanvas"></canvas>
+      <div class="graph-legend">
+        <span class="lx">X-axis</span>
+        <span class="ly">Y-axis</span>
+        <span class="lz">Z-axis</span>
+      </div>
+      <div class="code-panel">
+        <div class="code-title">Pattern: Rolling Buffer Graph</div>
+        <div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button>const buffer = { x: [], y: [], z: [] };
+const MAX = 200;
+
+function pushSample(acc) {
+  ['x','y','z'].forEach(k => {
+    buffer[k].push(acc[k] || 0);
+    if (buffer[k].length > MAX) buffer[k].shift();
+  });
+  drawGraph();
+}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Shake Detector -->
+  <div class="panel">
+    <div class="panel-head"><span style="color:var(--cyan)">&#9679;</span> Shake Detector</div>
+    <div class="panel-body">
+      <div class="shake-zone">
+        <div class="shake-indicator" id="shakeIndicator">&#128257;</div>
+        <div style="font-size:.85rem;font-weight:600" id="shakeLabel">Waiting for shake...</div>
+        <div class="shake-count">Shakes detected: <strong id="shakeCount">0</strong></div>
+        <div class="shake-threshold">
+          <label>Threshold: <span id="shakeThreshVal">15</span> m/s&sup2;</label><br>
+          <input type="range" min="5" max="40" value="15" id="shakeThreshold" oninput="updateShakeThresh(this.value)">
+        </div>
+      </div>
+      <div class="code-panel">
+        <div class="code-title">Pattern: Shake Detection</div>
+        <div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button>let lastAcc = { x: 0, y: 0, z: 0 };
+const THRESHOLD = 15; // m/s^2
+
+window.addEventListener('devicemotion', (e) => {
+  const a = e.accelerationIncludingGravity;
+  const delta = Math.sqrt(
+    (a.x - lastAcc.x) ** 2 +
+    (a.y - lastAcc.y) ** 2 +
+    (a.z - lastAcc.z) ** 2
+  );
+  if (delta > THRESHOLD) onShake();
+  lastAcc = { x: a.x, y: a.y, z: a.z };
+});</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tilt Ball -->
+  <div class="panel">
+    <div class="panel-head"><span style="color:var(--accent2)">&#9673;</span> Tilt Controls</div>
+    <div class="panel-body">
+      <div class="tilt-arena" id="tiltArena">
+        <div class="tilt-ball" id="tiltBall"></div>
+      </div>
+      <div class="tilt-score">Score: <strong id="tiltScore">0</strong> &nbsp;|&nbsp; Tilt to move the ball into targets</div>
+      <div class="code-panel">
+        <div class="code-title">Pattern: Tilt Controls</div>
+        <div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button>let ballX = 50, ballY = 50; // percent
+
+window.addEventListener('deviceorientation', (e) => {
+  // gamma: left/right tilt (-90..90)
+  // beta: front/back tilt (-180..180)
+  ballX += (e.gamma || 0) * 0.05;
+  ballY += (e.beta  || 0) * 0.05;
+  ballX = Math.max(0, Math.min(100, ballX));
+  ballY = Math.max(0, Math.min(100, ballY));
+  ball.style.left = ballX + '%';
+  ball.style.top  = ballY + '%';
+});</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Simulator -->
+  <div class="panel" id="simPanel" style="display:none">
+    <div class="panel-head"><span style="color:var(--orange)">&#9881;</span> Desktop Simulator</div>
+    <div class="panel-body">
+      <div class="presets">
+        <button class="active" onclick="applyPreset('flat',this)" ti="btn_flat_on_table">Flat on Table</button>
+        <button onclick="applyPreset('portrait',this)" ti="btn_portrait_hold">Portrait Hold</button>
+        <button onclick="applyPreset('landscape',this)" ti="btn_landscape_hold">Landscape Hold</button>
+        <button onclick="applyPreset('facedown',this)" ti="btn_face_down">Face Down</button>
+        <button onclick="applyPreset('shaking',this)" ti="btn_shaking">Shaking</button>
+        <button onclick="applyPreset('walking',this)" ti="btn_walking">Walking</button>
+        <button onclick="applyPreset('spinning',this)" ti="btn_spinning">Spinning</button>
+      </div>
+      <div class="sim-controls">
+        <div class="sim-row"><label>&alpha; (yaw)</label><input type="range" min="0" max="360" value="0" id="sim-alpha" oninput="simUpdate()"><span class="sv" id="sv-alpha">0</span></div>
+        <div class="sim-row"><label>&beta; (pitch)</label><input type="range" min="-180" max="180" value="0" id="sim-beta" oninput="simUpdate()"><span class="sv" id="sv-beta">0</span></div>
+        <div class="sim-row"><label>&gamma; (roll)</label><input type="range" min="-90" max="90" value="0" id="sim-gamma" oninput="simUpdate()"><span class="sv" id="sv-gamma">0</span></div>
+        <div class="sim-row"><label ti="label_accel_x">Accel X</label><input type="range" min="-20" max="20" value="0" step="0.1" id="sim-ax" oninput="simUpdate()"><span class="sv" id="sv-ax">0</span></div>
+        <div class="sim-row"><label ti="label_accel_y">Accel Y</label><input type="range" min="-20" max="20" value="0" step="0.1" id="sim-ay" oninput="simUpdate()"><span class="sv" id="sv-ay">0</span></div>
+        <div class="sim-row"><label ti="label_accel_z">Accel Z</label><input type="range" min="-20" max="20" value="0" step="0.1" id="sim-az" oninput="simUpdate()"><span class="sv" id="sv-az">0</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Code Snippets -->
+  <div class="panel">
+    <div class="panel-head"><span style="color:var(--text2)">&lt;/&gt;</span> Code Snippets</div>
+    <div class="panel-body">
+      <div class="tab-bar">
+        <button class="active" onclick="showTab('tab-perm',this)" ti="btn_permission">Permission</button>
+        <button onclick="showTab('tab-orient',this)" ti="btn_orientation">Orientation</button>
+        <button onclick="showTab('tab-motion',this)" ti="btn_motion">Motion</button>
+        <button onclick="showTab('tab-abs',this)" ti="btn_absolute">Absolute</button>
+        <button onclick="showTab('tab-fallback',this)" ti="btn_fallback">Fallback</button>
+      </div>
+      <div class="tab-content active" id="tab-perm">
+        <div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button>// iOS 13+ requires explicit permission request
+async function requestPermission() {
+  if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+    const perm = await DeviceOrientationEvent.requestPermission();
+    if (perm === 'granted') {
+      window.addEventListener('deviceorientation', handleOrientation);
+    }
+  } else {
+    // Non-iOS: just add listener
+    window.addEventListener('deviceorientation', handleOrientation);
+  }
+}</div>
+      </div>
+      <div class="tab-content" id="tab-orient">
+        <div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button>window.addEventListener('deviceorientation', (event) => {
+  // alpha: rotation around z-axis (0-360)
+  // beta:  rotation around x-axis (-180 to 180)
+  // gamma: rotation around y-axis (-90 to 90)
+  // absolute: true if orientation is relative to Earth
+  console.log({
+    alpha: event.alpha,
+    beta: event.beta,
+    gamma: event.gamma,
+    absolute: event.absolute
+  });
+});</div>
+      </div>
+      <div class="tab-content" id="tab-motion">
+        <div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button>window.addEventListener('devicemotion', (event) => {
+  // acceleration: without gravity
+  const { x, y, z } = event.acceleration;
+
+  // accelerationIncludingGravity: with gravity
+  const g = event.accelerationIncludingGravity;
+
+  // rotationRate: angular velocity (deg/s)
+  const { alpha, beta, gamma } = event.rotationRate;
+
+  // interval: time between data samples (ms)
+  const interval = event.interval;
+});</div>
+      </div>
+      <div class="tab-content" id="tab-abs">
+        <div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button>// deviceorientationabsolute gives orientation
+// relative to Earth's coordinate frame (true north)
+window.addEventListener('deviceorientationabsolute', (e) => {
+  // e.absolute is always true here
+  const trueHeading = 360 - e.alpha;
+  compass.style.transform = `rotate(${-e.alpha}deg)`;
+});
+
+// Fallback: check if standard event gives absolute
+window.addEventListener('deviceorientation', (e) => {
+  if (e.absolute) {
+    // This data is already Earth-relative
+  }
+});</div>
+      </div>
+      <div class="tab-content" id="tab-fallback">
+        <div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button>// Feature detection with graceful fallback
+function initSensors() {
+  if ('DeviceOrientationEvent' in window) {
+    console.log('Orientation API available');
+  }
+  if ('DeviceMotionEvent' in window) {
+    console.log('Motion API available');
+  }
+
+  // Generic Sensor API (newer, Chrome-only)
+  if ('Accelerometer' in window) {
+    const sensor = new Accelerometer({ frequency: 60 });
+    sensor.addEventListener('reading', () => {
+      console.log(sensor.x, sensor.y, sensor.z);
+    });
+    sensor.start();
+  }
+}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Browser Support -->
+  <div class="panel">
+    <div class="panel-head"><span style="color:var(--green)">&#10003;</span> Browser Support</div>
+    <div class="panel-body">
+      <table class="support-table">
+        <tr><th ti="th_api">API</th><th ti="th_chrome">Chrome</th><th ti="th_firefox">Firefox</th><th ti="th_safari">Safari</th><th ti="th_edge">Edge</th></tr>
+        <tr><td>DeviceOrientationEvent</td><td>Yes</td><td>Yes</td><td>Yes*</td><td>Yes</td></tr>
+        <tr><td>DeviceMotionEvent</td><td>Yes</td><td>Yes</td><td>Yes*</td><td>Yes</td></tr>
+        <tr><td>requestPermission()</td><td>N/A</td><td>N/A</td><td>Required*</td><td>N/A</td></tr>
+        <tr><td>deviceorientationabsolute</td><td>Yes</td><td>Yes</td><td>No</td><td>Yes</td></tr>
+        <tr><td>Generic Sensor API</td><td>Yes</td><td>No</td><td>No</td><td>Yes</td></tr>
+      </table>
+      <p style="font-size:.65rem;color:var(--text2);margin-top:8px">* iOS 13+ requires user gesture + explicit permission via requestPermission(). HTTPS required on all platforms for sensor access.</p>
+      <div id="runtimeSupport" style="margin-top:10px"></div>
+    </div>
+  </div>
+
+</div>
+
+
+<script>var _LANG={'title_device_orientation_motion':["Device Orientation & Motion Playground", "设备方向和运动游乐场"],'metadesc_interactive_playground_fo':["Interactive playground for Device Orientation and Device Motion APIs — accelerometer, gyroscope, magnetometer sensor fusion with 3D visualization.", "用于设备方向和设备运动 API 的交互式游乐场——加速度计、陀螺仪、磁力计传感器融合与 3D 可视化。"],'h1_device_orientation_motion':["Device Orientation & Motion Playground", "设备方向和运动游乐场"],'btn_request_sensor_access':["Request Sensor Access", "请求传感器访问权限"],'btn_toggle_simulator':["Toggle Simulator", "切换模拟器"],'btn_copy':["Copy", "复制"],'btn_copy_2':["Copy", "复制"],'btn_copy_3':["Copy", "复制"],'btn_copy_4':["Copy", "复制"],'btn_copy_5':["Copy", "复制"],'btn_copy_6':["Copy", "复制"],'btn_flat_on_table':["Flat on Table", "平放在桌子上"],'btn_portrait_hold':["Portrait Hold", "竖屏"],'btn_landscape_hold':["Landscape Hold", "景观保持"],'btn_face_down':["Face Down", "面朝下"],'btn_shaking':["Shaking", "摇晃"],'btn_walking':["Walking", "步行"],'btn_spinning':["Spinning", "旋转"],'btn_permission':["Permission", "允许"],'btn_orientation':["Orientation", "方向"],'btn_motion':["Motion", "运动"],'btn_absolute':["Absolute", "绝对"],'btn_fallback':["Fallback", "倒退"],'btn_copy_7':["Copy", "复制"],'btn_copy_8':["Copy", "复制"],'btn_copy_9':["Copy", "复制"],'btn_copy_10':["Copy", "复制"],'btn_copy_11':["Copy", "复制"],'th_api':["API", "API"],'th_chrome':["Chrome", "铬合金"],'th_firefox':["Firefox", "火狐浏览器"],'th_safari':["Safari", "狩猎之旅"],'th_edge':["Edge", "边缘"],'label_yaw':["α (yaw)", "α（偏航）"],'label_pitch':["β (pitch)", "β（音高）"],'label_roll':["γ (roll)", "γ（滚动）"],'label_accel_x':["Accel X", "加速X"],'label_accel_y':["Accel Y", "加速 Y"],'label_accel_z':["Accel Z", "加速 Z"],'jtc_orientation':["Orientation:", "方向："],'jtc_motion':["Motion:", "运动："],'jtc_permission_required':["Permission: Required", "权限：必需"],'jtc_permission_auto':["Permission: Auto", "权限：自动"],'jtc_permission_n_a':["Permission: N/A", "权限：不适用"],'jtc_sensors_active':["Sensors active", "传感器处于激活状态"],'jtc_listening':["Listening...", "正在听……"],'jtc_shake_detected':["SHAKE DETECTED!", "检测到摇晃！"],'jtc_waiting_for_shake':["Waiting for shake...", "等待摇晃……"],'jtc_1':["+1", "+1"],'jtc_simulator_active':["Simulator active", "模拟器已激活"],'jtc_sensors_inactive':["Sensors inactive", "传感器不活跃"],'jtc_copied':["Copied!", "已复制！"],'jtc_copy':["Copy", "复制"],'jtc_copied_2':["Copied!", "已复制！"],'jtc_copy_2':["Copy", "复制"],'jtc_sensors_active_2':["Sensors active", "传感器处于激活状态"],'jtc_listening_2':["Listening...", "正在听……"],'jtcpre_orientation':["Orientation: ", "方向："],'jtcpre_motion':["Motion: ", "运动："],'jalert_permission_denied_sensor':["Permission denied. Sensor data will not be available.\\nUse the simulator instead.", "权限不足。传感器数据将不可用。\\n请改用模拟器。"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>
+// --- State ---
+const state = {
+  alpha: 0, beta: 0, gamma: 0,
+  accX: 0, accY: 0, accZ: 0,
+  gravX: 0, gravY: 0, gravZ: 9.81,
+  rotA: 0, rotB: 0, rotG: 0,
+  interval: 0,
+  sensorsActive: false,
+  simActive: false,
+  simAnimId: null
+};
+
+const graphBuffer = { x: [], y: [], z: [] };
+const GRAPH_MAX = 200;
+let shakeCount = 0;
+let shakeThreshold = 15;
+let lastAccG = { x: 0, y: 0, z: 9.81 };
+let lastShakeTime = 0;
+let ballX = 50, ballY = 50;
+let tiltScore = 0;
+let targets = [];
+const graphCanvas = document.getElementById('graphCanvas');
+const graphCtx = graphCanvas.getContext('2d');
+
+// --- Permission & Init ---
+function checkSupport() {
+  const hasOrientation = 'DeviceOrientationEvent' in window;
+  const hasMotion = 'DeviceMotionEvent' in window;
+  const needsPermission = hasOrientation && typeof DeviceOrientationEvent.requestPermission === 'function';
+
+  const bO = document.getElementById('badgeOrientation');
+  const bM = document.getElementById('badgeMotion');
+  const bP = document.getElementById('badgePermission');
+
+  bO.textContent=T("jtcpre_orientation")+ (hasOrientation ? 'Yes' : 'No');
+  bO.className = 'badge ' + (hasOrientation ? 'ok' : 'no');
+  bM.textContent=T("jtcpre_motion")+ (hasMotion ? 'Yes' : 'No');
+  bM.className = 'badge ' + (hasMotion ? 'ok' : 'no');
+
+  if (needsPermission) {
+    bP.textContent=T("jtc_permission_required");
+    bP.className = 'badge partial';
+  } else if (hasOrientation) {
+    bP.textContent=T("jtc_permission_auto");
+    bP.className = 'badge ok';
+  } else {
+    bP.textContent=T("jtc_permission_n_a");
+    bP.className = 'badge no';
+  }
+
+  // Runtime support details
+  const rt = document.getElementById('runtimeSupport');
+  const checks = [
+    ['DeviceOrientationEvent', 'DeviceOrientationEvent' in window],
+    ['DeviceMotionEvent', 'DeviceMotionEvent' in window],
+    ['requestPermission', typeof DeviceOrientationEvent?.requestPermission === 'function'],
+    ['deviceorientationabsolute', 'ondeviceorientationabsolute' in window],
+    ['Accelerometer (Generic)', 'Accelerometer' in window],
+    ['Gyroscope (Generic)', 'Gyroscope' in window],
+    ['HTTPS', location.protocol === 'https:' || location.hostname === 'localhost']
+  ];
+  rt.innerHTML = '<div style="font-size:.7rem;font-weight:600;margin-bottom:4px;color:var(--text2)">Runtime Detection:</div>' +
+    checks.map(([name, ok]) =>
+      `<span class="badge ${ok ? 'ok' : 'no'}" style="margin:2px">${name}: ${ok ? 'Yes' : 'No'}</span>`
+    ).join(' ');
+}
+
+async function requestSensorPermission() {
+  try {
+    if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+      const perm = await DeviceOrientationEvent.requestPermission();
+      if (perm !== 'granted') {
+        T("jalert_permission_denied_sensor");
+        return;
+      }
+    }
+    if (typeof DeviceMotionEvent.requestPermission === 'function') {
+      await DeviceMotionEvent.requestPermission();
+    }
+  } catch (e) {
+    // Not iOS or permission API not available — proceed
+  }
+
+  window.addEventListener('deviceorientation', handleOrientation);
+  window.addEventListener('devicemotion', handleMotion);
+  state.sensorsActive = true;
+  document.getElementById('statusDot').classList.add('active');
+  document.getElementById('statusText').textContent=T("jtc_sensors_active");
+  document.getElementById('btnPermission').disabled = true;
+  document.getElementById('btnPermission').textContent=T("jtc_listening");
+}
+
+function handleOrientation(e) {
+  if (state.simActive) return;
+  state.alpha = e.alpha || 0;
+  state.beta = e.beta || 0;
+  state.gamma = e.gamma || 0;
+  updateUI();
+}
+
+function handleMotion(e) {
+  if (state.simActive) return;
+  const a = e.acceleration || {};
+  const g = e.accelerationIncludingGravity || {};
+  const r = e.rotationRate || {};
+  state.accX = a.x || 0;
+  state.accY = a.y || 0;
+  state.accZ = a.z || 0;
+  state.gravX = g.x || 0;
+  state.gravY = g.y || 0;
+  state.gravZ = g.z || 0;
+  state.rotA = r.alpha || 0;
+  state.rotB = r.beta || 0;
+  state.rotG = r.gamma || 0;
+  state.interval = e.interval || 0;
+  checkShake(g);
+  pushGraphSample(a);
+  updateUI();
+}
+
+// --- UI Update ---
+function updateUI() {
+  // 3D Device
+  const d = document.getElementById('device3d');
+  d.style.transform = `rotateZ(${-state.alpha}deg) rotateX(${state.beta}deg) rotateY(${-state.gamma}deg)`;
+  document.getElementById('screenLabel').textContent =
+    `${state.alpha.toFixed(0)}° / ${state.beta.toFixed(0)}° / ${state.gamma.toFixed(0)}°`;
+
+  // Euler
+  document.getElementById('euler-a').textContent = state.alpha.toFixed(1);
+  document.getElementById('euler-b').textContent = state.beta.toFixed(1);
+  document.getElementById('euler-g').textContent = state.gamma.toFixed(1);
+
+  // Dashboard
+  document.getElementById('acc-x').textContent = state.accX.toFixed(2);
+  document.getElementById('acc-y').textContent = state.accY.toFixed(2);
+  document.getElementById('acc-z').textContent = state.accZ.toFixed(2);
+  document.getElementById('grav-x').textContent = state.gravX.toFixed(2);
+  document.getElementById('grav-y').textContent = state.gravY.toFixed(2);
+  document.getElementById('grav-z').textContent = state.gravZ.toFixed(2);
+  document.getElementById('rot-a').textContent = state.rotA.toFixed(2);
+  document.getElementById('rot-b').textContent = state.rotB.toFixed(2);
+  document.getElementById('rot-g').textContent = state.rotG.toFixed(2);
+  document.getElementById('interval-val').textContent = state.interval.toFixed(1);
+
+  // Compass
+  const heading = state.alpha;
+  document.getElementById('compassNeedle').style.transform = `rotate(${-heading}deg)`;
+  const dirs = ['N','NE','E','SE','S','SW','W','NW'];
+  const dirIdx = Math.round(heading / 45) % 8;
+  document.getElementById('compassHeading').innerHTML = `${heading.toFixed(0)}&deg; ${dirs[dirIdx]}`;
+
+  // Tilt ball
+  updateBall();
+}
+
+// --- Graph ---
+function pushGraphSample(acc) {
+  graphBuffer.x.push(acc.x || 0);
+  graphBuffer.y.push(acc.y || 0);
+  graphBuffer.z.push(acc.z || 0);
+  if (graphBuffer.x.length > GRAPH_MAX) {
+    graphBuffer.x.shift();
+    graphBuffer.y.shift();
+    graphBuffer.z.shift();
+  }
+  drawGraph();
+}
+
+function drawGraph() {
+  const c = graphCanvas;
+  const w = c.width = c.offsetWidth * (window.devicePixelRatio || 1);
+  const h = c.height = c.offsetHeight * (window.devicePixelRatio || 1);
+  const ctx = graphCtx;
+  ctx.clearRect(0, 0, w, h);
+
+  // Grid
+  ctx.strokeStyle = 'rgba(51,65,85,.5)';
+  ctx.lineWidth = 1;
+  const midY = h / 2;
+  ctx.beginPath();
+  ctx.moveTo(0, midY); ctx.lineTo(w, midY);
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(51,65,85,.25)';
+  ctx.beginPath();
+  ctx.moveTo(0, midY - h / 4); ctx.lineTo(w, midY - h / 4);
+  ctx.moveTo(0, midY + h / 4); ctx.lineTo(w, midY + h / 4);
+  ctx.stroke();
+
+  // Scale labels
+  ctx.fillStyle = 'rgba(148,163,184,.5)';
+  ctx.font = `${10 * (window.devicePixelRatio || 1)}px monospace`;
+  ctx.fillText('0', 4, midY - 2);
+  ctx.fillText('+20', 4, midY - h / 4 - 2);
+  ctx.fillText('-20', 4, midY + h / 4 + 12);
+
+  const colors = ['#ef4444', '#22c55e', '#3b82f6'];
+  const buffers = [graphBuffer.x, graphBuffer.y, graphBuffer.z];
+  const maxVal = 20;
+
+  buffers.forEach((buf, i) => {
+    if (buf.length < 2) return;
+    ctx.beginPath();
+    ctx.strokeStyle = colors[i];
+    ctx.lineWidth = 1.5 * (window.devicePixelRatio || 1);
+    const step = w / GRAPH_MAX;
+    const offset = GRAPH_MAX - buf.length;
+    for (let j = 0; j < buf.length; j++) {
+      const x = (offset + j) * step;
+      const y = midY - (buf[j] / maxVal) * (h / 2);
+      j === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  });
+}
+
+// --- Shake ---
+function checkShake(g) {
+  const dx = g.x - lastAccG.x;
+  const dy = g.y - lastAccG.y;
+  const dz = g.z - lastAccG.z;
+  const mag = Math.sqrt(dx * dx + dy * dy + dz * dz);
+  const now = Date.now();
+  if (mag > shakeThreshold && now - lastShakeTime > 300) {
+    shakeCount++;
+    lastShakeTime = now;
+    document.getElementById('shakeCount').textContent = shakeCount;
+    document.getElementById('shakeLabel').textContent=T("jtc_shake_detected");
+    const ind = document.getElementById('shakeIndicator');
+    ind.classList.add('shaking');
+    setTimeout(() => {
+      ind.classList.remove('shaking');
+      document.getElementById('shakeLabel').textContent=T("jtc_waiting_for_shake");
+    }, 500);
+  }
+  lastAccG = { x: g.x || 0, y: g.y || 0, z: g.z || 0 };
+}
+
+function updateShakeThresh(v) {
+  shakeThreshold = Number(v);
+  document.getElementById('shakeThreshVal').textContent = v;
+}
+
+// --- Tilt Ball ---
+function initTargets() {
+  const arena = document.getElementById('tiltArena');
+  // Remove old targets
+  arena.querySelectorAll('.target').forEach(t => t.remove());
+  targets = [];
+  for (let i = 0; i < 3; i++) spawnTarget();
+}
+
+function spawnTarget() {
+  const arena = document.getElementById('tiltArena');
+  const t = document.createElement('div');
+  t.className = 'target';
+  const tx = 10 + Math.random() * 80;
+  const ty = 10 + Math.random() * 80;
+  t.style.left = tx + '%';
+  t.style.top = ty + '%';
+  t.style.marginLeft = '-15px';
+  t.style.marginTop = '-15px';
+  t.textContent=T("jtc_1");
+  t.dataset.x = tx;
+  t.dataset.y = ty;
+  arena.appendChild(t);
+  targets.push(t);
+}
+
+function updateBall() {
+  ballX += state.gamma * 0.04;
+  ballY += (state.beta - 45) * 0.04; // offset so portrait hold is neutral
+  ballX = Math.max(2, Math.min(98, ballX));
+  ballY = Math.max(2, Math.min(98, ballY));
+  const ball = document.getElementById('tiltBall');
+  ball.style.left = ballX + '%';
+  ball.style.top = ballY + '%';
+
+  // Check collisions
+  targets.forEach((t, i) => {
+    const tx = parseFloat(t.dataset.x);
+    const ty = parseFloat(t.dataset.y);
+    const dist = Math.sqrt((ballX - tx) ** 2 + (ballY - ty) ** 2);
+    if (dist < 5) {
+      tiltScore++;
+      document.getElementById('tiltScore').textContent = tiltScore;
+      t.remove();
+      targets.splice(i, 1);
+      spawnTarget();
+    }
+  });
+}
+
+// --- Simulator ---
+function toggleSimulator() {
+  const panel = document.getElementById('simPanel');
+  state.simActive = !state.simActive;
+  panel.style.display = state.simActive ? 'block' : 'none';
+
+  if (state.simActive) {
+    document.getElementById('statusDot').classList.add('active');
+    document.getElementById('statusText').textContent=T("jtc_simulator_active");
+    simUpdate();
+    startSimLoop();
+  } else {
+    if (state.simAnimId) cancelAnimationFrame(state.simAnimId);
+    state.simAnimId = null;
+    if (!state.sensorsActive) {
+      document.getElementById('statusDot').classList.remove('active');
+      document.getElementById('statusText').textContent=T("jtc_sensors_inactive");
+    }
+  }
+}
+
+let simPresetAnim = null;
+
+function simUpdate() {
+  state.alpha = Number(document.getElementById('sim-alpha').value);
+  state.beta = Number(document.getElementById('sim-beta').value);
+  state.gamma = Number(document.getElementById('sim-gamma').value);
+  state.accX = Number(document.getElementById('sim-ax').value);
+  state.accY = Number(document.getElementById('sim-ay').value);
+  state.accZ = Number(document.getElementById('sim-az').value);
+
+  // Derive gravity from orientation
+  const bRad = state.beta * Math.PI / 180;
+  const gRad = state.gamma * Math.PI / 180;
+  state.gravX = state.accX + 9.81 * Math.sin(gRad);
+  state.gravY = state.accY - 9.81 * Math.sin(bRad) * Math.cos(gRad);
+  state.gravZ = state.accZ - 9.81 * Math.cos(bRad) * Math.cos(gRad);
+  state.rotA = 0; state.rotB = 0; state.rotG = 0;
+  state.interval = 16.7;
+
+  // Update slider readouts
+  document.getElementById('sv-alpha').textContent = state.alpha.toFixed(0);
+  document.getElementById('sv-beta').textContent = state.beta.toFixed(0);
+  document.getElementById('sv-gamma').textContent = state.gamma.toFixed(0);
+  document.getElementById('sv-ax').textContent = state.accX.toFixed(1);
+  document.getElementById('sv-ay').textContent = state.accY.toFixed(1);
+  document.getElementById('sv-az').textContent = state.accZ.toFixed(1);
+
+  checkShake(state);
+  pushGraphSample({ x: state.accX, y: state.accY, z: state.accZ });
+  updateUI();
+}
+
+function startSimLoop() {
+  function loop() {
+    if (!state.simActive) return;
+    // Only update graph continuously if no preset animation
+    if (!simPresetAnim) {
+      pushGraphSample({ x: state.accX, y: state.accY, z: state.accZ });
+      updateUI();
+    }
+    state.simAnimId = requestAnimationFrame(loop);
+  }
+  loop();
+}
+
+function setSlider(id, val) {
+  const el = document.getElementById(id);
+  el.value = val;
+}
+
+function applyPreset(name, btn) {
+  document.querySelectorAll('.presets button').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  if (simPresetAnim) cancelAnimationFrame(simPresetAnim);
+  simPresetAnim = null;
+
+  switch (name) {
+    case 'flat':
+      setSlider('sim-alpha', 0); setSlider('sim-beta', 0); setSlider('sim-gamma', 0);
+      setSlider('sim-ax', 0); setSlider('sim-ay', 0); setSlider('sim-az', 0);
+      simUpdate();
+      break;
+    case 'portrait':
+      setSlider('sim-alpha', 0); setSlider('sim-beta', 80); setSlider('sim-gamma', 0);
+      setSlider('sim-ax', 0); setSlider('sim-ay', 0); setSlider('sim-az', 0);
+      simUpdate();
+      break;
+    case 'landscape':
+      setSlider('sim-alpha', 0); setSlider('sim-beta', 0); setSlider('sim-gamma', 90);
+      setSlider('sim-ax', 0); setSlider('sim-ay', 0); setSlider('sim-az', 0);
+      simUpdate();
+      break;
+    case 'facedown':
+      setSlider('sim-alpha', 0); setSlider('sim-beta', 180); setSlider('sim-gamma', 0);
+      setSlider('sim-ax', 0); setSlider('sim-ay', 0); setSlider('sim-az', 0);
+      simUpdate();
+      break;
+    case 'shaking':
+      animatePreset(() => {
+        const t = Date.now() / 100;
+        const ax = Math.sin(t * 3) * 18;
+        const ay = Math.cos(t * 2.5) * 15;
+        const az = Math.sin(t * 4) * 12;
+        setSlider('sim-ax', ax); setSlider('sim-ay', ay); setSlider('sim-az', az);
+        setSlider('sim-alpha', 0); setSlider('sim-beta', 70); setSlider('sim-gamma', 0);
+        simUpdate();
+      });
+      break;
+    case 'walking':
+      animatePreset(() => {
+        const t = Date.now() / 500;
+        const ay = Math.sin(t * 2) * 3 + 0.5;
+        const az = Math.cos(t) * 1.5;
+        const beta = 75 + Math.sin(t * 1.5) * 5;
+        setSlider('sim-ax', 0); setSlider('sim-ay', ay.toFixed(1)); setSlider('sim-az', az.toFixed(1));
+        setSlider('sim-alpha', 0); setSlider('sim-beta', beta.toFixed(0)); setSlider('sim-gamma', 0);
+        simUpdate();
+      });
+      break;
+    case 'spinning':
+      animatePreset(() => {
+        const t = Date.now() / 20;
+        const alpha = t % 360;
+        setSlider('sim-alpha', alpha.toFixed(0));
+        setSlider('sim-beta', 45); setSlider('sim-gamma', 15);
+        setSlider('sim-ax', 0); setSlider('sim-ay', 0); setSlider('sim-az', 0);
+        simUpdate();
+      });
+      break;
+  }
+}
+
+function animatePreset(fn) {
+  function loop() {
+    fn();
+    simPresetAnim = requestAnimationFrame(loop);
+  }
+  loop();
+}
+
+// --- Tabs & Copy ---
+function showTab(id, btn) {
+  btn.parentElement.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const parent = btn.closest('.panel-body');
+  parent.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function copyCode(btn) {
+  const block = btn.parentElement;
+  const code = block.textContent.replace('Copy', '').trim();
+  navigator.clipboard.writeText(code).then(() => {
+    btn.textContent=T("jtc_copied");
+    setTimeout(() => btn.textContent=T("jtc_copy"), 1500);
+  }).catch(() => {
+    // Fallback
+    const ta = document.createElement('textarea');
+    ta.value = code;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    btn.textContent=T("jtc_copied");
+    setTimeout(() => btn.textContent=T("jtc_copy"), 1500);
+  });
+}
+
+// --- Init ---
+window.addEventListener('DOMContentLoaded', () => {
+  checkSupport();
+  initTargets();
+  drawGraph();
+
+  // Auto-start listeners if permission not required
+  if (!('DeviceOrientationEvent' in window) ||
+      typeof DeviceOrientationEvent.requestPermission !== 'function') {
+    window.addEventListener('deviceorientation', handleOrientation);
+    window.addEventListener('devicemotion', handleMotion);
+    // If we get data, mark active
+    const checkActive = (e) => {
+      if (e.alpha !== null || e.beta !== null) {
+        state.sensorsActive = true;
+        document.getElementById('statusDot').classList.add('active');
+        document.getElementById('statusText').textContent=T("jtc_sensors_active");
+        document.getElementById('btnPermission').disabled = true;
+        document.getElementById('btnPermission').textContent=T("jtc_listening");
+        window.removeEventListener('deviceorientation', checkActive);
+      }
+    };
+    window.addEventListener('deviceorientation', checkActive);
+  }
+
+  // Canvas resize
+  window.addEventListener('resize', drawGraph);
+});
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+</body>
+</html>

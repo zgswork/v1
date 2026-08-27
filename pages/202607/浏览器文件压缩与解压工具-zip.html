@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>浏览器文件压缩与解压工具</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/davidshimjs/qrcodejs@gh-pages/qrcode.min.js"></script>
+    <style>
+        :root {
+            --primary: #4361ee;
+            --secondary: #3f37c9;
+            --success: #4cc9f0;
+            --warning: #ff9e00;
+            --light: #f8f9fa;
+            --dark: #212529;
+            --gray: #6c757d;
+            --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: var(--dark);
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        
+        header {
+            text-align: center;
+            margin: 30px 0;
+            padding: 0 20px;
+        }
+        
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            color: var(--secondary);
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .subtitle {
+            font-size: 1.2rem;
+            color: var(--gray);
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        
+        .card-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 25px;
+            margin-top: 20px;
+        }
+        
+        .card {
+            flex: 1;
+            min-width: 300px;
+            background: white;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: var(--shadow);
+            transition: transform 0.3s ease;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .card-header {
+            background: var(--primary);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+        
+        .card-body {
+            padding: 25px;
+        }
+        
+        .upload-area {
+            border: 2px dashed #ced4da;
+            border-radius: 10px;
+            padding: 30px 20px;
+            text-align: center;
+            margin-bottom: 20px;
+            background: #f8f9fa;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+        
+        .upload-area:hover, .upload-area.dragover {
+            border-color: var(--primary);
+            background: rgba(67, 97, 238, 0.05);
+        }
+        
+        .upload-icon {
+            font-size: 3rem;
+            color: var(--gray);
+            margin-bottom: 15px;
+        }
+        
+        .btn {
+            display: inline-block;
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            font-size: 1rem;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 600;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            margin: 10px 5px;
+            width: 100%;
+            max-width: 200px;
+        }
+        
+        .btn:hover {
+            background: var(--secondary);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        }
+        
+        .btn:active {
+            transform: translateY(0);
+        }
+        
+        .btn:disabled {
+            background: var(--gray);
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .btn-outline {
+            background: transparent;
+            border: 2px solid var(--primary);
+            color: var(--primary);
+        }
+        
+        .btn-outline:hover {
+            background: var(--primary);
+            color: white;
+        }
+        
+        .btn-warning {
+            background: var(--warning);
+        }
+        
+        .btn-warning:hover {
+            background: #e68a00;
+        }
+        
+        .file-list {
+            margin: 20px 0;
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 10px;
+        }
+        
+        .file-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        .file-item:last-child {
+            border-bottom: none;
+        }
+        
+        .file-name {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 70%;
+        }
+        
+        .file-size {
+            font-size: 0.85rem;
+            color: var(--gray);
+        }
+        
+        .progress-container {
+            margin: 20px 0;
+        }
+        
+        .progress-bar {
+            height: 10px;
+            background: #e9ecef;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        
+        .progress {
+            height: 100%;
+            background: var(--success);
+            width: 0%;
+            transition: width 0.3s;
+        }
+        
+        .result-area {
+            margin-top: 20px;
+            text-align: center;
+            padding: 15px;
+            border-radius: 8px;
+            background: #e8f4f8;
+            display: none;
+        }
+        
+        .action-buttons {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        
+        .instructions {
+            background: #f1f8e9;
+            border-left: 4px solid #7cb342;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 0 8px 8px 0;
+        }
+        
+        .instructions h3 {
+            margin-bottom: 10px;
+            color: #33691e;
+        }
+        
+        .instructions ul {
+            padding-left: 20px;
+        }
+        
+        .instructions li {
+            margin-bottom: 8px;
+        }
+        
+        footer {
+            text-align: center;
+            margin-top: 40px;
+            padding: 20px;
+            color: var(--gray);
+            font-size: 0.9rem;
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 10px;
+            max-width: 800px;
+            margin: 40px auto 0;
+        }
+        
+        .footer-content {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: center;
+            gap: 30px;
+        }
+        
+        .footer-text {
+            flex: 1;
+            min-width: 300px;
+            text-align: left;
+        }
+        
+        .qrcode-container {
+            padding: 15px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: var(--shadow);
+            text-align: center;
+            min-width: 200px;
+        }
+        
+        .qrcode-container p {
+            margin-bottom: 10px;
+            font-weight: bold;
+            color: var(--primary);
+        }
+        
+        #qrcode {
+            display: inline-block;
+            padding: 10px;
+            background: white;
+            border-radius: 8px;
+        }
+        
+        .qrcode-label {
+            font-size: 0.85rem;
+            margin-top: 10px;
+            color: var(--gray);
+            max-width: 180px;
+        }
+        
+        @media (max-width: 768px) {
+            .card-container {
+                flex-direction: column;
+            }
+            
+            h1 {
+                font-size: 2rem;
+            }
+            
+            .action-buttons {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .btn {
+                max-width: 100%;
+            }
+            
+            .footer-content {
+                flex-direction: column;
+            }
+            
+            .footer-text {
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>浏览器文件压缩与解压工具</h1>
+            <p class="subtitle">无需上传服务器，直接在浏览器中安全地压缩和解压文件</p>
+        </header>
+        
+        <div class="instructions">
+            <h3>使用说明</h3>
+            <ul>
+                <li><strong>压缩文件</strong>：选择多个文件或拖放文件到左侧区域，点击"压缩文件"按钮</li>
+                <li><strong>解压文件</strong>：上传ZIP文件到右侧区域，点击"解压文件"按钮</li>
+                <li>所有操作在浏览器中完成，文件不会上传到任何服务器</li>
+                <li>支持文件格式：ZIP（解压支持大多数ZIP格式）</li>
+                <li>最大文件限制：浏览器内存允许的大小（通常不超过500MB）</li>
+            </ul>
+        </div>
+        
+        <div class="card-container">
+            <!-- 压缩文件区域 -->
+            <div class="card">
+                <div class="card-header">压缩文件</div>
+                <div class="card-body">
+                    <div class="upload-area" id="compress-upload-area">
+                        <div class="upload-icon">📁</div>
+                        <h3>选择文件或拖放至此</h3>
+                        <p>支持多文件选择</p>
+                        <input type="file" id="compress-file-input" multiple style="display: none;">
+                    </div>
+                    
+                    <div class="file-list" id="compress-file-list">
+                        <p style="text-align: center; color: var(--gray);">未选择文件</p>
+                    </div>
+                    
+                    <div class="action-buttons">
+                        <button class="btn" id="compress-btn" disabled>压缩文件</button>
+                        <button class="btn btn-outline" id="compress-clear-btn">清除文件</button>
+                    </div>
+                    
+                    <div class="progress-container" id="compress-progress" style="display: none;">
+                        <p>处理中: <span id="compress-status">准备压缩...</span></p>
+                        <div class="progress-bar">
+                            <div class="progress" id="compress-progress-bar"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="result-area" id="compress-result">
+                        <h3>压缩完成!</h3>
+                        <p>文件名: <span id="compress-filename"></span></p>
+                        <p>压缩率: <span id="compress-ratio"></span></p>
+                        <button class="btn" id="compress-download-btn">下载压缩文件</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 解压文件区域 -->
+            <div class="card">
+                <div class="card-header">解压文件</div>
+                <div class="card-body">
+                    <div class="upload-area" id="decompress-upload-area">
+                        <div class="upload-icon">📦</div>
+                        <h3>选择ZIP文件或拖放至此</h3>
+                        <p>仅支持ZIP格式</p>
+                        <input type="file" id="decompress-file-input" accept=".zip" style="display: none;">
+                    </div>
+                    
+                    <div class="file-list" id="decompress-file-list">
+                        <p style="text-align: center; color: var(--gray);">未选择文件</p>
+                    </div>
+                    
+                    <div class="action-buttons">
+                        <button class="btn" id="decompress-btn" disabled>解压文件</button>
+                        <button class="btn btn-outline" id="decompress-clear-btn">清除文件</button>
+                    </div>
+                    
+                    <div class="progress-container" id="decompress-progress" style="display: none;">
+                        <p>处理中: <span id="decompress-status">准备解压...</span></p>
+                        <div class="progress-bar">
+                            <div class="progress" id="decompress-progress-bar"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="result-area" id="decompress-result">
+                        <h3>解压完成!</h3>
+                        <p>包含 <span id="decompress-file-count">0</span> 个文件</p>
+                        <div id="decompress-files-container" style="max-height: 200px; overflow-y: auto; margin: 15px 0;"></div>
+                        <button class="btn btn-warning" id="decompress-download-all">下载全部文件</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <footer>
+            <div class="footer-content">
+                <div class="footer-text">
+                    <p>© 2023 浏览器文件压缩工具 | 使用JSZip库 | 所有操作均在本地浏览器中完成</p>
+                    <p>安全提示：此工具不会将您的文件上传到任何服务器，100%隐私保护</p>
+                    <p>支持平台：Windows、macOS、Linux、iOS和Android（现代浏览器）</p>
+                </div>
+                <div class="qrcode-container">
+                    <p>加入知识星球获取更多工具</p>
+                    <div id="qrcode"></div>
+                    <p class="qrcode-label">扫描二维码加入开发者社区</p>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        // 页面加载完成后执行
+        document.addEventListener('DOMContentLoaded', function() {
+            // 生成二维码
+            new QRCode(document.getElementById("qrcode"), {
+                text: "https://t.zsxq.com/6nXFH",
+                width: 128,
+                height: 128,
+                colorDark : "#000000",
+                colorLight : "#ffffff",
+                correctLevel : QRCode.CorrectLevel.H
+            });
+            
+            // 压缩功能相关元素
+            const compressUploadArea = document.getElementById('compress-upload-area');
+            const compressFileInput = document.getElementById('compress-file-input');
+            const compressFileList = document.getElementById('compress-file-list');
+            const compressBtn = document.getElementById('compress-btn');
+            const compressClearBtn = document.getElementById('compress-clear-btn');
+            const compressProgress = document.getElementById('compress-progress');
+            const compressStatus = document.getElementById('compress-status');
+            const compressProgressBar = document.getElementById('compress-progress-bar');
+            const compressResult = document.getElementById('compress-result');
+            const compressFilename = document.getElementById('compress-filename');
+            const compressRatio = document.getElementById('compress-ratio');
+            const compressDownloadBtn = document.getElementById('compress-download-btn');
+            
+            // 解压功能相关元素
+            const decompressUploadArea = document.getElementById('decompress-upload-area');
+            const decompressFileInput = document.getElementById('decompress-file-input');
+            const decompressFileList = document.getElementById('decompress-file-list');
+            const decompressBtn = document.getElementById('decompress-btn');
+            const decompressClearBtn = document.getElementById('decompress-clear-btn');
+            const decompressProgress = document.getElementById('decompress-progress');
+            const decompressStatus = document.getElementById('decompress-status');
+            const decompressProgressBar = document.getElementById('decompress-progress-bar');
+            const decompressResult = document.getElementById('decompress-result');
+            const decompressFileCount = document.getElementById('decompress-file-count');
+            const decompressFilesContainer = document.getElementById('decompress-files-container');
+            const decompressDownloadAll = document.getElementById('decompress-download-all');
+            
+            // 压缩文件相关变量
+            let compressFiles = [];
+            let compressZip = null;
+            
+            // 解压文件相关变量
+            let decompressFile = null;
+            let decompressFiles = [];
+            
+            // ============= 压缩功能 =============
+            
+            // 点击上传区域触发文件选择
+            compressUploadArea.addEventListener('click', () => {
+                compressFileInput.click();
+            });
+            
+            // 处理文件选择
+            compressFileInput.addEventListener('change', (e) => {
+                handleFileSelection(e.target.files, true);
+            });
+            
+            // 处理拖放功能
+            setupDragAndDrop(compressUploadArea, (files) => {
+                handleFileSelection(files, true);
+            });
+            
+            // 处理文件选择
+            function handleFileSelection(files, isCompress) {
+                if (files.length === 0) return;
+                
+                if (isCompress) {
+                    compressFiles = Array.from(files);
+                    updateFileList(compressFiles, compressFileList);
+                    compressBtn.disabled = false;
+                } else {
+                    if (files[0].type !== 'application/zip' && files[0].name.split('.').pop().toLowerCase() !== 'zip') {
+                        alert('请选择ZIP格式文件');
+                        return;
+                    }
+                    decompressFile = files[0];
+                    updateFileList([decompressFile], decompressFileList);
+                    decompressBtn.disabled = false;
+                }
+            }
+            
+            // 更新文件列表显示
+            function updateFileList(files, container) {
+                if (files.length === 0) {
+                    container.innerHTML = '<p style="text-align: center; color: var(--gray);">未选择文件</p>';
+                    return;
+                }
+                
+                container.innerHTML = '';
+                let totalSize = 0;
+                
+                files.forEach(file => {
+                    const fileSize = formatFileSize(file.size);
+                    totalSize += file.size;
+                    
+                    const fileItem = document.createElement('div');
+                    fileItem.className = 'file-item';
+                    fileItem.innerHTML = `
+                        <div class="file-name" title="${file.name}">${file.name}</div>
+                        <div class="file-size">${fileSize}</div>
+                    `;
+                    container.appendChild(fileItem);
+                });
+                
+                // 添加总计信息
+                const totalItem = document.createElement('div');
+                totalItem.className = 'file-item';
+                totalItem.style.fontWeight = 'bold';
+                totalItem.innerHTML = `
+                    <div class="file-name">总计</div>
+                    <div class="file-size">${formatFileSize(totalSize)}</div>
+                `;
+                container.appendChild(totalItem);
+            }
+            
+            // 文件大小格式化
+            function formatFileSize(bytes) {
+                if (bytes === 0) return '0 Bytes';
+                const k = 1024;
+                const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+            }
+            
+            // 设置拖放功能
+            function setupDragAndDrop(element, callback) {
+                // 防止默认行为
+                ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                    element.addEventListener(eventName, preventDefaults, false);
+                    document.body.addEventListener(eventName, preventDefaults, false);
+                });
+                
+                // 高亮显示拖放区域
+                ['dragenter', 'dragover'].forEach(eventName => {
+                    element.addEventListener(eventName, highlight, false);
+                });
+                
+                ['dragleave', 'drop'].forEach(eventName => {
+                    element.addEventListener(eventName, unhighlight, false);
+                });
+                
+                // 处理文件放置
+                element.addEventListener('drop', handleDrop, false);
+                
+                function preventDefaults(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
+                
+                function highlight() {
+                    element.classList.add('dragover');
+                }
+                
+                function unhighlight() {
+                    element.classList.remove('dragover');
+                }
+                
+                function handleDrop(e) {
+                    const dt = e.dataTransfer;
+                    const files = dt.files;
+                    callback(files);
+                }
+            }
+            
+            // 压缩文件
+            compressBtn.addEventListener('click', async () => {
+                if (compressFiles.length === 0) return;
+                
+                // 重置UI
+                compressProgress.style.display = 'block';
+                compressResult.style.display = 'none';
+                compressBtn.disabled = true;
+                compressStatus.textContent = '正在创建压缩文件...';
+                compressProgressBar.style.width = '0%';
+                
+                try {
+                    const zip = new JSZip();
+                    let totalSize = 0;
+                    let processed = 0;
+                    
+                    // 计算总大小
+                    compressFiles.forEach(file => {
+                        totalSize += file.size;
+                    });
+                    
+                    // 添加文件到压缩包
+                    for (const file of compressFiles) {
+                        compressStatus.textContent = `添加文件: ${file.name}`;
+                        
+                        // 添加文件到zip
+                        zip.file(file.name, file);
+                        
+                        // 更新进度
+                        processed += file.size;
+                        const progress = Math.min(100, Math.round((processed / totalSize) * 100));
+                        compressProgressBar.style.width = `${progress}%`;
+                        
+                        // 稍微延迟让UI更新
+                        await new Promise(resolve => setTimeout(resolve, 10));
+                    }
+                    
+                    compressStatus.textContent = '正在生成压缩文件...';
+                    compressProgressBar.style.width = '100%';
+                    
+                    // 生成ZIP文件
+                    const zipFilename = `compressed_${Date.now()}.zip`;
+                    zip.generateAsync({type: 'blob'}, metadata => {
+                        const progress = Math.round(metadata.percent);
+                        compressProgressBar.style.width = `${progress}%`;
+                        compressStatus.textContent = `压缩中: ${progress}%`;
+                    }).then(blob => {
+                        // 保存生成的ZIP文件
+                        compressZip = blob;
+                        
+                        // 计算压缩率
+                        const originalSize = totalSize;
+                        const compressedSize = blob.size;
+                        const ratio = ((originalSize - compressedSize) / originalSize * 100).toFixed(1);
+                        
+                        // 更新结果UI
+                        compressFilename.textContent = zipFilename;
+                        compressRatio.textContent = `${ratio}% (${formatFileSize(originalSize)} → ${formatFileSize(compressedSize)})`;
+                        compressResult.style.display = 'block';
+                        compressProgress.style.display = 'none';
+                    });
+                } catch (error) {
+                    console.error('压缩失败:', error);
+                    compressStatus.textContent = '压缩失败: ' + error.message;
+                }
+            });
+            
+            // 下载压缩文件
+            compressDownloadBtn.addEventListener('click', () => {
+                if (compressZip) {
+                    saveAs(compressZip, compressFilename.textContent);
+                }
+            });
+            
+            // 清除压缩文件
+            compressClearBtn.addEventListener('click', () => {
+                compressFiles = [];
+                compressFileInput.value = '';
+                updateFileList([], compressFileList);
+                compressBtn.disabled = true;
+                compressResult.style.display = 'none';
+                compressProgress.style.display = 'none';
+            });
+            
+            // ============= 解压功能 =============
+            
+            // 点击上传区域触发文件选择
+            decompressUploadArea.addEventListener('click', () => {
+                decompressFileInput.click();
+            });
+            
+            // 处理文件选择
+            decompressFileInput.addEventListener('change', (e) => {
+                handleFileSelection(e.target.files, false);
+            });
+            
+            // 处理拖放功能
+            setupDragAndDrop(decompressUploadArea, (files) => {
+                handleFileSelection(files, false);
+            });
+            
+            // 解压文件
+            decompressBtn.addEventListener('click', async () => {
+                if (!decompressFile) return;
+                
+                // 重置UI
+                decompressProgress.style.display = 'block';
+                decompressResult.style.display = 'none';
+                decompressBtn.disabled = true;
+                decompressStatus.textContent = '正在读取ZIP文件...';
+                decompressProgressBar.style.width = '0%';
+                
+                try {
+                    const zip = new JSZip();
+                    const loadedZip = await zip.loadAsync(decompressFile);
+                    
+                    decompressFiles = [];
+                    let fileCount = 0;
+                    let processed = 0;
+                    const totalFiles = Object.keys(loadedZip.files).length;
+                    
+                    // 遍历ZIP中的文件
+                    for (const filename in loadedZip.files) {
+                        if (loadedZip.files[filename].dir) continue; // 跳过目录
+                        
+                        fileCount++;
+                        decompressStatus.textContent = `正在解压: ${filename} (${fileCount}/${totalFiles})`;
+                        
+                        // 获取文件内容
+                        const fileData = await loadedZip.file(filename).async('blob');
+                        
+                        // 添加到解压文件列表
+                        decompressFiles.push({
+                            name: filename,
+                            blob: fileData
+                        });
+                        
+                        // 更新进度
+                        processed++;
+                        const progress = Math.min(100, Math.round((processed / totalFiles) * 100));
+                        decompressProgressBar.style.width = `${progress}%`;
+                        
+                        // 稍微延迟让UI更新
+                        await new Promise(resolve => setTimeout(resolve, 10));
+                    }
+                    
+                    decompressStatus.textContent = '解压完成!';
+                    decompressProgressBar.style.width = '100%';
+                    
+                    // 更新结果UI
+                    decompressFileCount.textContent = decompressFiles.length;
+                    renderDecompressedFiles();
+                    decompressResult.style.display = 'block';
+                    
+                    // 隐藏进度条（延迟一点让用户看到100%）
+                    setTimeout(() => {
+                        decompressProgress.style.display = 'none';
+                    }, 1000);
+                } catch (error) {
+                    console.error('解压失败:', error);
+                    decompressStatus.textContent = '解压失败: ' + error.message;
+                }
+            });
+            
+            // 渲染解压后的文件列表
+            function renderDecompressedFiles() {
+                decompressFilesContainer.innerHTML = '';
+                
+                if (decompressFiles.length === 0) {
+                    decompressFilesContainer.innerHTML = '<p>没有找到可解压的文件</p>';
+                    return;
+                }
+                
+                decompressFiles.forEach(file => {
+                    const fileItem = document.createElement('div');
+                    fileItem.className = 'file-item';
+                    fileItem.innerHTML = `
+                        <div class="file-name" title="${file.name}">${file.name}</div>
+                        <button class="btn btn-outline" data-filename="${file.name}" style="padding: 5px 10px; font-size: 0.85rem;">下载</button>
+                    `;
+                    decompressFilesContainer.appendChild(fileItem);
+                    
+                    // 添加下载事件
+                    const downloadBtn = fileItem.querySelector('button');
+                    downloadBtn.addEventListener('click', () => {
+                        saveAs(file.blob, file.name);
+                    });
+                });
+            }
+            
+            // 下载所有解压后的文件
+            decompressDownloadAll.addEventListener('click', () => {
+                decompressFiles.forEach(file => {
+                    saveAs(file.blob, file.name);
+                });
+            });
+            
+            // 清除解压文件
+            decompressClearBtn.addEventListener('click', () => {
+                decompressFile = null;
+                decompressFileInput.value = '';
+                updateFileList([], decompressFileList);
+                decompressBtn.disabled = true;
+                decompressResult.style.display = 'none';
+                decompressProgress.style.display = 'none';
+                decompressFiles = [];
+            });
+        });
+    </script>
+</body>
+</html>

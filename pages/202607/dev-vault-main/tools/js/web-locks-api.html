@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html tk="title_web_locks_api_visualizer" lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Web Locks API Visualizer</title>
+<meta name="description" content="Interactive Web Locks API visualizer: exclusive/shared locks, cross-tab coordination, deadlock detection, lock queuing">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:system-ui,-apple-system,sans-serif;background:#0a0a0f;color:#e0e0e0;min-height:100vh}
+header{background:linear-gradient(135deg,#1a1a2e,#16213e);padding:16px 24px;border-bottom:1px solid #333}
+header h1{font-size:1.3rem;color:#7e57c2}
+header p{font-size:.85rem;color:#888;margin-top:2px}
+.app{display:grid;grid-template-columns:1fr 300px;height:calc(100vh - 80px)}
+.main{overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:16px}
+.scenarios{display:flex;gap:6px;flex-wrap:wrap}
+.scenarios button{background:#1a1a2e;border:1px solid #333;color:#aaa;padding:5px 12px;border-radius:4px;cursor:pointer;font-size:.78rem;transition:all .2s}
+.scenarios button:hover,.scenarios button.active{background:#7e57c2;color:#fff;border-color:#7e57c2}
+.viz-area{background:#111;border:1px solid #222;border-radius:8px;padding:16px}
+.viz-area h3{font-size:.8rem;color:#666;text-transform:uppercase;margin-bottom:12px}
+.lock-grid{display:flex;flex-direction:column;gap:8px}
+.lock-row{display:flex;align-items:center;gap:10px}
+.lock-name{width:100px;font-family:'Consolas',monospace;font-size:.8rem;color:#7e57c2;font-weight:600}
+.lock-bar{flex:1;height:32px;background:#1a1a2e;border-radius:6px;position:relative;overflow:hidden;display:flex}
+.lock-segment{height:100%;display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:600;transition:width .5s;min-width:0}
+.lock-segment.exclusive{background:#7e57c2;color:#fff}
+.lock-segment.shared{background:#26a69a;color:#fff}
+.lock-segment.waiting{background:#333;color:#888;border-right:1px dashed #555}
+.lock-segment.free{background:transparent}
+.lock-segment.deadlock{background:#ef5350;color:#fff}
+.lock-type{width:60px;font-size:.65rem;text-align:center;padding:2px 6px;border-radius:3px}
+.lock-type.exclusive{background:#2a1a3a;color:#b39ddb}
+.lock-type.shared{background:#1a2a2a;color:#80cbc4}
+.timeline{background:#111;border:1px solid #222;border-radius:8px;padding:16px}
+.timeline h3{font-size:.8rem;color:#666;text-transform:uppercase;margin-bottom:12px}
+.controls{display:flex;gap:8px;margin-bottom:12px}
+.controls button{background:#1a1a2e;border:1px solid #333;color:#ccc;padding:5px 12px;border-radius:4px;cursor:pointer;font-size:.78rem}
+.controls button:hover{background:#7e57c2;color:#fff;border-color:#7e57c2}
+.controls button:disabled{opacity:.3}
+.step-info{font-size:.78rem;color:#666;margin-left:auto}
+.events{max-height:200px;overflow-y:auto}
+.event{padding:4px 8px;border-bottom:1px solid #1a1a1a;font-size:.78rem;font-family:'Consolas',monospace;display:flex;gap:8px}
+.event .time{color:#555;width:30px}
+.event .actor{width:50px;font-weight:600}
+.event .actor.t1{color:#42a5f5}
+.event .actor.t2{color:#ef5350}
+.event .actor.t3{color:#66bb6a}
+.event .msg{color:#aaa;flex:1}
+.event.acquire .msg{color:#7e57c2}
+.event.release .msg{color:#69f0ae}
+.event.waiting .msg{color:#ffab40}
+.event.deadlock .msg{color:#ef5350}
+.live-demo{background:#111;border:1px solid #222;border-radius:8px;padding:16px}
+.live-demo h3{font-size:.8rem;color:#666;text-transform:uppercase;margin-bottom:12px}
+.live-btns{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.live-btns button{background:#1a1a2e;border:1px solid #333;color:#ccc;padding:6px 14px;border-radius:4px;cursor:pointer;font-size:.8rem}
+.live-btns button:hover{background:#7e57c2;color:#fff;border-color:#7e57c2}
+.live-log{font-family:'Consolas',monospace;font-size:.78rem;max-height:150px;overflow-y:auto}
+.live-entry{padding:2px 0;border-bottom:1px solid #1a1a1a}
+.code-section{background:#111;border:1px solid #222;border-radius:8px;overflow:hidden}
+.code-header{padding:8px 12px;background:#0d0d14;border-bottom:1px solid #222;font-size:.8rem;color:#666}
+pre{padding:12px;font-family:'Consolas',monospace;font-size:.8rem;line-height:1.5;overflow-x:auto;color:#aaa}
+pre .kw{color:#c792ea}
+pre .fn{color:#82aaff}
+pre .str{color:#c3e88d}
+pre .cm{color:#546e7a}
+pre .prop{color:#7e57c2}
+.sidebar{background:#0d0d14;border-left:1px solid #222;overflow-y:auto;padding:16px}
+.sidebar h3{font-size:.85rem;color:#7e57c2;margin-bottom:8px}
+.detail-box{background:#111;border:1px solid #222;border-radius:6px;padding:12px;margin-bottom:12px}
+.detail-box h4{font-size:.75rem;color:#666;text-transform:uppercase;margin-bottom:6px}
+.detail-box p{font-size:.8rem;color:#aaa;line-height:1.5}
+table{width:100%;border-collapse:collapse;font-size:.75rem;margin-bottom:8px}
+th{text-align:left;padding:4px 8px;color:#666;border-bottom:1px solid #222}
+td{padding:4px 8px;border-bottom:1px solid #1a1a1a;color:#aaa}
+td code{color:#7e57c2;font-size:.72rem}
+</style>
+</head>
+<body>
+
+
+<header>
+<h1 ti="title_web_locks_api_visualizer" ti="h1_web_locks_api_visualizer">Web Locks API Visualizer</h1>
+<p>Explore exclusive/shared locks, lock queuing, and cross-tab coordination</p>
+</header>
+<div class="app">
+<div class="main">
+<div class="scenarios" id="scenarioBar"></div>
+<div class="viz-area">
+<h3 ti="h3_lock_state">Lock State</h3>
+<div class="lock-grid" id="lockGrid"></div>
+</div>
+<div class="timeline">
+<h3 ti="h3_timeline">Timeline</h3>
+<div class="controls">
+<button id="prevBtn" onclick="prevStep()" disabled>&larr; Prev</button>
+<button id="nextBtn" onclick="nextStep()">Next &rarr;</button>
+<button onclick="toggleAuto()">&#9654; Auto</button>
+<button onclick="resetSteps()" ti="btn_reset">Reset</button>
+<span class="step-info" id="stepInfo">Step 0 / 0</span>
+</div>
+<div class="events" id="eventLog"></div>
+</div>
+<div class="live-demo">
+<h3 ti="h3_live_demo_real_api">Live Demo (Real API)</h3>
+<div class="live-btns">
+<button onclick="liveExclusive()" ti="btn_acquire_exclusive">🔒 Acquire Exclusive</button>
+<button onclick="liveShared()" ti="btn_acquire_shared">🔓 Acquire Shared</button>
+<button onclick="liveQuery()" ti="btn_query_locks">📋 Query Locks</button>
+</div>
+<div class="live-log" id="liveLog"></div>
+</div>
+<div class="code-section">
+<div class="code-header">Code</div>
+<pre id="codeView"></pre>
+</div>
+</div>
+<div class="sidebar">
+<h3 ti="h3_details">Details</h3>
+<div id="details"></div>
+<div class="detail-box">
+<h4>Lock Modes</h4>
+<table>
+<tr><th ti="th_mode">Mode</th><th ti="th_concurrent">Concurrent?</th><th ti="th_use_case">Use Case</th></tr>
+<tr><td><code>exclusive</code></td><td>No (1 holder)</td><td>Write operations, mutations</td></tr>
+<tr><td><code>shared</code></td><td>Yes (N holders)</td><td>Read operations, queries</td></tr>
+</table>
+<p style="font-size:.7rem;color:#555;margin-top:4px">Shared locks block exclusive, but not other shared locks.</p>
+</div>
+<div class="detail-box">
+<h4>API</h4>
+<table>
+<tr><th ti="th_method">Method</th><th ti="th_description">Description</th></tr>
+<tr><td><code>navigator.locks.request(name, cb)</code></td><td>Acquire exclusive lock</td></tr>
+<tr><td><code>navigator.locks.request(name, {mode:'shared'}, cb)</code></td><td>Acquire shared lock</td></tr>
+<tr><td><code>navigator.locks.query()</code></td><td>List held and pending locks</td></tr>
+</table>
+</div>
+<div class="detail-box">
+<h4>Options</h4>
+<table>
+<tr><th ti="th_option">Option</th><th ti="th_effect">Effect</th></tr>
+<tr><td><code>mode</code></td><td>'exclusive' (default) or 'shared'</td></tr>
+<tr><td><code>ifAvailable</code></td><td>Don't wait; null if unavailable</td></tr>
+<tr><td><code>steal</code></td><td>Break existing lock (dangerous)</td></tr>
+<tr><td><code>signal</code></td><td>AbortSignal for cancellation</td></tr>
+</table>
+</div>
+<div class="detail-box">
+<h4>Browser Support</h4>
+<table>
+<tr><td>Chrome 69+</td><td>Edge 79+</td></tr>
+<tr><td>Firefox 96+</td><td>Safari 15.4+</td></tr>
+</table>
+</div>
+</div>
+</div>
+
+
+<script>var _LANG={'title_web_locks_api_visualizer':["Web Locks API Visualizer", "Web Locks API 可视化工具"],'metadesc_interactive_web_locks_api':["Interactive Web Locks API visualizer: exclusive/shared locks, cross-tab coordination, deadlock detection, lock queuing", "交互式 Web 锁 API 可视化工具：独占锁/共享锁、跨表协调、死锁检测、锁队列"],'h1_web_locks_api_visualizer':["Web Locks API Visualizer", "Web Locks API 可视化工具"],'h3_lock_state':["Lock State", "锁定状态"],'h3_timeline':["Timeline", "时间线"],'h3_live_demo_real_api':["Live Demo (Real API)", "在线演示（真实 API）"],'h3_details':["Details", "细节"],'btn_prev':["← Prev", "← 上一页"],'btn_next':["Next →", "下一页 →"],'btn_auto':["▶ Auto", "▶ 自动"],'btn_reset':["Reset", "重置"],'btn_acquire_exclusive':["🔒 Acquire Exclusive", "🔒 获取独家内容"],'btn_acquire_shared':["🔓 Acquire Shared", "🔓 获取共享"],'btn_query_locks':["📋 Query Locks", "📋 查询锁定"],'th_mode':["Mode", "模式"],'th_concurrent':["Concurrent?", "并发？"],'th_use_case':["Use Case", "用例"],'th_method':["Method", "方法"],'th_description':["Description", "描述"],'th_option':["Option", "选项"],'th_effect':["Effect", "影响"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>
+const scenarios=[
+{
+  name:'Exclusive Lock',
+  desc:'Only one holder at a time. Others wait in queue until the lock is released.',
+  locks:['resource'],
+  steps:[
+    {t:0,actor:'Tab 1',action:'acquire',lock:'resource',mode:'exclusive',msg:'requests exclusive lock on "resource"'},
+    {t:1,actor:'Tab 1',action:'granted',lock:'resource',mode:'exclusive',msg:'lock granted ✓'},
+    {t:2,actor:'Tab 2',action:'acquire',lock:'resource',mode:'exclusive',msg:'requests exclusive lock — must wait'},
+    {t:3,actor:'Tab 2',action:'waiting',lock:'resource',mode:'exclusive',msg:'queued (Tab 1 holds exclusive)'},
+    {t:4,actor:'Tab 1',action:'release',lock:'resource',msg:'releases lock'},
+    {t:5,actor:'Tab 2',action:'granted',lock:'resource',mode:'exclusive',msg:'lock granted ✓ (was waiting)'},
+    {t:6,actor:'Tab 2',action:'release',lock:'resource',msg:'releases lock. Resource is free.'},
+  ],
+  code:`<span class="kw">await</span> navigator.locks.<span class="fn">request</span>(<span class="str">'resource'</span>, <span class="kw">async</span> (lock) => {
+  <span class="cm">// Exclusive lock held here</span>
+  <span class="cm">// Other requests for 'resource' wait</span>
+  <span class="kw">await</span> <span class="fn">doWork</span>();
+  <span class="cm">// Lock auto-released when callback returns</span>
+});`
+},
+{
+  name:'Shared Locks',
+  desc:'Multiple shared locks can coexist. But an exclusive request blocks until all shared holders release.',
+  locks:['cache'],
+  steps:[
+    {t:0,actor:'Tab 1',action:'acquire',lock:'cache',mode:'shared',msg:'requests shared lock on "cache"'},
+    {t:1,actor:'Tab 1',action:'granted',lock:'cache',mode:'shared',msg:'shared lock granted ✓'},
+    {t:2,actor:'Tab 2',action:'acquire',lock:'cache',mode:'shared',msg:'requests shared lock'},
+    {t:3,actor:'Tab 2',action:'granted',lock:'cache',mode:'shared',msg:'shared lock granted ✓ (concurrent OK!)'},
+    {t:4,actor:'Tab 3',action:'acquire',lock:'cache',mode:'exclusive',msg:'requests EXCLUSIVE lock — must wait'},
+    {t:5,actor:'Tab 3',action:'waiting',lock:'cache',mode:'exclusive',msg:'queued until all shared release'},
+    {t:6,actor:'Tab 1',action:'release',lock:'cache',msg:'releases shared lock'},
+    {t:7,actor:'Tab 2',action:'release',lock:'cache',msg:'releases shared lock'},
+    {t:8,actor:'Tab 3',action:'granted',lock:'cache',mode:'exclusive',msg:'exclusive lock granted ✓'},
+    {t:9,actor:'Tab 3',action:'release',lock:'cache',msg:'releases lock'},
+  ],
+  code:`<span class="cm">// Shared (read) lock — concurrent OK</span>
+<span class="kw">await</span> navigator.locks.<span class="fn">request</span>(<span class="str">'cache'</span>,
+  { <span class="prop">mode</span>: <span class="str">'shared'</span> },
+  <span class="kw">async</span> (lock) => {
+    <span class="kw">const</span> data = <span class="kw">await</span> <span class="fn">readCache</span>();
+  }
+);
+
+<span class="cm">// Exclusive (write) lock — waits for shared</span>
+<span class="kw">await</span> navigator.locks.<span class="fn">request</span>(<span class="str">'cache'</span>,
+  <span class="kw">async</span> (lock) => {
+    <span class="kw">await</span> <span class="fn">updateCache</span>(newData);
+  }
+);`
+},
+{
+  name:'ifAvailable',
+  desc:'Try to acquire without waiting. Returns null if lock is not available. Useful for "do this only if nobody else is".',
+  locks:['sync'],
+  steps:[
+    {t:0,actor:'Tab 1',action:'acquire',lock:'sync',mode:'exclusive',msg:'acquires exclusive lock on "sync"'},
+    {t:1,actor:'Tab 1',action:'granted',lock:'sync',mode:'exclusive',msg:'lock granted ✓'},
+    {t:2,actor:'Tab 2',action:'acquire',lock:'sync',mode:'exclusive',msg:'requests with ifAvailable: true'},
+    {t:3,actor:'Tab 2',action:'fail',lock:'sync',msg:'lock = null (not available, no waiting)'},
+    {t:4,actor:'Tab 1',action:'release',lock:'sync',msg:'releases lock'},
+    {t:5,actor:'Tab 2',action:'acquire',lock:'sync',mode:'exclusive',msg:'requests with ifAvailable: true (retry)'},
+    {t:6,actor:'Tab 2',action:'granted',lock:'sync',mode:'exclusive',msg:'lock granted ✓ (now available)'},
+    {t:7,actor:'Tab 2',action:'release',lock:'sync',msg:'releases lock'},
+  ],
+  code:`<span class="kw">await</span> navigator.locks.<span class="fn">request</span>(<span class="str">'sync'</span>,
+  { <span class="prop">ifAvailable</span>: <span class="kw">true</span> },
+  <span class="kw">async</span> (lock) => {
+    <span class="kw">if</span> (!lock) {
+      <span class="cm">// Lock not available — skip</span>
+      <span class="kw">return</span>;
+    }
+    <span class="cm">// Got the lock — do work</span>
+    <span class="kw">await</span> <span class="fn">syncData</span>();
+  }
+);`
+},
+{
+  name:'Deadlock Risk',
+  desc:'Two tabs each hold one lock and wait for the other. Neither can proceed. Use consistent lock ordering to prevent.',
+  locks:['lockA','lockB'],
+  steps:[
+    {t:0,actor:'Tab 1',action:'acquire',lock:'lockA',mode:'exclusive',msg:'acquires lockA'},
+    {t:1,actor:'Tab 1',action:'granted',lock:'lockA',mode:'exclusive',msg:'lockA granted ✓'},
+    {t:2,actor:'Tab 2',action:'acquire',lock:'lockB',mode:'exclusive',msg:'acquires lockB'},
+    {t:3,actor:'Tab 2',action:'granted',lock:'lockB',mode:'exclusive',msg:'lockB granted ✓'},
+    {t:4,actor:'Tab 1',action:'acquire',lock:'lockB',mode:'exclusive',msg:'requests lockB — Tab 2 holds it!'},
+    {t:5,actor:'Tab 1',action:'waiting',lock:'lockB',mode:'exclusive',msg:'waiting for lockB...'},
+    {t:6,actor:'Tab 2',action:'acquire',lock:'lockA',mode:'exclusive',msg:'requests lockA — Tab 1 holds it!'},
+    {t:7,actor:'Tab 2',action:'deadlock',lock:'lockA',msg:'⚠ DEADLOCK! Tab1 waits for lockB, Tab2 waits for lockA'},
+  ],
+  code:`<span class="cm">// ⚠ DEADLOCK PATTERN — don't do this!</span>
+
+<span class="cm">// Tab 1:</span>
+<span class="kw">await</span> navigator.locks.<span class="fn">request</span>(<span class="str">'lockA'</span>, <span class="kw">async</span> () => {
+  <span class="kw">await</span> navigator.locks.<span class="fn">request</span>(<span class="str">'lockB'</span>, <span class="kw">async</span> () => {
+    <span class="cm">// Never reaches here</span>
+  });
+});
+
+<span class="cm">// Tab 2:</span>
+<span class="kw">await</span> navigator.locks.<span class="fn">request</span>(<span class="str">'lockB'</span>, <span class="kw">async</span> () => {
+  <span class="kw">await</span> navigator.locks.<span class="fn">request</span>(<span class="str">'lockA'</span>, <span class="kw">async</span> () => {
+    <span class="cm">// Never reaches here</span>
+  });
+});
+
+<span class="cm">// FIX: Always acquire in same order (A then B)</span>`
+},
+];
+
+let curScenario=0,curStep=-1,autoTimer=null;
+const actorColors={'Tab 1':'t1','Tab 2':'t2','Tab 3':'t3'};
+
+const bar=document.getElementById('scenarioBar');
+scenarios.forEach((s,i)=>{
+  const btn=document.createElement('button');
+  btn.textContent=s.name;
+  btn.className=i===0?'active':'';
+  btn.onclick=()=>{
+    document.querySelectorAll('.scenarios button').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    curScenario=i;curStep=-1;if(autoTimer){clearInterval(autoTimer);autoTimer=null;}
+    render();
+  };
+  bar.appendChild(btn);
+});
+
+function render(){
+  const s=scenarios[curScenario];
+
+  // Lock grid
+  const grid=document.getElementById('lockGrid');
+  const lockState={};
+  s.locks.forEach(l=>{lockState[l]={holders:[],waiting:[]};});
+
+  // Replay steps up to curStep
+  for(let i=0;i<=curStep&&i<s.steps.length;i++){
+    const st=s.steps[i];
+    if(st.action==='granted'){
+      lockState[st.lock].holders.push({actor:st.actor,mode:st.mode});
+    }else if(st.action==='waiting'){
+      lockState[st.lock].waiting.push({actor:st.actor,mode:st.mode});
+    }else if(st.action==='release'){
+      lockState[st.lock].holders=lockState[st.lock].holders.filter(h=>h.actor!==st.actor);
+    }else if(st.action==='deadlock'){
+      lockState[st.lock].waiting.push({actor:st.actor,mode:'deadlock'});
+    }
+  }
+
+  grid.innerHTML=s.locks.map(l=>{
+    const ls=lockState[l];
+    let segments='';
+    if(ls.holders.length===0&&ls.waiting.length===0){
+      segments=`<div class="lock-segment free" style="flex:1;color:#555;font-size:.75rem">Free</div>`;
+    }else{
+      ls.holders.forEach(h=>{
+        segments+=`<div class="lock-segment ${h.mode}" style="flex:1">${h.actor}</div>`;
+      });
+      ls.waiting.forEach(w=>{
+        const cls=w.mode==='deadlock'?'deadlock':'waiting';
+        segments+=`<div class="lock-segment ${cls}" style="flex:1">${w.actor}</div>`;
+      });
+    }
+    const mode=ls.holders.length>0?ls.holders[0].mode:(ls.waiting.length>0?'—':'free');
+    return`<div class="lock-row"><span class="lock-name">"${l}"</span><div class="lock-bar">${segments}</div></div>`;
+  }).join('');
+
+  // Event log
+  const log=document.getElementById('eventLog');
+  log.innerHTML='';
+  for(let i=0;i<=curStep&&i<s.steps.length;i++){
+    const st=s.steps[i];
+    const cls=st.action==='deadlock'?'deadlock':st.action==='granted'?'acquire':st.action==='release'?'release':st.action==='waiting'?'waiting':'';
+    log.innerHTML+=`<div class="event ${cls}"><span class="time">${st.t}s</span><span class="actor ${actorColors[st.actor]||''}">${st.actor}</span><span class="msg">${st.msg}</span></div>`;
+  }
+  log.scrollTop=log.scrollHeight;
+
+  // Code
+  document.getElementById('codeView').innerHTML=s.code;
+
+  // Details
+  document.getElementById('details').innerHTML=`<div class="detail-box"><h4>${s.name}</h4><p>${s.desc}</p></div>`;
+
+  document.getElementById('stepInfo').textContent=`Step ${curStep+1} / ${s.steps.length}`;
+  document.getElementById('prevBtn').disabled=curStep<0;
+  document.getElementById('nextBtn').disabled=curStep>=s.steps.length-1;
+}
+
+function nextStep(){if(curStep<scenarios[curScenario].steps.length-1){curStep++;render();}}
+function prevStep(){if(curStep>=0){curStep--;render();}}
+function resetSteps(){curStep=-1;render();}
+function toggleAuto(){
+  if(autoTimer){clearInterval(autoTimer);autoTimer=null;return;}
+  if(curStep>=scenarios[curScenario].steps.length-1)resetSteps();
+  autoTimer=setInterval(()=>{
+    if(curStep>=scenarios[curScenario].steps.length-1){clearInterval(autoTimer);autoTimer=null;return;}
+    nextStep();
+  },700);
+}
+
+// Live demo
+function liveLog(msg,color='#aaa'){
+  const el=document.getElementById('liveLog');
+  const t=new Date().toLocaleTimeString();
+  el.innerHTML+=`<div class="live-entry" style="color:${color}">[${t}] ${msg}</div>`;
+  el.scrollTop=el.scrollHeight;
+}
+
+async function liveExclusive(){
+  if(!navigator.locks){liveLog('Web Locks API not supported','#ef5350');return;}
+  liveLog('Requesting exclusive lock on "demo"...','#7e57c2');
+  await navigator.locks.request('demo',async lock=>{
+    liveLog(`Exclusive lock acquired: "${lock.name}" (mode: ${lock.mode})`,'#69f0ae');
+    await new Promise(r=>setTimeout(r,2000));
+    liveLog('Releasing lock (2s hold)...','#ffab40');
+  });
+  liveLog('Lock released','#69f0ae');
+}
+
+async function liveShared(){
+  if(!navigator.locks){liveLog('Web Locks API not supported','#ef5350');return;}
+  liveLog('Requesting shared lock on "demo"...','#26a69a');
+  await navigator.locks.request('demo',{mode:'shared'},async lock=>{
+    liveLog(`Shared lock acquired: "${lock.name}"`,'#69f0ae');
+    await new Promise(r=>setTimeout(r,1500));
+    liveLog('Releasing shared lock...','#ffab40');
+  });
+  liveLog('Shared lock released','#69f0ae');
+}
+
+async function liveQuery(){
+  if(!navigator.locks){liveLog('Web Locks API not supported','#ef5350');return;}
+  const state=await navigator.locks.query();
+  liveLog(`Held: ${state.held.length}, Pending: ${state.pending.length}`,'#90caf9');
+  state.held.forEach(l=>liveLog(`  held: "${l.name}" mode=${l.mode}`,'#aaa'));
+  state.pending.forEach(l=>liveLog(`  pending: "${l.name}" mode=${l.mode}`,'#ffab40'));
+  if(state.held.length===0&&state.pending.length===0)liveLog('  (no locks active)','#555');
+}
+
+render();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+</body>
+</html>

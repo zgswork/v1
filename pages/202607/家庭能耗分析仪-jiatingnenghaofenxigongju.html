@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>家庭能耗分析仪</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary-color: #4361ee;
+            --secondary-color: #3f37c9;
+            --accent-color: #4cc9f0;
+            --success-color: #4ade80;
+            --warning-color: #facc15;
+            --danger-color: #f87171;
+            --light-color: #f8f9fa;
+            --dark-color: #212529;
+            --gradient-start: #4361ee;
+            --gradient-end: #4cc9f0;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            color: var(--dark-color);
+            min-height: 100vh;
+        }
+        
+        h1 {
+            color: var(--primary-color);
+            text-align: center;
+            margin-bottom: 25px;
+            font-size: 2.5rem;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+            background: linear-gradient(90deg, var(--gradient-start), var(--gradient-end));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .analyzer {
+            background: rgba(255, 255, 255, 0.9);
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .form-group {
+            margin-bottom: 25px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: 700;
+            color: var(--secondary-color);
+            font-size: 1.1rem;
+        }
+        
+        .drop-area {
+            border: 3px dashed var(--accent-color);
+            border-radius: 15px;
+            padding: 50px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: linear-gradient(135deg, rgba(67, 97, 238, 0.05) 0%, rgba(76, 201, 240, 0.05) 100%);
+            margin-bottom: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .drop-area::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(76, 201, 240, 0.2) 0%, transparent 70%);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        .drop-area:hover::before {
+            opacity: 1;
+        }
+        
+        .drop-area:hover {
+            background: linear-gradient(135deg, rgba(67, 97, 238, 0.1) 0%, rgba(76, 201, 240, 0.1) 100%);
+            border-color: var(--primary-color);
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+        }
+        
+        .drop-area.dragover {
+            background: linear-gradient(135deg, rgba(67, 97, 238, 0.15) 0%, rgba(76, 201, 240, 0.15) 100%);
+            border-color: var(--primary-color);
+            transform: scale(1.02);
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.2);
+        }
+        
+        .drop-area p {
+            margin: 15px 0;
+            color: var(--secondary-color);
+            font-size: 1.1rem;
+            font-weight: 500;
+        }
+        
+        .file-info {
+            font-size: 16px;
+            color: var(--secondary-color);
+            margin-top: 15px;
+            font-weight: 500;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+        
+        button {
+            flex: 1;
+            min-width: 120px;
+            padding: 15px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 18px;
+            font-weight: 700;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        button::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 5px;
+            height: 5px;
+            background: rgba(255, 255, 255, 0.5);
+            opacity: 0;
+            border-radius: 100%;
+            transform: scale(1, 1) translate(-50%);
+            transform-origin: 50% 50%;
+        }
+        
+        button:focus:not(:active)::after {
+            animation: ripple 1s ease-out;
+        }
+        
+        @keyframes ripple {
+            0% {
+                transform: scale(0, 0);
+                opacity: 0.5;
+            }
+            100% {
+                transform: scale(100, 100);
+                opacity: 0;
+            }
+        }
+        
+        /* 涟漪动画效果 */
+        .ripple {
+            position: absolute;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.7);
+            transform: scale(0);
+            animation: rippleAnimation 0.6s linear;
+            pointer-events: none;
+        }
+        
+        @keyframes rippleAnimation {
+            to {
+                transform: scale(2.5);
+                opacity: 0;
+            }
+        }
+        
+        #uploadBtn {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+        }
+        
+        #uploadBtn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 7px 15px rgba(67, 97, 238, 0.3);
+        }
+        
+        #clearBtn {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            color: white;
+        }
+        
+        #clearBtn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 7px 15px rgba(239, 68, 68, 0.3);
+        }
+        
+        #analyzeBtn {
+            background: linear-gradient(135deg, var(--success-color), #22c55e);
+            color: white;
+        }
+        
+        #analyzeBtn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 7px 15px rgba(74, 222, 128, 0.3);
+        }
+        
+        #analyzeBtn:disabled {
+            background: linear-gradient(135deg, #94a3b8, #64748b);
+            transform: none;
+            box-shadow: none;
+            cursor: not-allowed;
+        }
+        
+        .result {
+            margin-top: 30px;
+            padding: 25px;
+            background: linear-gradient(135deg, rgba(67, 97, 238, 0.05) 0%, rgba(76, 201, 240, 0.05) 100%);
+            border-radius: 15px;
+            display: none;
+            border-left: 5px solid var(--accent-color);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+            animation: fadeIn 0.8s ease-out;
+        }
+        
+        .result h3 {
+            color: var(--primary-color);
+            margin-top: 0;
+            font-size: 1.8rem;
+        }
+        
+        .result p {
+            margin: 15px 0;
+            font-size: 1.1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.7);
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+        }
+        
+        .result span {
+            font-weight: 700;
+            color: var(--secondary-color);
+            font-size: 1.2rem;
+        }
+        
+        .chart-container {
+            margin-top: 30px;
+            position: relative;
+            height: 450px;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.7);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+        }
+        
+        .instructions {
+            background: linear-gradient(135deg, rgba(67, 97, 238, 0.1) 0%, rgba(76, 201, 240, 0.1) 100%);
+            border-left: 5px solid var(--primary-color);
+            padding: 20px;
+            margin-bottom: 25px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+        }
+        
+        .instructions h3 {
+            margin-top: 0;
+            color: var(--primary-color);
+            font-size: 1.5rem;
+        }
+        
+        .instructions ul {
+            padding-left: 25px;
+        }
+        
+        .instructions li {
+            margin-bottom: 12px;
+            font-size: 1.05rem;
+            line-height: 1.5;
+        }
+        
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 25px;
+            background: rgba(255, 255, 255, 0.7);
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+        }
+        
+        .data-table th, .data-table td {
+            border: 1px solid #e2e8f0;
+            padding: 15px;
+            text-align: left;
+        }
+        
+        .data-table th {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .data-table tr:nth-child(even) {
+            background-color: rgba(67, 97, 238, 0.05);
+        }
+        
+        .data-table tr:hover {
+            background-color: rgba(76, 201, 240, 0.1);
+            transform: scale(1.01);
+            transition: all 0.2s ease;
+        }
+        
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            body {
+                padding: 15px;
+            }
+            .analyzer {
+                padding: 20px;
+            }
+            .button-group {
+                flex-direction: column;
+            }
+            .drop-area {
+                padding: 30px 15px;
+            }
+            h1 {
+                font-size: 2rem;
+            }
+            .result h3 {
+                font-size: 1.5rem;
+            }
+            .chart-container {
+                height: 350px;
+            }
+        }
+        
+        /* 动画效果 */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        
+        .result {
+            animation: fadeIn 0.8s ease-out;
+        }
+        
+        .result p {
+            animation: slideIn 0.5s ease-out;
+        }
+        
+        /* 图表动画 */
+        .chart-container {
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.5s ease-out;
+        }
+        
+        .chart-container.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    </style>
+</head>
+<body>
+    <h1>家庭能耗分析仪</h1>
+    <div class="analyzer">
+        <div class="instructions">
+            <h3>使用说明</h3>
+            <ul>
+                <li>上传您的水电费账单（支持CSV或Excel格式）</li>
+                <li>系统将自动分析您的用电数据</li>
+                <li>可视化展示用电高峰时段</li>
+                <li>提供节能建议</li>
+            </ul>
+        </div>
+        
+        <div class="form-group">
+            <label for="billFile">上传账单文件</label>
+            <div id="dropArea" class="drop-area" onclick="document.getElementById('billFile').click();">
+                <p>拖拽文件到此处或点击选择文件</p>
+                <p class="file-info">支持 CSV, XLSX, XLS 格式</p>
+                <input type="file" id="billFile" accept=".csv, .xlsx, .xls" style="display: none;" onchange="handleFileSelect(event)">
+            </div>
+            <div id="fileInfo" class="file-info" style="display: none;"></div>
+        </div>
+        
+        <div class="button-group">
+            <button id="uploadBtn" onclick="uploadBill()">上传</button>
+            <button id="clearBtn" onclick="clearAnalyzer()">清除</button>
+            <button id="analyzeBtn" onclick="analyzeData()" disabled>分析数据</button>
+        </div>
+        
+        <div class="result" id="result">
+            <h3>数据分析结果</h3>
+            <p>总用电量: <span id="totalUsage"></span> kWh</p>
+            <p>平均每日用电量: <span id="averageDaily"></span> kWh</p>
+            <p>用电高峰时段: <span id="peakHours"></span></p>
+            <p>预估月电费: <span id="estimatedCost"></span> 元</p>
+            
+            <div class="chart-container">
+                <canvas id="usageChart"></canvas>
+            </div>
+            
+            <h3>用电数据详情</h3>
+            <table class="data-table" id="dataTable">
+                <thead>
+                    <tr>
+                        <th>日期</th>
+                        <th>用电量 (kWh)</th>
+                        <th>电费 (元)</th>
+                        <th>时段</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody">
+                    <!-- 数据将通过JavaScript动态填充 -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // 存储用电数据
+        let energyData = [];
+        // 存储图表实例
+        let usageChart = null;
+        
+        // 页面加载完成后初始化拖拽功能
+        document.addEventListener('DOMContentLoaded', function() {
+            initDragAndDrop();
+            initButtonAnimations();
+        });
+        
+        // 初始化按钮动画效果
+        function initButtonAnimations() {
+            const buttons = document.querySelectorAll('button');
+            buttons.forEach(button => {
+                button.addEventListener('click', function(e) {
+                    // 创建涟漪效果
+                    const ripple = document.createElement('span');
+                    ripple.classList.add('ripple');
+                    
+                    // 获取点击位置
+                    const rect = button.getBoundingClientRect();
+                    const size = Math.max(rect.width, rect.height);
+                    const x = e.clientX - rect.left - size / 2;
+                    const y = e.clientY - rect.top - size / 2;
+                    
+                    // 设置涟漪样式
+                    ripple.style.width = ripple.style.height = size + 'px';
+                    ripple.style.left = x + 'px';
+                    ripple.style.top = y + 'px';
+                    
+                    // 添加涟漪到按钮
+                    this.appendChild(ripple);
+                    
+                    // 移除涟漪元素
+                    setTimeout(() => {
+                        ripple.remove();
+                    }, 600);
+                });
+            });
+        }
+        
+        // 初始化拖拽功能
+        function initDragAndDrop() {
+            const dropArea = document.getElementById('dropArea');
+            
+            // 阻止默认拖拽行为
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                dropArea.addEventListener(eventName, preventDefaults, false);
+            });
+            
+            // 添加拖拽样式
+            ['dragenter', 'dragover'].forEach(eventName => {
+                dropArea.addEventListener(eventName, highlight, false);
+            });
+            
+            ['dragleave', 'drop'].forEach(eventName => {
+                dropArea.addEventListener(eventName, unhighlight, false);
+            });
+            
+            // 处理文件拖拽
+            dropArea.addEventListener('drop', handleDrop, false);
+        }
+        
+        // 阻止默认拖拽行为
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        
+        // 添加拖拽样式
+        function highlight() {
+            document.getElementById('dropArea').classList.add('dragover');
+        }
+        
+        // 移除拖拽样式
+        function unhighlight() {
+            document.getElementById('dropArea').classList.remove('dragover');
+        }
+        
+        // 处理文件拖拽
+        function handleDrop(e) {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            
+            if (files.length) {
+                handleFiles(files[0]);
+            }
+        }
+        
+        // 处理文件选择
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                handleFiles(file);
+            }
+        }
+        
+        // 处理文件
+        function handleFiles(file) {
+            // 显示文件信息
+            const fileInfo = document.getElementById('fileInfo');
+            fileInfo.textContent = `已选择文件: ${file.name} (${formatFileSize(file.size)})`;
+            fileInfo.style.display = 'block';
+            
+            // 检查文件类型
+            const fileType = file.name.split('.').pop().toLowerCase();
+            if (fileType !== 'csv' && fileType !== 'xlsx' && fileType !== 'xls') {
+                alert('请上传CSV或Excel格式的文件');
+                return;
+            }
+            
+            // 模拟文件处理（在实际应用中，这里会解析文件内容）
+            alert(`文件 "${file.name}" 上传成功！\n\n注意：这是一个演示版本，实际应用中会解析文件内容并提取用电数据。`);
+            
+            // 启用分析按钮
+            document.getElementById('analyzeBtn').disabled = false;
+            
+            // 生成模拟数据用于演示
+            generateSampleData();
+        }
+        
+        // 格式化文件大小
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+        
+        // 清除分析仪
+        function clearAnalyzer() {
+            energyData = [];
+            document.getElementById('billFile').value = '';
+            document.getElementById('analyzeBtn').disabled = true;
+            document.getElementById('result').style.display = 'none';
+            
+            // 清除文件信息
+            document.getElementById('fileInfo').style.display = 'none';
+            
+            // 如果已有图表，销毁它
+            if (usageChart) {
+                usageChart.destroy();
+                usageChart = null;
+            }
+            
+            // 清空表格
+            document.getElementById('tableBody').innerHTML = '';
+        }
+        
+        // 上传账单（保持兼容性）
+        function uploadBill() {
+            document.getElementById('billFile').click();
+        }
+        
+        // 生成模拟数据用于演示
+        function generateSampleData() {
+            energyData = [
+                { date: '2023-05-01', usage: 25.5, cost: 15.3, hour: 8 },
+                { date: '2023-05-02', usage: 32.1, cost: 19.3, hour: 19 },
+                { date: '2023-05-03', usage: 28.7, cost: 17.2, hour: 18 },
+                { date: '2023-05-04', usage: 35.2, cost: 21.1, hour: 20 },
+                { date: '2023-05-05', usage: 22.8, cost: 13.7, hour: 9 },
+                { date: '2023-05-06', usage: 40.5, cost: 24.3, hour: 21 },
+                { date: '2023-05-07', usage: 38.2, cost: 22.9, hour: 19 },
+                { date: '2023-05-08', usage: 26.9, cost: 16.1, hour: 8 },
+                { date: '2023-05-09', usage: 31.4, cost: 18.8, hour: 18 },
+                { date: '2023-05-10', usage: 33.7, cost: 20.2, hour: 20 },
+                { date: '2023-05-11', usage: 24.6, cost: 14.8, hour: 9 },
+                { date: '2023-05-12', usage: 39.8, cost: 23.9, hour: 21 },
+                { date: '2023-05-13', usage: 42.1, cost: 25.3, hour: 19 },
+                { date: '2023-05-14', usage: 27.3, cost: 16.4, hour: 8 }
+            ];
+        }
+        
+        // 分析数据并显示结果
+        function analyzeData() {
+            try {
+                if (energyData.length === 0) {
+                    alert('没有可用的数据进行分析');
+                    return;
+                }
+                
+                // 计算统计数据
+                const totalUsage = energyData.reduce((sum, record) => sum + record.usage, 0);
+                const averageDaily = totalUsage / energyData.length;
+                const totalCost = energyData.reduce((sum, record) => sum + record.cost, 0);
+                
+                // 确定用电高峰时段
+                const hourUsage = {};
+                energyData.forEach(record => {
+                    if (hourUsage[record.hour]) {
+                        hourUsage[record.hour] += record.usage;
+                    } else {
+                        hourUsage[record.hour] = record.usage;
+                    }
+                });
+                
+                let peakHour = 0;
+                let maxUsage = 0;
+                for (const hour in hourUsage) {
+                    // 将hour转换为数字进行比较
+                    const hourNum = parseInt(hour);
+                    if (hourUsage[hour] > maxUsage) {
+                        maxUsage = hourUsage[hour];
+                        peakHour = hourNum;
+                    }
+                }
+                
+                // 更新UI
+                document.getElementById('totalUsage').textContent = totalUsage.toFixed(2);
+                document.getElementById('averageDaily').textContent = averageDaily.toFixed(2);
+                document.getElementById('peakHours').textContent = `${peakHour}:00-${peakHour+1}:00`;
+                document.getElementById('estimatedCost').textContent = totalCost.toFixed(2);
+                
+                // 显示结果区域
+                document.getElementById('result').style.display = 'block';
+                
+                // 创建图表
+                createUsageChart();
+                
+                // 填充数据表格
+                populateDataTable();
+                
+                // 添加图表动画效果
+                setTimeout(() => {
+                    const chartContainer = document.querySelector('.chart-container');
+                    chartContainer.classList.add('show');
+                }, 100);
+            } catch (error) {
+                console.error('数据分析时出错:', error);
+                alert('数据分析失败，请检查浏览器控制台获取更多信息');
+            }
+        }
+        
+        // 创建用电量图表
+        function createUsageChart() {
+            try {
+                const ctx = document.getElementById('usageChart').getContext('2d');
+                
+                // 如果已有图表，先销毁
+                if (usageChart) {
+                    usageChart.destroy();
+                }
+                
+                // 准备图表数据
+                const dates = energyData.map(record => record.date);
+                const usage = energyData.map(record => record.usage);
+                const hours = energyData.map(record => record.hour);
+                
+                // 确定高峰时段颜色
+                const backgroundColors = hours.map(hour => {
+                    // 假设18:00-22:00为高峰时段
+                    return (hour >= 18 && hour <= 22) ? 'rgba(255, 99, 132, 0.6)' : 'rgba(54, 162, 235, 0.6)';
+                });
+                
+                const borderColors = hours.map(hour => {
+                    // 假设18:00-22:00为高峰时段
+                    return (hour >= 18 && hour <= 22) ? 'rgba(255, 99, 132, 1)' : 'rgba(54, 162, 235, 1)';
+                });
+                
+                // 创建图表
+                usageChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: dates,
+                        datasets: [{
+                            label: '用电量 (kWh)',
+                            data: usage,
+                            backgroundColor: backgroundColors,
+                            borderColor: borderColors,
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                title: {
+                                    display: true,
+                                    text: '用电量 (kWh)'
+                                }
+                            },
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: '日期'
+                                }
+                            }
+                        },
+                        plugins: {
+                            legend: {
+                                display: true,
+                                position: 'top',
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    afterLabel: function(tooltipItem) {
+                                        const index = tooltipItem.dataIndex;
+                                        const hour = energyData[index].hour;
+                                        return `时段: ${hour}:00-${hour+1}:00`;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error('创建图表时出错:', error);
+                // 如果图表创建失败，显示错误信息
+                alert('图表创建失败，请检查浏览器控制台获取更多信息');
+            }
+        }
+        
+        // 填充数据表格
+        function populateDataTable() {
+            const tableBody = document.getElementById('tableBody');
+            tableBody.innerHTML = '';
+            
+            energyData.forEach(record => {
+                const row = document.createElement('tr');
+                
+                // 根据时段设置行的背景色
+                if (record.hour >= 18 && record.hour <= 22) {
+                    row.style.backgroundColor = '#ffebee'; // 高峰时段用浅红色背景
+                }
+                
+                row.innerHTML = `
+                    <td>${record.date}</td>
+                    <td>${record.usage.toFixed(2)}</td>
+                    <td>${record.cost.toFixed(2)}</td>
+                    <td>${record.hour}:00-${record.hour+1}:00</td>
+                `;
+                
+                tableBody.appendChild(row);
+            });
+        }
+    </script>
+</body>
+</html>

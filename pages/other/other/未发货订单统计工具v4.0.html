@@ -1,0 +1,2525 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>未发货订单统计工具</title>
+    <!-- 引入SheetJS库 -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <!-- 引入FileSaver.js用于文件下载 -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/FileSaver.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        }
+        
+        .card-title {
+            font-size: 1.3rem;
+            color: #333;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #f0f0f0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .card-title::before {
+            content: '';
+            width: 4px;
+            height: 24px;
+            background: linear-gradient(180deg, #667eea, #764ba2);
+            border-radius: 2px;
+        }
+        
+        .input-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        
+        @media (max-width: 768px) {
+            .input-section {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .input-group {
+            margin-bottom: 20px;
+        }
+        
+        .input-group label {
+            display: block;
+            font-weight: 600;
+            color: #555;
+            margin-bottom: 8px;
+        }
+        
+        .url-input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        
+        .url-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .drop-zone {
+            border: 3px dashed #d0d0d0;
+            border-radius: 12px;
+            padding: 40px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #fafafa;
+        }
+        
+        .drop-zone:hover, .drop-zone.dragover {
+            border-color: #667eea;
+            background: #f0f0ff;
+        }
+        
+        .drop-zone-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+        
+        .drop-zone-text {
+            color: #666;
+            font-size: 14px;
+        }
+        
+        .drop-zone-text span {
+            color: #667eea;
+            font-weight: 600;
+        }
+        
+        .file-info {
+            margin-top: 15px;
+            padding: 12px;
+            background: #e8f5e9;
+            border-radius: 8px;
+            color: #2e7d32;
+            display: none;
+        }
+        
+        .btn-group {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            padding: 14px 32px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-secondary {
+            background: #f5f5f5;
+            color: #666;
+        }
+        
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+        
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+        
+        .progress-section {
+            display: none;
+            margin-top: 20px;
+        }
+        
+        .progress-bar {
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            width: 0%;
+            transition: width 0.3s;
+        }
+        
+        .progress-text {
+            text-align: center;
+            margin-top: 10px;
+            color: #666;
+            font-size: 14px;
+        }
+        
+        .output-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        
+        @media (max-width: 768px) {
+            .output-section {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .output-card {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .output-card h4 {
+            color: #333;
+            margin-bottom: 15px;
+        }
+        
+        .download-link {
+            display: inline-block;
+            padding: 10px 24px;
+            background: #4caf50;
+            color: white;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: 600;
+            margin-top: 10px;
+        }
+        
+        .download-link:hover {
+            background: #45a049;
+        }
+        
+        .preview-container {
+            margin-top: 20px;
+            overflow-x: auto;
+        }
+        
+        .preview-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        
+        .preview-table th {
+            background: #667eea;
+            color: white;
+            padding: 10px 8px;
+            text-align: center;
+            font-weight: 600;
+        }
+        
+        .preview-table td {
+            padding: 8px;
+            text-align: center;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .preview-table tr:nth-child(even) {
+            background: #f5f5f5;
+        }
+        
+        .preview-table tr:last-child {
+            background: #fff3cd;
+            font-weight: 600;
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+        
+        .log-container {
+            max-height: 200px;
+            overflow-y: auto;
+            background: #f5f5f5;
+            border-radius: 8px;
+            padding: 15px;
+            font-family: 'Consolas', monospace;
+            font-size: 12px;
+            margin-top: 15px;
+        }
+        
+        .log-item {
+            margin-bottom: 5px;
+            color: #333;
+        }
+        
+        .log-item.success {
+            color: #4caf50;
+        }
+        
+        .log-item.info {
+            color: #2196f3;
+        }
+        
+        .log-item.warning {
+            color: #ff9800;
+        }
+        
+        .download-link.disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+        
+        /* 历史记录模块样式 */
+        .history-section {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 15px;
+            padding: 12px 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            flex-wrap: wrap;
+        }
+        
+        .history-section label {
+            font-weight: 600;
+            color: #555;
+            white-space: nowrap;
+        }
+        
+        .history-select {
+            padding: 8px 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+            min-width: 200px;
+            cursor: pointer;
+            background: white;
+        }
+        
+        .history-select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .btn-small {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .btn-danger {
+            background: #ff4444;
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: #cc0000;
+        }
+        
+        .history-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 12px;
+            font-size: 12px;
+            margin-left: 10px;
+        }
+        
+        /* 月内发货计划金额统计模块样式 */
+        .monthly-chart-section {
+            margin: 20px 0;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 12px;
+        }
+        
+        .monthly-chart-controls {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+        
+        .monthly-chart-controls label {
+            font-weight: 600;
+            color: #555;
+        }
+        
+        .monthly-select {
+            padding: 10px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            min-width: 180px;
+            cursor: pointer;
+            background: white;
+        }
+        
+        .monthly-select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .btn-stat {
+            padding: 10px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-stat:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-stat:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .monthly-chart-container {
+            position: relative;
+            margin: 20px auto;
+            text-align: center;
+        }
+        
+        #monthlyChartCanvas {
+            max-width: 100%;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            background: white;
+        }
+        
+        .monthly-total {
+            margin-top: 15px;
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .monthly-total span {
+            color: #667eea;
+            font-size: 24px;
+        }
+        
+        .monthly-chart-placeholder {
+            padding: 60px 20px;
+            text-align: center;
+            color: #999;
+            font-size: 14px;
+            background: #f5f5f5;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        
+        .download-chart-btn {
+            display: inline-block;
+            margin-top: 15px;
+            padding: 10px 24px;
+            background: #4caf50;
+            color: white;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            border: none;
+        }
+        
+        .download-chart-btn:hover {
+            background: #45a049;
+        }
+        
+        /* 本月发货金额模块样式 */
+        .delivery-chart-section {
+            margin: 20px 0;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 12px;
+        }
+        
+        .delivery-chart-controls {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+        
+        .delivery-chart-controls label {
+            font-weight: 600;
+            color: #555;
+        }
+        
+        .delivery-select {
+            padding: 10px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            min-width: 180px;
+            cursor: pointer;
+            background: white;
+        }
+        
+        .delivery-select:focus {
+            outline: none;
+            border-color: #4caf50;
+        }
+        
+        .btn-delivery {
+            padding: 10px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: linear-gradient(135deg, #4caf50 0%, #2e7d32 100%);
+            color: white;
+        }
+        
+        .btn-delivery:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(76, 175, 80, 0.4);
+        }
+        
+        .btn-delivery:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .delivery-chart-container {
+            position: relative;
+            margin: 20px auto;
+            text-align: center;
+        }
+        
+        #deliveryChartCanvas {
+            max-width: 100%;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            background: white;
+        }
+        
+        .delivery-stats {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+        
+        .delivery-stat-item {
+            text-align: center;
+            padding: 15px 25px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            min-width: 180px;
+        }
+        
+        .delivery-stat-item h4 {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+        
+        .delivery-stat-item .value {
+            color: #4caf50;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        
+        .delivery-stat-item .value.empty {
+            color: #999;
+            font-size: 18px;
+        }
+        
+        .delivery-chart-placeholder {
+            padding: 60px 20px;
+            text-align: center;
+            color: #999;
+            font-size: 14px;
+            background: #f5f5f5;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        
+        .download-delivery-chart-btn {
+            display: inline-block;
+            margin-top: 15px;
+            padding: 10px 24px;
+            background: #4caf50;
+            color: white;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            border: none;
+        }
+        
+        .download-delivery-chart-btn:hover {
+            background: #45a049;
+        }
+        
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        
+        .loading-spinner {
+            background: white;
+            padding: 30px 50px;
+            border-radius: 12px;
+            text-align: center;
+        }
+        
+        .loading-spinner .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #4caf50;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📦 未发货订单统计工具</h1>
+            <p>基于SheetJS纯前端处理Excel数据，快速生成发货计划统计</p>
+        </div>
+        
+        <!-- 输入区域 -->
+        <div class="card">
+            <h2 class="card-title">数据输入</h2>
+            
+            <div class="input-section">
+                <!-- URL输入 -->
+                <div>
+                    <div class="input-group">
+                        <label>📎 原始数据下载链接</label>
+                        <input type="text" id="urlInput" class="url-input" placeholder="请输入Excel文件的URL链接">
+                    </div>
+                    <button class="btn btn-secondary" id="loadUrlBtn" onclick="loadFromUrl()">
+                        🌐 从链接加载
+                    </button>
+                </div>
+                
+                <!-- 文件拖拽 -->
+                <div>
+                    <div class="input-group">
+                        <label>📁 或拖拽上传Excel文件</label>
+                    </div>
+                    <div class="drop-zone" id="dropZone">
+                        <div class="drop-zone-icon">📄</div>
+                        <div class="drop-zone-text">
+                            拖拽Excel文件到此处，或 <span>点击选择</span>
+                        </div>
+                        <input type="file" id="fileInput" accept=".xlsx,.xls" style="display:none">
+                    </div>
+                    <div class="file-info" id="fileInfo"></div>
+                </div>
+            </div>
+            
+            <div class="btn-group" style="margin-top: 25px;">
+                <button class="btn btn-primary" id="processBtn" onclick="processData()" disabled>
+                    🚀 开始处理
+                </button>
+                <button class="btn btn-secondary" onclick="resetAll()">
+                    🔄 重置
+                </button>
+            </div>
+            
+            <div class="progress-section" id="progressSection">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <div class="progress-text" id="progressText">准备中...</div>
+            </div>
+            
+            <div class="log-container hidden" id="logContainer"></div>
+        </div>
+        
+        <!-- 输出区域 -->
+        <div class="card" id="outputCard">
+            <h2 class="card-title">处理结果</h2>
+            
+            <div class="output-section">
+                <div class="output-card">
+                    <h4>📊 生成的Excel文件</h4>
+                    <p style="color: #666; font-size: 14px;">包含：处理后数据、透视表、统计表</p>
+                    <a href="#" class="download-link disabled" id="downloadExcel" onclick="return false;">
+                        ⬇️ 下载Excel
+                    </a>
+                </div>
+                
+                <div class="output-card">
+                    <h4>📈 统计图表</h4>
+                    <p style="color: #666; font-size: 14px;">可直接保存或截图使用</p>
+                    <!-- Bug4修复：添加图表预览区域 -->
+                    <div id="chartPreview" style="margin: 15px 0; display: none;">
+                        <img id="chartImage" style="max-width: 100%; border: 1px solid #ddd; border-radius: 8px;">
+                    </div>
+                    <a href="#" class="download-link disabled" id="downloadImage" onclick="return false;">
+                        ⬇️ 下载图片
+                    </a>
+                </div>
+            </div>
+            
+            <div class="preview-container" id="previewContainer">
+                <!-- 历史记录选择区域 -->
+                <div class="history-section" id="historySection">
+                    <label for="historySelect">📁 历史记录：</label>
+                    <select id="historySelect" class="history-select" onchange="loadHistoryRecord()">
+                        <option value="">-- 选择历史记录 --</option>
+                    </select>
+                    <button class="btn-small btn-danger" id="clearHistoryBtn" onclick="clearHistory()" style="display: none;">
+                        🗑️ 清除历史
+                    </button>
+                    <span class="history-badge" id="historyCount" style="display: none;">0 条记录</span>
+                </div>
+                
+                <h3 style="margin: 20px 0 15px; color: #333;">📋 统计表预览</h3>
+                <div id="tablePreview">
+                    <p style="color: #999; text-align: center; padding: 40px;">等待处理数据...</p>
+                </div>
+            </div>
+            
+            <!-- 月内发货计划金额统计模块 -->
+            <div class="monthly-chart-section" id="monthlyChartSection">
+                <h3 style="margin-bottom: 15px; color: #333; font-size: 1.1rem;">
+                    📊 月内发货计划金额统计
+                </h3>
+                <div class="monthly-chart-controls">
+                    <label for="monthYearSelect">选择年月：</label>
+                    <select id="monthYearSelect" class="monthly-select">
+                        <option value="">-- 请选择年月 --</option>
+                    </select>
+                    <button class="btn-stat" id="startStatBtn" onclick="generateMonthlyChart()" disabled>
+                        📊 开始统计
+                    </button>
+                </div>
+                <div id="monthlyChartArea">
+                    <div class="monthly-chart-placeholder">
+                        请先加载数据并处理，选择年月后点击"开始统计"
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 本月发货金额模块 -->
+            <div class="delivery-chart-section" id="deliveryChartSection">
+                <h3 style="margin-bottom: 15px; color: #333; font-size: 1.1rem;">
+                    🚚 已发货金额统计
+                </h3>
+                <div class="delivery-chart-controls">
+                    <label for="deliveryMonthSelect">选择发货年月：</label>
+                    <select id="deliveryMonthSelect" class="delivery-select" onchange="onDeliveryMonthChange()">
+                        <option value="">-- 请选择年月 --</option>
+                    </select>
+                    <button class="btn-delivery" id="startDeliveryBtn" onclick="fetchDeliveryData()" disabled>
+                        📊 查询发货数据
+                    </button>
+                </div>
+                <div class="delivery-stats" id="deliveryStatsArea" style="display: none;">
+                    <div class="delivery-stat-item">
+                        <h4>已发货金额</h4>
+                        <div class="value" id="deliveredAmount">-</div>
+                    </div>
+                    <div class="delivery-stat-item">
+                        <h4>当月预计发货金额</h4>
+                        <div class="value" id="estimatedAmount">-</div>
+                    </div>
+                </div>
+                <div id="deliveryChartArea">
+                    <div class="delivery-chart-placeholder">
+                        选择年月后点击"查询发货数据"获取已发货金额和图表
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 用于生成图片的Canvas -->
+    <canvas id="chartCanvas" style="display: none;"></canvas>
+    
+    <script>
+        // 全局变量
+        let originalData = null;
+        let processedData = null;
+        let pivotData = null;
+        let statData = null;
+        let sortedStats = []; // 保存排序后的统计项目列表
+        let currentChartDataUrl = null; // 当前图表的 data URL
+        
+        // 历史记录相关常量
+        const HISTORY_KEY = 'wfh_order_stats_history';
+        let historyData = []; // 内存中的历史记录缓存
+        
+        // 列名常量
+        const COLUMNS = {
+            MARK: '标记',
+            STATUS: '订单-发货通知状态',
+            PROMISE_TIME: '订单-人工承诺发货时间',
+            CHANNEL: '销售渠道',
+            AMOUNT: '应收合计'
+        };
+        
+        // DOM元素
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const fileInfo = document.getElementById('fileInfo');
+        const processBtn = document.getElementById('processBtn');
+        const progressSection = document.getElementById('progressSection');
+        const progressFill = document.getElementById('progressFill');
+        const progressText = document.getElementById('progressText');
+        const logContainer = document.getElementById('logContainer');
+        const outputCard = document.getElementById('outputCard');
+        
+        // 日志函数
+        function log(message, type = 'info') {
+            const logContainer = document.getElementById('logContainer');
+            logContainer.classList.remove('hidden');
+            const item = document.createElement('div');
+            item.className = `log-item ${type}`;
+            item.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logContainer.appendChild(item);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+        
+        // 更新进度
+        function updateProgress(percent, text) {
+            progressSection.style.display = 'block';
+            progressFill.style.width = percent + '%';
+            progressText.textContent = text;
+        }
+        
+        // 拖拽事件
+        dropZone.addEventListener('click', () => fileInput.click());
+        
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+        
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+        
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        });
+        
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+        
+        // 处理文件
+        async function handleFile(file) {
+            if (!file.name.match(/\.(xlsx|xls)$/i)) {
+                alert('请选择Excel文件！');
+                return;
+            }
+            
+            log(`正在读取文件: ${file.name}`, 'info');
+            updateProgress(10, '正在读取文件...');
+            
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+                const sheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[sheetName];
+                originalData = XLSX.utils.sheet_to_json(worksheet);
+                
+                fileInfo.style.display = 'block';
+                fileInfo.innerHTML = `✅ 已加载: ${file.name}<br>📊 共 ${originalData.length} 行数据`;
+                
+                log(`文件读取成功，共 ${originalData.length} 行数据`, 'success');
+                updateProgress(30, '文件加载完成');
+                
+                // Bug1修复：自动开始处理，不需要再次点击
+                processData();
+                
+            } catch (error) {
+                log(`读取文件失败: ${error.message}`, 'warning');
+                alert('读取文件失败：' + error.message);
+            }
+        }
+        
+        // 从URL加载
+        async function loadFromUrl() {
+            const url = document.getElementById('urlInput').value.trim();
+            if (!url) {
+                alert('请输入URL链接');
+                return;
+            }
+            
+            log(`正在从URL加载数据...`, 'info');
+            updateProgress(10, '正在下载文件...');
+            
+            try {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error('下载失败');
+                
+                const arrayBuffer = await response.arrayBuffer();
+                const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+                const sheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[sheetName];
+                originalData = XLSX.utils.sheet_to_json(worksheet);
+                
+                fileInfo.style.display = 'block';
+                fileInfo.innerHTML = `✅ URL加载成功<br>📊 共 ${originalData.length} 行数据`;
+                
+                log(`URL数据加载成功，共 ${originalData.length} 行`, 'success');
+                updateProgress(30, '文件加载完成');
+                
+                // Bug1修复：自动开始处理，不需要再次点击
+                processData();
+                
+            } catch (error) {
+                log(`URL加载失败: ${error.message}`, 'warning');
+                alert('从URL加载失败：' + error.message);
+            }
+        }
+        
+        // 处理数据
+        async function processData() {
+            if (!originalData || originalData.length === 0) {
+                alert('请先加载数据！');
+                return;
+            }
+            
+            log('开始处理数据...', 'info');
+            updateProgress(40, '正在处理数据...');
+            
+            try {
+                // 步骤1: 添加客审状态列
+                log('步骤1: 添加客审状态列', 'info');
+                const data1 = originalData.map(row => {
+                    const mark = row[COLUMNS.MARK] || '';
+                    let 客审状态 = '未客审';
+                    if (typeof mark === 'string' && (mark.includes('客审') || mark.includes('货审'))) {
+                        客审状态 = '已客审';
+                    }
+                    return { ...row, '客审状态': 客审状态 };
+                });
+                
+                await sleep(100);
+                updateProgress(50, '步骤2: 添加发货时间类型...');
+                
+                // 步骤2: 添加发货时间类型列
+                log('步骤2: 添加发货时间类型列', 'info');
+                const data2 = data1.map(row => {
+                    const status = row[COLUMNS.STATUS] || '';
+                    let 发货时间类型 = '';
+                    if (status) {
+                        const statusStr = String(status).trim();
+                        if (statusStr === '加急发货' || statusStr === '指定时间发货') {
+                            发货时间类型 = '指定时间';
+                        } else if (statusStr.includes('有货就发') || statusStr.includes('等通知')) {
+                            发货时间类型 = '等通知';
+                        }
+                    }
+                    return { ...row, '发货时间类型': 发货时间类型 };
+                });
+                
+                await sleep(100);
+                updateProgress(60, '步骤3: 格式化日期...');
+                
+                // 步骤3: 格式化日期
+                log('步骤3: 格式化订单-人工承诺发货时间', 'info');
+                const data3 = data2.map(row => {
+                    const time = row[COLUMNS.PROMISE_TIME];
+                    let 格式化日期 = '';
+                    if (time) {
+                        try {
+                            const date = new Date(time);
+                            if (!isNaN(date.getTime())) {
+                                格式化日期 = `${date.getFullYear()}年${String(date.getMonth() + 1).padStart(2, '0')}月`;
+                            }
+                        } catch (e) {}
+                    }
+                    return { ...row, '格式化日期': 格式化日期 };
+                });
+                
+                await sleep(100);
+                updateProgress(70, '步骤4: 合并状态...');
+                
+                // 步骤4: 状态合并
+                log('步骤4: 合并客审状态和发货时间类型', 'info');
+                const data4 = data3.map(row => {
+                    const 客审状态 = row['客审状态'] || '';
+                    const 发货时间类型 = row['发货时间类型'] || '';
+                    let 状态合并 = 客审状态 + '-' + 发货时间类型;
+                    状态合并 = 状态合并.replace(/-$/, '');
+                    return { ...row, '状态合并': 状态合并 };
+                });
+                
+                await sleep(100);
+                updateProgress(80, '步骤5: 生成统计项目...');
+                
+                // 步骤5: 统计项目
+                log('步骤5: 生成统计项目列', 'info');
+                const data5 = data4.map(row => {
+                    const 状态合并 = row['状态合并'] || '';
+                    const 格式化日期 = row['格式化日期'] || '';
+                    let 统计项目 = '未客审';
+                    
+                    if (状态合并.includes('未客审')) {
+                        统计项目 = '未客审';
+                    } else if (状态合并.includes('已客审-指定时间')) {
+                        统计项目 = 格式化日期 || '未客审';
+                    } else if (状态合并.includes('已客审-等通知')) {
+                        统计项目 = '等通知';
+                    }
+                    
+                    return { ...row, '统计项目': 统计项目 };
+                });
+                
+                processedData = data5;
+                log(`数据处理完成，共 ${processedData.length} 行`, 'success');
+                
+                await sleep(100);
+                updateProgress(85, '步骤6: 生成透视表...');
+                
+                // 步骤6: 生成透视表
+                log('步骤6: 生成透视表', 'info');
+                const { pivot, stat } = generatePivotTable(processedData);
+                pivotData = pivot;
+                statData = stat;
+                
+                await sleep(100);
+                updateProgress(95, '生成输出文件...');
+                
+                // 生成Excel文件
+                log('生成Excel文件...', 'info');
+                const excelBlob = generateExcel();
+                
+                // 生成图片
+                log('生成统计图表...', 'info');
+                const imageBlob = await generateChart();
+                
+                await sleep(100);
+                updateProgress(100, '处理完成！');
+                
+                // 显示结果
+                showPreview();
+                
+                // 填充月内发货计划金额统计的年月下拉框
+                populateMonthYearSelect();
+                
+                // Bug4修复：设置下载链接并显示图表预览
+                const downloadExcel = document.getElementById('downloadExcel');
+                const downloadImage = document.getElementById('downloadImage');
+                
+                if (excelBlob) {
+                    downloadExcel.href = URL.createObjectURL(excelBlob);
+                    downloadExcel.download = '发货计划统计结果.xlsx';
+                    downloadExcel.classList.remove('disabled');
+                    downloadExcel.onclick = null;
+                }
+                
+                if (imageBlob) {
+                    // 使用data URL而非blob URL，支持长按保存图片
+                    const reader = new FileReader();
+                    reader.onload = function() {
+                        const dataUrl = reader.result;
+                        currentChartDataUrl = dataUrl; // 保存到全局变量
+                        const downloadImage = document.getElementById('downloadImage');
+                        downloadImage.href = dataUrl;
+                        downloadImage.download = '发货计划透视表.png';
+                        downloadImage.classList.remove('disabled');
+                        downloadImage.onclick = null;
+                        
+                        // 显示图表预览
+                        const chartPreview = document.getElementById('chartPreview');
+                        const chartImage = document.getElementById('chartImage');
+                        chartImage.src = dataUrl;
+                        chartPreview.style.display = 'block';
+                        
+                        // 保存到历史记录
+                        saveToHistory();
+                    };
+                    reader.readAsDataURL(imageBlob);
+                } else {
+                    // 没有图表时也保存历史记录（只是没有图表数据）
+                    saveToHistory();
+                }
+                
+                log('所有处理完成！', 'success');
+                
+            } catch (error) {
+                log(`处理失败: ${error.message}`, 'warning');
+                alert('处理失败：' + error.message);
+            }
+        }
+        
+        // 生成透视表（纯数据，不排序）和统计表（排序、格式化）
+        function generatePivotTable(data) {
+            // 过滤有效数据
+            const validData = data.filter(row => row[COLUMNS.CHANNEL] && String(row[COLUMNS.CHANNEL]).trim());
+            
+            // 按销售渠道和统计项目分组
+            const groups = {};
+            validData.forEach(row => {
+                const channel = row[COLUMNS.CHANNEL] || '未知';
+                const statItem = row['统计项目'] || '未客审';
+                const amount = parseFloat(row[COLUMNS.AMOUNT]) || 0;
+                
+                if (!groups[channel]) groups[channel] = {};
+                if (!groups[channel][statItem]) groups[channel][statItem] = 0;
+                groups[channel][statItem] += amount;
+            });
+            
+            // 获取所有统计项目（自然顺序，不排序）
+            const allStats = [];
+            const statsSet = new Set();
+            Object.values(groups).forEach(stats => {
+                Object.keys(stats).forEach(k => {
+                    if (!statsSet.has(k)) {
+                        statsSet.add(k);
+                        allStats.push(k);
+                    }
+                });
+            });
+            
+            // 构建透视表（自然顺序）
+            const pivot = {};
+            Object.keys(groups).sort().forEach(channel => {
+                pivot[channel] = {};
+                allStats.forEach(stat => {
+                    pivot[channel][stat] = groups[channel][stat] || 0;
+                });
+            });
+            
+            // 添加合计行
+            const totalRow = {};
+            allStats.forEach(stat => {
+                totalRow[stat] = 0;
+                Object.values(groups).forEach(stats => {
+                    totalRow[stat] += stats[stat] || 0;
+                });
+            });
+            pivot['合计'] = totalRow;
+            
+            // ========== 统计表（在这里做排序和格式化） ==========
+            // 排序函数：日期从小到大、等通知(1)、未客审(2)
+            const getSortOrder = (x) => {
+                if (x === '未客审') return 1000001;
+                if (x === '等通知') return 1000000;
+                // 日期排序：提取年月进行数值比较，返回值在10000-99999范围
+                const dateMatch = x.match(/(\d+)年(\d+)月/);
+                if (dateMatch) {
+                    return parseInt(dateMatch[1]) * 100 + parseInt(dateMatch[2]);
+                }
+                return 999999; // 其他排在日期之后、等通知之前
+            };
+            
+            // 列排序：日期(小) → 等通知 → 未客审 → 合计
+            const sortedStats = Array.from(allStats).sort((a, b) => getSortOrder(a) - getSortOrder(b));
+            sortedStats.push('合计'); // 合计列放最后
+            
+            // 保存到全局变量，供预览使用
+            window.sortedStats = sortedStats;
+            
+            // 计算每个销售渠道的合计金额（原始数据，单位元）
+            const channelTotals = {};
+            Object.keys(groups).forEach(channel => {
+                let total = 0;
+                allStats.forEach(s => {
+                    total += groups[channel][s] || 0;
+                });
+                channelTotals[channel] = total;
+            });
+            
+            // 按合计金额降序排序（合计行除外）
+            const sortedChannels = Object.keys(groups).sort((a, b) => {
+                return channelTotals[b] - channelTotals[a]; // 降序
+            });
+            
+            // 构建统计表（已排序，数据转为万元）
+            const stat = {};
+            
+            // 构建数据行（已排序）
+            sortedChannels.forEach(channel => {
+                stat[channel] = {};
+                allStats.forEach(s => {
+                    stat[channel][s] = (groups[channel][s] || 0) / 10000;
+                });
+                // 添加合计列
+                stat[channel]['合计'] = channelTotals[channel] / 10000;
+            });
+            
+            // 添加合计行（保持最后）
+            const statTotalRow = {};
+            allStats.forEach(s => {
+                statTotalRow[s] = 0;
+                Object.values(groups).forEach(stats => {
+                    statTotalRow[s] += (stats[s] || 0) / 10000;
+                });
+            });
+            statTotalRow['合计'] = Object.values(channelTotals).reduce((sum, t) => sum + t, 0) / 10000;
+            stat['合计'] = statTotalRow;
+            
+            return { pivot, stat, sortedStats };
+        }
+        
+        // 生成Excel文件
+        function generateExcel() {
+            // Sheet1: 处理后的数据
+            const ws1 = XLSX.utils.json_to_sheet(processedData);
+            
+            // 透视表
+            const pivotRows = [];
+            Object.entries(pivotData).forEach(([channel, stats]) => {
+                const row = { '销售渠道': channel };
+                Object.entries(stats).forEach(([k, v]) => {
+                    row[k] = typeof v === 'number' ? v.toFixed(2) : v;
+                });
+                pivotRows.push(row);
+            });
+            const ws2 = XLSX.utils.json_to_sheet(pivotRows);
+            
+            // 统计表（添加标题）
+            const statRows = [{ '未发货订单统计 2026年05月05日': '' }];
+            Object.entries(statData).forEach(([channel, stats]) => {
+                const row = { '销售渠道': channel };
+                Object.entries(stats).forEach(([k, v]) => {
+                    row[k] = typeof v === 'number' ? v.toFixed(2) : v;
+                });
+                statRows.push(row);
+            });
+            const ws3 = XLSX.utils.json_to_sheet(statRows);
+            
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws1, 'Sheet1_处理后');
+            XLSX.utils.book_append_sheet(wb, ws2, '透视表');
+            XLSX.utils.book_append_sheet(wb, ws3, '统计表');
+            
+            const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+            return new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        }
+        
+        // 生成图表图片 - 同步版本
+        function generateChart() {
+            const canvas = document.getElementById('chartCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            // 设置画布大小
+            canvas.width = 1400;
+            canvas.height = 750;
+            
+            // 背景
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // 标题
+            ctx.fillStyle = '#333333';
+            ctx.font = 'bold 26px Microsoft YaHei, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('未发货订单统计 2026年05月05日', canvas.width / 2, 55);
+            
+            // 使用sortedStats确保列顺序正确
+            const channels = Object.keys(statData);
+            const stats = window.sortedStats && window.sortedStats.length > 0 ? window.sortedStats : 
+                          (channels.length > 0 ? Object.keys(statData[channels[0]]) : []);
+            
+            // 表格位置 - 调整列宽，第一列更宽
+            const startX = 50;
+            const startY = 100;
+            const firstColWidth = 180;  // 销售渠道列更宽
+            const otherColWidth = 120;  // 其他列
+            const cellHeight = 50;
+            const rowHeight = 55;
+            
+            // 表头
+            ctx.fillStyle = '#4472C4';
+            ctx.fillRect(startX, startY, firstColWidth, cellHeight);
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 14px Microsoft YaHei, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('销售渠道', startX + firstColWidth / 2, startY + cellHeight / 2 + 5);
+            
+            stats.forEach((stat, i) => {
+                const x = startX + firstColWidth + i * otherColWidth;
+                ctx.fillStyle = '#4472C4';
+                ctx.fillRect(x, startY, otherColWidth, cellHeight);
+                ctx.fillStyle = '#ffffff';
+                ctx.fillText(stat, x + otherColWidth / 2, startY + cellHeight / 2 + 5);
+            });
+            
+            // 数据行
+            channels.forEach((channel, rowIndex) => {
+                const y = startY + (rowIndex + 1) * rowHeight;
+                
+                // 交替背景色
+                if (rowIndex === channels.length - 1) {
+                    ctx.fillStyle = '#FFC000'; // 合计行
+                } else if (rowIndex % 2 === 0) {
+                    ctx.fillStyle = '#E8F0FE';
+                } else {
+                    ctx.fillStyle = '#ffffff';
+                }
+                ctx.fillRect(startX, y, firstColWidth + stats.length * otherColWidth, rowHeight);
+                
+                // 销售渠道列
+                ctx.fillStyle = rowIndex === channels.length - 1 ? '#333' : '#333';
+                ctx.font = rowIndex === channels.length - 1 ? 'bold 12px' : '12px';
+                ctx.textAlign = 'center';
+                ctx.fillText(channel, startX + firstColWidth / 2, y + rowHeight / 2 + 5);
+                
+                // 数据列 - 加"万"单位，0值显示为空白
+                stats.forEach((stat, colIndex) => {
+                    const x = startX + firstColWidth + colIndex * otherColWidth;
+                    const val = statData[channel][stat];
+                    const text = (typeof val === 'number' && val !== 0) ? val.toFixed(2) + '万' : '';
+                    ctx.fillStyle = '#333';
+                    ctx.fillText(text, x + otherColWidth / 2, y + rowHeight / 2 + 5);
+                });
+            });
+            
+            // 边框
+            ctx.strokeStyle = '#cccccc';
+            ctx.lineWidth = 1;
+            const tableWidth = firstColWidth + stats.length * otherColWidth;
+            const tableHeight = rowHeight * (channels.length + 1);
+            ctx.strokeRect(startX, startY, tableWidth, tableHeight);
+            
+            // 内部网格线
+            for (let i = 0; i <= channels.length; i++) {
+                const y = startY + i * rowHeight;
+                ctx.beginPath();
+                ctx.moveTo(startX, y);
+                ctx.lineTo(startX + tableWidth, y);
+                ctx.stroke();
+            }
+            // 第一列后画竖线
+            const x1 = startX + firstColWidth;
+            ctx.beginPath();
+            ctx.moveTo(x1, startY);
+            ctx.lineTo(x1, startY + tableHeight);
+            ctx.stroke();
+            // 其他列的竖线
+            for (let i = 0; i < stats.length; i++) {
+                const x = startX + firstColWidth + (i + 1) * otherColWidth;
+                ctx.beginPath();
+                ctx.moveTo(x, startY);
+                ctx.lineTo(x, startY + tableHeight);
+                ctx.stroke();
+            }
+            
+            // 返回Blob
+            return new Promise((resolve) => {
+                canvas.toBlob((blob) => {
+                    resolve(blob);
+                }, 'image/png');
+            });
+        }
+        
+        // 显示预览
+        async function showPreview() {
+            const preview = document.getElementById('tablePreview');
+            const channels = Object.keys(statData);
+            
+            // Bug3修复：使用sortedStats确保列顺序正确（销售渠道 | 日期从小到大 | 等通知 | 未客审 | 合计）
+            const stats = window.sortedStats && window.sortedStats.length > 0 ? window.sortedStats : 
+                          (channels.length > 0 ? Object.keys(statData[channels[0]]) : []);
+            
+            let html = '<table class="preview-table"><thead><tr>';
+            html += '<th>销售渠道</th>';
+            stats.forEach(s => html += `<th>${s}</th>`);
+            html += '</tr></thead><tbody>';
+            
+            channels.forEach(channel => {
+                html += '<tr>';
+                html += `<td>${channel}</td>`;
+                stats.forEach(s => {
+                    const val = statData[channel][s];
+                    // 0值显示为空白
+                    html += `<td>${typeof val === 'number' && val !== 0 ? val.toFixed(2) + '万' : ''}</td>`;
+                });
+                html += '</tr>';
+            });
+            
+            html += '</tbody></table>';
+            preview.innerHTML = html;
+        }
+        
+        // 重置
+        function resetAll() {
+            originalData = null;
+            processedData = null;
+            pivotData = null;
+            statData = null;
+            window.sortedStats = [];
+            currentChartDataUrl = null;
+            
+            document.getElementById('urlInput').value = '';
+            document.getElementById('fileInput').value = '';
+            fileInfo.style.display = 'none';
+            processBtn.disabled = true;
+            progressSection.style.display = 'none';
+            logContainer.classList.add('hidden');
+            logContainer.innerHTML = '';
+            outputCard.classList.add('hidden');
+            
+            // Bug4修复：重置图表预览
+            const chartPreview = document.getElementById('chartPreview');
+            const chartImage = document.getElementById('chartImage');
+            if (chartPreview) chartPreview.style.display = 'none';
+            if (chartImage) chartImage.src = '';
+            
+            // 重置月内发货计划金额统计模块
+            resetMonthlyChart();
+            
+            log('已重置', 'info');
+        }
+        
+        // ==================== 历史记录相关功能 ====================
+        
+        // 从 localStorage 加载历史记录
+        function loadHistory() {
+            try {
+                const stored = localStorage.getItem(HISTORY_KEY);
+                if (stored) {
+                    historyData = JSON.parse(stored);
+                }
+                populateHistorySelect();
+            } catch (e) {
+                console.error('加载历史记录失败:', e);
+                historyData = [];
+            }
+        }
+        
+        // 填充历史记录下拉框
+        function populateHistorySelect() {
+            const select = document.getElementById('historySelect');
+            const clearBtn = document.getElementById('clearHistoryBtn');
+            const countBadge = document.getElementById('historyCount');
+            
+            // 清空现有选项（保留第一个占位选项）
+            select.innerHTML = '<option value="">-- 选择历史记录 --</option>';
+            
+            if (historyData.length === 0) {
+                if (clearBtn) clearBtn.style.display = 'none';
+                if (countBadge) {
+                    countBadge.style.display = 'none';
+                    countBadge.textContent = '0 条记录';
+                }
+                return;
+            }
+            
+            // 按时间倒序排列（最新在前）
+            const sortedHistory = [...historyData].sort((a, b) => b.id - a.id);
+            
+            sortedHistory.forEach(item => {
+                const option = document.createElement('option');
+                option.value = item.id;
+                option.textContent = item.label;
+                select.appendChild(option);
+            });
+            
+            // 显示控制按钮和计数
+            if (clearBtn) clearBtn.style.display = 'inline-block';
+            if (countBadge) {
+                countBadge.style.display = 'inline-block';
+                countBadge.textContent = `${historyData.length} 条记录`;
+            }
+        }
+        
+        // 保存当前统计结果到历史记录
+        function saveToHistory() {
+            if (!statData || Object.keys(statData).length === 0) {
+                return;
+            }
+            
+            const now = new Date();
+            const dateStr = `${now.getFullYear()}年${String(now.getMonth() + 1).padStart(2, '0')}月${String(now.getDate()).padStart(2, '0')}日`;
+            const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+            
+            // 计算同一天已有多少次导入
+            const sameDayCount = historyData.filter(item => item.date === dateStr).length + 1;
+            
+            const newRecord = {
+                id: Date.now(),
+                label: `${dateStr}第${sameDayCount}次导入 ${timeStr}`,
+                date: dateStr,
+                statData: JSON.parse(JSON.stringify(statData)), // 深拷贝
+                sortedStats: JSON.parse(JSON.stringify(window.sortedStats || sortedStats)), // 深拷贝
+                channels: JSON.parse(JSON.stringify(Object.keys(statData))) // 保存渠道顺序
+            };
+            
+            // 添加到数组开头
+            historyData.unshift(newRecord);
+            
+            // 限制历史记录数量（最多保留50条）
+            if (historyData.length > 50) {
+                historyData = historyData.slice(0, 50);
+            }
+            
+            // 保存到 localStorage（带容量检查）
+            try {
+                const jsonStr = JSON.stringify(historyData);
+                if (jsonStr.length > 4.5 * 1024 * 1024) { // 4.5MB 预警
+                    console.warn('历史记录数据较大，可能接近 localStorage 限制');
+                }
+                localStorage.setItem(HISTORY_KEY, jsonStr);
+                populateHistorySelect();
+                
+                // 自动选中新添加的记录
+                const select = document.getElementById('historySelect');
+                select.value = newRecord.id;
+            } catch (e) {
+                console.error('保存历史记录失败:', e);
+                // 如果存储失败，尝试清理旧数据后重试
+                if (e.name === 'QuotaExceededError') {
+                    alert('存储空间不足，正在清理部分旧记录...');
+                    historyData = historyData.slice(-20); // 只保留最近20条
+                    try {
+                        localStorage.setItem(HISTORY_KEY, JSON.stringify(historyData));
+                        populateHistorySelect();
+                    } catch (e2) {
+                        console.error('清理后仍无法保存:', e2);
+                    }
+                }
+            }
+        }
+        
+        // 加载选中的历史记录
+        function loadHistoryRecord() {
+            const select = document.getElementById('historySelect');
+            const selectedId = select.value;
+            
+            if (!selectedId) {
+                return;
+            }
+            
+            const record = historyData.find(item => item.id === parseInt(selectedId));
+            if (!record) {
+                alert('未找到对应的历史记录');
+                return;
+            }
+            
+            // 恢复数据
+            statData = JSON.parse(JSON.stringify(record.statData));
+            window.sortedStats = JSON.parse(JSON.stringify(record.sortedStats));
+            
+            // 显示统计表预览
+            showPreview();
+            
+            // 用Canvas重绘图表
+            try {
+                generateChart().then(imageBlob => {
+                    if (imageBlob) {
+                        const reader = new FileReader();
+                        reader.onload = function() {
+                            const chartPreview = document.getElementById('chartPreview');
+                            const chartImage = document.getElementById('chartImage');
+                            chartImage.src = reader.result;
+                            chartPreview.style.display = 'block';
+                            currentChartDataUrl = reader.result;
+                        };
+                        reader.readAsDataURL(imageBlob);
+                    }
+                });
+            } catch(e) {
+                console.error('重绘图表失败:', e);
+                document.getElementById('chartPreview').style.display = 'none';
+            }
+            
+            // 确保输出区域可见
+            outputCard.classList.remove('hidden');
+            
+            // 重置下载链接（历史记录不支持下载）
+            const downloadExcel = document.getElementById('downloadExcel');
+            const downloadImage = document.getElementById('downloadImage');
+            downloadExcel.href = '#';
+            downloadExcel.classList.add('disabled');
+            downloadExcel.onclick = () => false;
+            downloadImage.href = '#';
+            downloadImage.classList.add('disabled');
+            downloadImage.onclick = () => false;
+            
+            log(`已加载历史记录: ${record.label}`, 'info');
+        }
+        
+        // 清除所有历史记录
+        function clearHistory() {
+            if (!confirm('确定要清除所有历史记录吗？此操作不可恢复。')) {
+                return;
+            }
+            
+            historyData = [];
+            try {
+                localStorage.removeItem(HISTORY_KEY);
+                populateHistorySelect();
+                log('已清除所有历史记录', 'info');
+            } catch (e) {
+                console.error('清除历史记录失败:', e);
+            }
+        }
+        
+        // 页面加载时初始化历史记录
+        document.addEventListener('DOMContentLoaded', function() {
+            loadHistory();
+        });
+        
+        // 工具函数
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+        
+        // ==================== 月内发货计划金额统计功能 ====================
+        
+        // 获取当前年月字符串（格式：2026年05月）
+        function getCurrentYearMonth() {
+            const now = new Date();
+            return `${now.getFullYear()}年${String(now.getMonth() + 1).padStart(2, '0')}月`;
+        }
+        
+        // 填充年月下拉框
+        function populateMonthYearSelect() {
+            const select = document.getElementById('monthYearSelect');
+            const startBtn = document.getElementById('startStatBtn');
+            
+            // 生成年份范围：2024年到当前年份+1
+            const now = new Date();
+            const currentYear = now.getFullYear();
+            const startYear = 2024;
+            const endYear = currentYear + 1;
+            
+            // 从processedData的"统计项目"列获取唯一值，排除"等通知"和"未客审"
+            const uniqueMonths = new Set();
+            if (processedData && processedData.length > 0) {
+                processedData.forEach(row => {
+                    const statItem = row['统计项目'];
+                    if (statItem && typeof statItem === 'string') {
+                        // 只保留日期格式如"2026年05月"的选项
+                        if (statItem.match(/^\d{4}年\d{1,2}月$/) && 
+                            statItem !== '等通知' && statItem !== '未客审') {
+                            uniqueMonths.add(statItem);
+                        }
+                    }
+                });
+            }
+            
+            // 转换为数组并排序（日期从小到大）
+            const sortedDataMonths = Array.from(uniqueMonths).sort((a, b) => {
+                const aMatch = a.match(/(\d{4})年(\d{1,2})月/);
+                const bMatch = b.match(/(\d{4})年(\d{1,2})月/);
+                if (aMatch && bMatch) {
+                    const aVal = parseInt(aMatch[1]) * 100 + parseInt(aMatch[2]);
+                    const bVal = parseInt(bMatch[1]) * 100 + parseInt(bMatch[2]);
+                    return aVal - bVal;
+                }
+                return 0;
+            });
+            
+            // 清空并填充下拉框
+            select.innerHTML = '<option value="">-- 请选择年月 --</option>';
+            const currentMonth = getCurrentYearMonth();
+            let hasCurrentMonth = false;
+            
+            // 生成所有年月选项（从远到近）
+            for (let year = endYear; year >= startYear; year--) {
+                for (let month = 12; month >= 1; month--) {
+                    const monthStr = `${String(month).padStart(2, '0')}月`;
+                    const value = `${year}年${monthStr}`;
+                    
+                    // 检查是否有该月的数据
+                    const hasData = sortedDataMonths.includes(value);
+                    
+                    const option = document.createElement('option');
+                    option.value = value;
+                    // 如果该月有数据，添加标记
+                    option.textContent = hasData ? value + ' ✓' : value;
+                    option.dataset.hasData = hasData;
+                    
+                    if (value === currentMonth) {
+                        option.selected = true;
+                        hasCurrentMonth = true;
+                    }
+                    select.appendChild(option);
+                }
+            }
+            
+            // 启用按钮（因为现在有默认年月范围）
+            startBtn.disabled = false;
+        }
+        
+        // 生成月内发货计划金额柱状图
+        function generateMonthlyChart() {
+            const select = document.getElementById('monthYearSelect');
+            const selectedMonth = select.value;
+            const chartArea = document.getElementById('monthlyChartArea');
+            
+            if (!selectedMonth || !processedData) {
+                chartArea.innerHTML = '<div class="monthly-chart-placeholder">请先选择年月</div>';
+                return;
+            }
+            
+            // 筛选数据：统计项目 === 选中的年月值
+            const filteredData = processedData.filter(row => row['统计项目'] === selectedMonth);
+            
+            if (filteredData.length === 0) {
+                chartArea.innerHTML = '<div class="monthly-chart-placeholder">该月暂无数据</div>';
+                return;
+            }
+            
+            // 按日期分组求和应收合计
+            const dateAmounts = {};
+            filteredData.forEach(row => {
+                const promiseTime = row[COLUMNS.PROMISE_TIME];
+                const amount = parseFloat(row[COLUMNS.AMOUNT]) || 0;
+                
+                if (promiseTime) {
+                    let dateKey = '';
+                    try {
+                        const date = new Date(promiseTime);
+                        if (!isNaN(date.getTime())) {
+                            dateKey = `${date.getMonth() + 1}月${date.getDate()}日`;
+                        }
+                    } catch (e) {
+                        // 如果不是日期格式，尝试直接提取日期部分
+                        const strDate = String(promiseTime);
+                        const dayMatch = strDate.match(/(\d{1,2})[月\-/](\d{1,2})/);
+                        if (dayMatch) {
+                            dateKey = `${dayMatch[1]}月${dayMatch[2]}日`;
+                        }
+                    }
+                    
+                    if (dateKey) {
+                        if (!dateAmounts[dateKey]) {
+                            dateAmounts[dateKey] = 0;
+                        }
+                        dateAmounts[dateKey] += amount;
+                    }
+                }
+            });
+            
+            // 按日期排序
+            const sortedDates = Object.keys(dateAmounts).sort((a, b) => {
+                const aMatch = a.match(/(\d+)月(\d+)日/);
+                const bMatch = b.match(/(\d+)月(\d+)日/);
+                if (aMatch && bMatch) {
+                    const aDay = parseInt(aMatch[2]);
+                    const bDay = parseInt(bMatch[2]);
+                    return aDay - bDay;
+                }
+                return 0;
+            });
+            
+            if (sortedDates.length === 0) {
+                chartArea.innerHTML = '<div class="monthly-chart-placeholder">无法解析日期数据</div>';
+                return;
+            }
+            
+            // 计算总金额
+            const totalAmount = Object.values(dateAmounts).reduce((sum, val) => sum + val, 0);
+            
+            // 绘制柱状图
+            const chartHtml = `
+                <div class="monthly-chart-container">
+                    <canvas id="monthlyChartCanvas"></canvas>
+                    <div class="monthly-total">总计划发货金额：<span>${formatCurrency(totalAmount)}</span></div>
+                    <button class="download-chart-btn" id="downloadMonthlyChartBtn" onclick="downloadMonthlyChart()">
+                        ⬇️ 下载图片
+                    </button>
+                </div>
+            `;
+            chartArea.innerHTML = chartHtml;
+            
+            // 绘制Canvas柱状图
+            setTimeout(() => {
+                drawMonthlyBarChart(sortedDates, dateAmounts, selectedMonth);
+            }, 100);
+        }
+        
+        // 绘制月内柱状图
+        function drawMonthlyBarChart(dates, amounts, monthLabel) {
+            const canvas = document.getElementById('monthlyChartCanvas');
+            if (!canvas) return;
+            
+            const ctx = canvas.getContext('2d');
+            
+            // 画布尺寸设置
+            const numBars = dates.length;
+            const barWidth = Math.min(60, Math.max(30, 800 / numBars - 20));
+            const barGap = Math.min(15, barWidth * 0.3);
+            const chartWidth = numBars * (barWidth + barGap) + 100; // 左边距60，右边距40
+            const chartHeight = 400;
+            const labelHeight = 50;
+            const titleHeight = 50;
+            
+            canvas.width = chartWidth;
+            canvas.height = chartHeight + titleHeight + labelHeight;
+            
+            // 背景
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // 标题
+            ctx.fillStyle = '#333333';
+            ctx.font = 'bold 20px Microsoft YaHei, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(`${monthLabel} 每日发货计划金额统计`, canvas.width / 2, 35);
+            
+            // 计算最大值
+            const maxAmount = Math.max(...Object.values(amounts));
+            const yAxisMax = Math.ceil(maxAmount / 10000) * 10000 || 10000; // 向上取整到万
+            
+            // 图表区域
+            const chartLeft = 60;
+            const chartTop = titleHeight + 10;
+            const chartRight = canvas.width - 40;
+            const chartBottom = chartTop + chartHeight;
+            const chartAreaWidth = chartRight - chartLeft;
+            const chartAreaHeight = chartHeight;
+            
+            // 绘制Y轴
+            ctx.strokeStyle = '#cccccc';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(chartLeft, chartTop);
+            ctx.lineTo(chartLeft, chartBottom);
+            ctx.stroke();
+            
+            // Y轴刻度和网格线
+            const yTicks = 5;
+            ctx.font = '12px Microsoft YaHei, sans-serif';
+            ctx.fillStyle = '#666666';
+            ctx.textAlign = 'right';
+            
+            for (let i = 0; i <= yTicks; i++) {
+                const yValue = (yAxisMax / yTicks) * (yTicks - i);
+                const yPos = chartTop + (chartAreaHeight / yTicks) * i;
+                
+                // 刻度值
+                ctx.fillText(formatCurrency(yValue), chartLeft - 8, yPos + 4);
+                
+                // 网格线
+                ctx.strokeStyle = '#e0e0e0';
+                ctx.beginPath();
+                ctx.moveTo(chartLeft, yPos);
+                ctx.lineTo(chartRight, yPos);
+                ctx.stroke();
+            }
+            
+            // 绘制柱状图
+            const startX = chartLeft + 20;
+            const maxBarHeight = chartAreaHeight - 30;
+            
+            // 渐变色
+            const gradient = ctx.createLinearGradient(0, chartTop, 0, chartBottom);
+            gradient.addColorStop(0, '#667eea');
+            gradient.addColorStop(1, '#764ba2');
+            
+            dates.forEach((date, index) => {
+                const x = startX + index * (barWidth + barGap);
+                const amount = amounts[date];
+                const barHeight = (amount / yAxisMax) * maxBarHeight;
+                const barY = chartBottom - barHeight;
+                
+                // 绘制柱子
+                ctx.fillStyle = gradient;
+                ctx.fillRect(x, barY, barWidth, barHeight);
+                
+                // 柱子顶部金额
+                ctx.fillStyle = '#333333';
+                ctx.font = 'bold 11px Microsoft YaHei, sans-serif';
+                ctx.textAlign = 'center';
+                const displayAmount = amount >= 10000 ? (amount / 10000).toFixed(1) + '万' : amount.toFixed(0);
+                ctx.fillText(displayAmount, x + barWidth / 2, barY - 5);
+                
+                // X轴标签（日期）
+                ctx.fillStyle = '#666666';
+                ctx.font = '11px Microsoft YaHei, sans-serif';
+                ctx.save();
+                ctx.translate(x + barWidth / 2, chartBottom + 15);
+                ctx.rotate(-Math.PI / 6); // 倾斜45度
+                ctx.textAlign = 'right';
+                ctx.fillText(date, 0, 0);
+                ctx.restore();
+            });
+            
+            // 保存当前图表DataURL供下载
+            canvas.chartDataUrl = canvas.toDataURL('image/png');
+        }
+        
+        // 格式化金额显示
+        function formatCurrency(amount) {
+            if (amount >= 10000) {
+                return (amount / 10000).toFixed(2) + '万';
+            }
+            return amount.toFixed(2) + '元';
+        }
+        
+        // 下载月内柱状图
+        function downloadMonthlyChart() {
+            const canvas = document.getElementById('monthlyChartCanvas');
+            if (!canvas || !canvas.chartDataUrl) {
+                alert('图表尚未生成，请先生成图表');
+                return;
+            }
+            
+            const link = document.createElement('a');
+            link.download = `月内发货计划金额统计.png`;
+            link.href = canvas.chartDataUrl;
+            link.click();
+        }
+        
+        // 重置月内统计模块
+        function resetMonthlyChart() {
+            const select = document.getElementById('monthYearSelect');
+            const startBtn = document.getElementById('startStatBtn');
+            const chartArea = document.getElementById('monthlyChartArea');
+            
+            select.innerHTML = '<option value="">-- 请选择年月 --</option>';
+            startBtn.disabled = true;
+            chartArea.innerHTML = `
+                <div class="monthly-chart-placeholder">
+                    请先加载数据并处理，选择年月后点击"开始统计"
+                </div>
+            `;
+        }
+        
+        // ==================== 本月发货金额功能 ====================
+        
+        // 存储当月计划发货总金额（用于计算预计发货金额）
+        let currentMonthPlanTotal = 0;
+        
+        // 填充发货年月下拉框
+        function populateDeliveryMonthSelect() {
+            const select = document.getElementById('deliveryMonthSelect');
+            const startBtn = document.getElementById('startDeliveryBtn');
+            
+            // 生成年份范围：2024年到当前年份+1
+            const now = new Date();
+            const currentYear = now.getFullYear();
+            const startYear = 2024;
+            const endYear = currentYear + 1;
+            
+            // 清空并填充下拉框
+            select.innerHTML = '<option value="">-- 请选择年月 --</option>';
+            
+            // 生成所有年月选项（从远到近）
+            for (let year = endYear; year >= startYear; year--) {
+                for (let month = 12; month >= 1; month--) {
+                    const monthStr = `${String(month).padStart(2, '0')}月`;
+                    const value = `${year}年${monthStr}`;
+                    const option = document.createElement('option');
+                    option.value = value;
+                    option.textContent = value;
+                    select.appendChild(option);
+                }
+            }
+            
+            // 默认选中当前月
+            const currentMonth = getCurrentYearMonth();
+            for (let i = 0; i < select.options.length; i++) {
+                if (select.options[i].value === currentMonth) {
+                    select.options[i].selected = true;
+                    break;
+                }
+            }
+            
+            startBtn.disabled = false;
+        }
+        
+        // 发货年月变化时的处理
+        function onDeliveryMonthChange() {
+            const select = document.getElementById('deliveryMonthSelect');
+            const startBtn = document.getElementById('startDeliveryBtn');
+            const deliveryStatsArea = document.getElementById('deliveryStatsArea');
+            const deliveryChartArea = document.getElementById('deliveryChartArea');
+            
+            startBtn.disabled = select.value === '';
+            
+            // 隐藏统计区域和图表
+            deliveryStatsArea.style.display = 'none';
+            deliveryChartArea.innerHTML = `
+                <div class="delivery-chart-placeholder">
+                    选择年月后点击"查询发货数据"获取已发货金额和图表
+                </div>
+            `;
+        }
+        
+        // 显示加载动画
+        function showLoading(message) {
+            const existing = document.getElementById('loadingOverlay');
+            if (existing) existing.remove();
+            
+            const overlay = document.createElement('div');
+            overlay.id = 'loadingOverlay';
+            overlay.className = 'loading-overlay';
+            overlay.innerHTML = `
+                <div class="loading-spinner">
+                    <div class="spinner"></div>
+                    <div>${message || '加载中...'}</div>
+                </div>
+            `;
+            document.body.appendChild(overlay);
+        }
+        
+        // 隐藏加载动画
+        function hideLoading() {
+            const overlay = document.getElementById('loadingOverlay');
+            if (overlay) overlay.remove();
+        }
+        
+        // 获取月份的开始和结束日期
+        function getMonthDateRange(yearMonthStr) {
+            // yearMonthStr 格式: "2026年05月"
+            const match = yearMonthStr.match(/(\d{4})年(\d{1,2})月/);
+            if (!match) return null;
+            
+            const year = parseInt(match[1]);
+            const month = parseInt(match[2]) - 1; // JS月份是0-11
+            
+            const startDate = new Date(year, month, 1);
+            const endDate = new Date(year, month + 1, 0); // 该月最后一天
+            
+            const formatDate = (d) => {
+                return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            };
+            
+            return {
+                start: formatDate(startDate),
+                end: formatDate(endDate)
+            };
+        }
+        
+        // 判断是否是当前月
+        function isCurrentMonth(yearMonthStr) {
+            return yearMonthStr === getCurrentYearMonth();
+        }
+        
+        // 调用API获取发货数据
+        async function fetchDeliveryData() {
+            const select = document.getElementById('deliveryMonthSelect');
+            const selectedMonth = select.value;
+            
+            if (!selectedMonth) {
+                alert('请先选择发货年月');
+                return;
+            }
+            
+            showLoading('正在查询发货数据...');
+            
+            try {
+                // 计算日期范围
+                const now = new Date();
+                const currentMonth = getCurrentYearMonth();
+                let startDate, endDate;
+                
+                const dateRange = getMonthDateRange(selectedMonth);
+                if (!dateRange) {
+                    throw new Error('无效的年月格式');
+                }
+                
+                if (isCurrentMonth(selectedMonth)) {
+                    // 当前月：开始日期=当月1日，结束日期=昨天
+                    const year = now.getFullYear();
+                    const month = now.getMonth();
+                    startDate = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+                    
+                    // 昨天
+                    const yesterday = new Date(now);
+                    yesterday.setDate(yesterday.getDate() - 1);
+                    endDate = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
+                } else {
+                    // 非当月：使用该月的完整日期范围
+                    startDate = dateRange.start;
+                    endDate = dateRange.end;
+                }
+                
+                // 调用ERP API（通过本地代理解决CORS问题）
+                const apiUrl = '/api/dashboard/stats';
+                
+                const response = await fetch(`${apiUrl}?dashboard_type=delivery&start_date=${startDate}&end_date=${endDate}`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`API请求失败: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                hideLoading();
+                
+                // 处理返回数据
+                processDeliveryResponse(data, selectedMonth, startDate, endDate);
+                
+            } catch (error) {
+                hideLoading();
+                console.error('获取发货数据失败:', error);
+                alert('获取发货数据失败：' + error.message + '\n\n提示：请确保代理服务器已启动 (python3 erp_proxy_server.py)');
+                
+                // 即使API失败，也显示空的图表区域
+                showEmptyDeliveryChart(selectedMonth);
+            }
+        }
+        
+        // 计算指定年月的计划发货总金额
+        function getMonthPlanTotal(yearMonthStr) {
+            if (!processedData || !yearMonthStr) return 0;
+            
+            const filteredData = processedData.filter(row => row['统计项目'] === yearMonthStr);
+            if (filteredData.length === 0) return 0;
+            
+            let total = 0;
+            filteredData.forEach(row => {
+                total += parseFloat(row[COLUMNS.AMOUNT]) || 0;
+            });
+            
+            return total;
+        }
+        
+        // 处理发货API返回的数据
+        function processDeliveryResponse(data, selectedMonth, startDate, endDate) {
+            const deliveryStatsArea = document.getElementById('deliveryStatsArea');
+            const deliveredAmountEl = document.getElementById('deliveredAmount');
+            const estimatedAmountEl = document.getElementById('estimatedAmount');
+            const deliveryChartArea = document.getElementById('deliveryChartArea');
+            
+            // 解析数据
+            let totalDelivered = 0;
+            const dailyData = {};
+            
+            // 修正：ERP API返回的是 shipping_amount 和 daily_summary
+            if (data && typeof data.shipping_amount === 'number') {
+                totalDelivered = data.shipping_amount;
+            }
+            
+            // 解析每日数据
+            if (data && data.daily_summary && Array.isArray(data.daily_summary)) {
+                data.daily_summary.forEach(item => {
+                    const amount = parseFloat(item.amount || item.total_amount || 0);
+                    const dateStr = item.date || item.day_date;
+                    
+                    if (dateStr && amount) {
+                        // 日期格式: 2026-05-01 -> 提取 "1日"
+                        const dateParts = dateStr.split('-');
+                        if (dateParts.length === 3) {
+                            const day = parseInt(dateParts[2]);
+                            const dayKey = `${day}日`;
+                            dailyData[dayKey] = (dailyData[dayKey] || 0) + amount;
+                        }
+                    }
+                });
+            }
+            
+            // 显示统计区域
+            deliveryStatsArea.style.display = 'flex';
+            
+            // 显示已发货金额
+            deliveredAmountEl.textContent = formatCurrency(totalDelivered);
+            deliveredAmountEl.classList.remove('empty');
+            
+            // 计算当月预计发货金额
+            const monthlySelectValue = document.getElementById('monthYearSelect').value;
+            
+            if (isCurrentMonth(selectedMonth) && monthlySelectValue === selectedMonth) {
+                // 获取当月计划发货总金额
+                currentMonthPlanTotal = getMonthPlanTotal(selectedMonth);
+                
+                if (currentMonthPlanTotal > 0) {
+                    // 当月预计发货金额 = 已发货金额 + 计划金额
+                    const estimated = totalDelivered + currentMonthPlanTotal;
+                    estimatedAmountEl.textContent = formatCurrency(estimated);
+                    estimatedAmountEl.classList.remove('empty');
+                } else {
+                    estimatedAmountEl.textContent = '-';
+                    estimatedAmountEl.classList.add('empty');
+                }
+            } else {
+                // 非当前月或月内发货计划版块不是当前月，显示为空
+                estimatedAmountEl.textContent = '-';
+                estimatedAmountEl.classList.add('empty');
+            }
+            
+            // 绘制柱状图
+            if (Object.keys(dailyData).length > 0) {
+                const sortedDates = Object.keys(dailyData).sort((a, b) => {
+                    const aMatch = a.match(/(\d+)日/);
+                    const bMatch = b.match(/(\d+)日/);
+                    return parseInt(aMatch[1]) - parseInt(bMatch[1]);
+                });
+                
+                const chartHtml = `
+                    <div class="delivery-chart-container">
+                        <canvas id="deliveryChartCanvas"></canvas>
+                        <div class="monthly-total">已发货金额统计</div>
+                        <button class="download-delivery-chart-btn" id="downloadDeliveryChartBtn" onclick="downloadDeliveryChart()">
+                            ⬇️ 下载图片
+                        </button>
+                    </div>
+                `;
+                deliveryChartArea.innerHTML = chartHtml;
+                
+                // 绘制图表
+                setTimeout(() => {
+                    drawDeliveryBarChart(sortedDates, dailyData, selectedMonth);
+                }, 100);
+            } else {
+                showEmptyDeliveryChart(selectedMonth, '该时间段暂无发货数据');
+            }
+        }
+        
+        // 显示空的发货图表
+        function showEmptyDeliveryChart(selectedMonth, message) {
+            const deliveryStatsArea = document.getElementById('deliveryStatsArea');
+            const deliveredAmountEl = document.getElementById('deliveredAmount');
+            const estimatedAmountEl = document.getElementById('estimatedAmount');
+            const deliveryChartArea = document.getElementById('deliveryChartArea');
+            
+            deliveryStatsArea.style.display = 'flex';
+            deliveredAmountEl.textContent = '0.00万';
+            deliveredAmountEl.classList.remove('empty');
+            
+            // 计算当月预计发货金额
+            const monthlySelectValue = document.getElementById('monthYearSelect').value;
+            
+            if (isCurrentMonth(selectedMonth) && monthlySelectValue === selectedMonth) {
+                // 获取当月计划发货总金额
+                currentMonthPlanTotal = getMonthPlanTotal(selectedMonth);
+                
+                if (currentMonthPlanTotal > 0) {
+                    estimatedAmountEl.textContent = formatCurrency(currentMonthPlanTotal);
+                    estimatedAmountEl.classList.remove('empty');
+                } else {
+                    estimatedAmountEl.textContent = '-';
+                    estimatedAmountEl.classList.add('empty');
+                }
+            } else {
+                estimatedAmountEl.textContent = '-';
+                estimatedAmountEl.classList.add('empty');
+            }
+            
+            deliveryChartArea.innerHTML = `
+                <div class="delivery-chart-placeholder">
+                    ${message || '选择年月后点击"查询发货数据"获取已发货金额和图表'}
+                </div>
+            `;
+        }
+        
+        // 绘制发货金额柱状图（绿色系）
+        function drawDeliveryBarChart(dates, amounts, monthLabel) {
+            const canvas = document.getElementById('deliveryChartCanvas');
+            if (!canvas) return;
+            
+            const ctx = canvas.getContext('2d');
+            
+            // 画布尺寸设置
+            const numBars = dates.length;
+            const barWidth = Math.min(60, Math.max(30, 800 / numBars - 20));
+            const barGap = Math.min(15, barWidth * 0.3);
+            const chartWidth = numBars * (barWidth + barGap) + 100;
+            const chartHeight = 400;
+            const labelHeight = 50;
+            const titleHeight = 50;
+            
+            canvas.width = chartWidth;
+            canvas.height = chartHeight + titleHeight + labelHeight;
+            
+            // 背景
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // 标题
+            ctx.fillStyle = '#333333';
+            ctx.font = 'bold 20px Microsoft YaHei, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(`${monthLabel} 每日已发货金额统计`, canvas.width / 2, 35);
+            
+            // 计算最大值
+            const maxAmount = Math.max(...Object.values(amounts));
+            const yAxisMax = Math.ceil(maxAmount / 10000) * 10000 || 10000;
+            
+            // 图表区域
+            const chartLeft = 60;
+            const chartTop = titleHeight + 10;
+            const chartRight = canvas.width - 40;
+            const chartBottom = chartTop + chartHeight;
+            const chartAreaWidth = chartRight - chartLeft;
+            const chartAreaHeight = chartHeight;
+            
+            // 绘制Y轴
+            ctx.strokeStyle = '#cccccc';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(chartLeft, chartTop);
+            ctx.lineTo(chartLeft, chartBottom);
+            ctx.stroke();
+            
+            // Y轴刻度和网格线
+            const yTicks = 5;
+            ctx.font = '12px Microsoft YaHei, sans-serif';
+            ctx.fillStyle = '#666666';
+            ctx.textAlign = 'right';
+            
+            for (let i = 0; i <= yTicks; i++) {
+                const yValue = (yAxisMax / yTicks) * (yTicks - i);
+                const yPos = chartTop + (chartAreaHeight / yTicks) * i;
+                
+                ctx.fillText(formatCurrency(yValue), chartLeft - 8, yPos + 4);
+                
+                ctx.strokeStyle = '#e0e0e0';
+                ctx.beginPath();
+                ctx.moveTo(chartLeft, yPos);
+                ctx.lineTo(chartRight, yPos);
+                ctx.stroke();
+            }
+            
+            // 绘制柱状图（绿色系）
+            const startX = chartLeft + 20;
+            const maxBarHeight = chartAreaHeight - 30;
+            
+            // 绿色渐变色
+            const gradient = ctx.createLinearGradient(0, chartTop, 0, chartBottom);
+            gradient.addColorStop(0, '#4caf50');
+            gradient.addColorStop(1, '#2e7d32');
+            
+            dates.forEach((date, index) => {
+                const x = startX + index * (barWidth + barGap);
+                const amount = amounts[date];
+                const barHeight = (amount / yAxisMax) * maxBarHeight;
+                const barY = chartBottom - barHeight;
+                
+                // 绘制柱子
+                ctx.fillStyle = gradient;
+                ctx.fillRect(x, barY, barWidth, barHeight);
+                
+                // 柱子顶部金额
+                ctx.fillStyle = '#333333';
+                ctx.font = 'bold 11px Microsoft YaHei, sans-serif';
+                ctx.textAlign = 'center';
+                const displayAmount = amount >= 10000 ? (amount / 10000).toFixed(1) + '万' : amount.toFixed(0);
+                ctx.fillText(displayAmount, x + barWidth / 2, barY - 5);
+                
+                // X轴标签（日期）
+                ctx.fillStyle = '#666666';
+                ctx.font = '11px Microsoft YaHei, sans-serif';
+                ctx.save();
+                ctx.translate(x + barWidth / 2, chartBottom + 15);
+                ctx.rotate(-Math.PI / 6);
+                ctx.textAlign = 'right';
+                ctx.fillText(date, 0, 0);
+                ctx.restore();
+            });
+            
+            // 保存当前图表DataURL供下载
+            canvas.chartDataUrl = canvas.toDataURL('image/png');
+        }
+        
+        // 下载发货柱状图
+        function downloadDeliveryChart() {
+            const canvas = document.getElementById('deliveryChartCanvas');
+            if (!canvas || !canvas.chartDataUrl) {
+                alert('图表尚未生成，请先生成图表');
+                return;
+            }
+            
+            const link = document.createElement('a');
+            link.download = `本月已发货金额统计.png`;
+            link.href = canvas.chartDataUrl;
+            link.click();
+        }
+        
+        // 重置发货模块
+        function resetDeliveryChart() {
+            const select = document.getElementById('deliveryMonthSelect');
+            const startBtn = document.getElementById('startDeliveryBtn');
+            const statsArea = document.getElementById('deliveryStatsArea');
+            const chartArea = document.getElementById('deliveryChartArea');
+            
+            select.innerHTML = '<option value="">-- 请选择年月 --</option>';
+            startBtn.disabled = true;
+            statsArea.style.display = 'none';
+            chartArea.innerHTML = `
+                <div class="delivery-chart-placeholder">
+                    选择年月后点击"查询发货数据"获取已发货金额和图表
+                </div>
+            `;
+            
+            currentMonthPlanTotal = 0;
+        }
+        
+        // 监听月内发货计划金额统计的年月选择变化，更新预计发货金额
+        document.getElementById('monthYearSelect').addEventListener('change', function() {
+            // 如果当前已有发货数据，重新计算预计金额
+            const deliveryStatsArea = document.getElementById('deliveryStatsArea');
+            if (deliveryStatsArea && deliveryStatsArea.style.display !== 'none') {
+                // 重新获取已发货金额并计算
+                const deliveredAmountEl = document.getElementById('deliveredAmount');
+                const estimatedAmountEl = document.getElementById('estimatedAmount');
+                const deliverySelect = document.getElementById('deliveryMonthSelect');
+                
+                if (!deliveredAmountEl || !estimatedAmountEl || !deliverySelect) return;
+                
+                const selectedMonth = deliverySelect.value;
+                const monthlySelectedMonth = this.value;
+                
+                if (isCurrentMonth(selectedMonth) && monthlySelectedMonth === selectedMonth) {
+                    // 重新计算计划总金额
+                    currentMonthPlanTotal = getMonthPlanTotal(selectedMonth);
+                    
+                    if (currentMonthPlanTotal > 0) {
+                        // 从已发货金额文本中提取数值
+                        const deliveredText = deliveredAmountEl.textContent;
+                        const match = deliveredText.match(/([\d.]+)/);
+                        let delivered = 0;
+                        if (match) {
+                            delivered = parseFloat(match[1]);
+                            if (deliveredText.includes('万')) {
+                                delivered *= 10000;
+                            }
+                        }
+                        const estimated = delivered + currentMonthPlanTotal;
+                        estimatedAmountEl.textContent = formatCurrency(estimated);
+                        estimatedAmountEl.classList.remove('empty');
+                    } else {
+                        estimatedAmountEl.textContent = '-';
+                        estimatedAmountEl.classList.add('empty');
+                    }
+                } else {
+                    estimatedAmountEl.textContent = '-';
+                    estimatedAmountEl.classList.add('empty');
+                }
+            }
+        });
+        
+        // 页面加载后初始化发货年月下拉框
+        document.addEventListener('DOMContentLoaded', function() {
+            // 延迟初始化，确保月内发货计划金额统计的选项已填充
+            setTimeout(() => {
+                populateDeliveryMonthSelect();
+            }, 100);
+            
+            // 监听重置按钮点击，同步重置发货模块
+            const originalResetAll = window.resetAll;
+            window.resetAll = function() {
+                // 调用原始重置函数
+                if (typeof originalResetAll === 'function') {
+                    originalResetAll();
+                }
+                // 重置发货模块
+                resetDeliveryChart();
+            };
+            
+            // 监听月内发货计划金额统计的重置函数
+            const originalResetMonthlyChart = window.resetMonthlyChart;
+            window.resetMonthlyChart = function() {
+                // 调用原始重置函数
+                if (typeof originalResetMonthlyChart === 'function') {
+                    originalResetMonthlyChart();
+                }
+                // 重置发货模块
+                resetDeliveryChart();
+            };
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html tk="title_web_workers_advanced_patt" lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Web Workers Advanced Patterns Playground</title>
+<meta name="description" content="Interactive demos of Web Worker patterns: computation offloading, message passing, worker pools, and SharedWorker concepts.">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a0a;color:#e0e0e0;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;line-height:1.6}
+h1{text-align:center;padding:2rem 1rem 0.5rem;font-size:2rem;background:linear-gradient(135deg,#ff6f00,#ff4081);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.subtitle{text-align:center;color:#888;margin-bottom:2rem;font-size:0.95rem}
+
+.tab-bar{display:flex;gap:0;border-bottom:2px solid #1e1e1e;padding:0 1rem;overflow-x:auto}
+.tab-bar button{background:none;border:none;color:#888;padding:0.75rem 1.25rem;cursor:pointer;font-size:0.9rem;white-space:nowrap;border-bottom:2px solid transparent;margin-bottom:-2px;transition:color 0.2s,border-color 0.2s}
+.tab-bar button:hover{color:#bbb}
+.tab-bar button.active{color:#ff6f00;border-bottom-color:#ff6f00}
+
+.panel{display:none;padding:1.5rem;max-width:1100px;margin:0 auto}
+.panel.active{display:block}
+
+h2{font-size:1.5rem;color:#fff;margin-bottom:0.5rem}
+h3{font-size:1.1rem;color:#ddd;margin:1.5rem 0 0.75rem}
+.desc{color:#aaa;margin-bottom:1.5rem;font-size:0.95rem;line-height:1.7}
+
+/* Demo area */
+.demo-area{background:#111;border:1px solid #2a2a2a;border-radius:12px;padding:1.5rem;margin-bottom:1.5rem}
+.demo-controls{display:flex;gap:0.75rem;flex-wrap:wrap;align-items:center;margin-bottom:1rem}
+.btn{padding:0.5rem 1.25rem;border:none;border-radius:8px;cursor:pointer;font-size:0.85rem;font-weight:600;transition:opacity 0.2s}
+.btn:hover{opacity:0.85}
+.btn:disabled{opacity:0.4;cursor:not-allowed}
+.btn-primary{background:#ff6f00;color:#fff}
+.btn-secondary{background:#333;color:#ddd}
+.btn-danger{background:#c62828;color:#fff}
+.btn-success{background:#2e7d32;color:#fff}
+
+select,input[type=number]{background:#1a1a1a;border:1px solid #333;color:#e0e0e0;padding:0.5rem 0.75rem;border-radius:8px;font-size:0.85rem}
+select:focus,input:focus{outline:none;border-color:#ff6f00}
+label{font-size:0.85rem;color:#aaa}
+
+/* Results */
+.result-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:1rem}
+.result-card{background:#0d0d0d;border:1px solid #2a2a2a;border-radius:8px;padding:1rem}
+.result-card h4{font-size:0.85rem;color:#888;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.5rem}
+.result-value{font-size:1.5rem;font-weight:700;font-family:'Fira Code',monospace}
+.result-value.fast{color:#66bb6a}
+.result-value.slow{color:#ef5350}
+.result-value.neutral{color:#42a5f5}
+
+/* Animation canvas */
+.animation-row{display:flex;gap:1rem;margin-top:1rem}
+.anim-box{flex:1;background:#0d0d0d;border:1px solid #2a2a2a;border-radius:8px;padding:0.75rem;text-align:center}
+.anim-box h4{font-size:0.8rem;color:#888;margin-bottom:0.5rem}
+.spinner{width:40px;height:40px;border:3px solid #333;border-top-color:#ff6f00;border-radius:50%;margin:0 auto;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.blocked .spinner{animation-play-state:paused;border-top-color:#ef5350}
+.status-dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:0.5rem}
+.dot-green{background:#66bb6a}
+.dot-red{background:#ef5350}
+.dot-yellow{background:#ffa726}
+
+/* Log */
+.log-box{background:#0d0d0d;border:1px solid #2a2a2a;border-radius:8px;margin-top:1rem;max-height:200px;overflow-y:auto;font-family:'Fira Code',monospace;font-size:0.8rem}
+.log-box .log-entry{padding:0.35rem 0.75rem;border-bottom:1px solid #1a1a1a}
+.log-box .log-entry:last-child{border-bottom:none}
+.log-time{color:#555}
+.log-worker{color:#ff6f00}
+.log-main{color:#42a5f5}
+.log-pool{color:#ce93d8}
+
+/* Code block */
+.code-block{background:#0d0d0d;border:1px solid #2a2a2a;border-radius:12px;overflow:hidden;margin-bottom:1.5rem}
+.code-header{display:flex;justify-content:space-between;align-items:center;padding:0.75rem 1rem;background:#151515;border-bottom:1px solid #2a2a2a}
+.code-header span{font-size:0.8rem;color:#888}
+.copy-btn{background:#222;border:1px solid #333;color:#aaa;padding:0.3rem 0.75rem;border-radius:6px;cursor:pointer;font-size:0.75rem;transition:background 0.2s}
+.copy-btn:hover{background:#333;color:#fff}
+pre{padding:1rem;overflow-x:auto;font-family:'Fira Code','Cascadia Code','SF Mono',Consolas,monospace;font-size:0.82rem;line-height:1.65;color:#c5c8c6;tab-size:2}
+.kw{color:#c678dd}.fn{color:#61afef}.st{color:#98c379}.cm{color:#5c6370;font-style:italic}.nu{color:#d19a66}.op{color:#56b6c2}
+
+/* Worker pool viz */
+.pool-viz{display:flex;gap:0.5rem;flex-wrap:wrap;margin:1rem 0}
+.pool-worker{width:60px;height:60px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-direction:column;font-size:0.7rem;font-weight:600;transition:all 0.3s}
+.pool-idle{background:#1a1a1a;border:1px solid #333;color:#666}
+.pool-busy{background:#1b3a1b;border:1px solid #2e7d32;color:#66bb6a}
+.pool-done{background:#1a237e;border:1px solid #3949ab;color:#7986cb}
+.pool-worker .pool-label{font-size:0.65rem;color:#555;margin-top:2px}
+
+/* Message viz */
+.msg-viz{display:flex;align-items:center;gap:1rem;padding:1rem;flex-wrap:wrap;justify-content:center}
+.msg-box{padding:0.75rem 1rem;border-radius:8px;font-size:0.85rem;min-width:100px;text-align:center}
+.msg-main{background:#0d47a1;color:#42a5f5;border:1px solid #1565c0}
+.msg-worker{background:#e65100;color:#ffb74d;border:1px solid #f57c00}
+.msg-arrow{color:#555;font-size:1.5rem}
+.msg-data{background:#111;border:1px solid #2a2a2a;border-radius:6px;padding:0.5rem;font-family:monospace;font-size:0.75rem;color:#98c379;max-width:200px;word-break:break-all}
+
+/* Transfer comparison */
+.transfer-table{width:100%;border-collapse:collapse;margin:1rem 0}
+.transfer-table th,.transfer-table td{padding:0.6rem 1rem;text-align:left;border-bottom:1px solid #1e1e1e;font-size:0.85rem}
+.transfer-table th{color:#888;font-weight:500}
+.transfer-table td{color:#ddd}
+.transfer-table .highlight-row{background:#111}
+
+@media(max-width:600px){
+  .result-grid{grid-template-columns:1fr}
+  .animation-row{flex-direction:column}
+  h1{font-size:1.5rem}
+  .tab-bar button{padding:0.6rem 0.75rem;font-size:0.8rem}
+}
+</style>
+</head>
+<body>
+
+
+
+<h1 ti="h1_web_workers_advanced_patt">Web Workers Advanced Patterns</h1>
+<p class="subtitle" ti="subtitle_interactive_demos_with_re">Interactive demos with real Worker execution via Blob URLs</p>
+
+<div class="tab-bar" id="tabs">
+  <button class="active" data-tab="computation" ti="btn_heavy_computation">Heavy Computation</button>
+  <button data-tab="messaging" ti="btn_message_passing">Message Passing</button>
+  <button data-tab="pool" ti="btn_worker_pool">Worker Pool</button>
+  <button data-tab="concepts">SharedWorker &amp; Concepts</button>
+</div>
+
+<!-- Demo 1: Heavy Computation -->
+<div class="panel active" id="computation">
+  <h2 ti="h2_heavy_computation_offload">Heavy Computation Offloading</h2>
+  <p class="desc">Run expensive calculations on the main thread vs. a Web Worker. Watch the spinner &mdash; if it freezes, the main thread is blocked. Workers keep the UI responsive.</p>
+
+  <div class="demo-area">
+    <div class="demo-controls">
+      <label ti="label_algorithm">Algorithm:</label>
+      <select id="comp-algo">
+        <option value="fibonacci">Fibonacci (recursive)</option>
+        <option value="primes">Prime Sieve</option>
+      </select>
+      <label ti="label_n">N:</label>
+      <input type="number" id="comp-n" value="40" min="1" max="100000" style="width:100px">
+      <button class="btn btn-danger" id="comp-main-btn" onclick="runMainThread()" ti="btn_run_on_main_thread">Run on Main Thread</button>
+      <button class="btn btn-success" id="comp-worker-btn" onclick="runOnWorker()" ti="btn_run_on_worker">Run on Worker</button>
+    </div>
+
+    <div class="animation-row">
+      <div class="anim-box" id="main-anim">
+        <h4>Main Thread UI</h4>
+        <div class="spinner"></div>
+        <p style="margin-top:0.5rem;font-size:0.8rem;color:#888" id="main-status"><span class="status-dot dot-green"></span>Responsive</p>
+      </div>
+      <div class="anim-box">
+        <h4>Counter (main thread)</h4>
+        <div id="counter-display" style="font-size:2rem;font-weight:700;color:#42a5f5;font-family:monospace">0</div>
+        <p style="font-size:0.75rem;color:#666;margin-top:0.25rem">Increments every 100ms if not blocked</p>
+      </div>
+    </div>
+
+    <div class="result-grid">
+      <div class="result-card">
+        <h4>Main Thread Result</h4>
+        <div class="result-value slow" id="main-result">--</div>
+        <p style="font-size:0.75rem;color:#666;margin-top:0.25rem" id="main-time"></p>
+      </div>
+      <div class="result-card">
+        <h4>Worker Result</h4>
+        <div class="result-value fast" id="worker-result">--</div>
+        <p style="font-size:0.75rem;color:#666;margin-top:0.25rem" id="worker-time"></p>
+      </div>
+    </div>
+  </div>
+
+  <div class="code-block">
+    <div class="code-header"><span>Worker via Blob URL</span><button class="copy-btn" onclick="copyCode(this)" ti="btn_copy" ti="btn_copy_2" ti="btn_copy_3" ti="btn_copy_4" ti="btn_copy_5" ti="btn_copy_6">Copy</button></div>
+<pre><span class="cm">// Create a Worker from inline code using a Blob URL</span>
+<span class="kw">const</span> workerCode = <span class="st">`
+  function fibonacci(n) {
+    if (n <= 1) return n;
+    return fibonacci(n - 1) + fibonacci(n - 2);
+  }
+
+  self.onmessage = (e) => {
+    const { algo, n } = e.data;
+    const start = performance.now();
+    let result;
+
+    if (algo === 'fibonacci') {
+      result = fibonacci(n);
+    } else if (algo === 'primes') {
+      result = sieveOfEratosthenes(n);
+    }
+
+    self.postMessage({
+      result,
+      time: performance.now() - start
+    });
+  };
+`</span>;
+
+<span class="kw">const</span> blob = <span class="kw">new</span> Blob([workerCode], { type: <span class="st">'application/javascript'</span> });
+<span class="kw">const</span> worker = <span class="kw">new</span> Worker(URL.createObjectURL(blob));
+
+<span class="cm">// Send work to the worker</span>
+worker.postMessage({ algo: <span class="st">'fibonacci'</span>, n: <span class="nu">42</span> });
+
+<span class="cm">// Receive results (main thread stays responsive!)</span>
+worker.onmessage = (e) =&gt; {
+  console.log(<span class="st">`Result: ${e.data.result}, Time: ${e.data.time}ms`</span>);
+};
+
+<span class="cm">// Clean up when done</span>
+<span class="cm">// worker.terminate();</span></pre>
+  </div>
+</div>
+
+<!-- Demo 2: Message Passing -->
+<div class="panel" id="messaging">
+  <h2 ti="h2_message_passing_patterns">Message Passing Patterns</h2>
+  <p class="desc">Web Workers communicate via <code>postMessage()</code>. Data is cloned by default (structured clone), but for large data (ArrayBuffers, etc.) you can transfer ownership for zero-copy performance.</p>
+
+  <h3 ti="h3_structured_clone_vs_trans">Structured Clone vs. Transferable Objects</h3>
+  <div class="demo-area">
+    <div class="demo-controls">
+      <label ti="label_buffer_size">Buffer size:</label>
+      <select id="msg-size">
+        <option value="1">1 MB</option>
+        <option value="10" selected>10 MB</option>
+        <option value="50">50 MB</option>
+        <option value="100">100 MB</option>
+      </select>
+      <button class="btn btn-primary" onclick="runCloneTest()" ti="btn_structured_clone" ti="th_structured_clone">Structured Clone</button>
+      <button class="btn btn-success" onclick="runTransferTest()" ti="btn_transfer">Transfer</button>
+    </div>
+
+    <div class="result-grid">
+      <div class="result-card">
+        <h4>Structured Clone</h4>
+        <div class="result-value neutral" id="clone-time">--</div>
+        <p style="font-size:0.75rem;color:#666;margin-top:0.25rem" id="clone-info">Data is copied (both sides have a copy)</p>
+      </div>
+      <div class="result-card">
+        <h4>Transferable</h4>
+        <div class="result-value fast" id="transfer-time">--</div>
+        <p style="font-size:0.75rem;color:#666;margin-top:0.25rem" id="transfer-info">Ownership moves (sender loses access)</p>
+      </div>
+    </div>
+
+    <table class="transfer-table">
+      <thead><tr><th ti="th_feature" ti="th_feature_2">Feature</th><th>Structured Clone</th><th ti="th_transferable">Transferable</th></tr></thead>
+      <tbody>
+        <tr><td>Data copied?</td><td>Yes (deep copy)</td><td>No (ownership transfer)</td></tr>
+        <tr><td>Sender retains data?</td><td>Yes</td><td>No (neutered)</td></tr>
+        <tr class="highlight-row"><td>Speed for large data</td><td>Slow (proportional to size)</td><td>Near-instant (O(1))</td></tr>
+        <tr><td>Supported types</td><td>Most JS types</td><td>ArrayBuffer, MessagePort, etc.</td></tr>
+        <tr><td>Use case</td><td>Small/medium data</td><td>Large buffers, off-screen canvas</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 ti="h3_message_protocol_pattern">Message Protocol Pattern</h3>
+  <div class="demo-area">
+    <div class="msg-viz">
+      <div class="msg-box msg-main">Main Thread</div>
+      <div>
+        <div class="msg-arrow">&rarr;</div>
+        <div class="msg-data">{ type: "COMPUTE", payload: { ... } }</div>
+      </div>
+      <div class="msg-box msg-worker">Worker</div>
+    </div>
+    <div class="msg-viz">
+      <div class="msg-box msg-worker">Worker</div>
+      <div>
+        <div class="msg-arrow">&rarr;</div>
+        <div class="msg-data">{ type: "RESULT", payload: { ... } }</div>
+      </div>
+      <div class="msg-box msg-main">Main Thread</div>
+    </div>
+  </div>
+
+  <div class="code-block">
+    <div class="code-header"><span>Structured Clone vs Transfer</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+<pre><span class="cm">// Structured Clone (default): data is deep-copied</span>
+<span class="kw">const</span> buffer = <span class="kw">new</span> ArrayBuffer(<span class="nu">1024</span> * <span class="nu">1024</span> * <span class="nu">10</span>); <span class="cm">// 10MB</span>
+worker.postMessage({ data: buffer });
+console.log(buffer.byteLength); <span class="cm">// 10485760 &mdash; still accessible</span>
+
+<span class="cm">// Transferable: ownership is moved, zero-copy</span>
+<span class="kw">const</span> buffer2 = <span class="kw">new</span> ArrayBuffer(<span class="nu">1024</span> * <span class="nu">1024</span> * <span class="nu">10</span>);
+worker.postMessage({ data: buffer2 }, [buffer2]);
+console.log(buffer2.byteLength); <span class="cm">// 0 &mdash; neutered! Can't use anymore</span>
+
+<span class="cm">// Type-safe message protocol</span>
+<span class="cm">// Main thread:</span>
+worker.postMessage({ type: <span class="st">'COMPUTE'</span>, payload: { n: <span class="nu">42</span> } });
+worker.onmessage = (e) =&gt; {
+  <span class="kw">switch</span> (e.data.type) {
+    <span class="kw">case</span> <span class="st">'RESULT'</span>:
+      updateUI(e.data.payload);
+      <span class="kw">break</span>;
+    <span class="kw">case</span> <span class="st">'PROGRESS'</span>:
+      updateProgressBar(e.data.payload.percent);
+      <span class="kw">break</span>;
+    <span class="kw">case</span> <span class="st">'ERROR'</span>:
+      showError(e.data.payload.message);
+      <span class="kw">break</span>;
+  }
+};
+
+<span class="cm">// Worker:</span>
+self.onmessage = (e) =&gt; {
+  <span class="kw">const</span> { type, payload } = e.data;
+  <span class="kw">if</span> (type === <span class="st">'COMPUTE'</span>) {
+    <span class="kw">for</span> (<span class="kw">let</span> i = <span class="nu">0</span>; i &lt; payload.n; i++) {
+      <span class="cm">// Report progress</span>
+      self.postMessage({ type: <span class="st">'PROGRESS'</span>, payload: { percent: i / payload.n } });
+    }
+    self.postMessage({ type: <span class="st">'RESULT'</span>, payload: { value: <span class="nu">42</span> } });
+  }
+};</pre>
+  </div>
+</div>
+
+<!-- Demo 3: Worker Pool -->
+<div class="panel" id="pool">
+  <h2 ti="h2_worker_pool_pattern">Worker Pool Pattern</h2>
+  <p class="desc" ti="subtitle_instead_of_creating_and_d">Instead of creating and destroying workers for each task, maintain a pool of reusable workers. Tasks are queued and dispatched to idle workers. This reduces creation overhead and limits resource usage.</p>
+
+  <div class="demo-area">
+    <div class="demo-controls">
+      <label ti="label_pool_size">Pool size:</label>
+      <input type="number" id="pool-size" value="4" min="1" max="8" style="width:70px">
+      <label ti="label_tasks">Tasks:</label>
+      <input type="number" id="pool-tasks" value="12" min="1" max="50" style="width:70px">
+      <button class="btn btn-primary" id="pool-run-btn" onclick="runPool()" ti="btn_run_pool_demo">Run Pool Demo</button>
+      <button class="btn btn-secondary" onclick="resetPool()" ti="btn_reset">Reset</button>
+    </div>
+
+    <h4 style="font-size:0.85rem;color:#888;margin-bottom:0.5rem">Worker Status</h4>
+    <div class="pool-viz" id="pool-viz"></div>
+
+    <div class="result-grid">
+      <div class="result-card">
+        <h4>Tasks Completed</h4>
+        <div class="result-value neutral" id="pool-completed">0 / 0</div>
+      </div>
+      <div class="result-card">
+        <h4>Total Time</h4>
+        <div class="result-value neutral" id="pool-time">--</div>
+      </div>
+    </div>
+
+    <div class="log-box" id="pool-log"></div>
+  </div>
+
+  <div class="code-block">
+    <div class="code-header"><span>Worker Pool Implementation</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+<pre><span class="kw">class</span> <span class="fn">WorkerPool</span> {
+  <span class="kw">constructor</span>(workerScript, size = navigator.hardwareConcurrency || <span class="nu">4</span>) {
+    <span class="kw">this</span>.size = size;
+    <span class="kw">this</span>.workers = [];
+    <span class="kw">this</span>.queue = [];
+    <span class="kw">this</span>.activeMap = <span class="kw">new</span> Map();
+
+    <span class="cm">// Create workers</span>
+    <span class="kw">for</span> (<span class="kw">let</span> i = <span class="nu">0</span>; i &lt; size; i++) {
+      <span class="kw">const</span> worker = <span class="kw">new</span> Worker(workerScript);
+      worker.id = i;
+      <span class="kw">this</span>.workers.push({ worker, busy: <span class="kw">false</span> });
+    }
+  }
+
+  <span class="cm">// Submit a task and get a Promise back</span>
+  <span class="fn">exec</span>(data) {
+    <span class="kw">return new</span> Promise((resolve, reject) =&gt; {
+      <span class="kw">const</span> task = { data, resolve, reject };
+      <span class="kw">const</span> idle = <span class="kw">this</span>.workers.find((w) =&gt; !w.busy);
+
+      <span class="kw">if</span> (idle) {
+        <span class="kw">this</span>._dispatch(idle, task);
+      } <span class="kw">else</span> {
+        <span class="kw">this</span>.queue.push(task); <span class="cm">// Queue if all busy</span>
+      }
+    });
+  }
+
+  <span class="fn">_dispatch</span>(slot, task) {
+    slot.busy = <span class="kw">true</span>;
+    <span class="kw">this</span>.activeMap.set(slot.worker, task);
+
+    slot.worker.onmessage = (e) =&gt; {
+      task.resolve(e.data);
+      slot.busy = <span class="kw">false</span>;
+      <span class="kw">this</span>.activeMap.delete(slot.worker);
+
+      <span class="cm">// Pick next task from queue</span>
+      <span class="kw">if</span> (<span class="kw">this</span>.queue.length &gt; <span class="nu">0</span>) {
+        <span class="kw">this</span>._dispatch(slot, <span class="kw">this</span>.queue.shift());
+      }
+    };
+
+    slot.worker.onerror = (err) =&gt; {
+      task.reject(err);
+      slot.busy = <span class="kw">false</span>;
+    };
+
+    slot.worker.postMessage(task.data);
+  }
+
+  <span class="fn">terminate</span>() {
+    <span class="kw">this</span>.workers.forEach((w) =&gt; w.worker.terminate());
+  }
+}
+
+<span class="cm">// Usage:</span>
+<span class="kw">const</span> pool = <span class="kw">new</span> WorkerPool(<span class="st">'compute-worker.js'</span>, <span class="nu">4</span>);
+
+<span class="kw">const</span> tasks = Array.from({ length: <span class="nu">12</span> }, (_, i) =&gt;
+  pool.exec({ taskId: i, n: <span class="nu">35</span> + Math.floor(Math.random() * <span class="nu">5</span>) })
+);
+
+Promise.all(tasks).then((results) =&gt; {
+  console.log(<span class="st">'All tasks complete'</span>, results);
+  pool.terminate();
+});</pre>
+  </div>
+</div>
+
+<!-- SharedWorker & Concepts -->
+<div class="panel" id="concepts">
+  <h2>SharedWorker &amp; Advanced Concepts</h2>
+  <p class="desc" ti="subtitle_sharedworkers_are_shared">SharedWorkers are shared across all tabs/windows of the same origin. They're useful for shared state, broadcast communication, and resource deduplication. Note: SharedWorker support varies (not available in all browsers).</p>
+
+  <div class="demo-area">
+    <h3 style="margin-top:0" ti="h3_worker_types_comparison">Worker Types Comparison</h3>
+    <table class="transfer-table">
+      <thead><tr><th>Feature</th><th ti="th_worker">Worker</th><th ti="th_sharedworker">SharedWorker</th></tr></thead>
+      <tbody>
+        <tr><td>Scope</td><td>Single page</td><td>All same-origin pages</td></tr>
+        <tr><td>Communication</td><td>Direct postMessage</td><td>Via MessagePort</td></tr>
+        <tr><td>Use case</td><td>Computation, background tasks</td><td>Cross-tab state, WebSocket sharing</td></tr>
+        <tr><td>Lifecycle</td><td>Dies with page</td><td>Lives until last tab closes</td></tr>
+        <tr class="highlight-row"><td>Browser support</td><td>All modern browsers</td><td>Chrome, Firefox, Edge (not Safari)</td></tr>
+        <tr><td>DevTools</td><td>Sources &gt; Threads</td><td>chrome://inspect/#workers</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="code-block">
+    <div class="code-header"><span>SharedWorker &mdash; Cross-Tab Communication</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+<pre><span class="cm">// shared-worker.js</span>
+<span class="kw">const</span> ports = <span class="kw">new</span> Set();
+
+self.onconnect = (e) =&gt; {
+  <span class="kw">const</span> port = e.ports[<span class="nu">0</span>];
+  ports.add(port);
+
+  port.onmessage = (event) =&gt; {
+    <span class="kw">const</span> { type, data } = event.data;
+
+    <span class="kw">switch</span> (type) {
+      <span class="kw">case</span> <span class="st">'BROADCAST'</span>:
+        <span class="cm">// Send to all connected tabs except sender</span>
+        ports.forEach((p) =&gt; {
+          <span class="kw">if</span> (p !== port) {
+            p.postMessage({ type: <span class="st">'BROADCAST'</span>, data });
+          }
+        });
+        <span class="kw">break</span>;
+
+      <span class="kw">case</span> <span class="st">'GET_TAB_COUNT'</span>:
+        port.postMessage({ type: <span class="st">'TAB_COUNT'</span>, data: ports.size });
+        <span class="kw">break</span>;
+    }
+  };
+
+  port.start();
+
+  <span class="cm">// Notify all tabs about new connection</span>
+  ports.forEach((p) =&gt; {
+    p.postMessage({ type: <span class="st">'TAB_COUNT'</span>, data: ports.size });
+  });
+};
+
+<span class="cm">// main.js &mdash; connecting to SharedWorker</span>
+<span class="kw">const</span> shared = <span class="kw">new</span> SharedWorker(<span class="st">'shared-worker.js'</span>);
+shared.port.start();
+
+shared.port.postMessage({ type: <span class="st">'BROADCAST'</span>, data: <span class="st">'Hello from tab!'</span> });
+
+shared.port.onmessage = (e) =&gt; {
+  console.log(<span class="st">'Received:'</span>, e.data);
+};</pre>
+  </div>
+
+  <div class="code-block">
+    <div class="code-header"><span>SharedWorker &mdash; Shared WebSocket</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+<pre><span class="cm">// shared-ws-worker.js &mdash; one WebSocket shared across all tabs</span>
+<span class="kw">let</span> ws = <span class="kw">null</span>;
+<span class="kw">const</span> ports = <span class="kw">new</span> Set();
+
+<span class="kw">function</span> <span class="fn">connectWS</span>() {
+  ws = <span class="kw">new</span> WebSocket(<span class="st">'wss://api.example.com/ws'</span>);
+
+  ws.onmessage = (event) =&gt; {
+    <span class="cm">// Broadcast to all tabs</span>
+    ports.forEach((port) =&gt; {
+      port.postMessage({ type: <span class="st">'WS_MESSAGE'</span>, data: event.data });
+    });
+  };
+
+  ws.onclose = () =&gt; {
+    <span class="cm">// Reconnect after 3 seconds</span>
+    setTimeout(connectWS, <span class="nu">3000</span>);
+  };
+}
+
+self.onconnect = (e) =&gt; {
+  <span class="kw">const</span> port = e.ports[<span class="nu">0</span>];
+  ports.add(port);
+
+  port.onmessage = (event) =&gt; {
+    <span class="kw">if</span> (event.data.type === <span class="st">'WS_SEND'</span> &amp;&amp; ws?.readyState === WebSocket.OPEN) {
+      ws.send(event.data.payload);
+    }
+  };
+
+  port.start();
+
+  <span class="cm">// Connect WebSocket on first tab</span>
+  <span class="kw">if</span> (!ws) connectWS();
+};</pre>
+  </div>
+
+  <div class="code-block">
+    <div class="code-header"><span>Comlink &mdash; RPC-style Worker Communication</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+<pre><span class="cm">// Comlink makes Workers feel like async functions</span>
+<span class="cm">// npm install comlink</span>
+
+<span class="cm">// worker.js</span>
+<span class="kw">import</span> * <span class="kw">as</span> Comlink <span class="kw">from</span> <span class="st">'comlink'</span>;
+
+<span class="kw">const</span> api = {
+  <span class="fn">fibonacci</span>(n) {
+    <span class="kw">if</span> (n &lt;= <span class="nu">1</span>) <span class="kw">return</span> n;
+    <span class="kw">return</span> api.fibonacci(n - <span class="nu">1</span>) + api.fibonacci(n - <span class="nu">2</span>);
+  },
+  <span class="fn">heavyComputation</span>(data) {
+    <span class="cm">// ... expensive work ...</span>
+    <span class="kw">return</span> result;
+  }
+};
+
+Comlink.expose(api);
+
+<span class="cm">// main.js</span>
+<span class="kw">import</span> * <span class="kw">as</span> Comlink <span class="kw">from</span> <span class="st">'comlink'</span>;
+
+<span class="kw">const</span> worker = <span class="kw">new</span> Worker(<span class="st">'worker.js'</span>, { type: <span class="st">'module'</span> });
+<span class="kw">const</span> api = Comlink.wrap(worker);
+
+<span class="cm">// Use it like a normal async function!</span>
+<span class="kw">const</span> result = <span class="kw">await</span> api.fibonacci(<span class="nu">42</span>);
+console.log(result); <span class="cm">// No postMessage boilerplate!</span></pre>
+  </div>
+</div>
+
+
+<script>var _LANG={'title_web_workers_advanced_patt':["Web Workers Advanced Patterns Playground", "Web Workers 高级模式练习场"],'metadesc_interactive_demos_of_web':["Interactive demos of Web Worker patterns: computation offloading, message passing, worker pools, and SharedWorker concepts.", "Web Worker 模式的交互式演示：计算卸载、消息传递、工作池和 SharedWorker 概念。"],'h1_web_workers_advanced_patt':["Web Workers Advanced Patterns", "Web Workers 高级模式"],'h2_heavy_computation_offload':["Heavy Computation Offloading", "重型计算卸载"],'h2_message_passing_patterns':["Message Passing Patterns", "消息传递模式"],'h2_worker_pool_pattern':["Worker Pool Pattern", "工人池模式"],'h2_sharedworker_advanced_con':["SharedWorker & Advanced Concepts", "共享工作者及高级概念"],'h3_structured_clone_vs_trans':["Structured Clone vs. Transferable Objects", "结构化克隆与可转移对象"],'h3_message_protocol_pattern':["Message Protocol Pattern", "消息协议模式"],'h3_worker_types_comparison':["Worker Types Comparison", "工人类型比较"],'subtitle_interactive_demos_with_re':["Interactive demos with real Worker execution via Blob URLs", "通过 Blob URL 实现带有真实 Worker 执行的交互式演示"],'subtitle_run_expensive_calculation':["Run expensive calculations on the main thread vs. a Web Worker. Watch the spinner — if it freezes, the main thread is blocked. Workers keep the UI responsive.", "在主线程上运行耗时计算，而不是在 Web Worker 上运行。观察加载指示器——如果它卡住，则表示主线程被阻塞。Worker 可以保持 UI 的响应速度。"],'subtitle_instead_of_creating_and_d':["Instead of creating and destroying workers for each task, maintain a pool of reusable workers. Tasks are queued and dispatched to idle workers. This reduces creation overhead and limits resource usage.", "与其为每个任务创建和销毁工作进程，不如维护一个可重用的工作进程池。任务会被排队，然后分派给空闲的工作进程。这样可以减少创建进程的开销，并限制资源的使用。"],'subtitle_sharedworkers_are_shared':["SharedWorkers are shared across all tabs/windows of the same origin. They're useful for shared state, broadcast communication, and resource deduplication. Note: SharedWorker support varies (not available in all browsers).", "SharedWorker 在同一源的所有标签页/窗口之间共享。它们适用于共享状态、广播通信和资源去重。注意：SharedWorker 的支持情况因浏览器而异（并非所有浏览器都支持）。"],'btn_heavy_computation':["Heavy Computation", "繁重计算"],'btn_message_passing':["Message Passing", "消息传递"],'btn_worker_pool':["Worker Pool", "工人池"],'btn_sharedworker_concepts':["SharedWorker & Concepts", "共享工作者及概念"],'btn_run_on_main_thread':["Run on Main Thread", "在主线程上运行"],'btn_run_on_worker':["Run on Worker", "在 Worker 上运行"],'btn_copy':["Copy", "复制"],'btn_structured_clone':["Structured Clone", "结构化克隆"],'btn_transfer':["Transfer", "转移"],'btn_copy_2':["Copy", "复制"],'btn_run_pool_demo':["Run Pool Demo", "运行池演示"],'btn_reset':["Reset", "重置"],'btn_copy_3':["Copy", "复制"],'btn_copy_4':["Copy", "复制"],'btn_copy_5':["Copy", "复制"],'btn_copy_6':["Copy", "复制"],'th_feature':["Feature", "特征"],'th_structured_clone':["Structured Clone", "结构化克隆"],'th_transferable':["Transferable", "可转让"],'th_feature_2':["Feature", "特征"],'th_worker':["Worker", "工人"],'th_sharedworker':["SharedWorker", "共享工作者"],'label_algorithm':["Algorithm:", "算法："],'label_n':["N:", "N："],'label_buffer_size':["Buffer size:", "缓冲区大小："],'label_pool_size':["Pool size:", "泳池尺寸："],'label_tasks':["Tasks:", "任务："],'jtc_copied':["Copied!", "已复制！"],'jtc_copy':["Copy", "复制"],'jtc_x':["...", "..."],'jtc_computing_in_worker':["Computing in worker...", "计算中的工人..."],'jtc_0_0':["0 / 0", "0 / 0"],'jtc_x_2':["--", "--"],'jtlword_idle':["idle", "闲置的"],'jtlword_done':["done", "完毕"],'jtlword_idle_2':["idle", "闲置的"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>
+// Tab switching
+document.getElementById('tabs').addEventListener('click', (e) => {
+  if (e.target.tagName !== 'BUTTON') return;
+  document.querySelectorAll('.tab-bar button').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  e.target.classList.add('active');
+  document.getElementById(e.target.dataset.tab).classList.add('active');
+});
+
+function copyCode(btn) {
+  const pre = btn.closest('.code-block').querySelector('pre');
+  navigator.clipboard.writeText(pre.textContent).then(() => {
+    btn.textContent=T("jtc_copied");
+    setTimeout(() => btn.textContent=T("jtc_copy"), 1500);
+  });
+}
+
+// ========== Demo 1: Heavy Computation ==========
+let counterInterval;
+let counterVal = 0;
+
+// Start the counter
+counterInterval = setInterval(() => {
+  counterVal++;
+  document.getElementById('counter-display').textContent = counterVal;
+}, 100);
+
+function fibonacci(n) {
+  if (n <= 1) return n;
+  return fibonacci(n - 1) + fibonacci(n - 2);
+}
+
+function sieveOfEratosthenes(limit) {
+  const sieve = new Uint8Array(limit + 1);
+  let count = 0;
+  for (let i = 2; i <= limit; i++) {
+    if (!sieve[i]) {
+      count++;
+      for (let j = i * i; j <= limit; j += i) {
+        sieve[j] = 1;
+      }
+    }
+  }
+  return count;
+}
+
+function runMainThread() {
+  const algo = document.getElementById('comp-algo').value;
+  let n = parseInt(document.getElementById('comp-n').value);
+  const mainAnim = document.getElementById('main-anim');
+  const mainStatus = document.getElementById('main-status');
+
+  // Clamp fibonacci to 45 to avoid infinite hang
+  if (algo === 'fibonacci' && n > 45) n = 45;
+
+  mainAnim.classList.add('blocked');
+  mainStatus.innerHTML = '<span class="status-dot dot-red"></span>Blocked!';
+
+  // Use setTimeout so the UI update renders before blocking
+  setTimeout(() => {
+    const start = performance.now();
+    let result;
+
+    if (algo === 'fibonacci') {
+      result = fibonacci(n);
+    } else {
+      result = sieveOfEratosthenes(n);
+    }
+
+    const elapsed = performance.now() - start;
+    document.getElementById('main-result').textContent = typeof result === 'number' ? result.toLocaleString() : result;
+    document.getElementById('main-time').textContent = `${elapsed.toFixed(1)}ms on main thread`;
+
+    mainAnim.classList.remove('blocked');
+    mainStatus.innerHTML = '<span class="status-dot dot-green"></span>Responsive';
+  }, 50);
+}
+
+const computeWorkerCode = `
+  function fibonacci(n) {
+    if (n <= 1) return n;
+    return fibonacci(n - 1) + fibonacci(n - 2);
+  }
+
+  function sieveOfEratosthenes(limit) {
+    const sieve = new Uint8Array(limit + 1);
+    let count = 0;
+    for (let i = 2; i <= limit; i++) {
+      if (!sieve[i]) {
+        count++;
+        for (let j = i * i; j <= limit; j += i) {
+          sieve[j] = 1;
+        }
+      }
+    }
+    return count;
+  }
+
+  self.onmessage = (e) => {
+    const { algo, n } = e.data;
+    const start = performance.now();
+    let result;
+
+    if (algo === 'fibonacci') {
+      result = fibonacci(n);
+    } else {
+      result = sieveOfEratosthenes(n);
+    }
+
+    self.postMessage({ result, time: performance.now() - start });
+  };
+`;
+
+function runOnWorker() {
+  const algo = document.getElementById('comp-algo').value;
+  let n = parseInt(document.getElementById('comp-n').value);
+  if (algo === 'fibonacci' && n > 45) n = 45;
+
+  const blob = new Blob([computeWorkerCode], { type: 'application/javascript' });
+  const worker = new Worker(URL.createObjectURL(blob));
+
+  document.getElementById('worker-result').textContent=T("jtc_x");
+  document.getElementById('worker-time').textContent=T("jtc_computing_in_worker");
+
+  worker.onmessage = (e) => {
+    const { result, time } = e.data;
+    document.getElementById('worker-result').textContent = typeof result === 'number' ? result.toLocaleString() : result;
+    document.getElementById('worker-time').textContent = `${time.toFixed(1)}ms in worker (UI stayed responsive!)`;
+    worker.terminate();
+  };
+
+  worker.postMessage({ algo, n });
+}
+
+// ========== Demo 2: Message Passing ==========
+const msgWorkerCode = `
+  self.onmessage = (e) => {
+    const { type, buffer } = e.data;
+    const size = buffer.byteLength;
+    self.postMessage({ type, size, received: true });
+  };
+`;
+
+function runCloneTest() {
+  const sizeMB = parseInt(document.getElementById('msg-size').value);
+  const buffer = new ArrayBuffer(sizeMB * 1024 * 1024);
+  const blob = new Blob([msgWorkerCode], { type: 'application/javascript' });
+  const worker = new Worker(URL.createObjectURL(blob));
+
+  const start = performance.now();
+  worker.postMessage({ type: 'clone', buffer });
+  // buffer is still accessible after structured clone
+
+  worker.onmessage = () => {
+    const elapsed = performance.now() - start;
+    document.getElementById('clone-time').textContent = `${elapsed.toFixed(2)}ms`;
+    document.getElementById('clone-info').textContent = `${sizeMB}MB copied. Original buffer still accessible (byteLength: ${buffer.byteLength.toLocaleString()})`;
+    worker.terminate();
+  };
+}
+
+function runTransferTest() {
+  const sizeMB = parseInt(document.getElementById('msg-size').value);
+  const buffer = new ArrayBuffer(sizeMB * 1024 * 1024);
+  const blob = new Blob([msgWorkerCode], { type: 'application/javascript' });
+  const worker = new Worker(URL.createObjectURL(blob));
+
+  const start = performance.now();
+  worker.postMessage({ type: 'transfer', buffer }, [buffer]);
+  // buffer is now neutered
+
+  worker.onmessage = () => {
+    const elapsed = performance.now() - start;
+    document.getElementById('transfer-time').textContent = `${elapsed.toFixed(2)}ms`;
+    document.getElementById('transfer-info').textContent = `${sizeMB}MB transferred. Original buffer neutered (byteLength: ${buffer.byteLength})`;
+    worker.terminate();
+  };
+}
+
+// ========== Demo 3: Worker Pool ==========
+const poolWorkerCode = `
+  self.onmessage = (e) => {
+    const { taskId, duration } = e.data;
+    // Simulate work with a busy loop
+    const start = performance.now();
+    while (performance.now() - start < duration) {
+      // busy wait
+    }
+    self.postMessage({ taskId, duration, workerId: e.data.workerId });
+  };
+`;
+
+let poolWorkers = [];
+let poolBlob = null;
+
+function initPoolViz(size) {
+  const viz = document.getElementById('pool-viz');
+  viz.innerHTML = '';
+  for (let i = 0; i < size; i++) {
+    const el = document.createElement('div');
+    el.className = 'pool-worker pool-idle';
+    el.id = `pw-${i}`;
+    el.innerHTML = `W${i}<div class="pool-label">idle</div>`;
+    viz.appendChild(el);
+  }
+}
+
+function updatePoolWorker(id, state, taskId) {
+  const el = document.getElementById(`pw-${id}`);
+  if (!el) return;
+  el.className = `pool-worker pool-${state}`;
+  if (state === 'busy') {
+    el.innerHTML = `W${id}<div class="pool-label">T${taskId}</div>`;
+  } else if (state === 'done') {
+    el.innerHTML = `W${id}<div class="pool-label">done</div>`;
+  } else {
+    el.innerHTML = `W${id}<div class="pool-label">idle</div>`;
+  }
+}
+
+function poolLog(msg, type = 'main') {
+  const log = document.getElementById('pool-log');
+  const entry = document.createElement('div');
+  entry.className = 'log-entry';
+  const now = new Date();
+  const time = `${now.getMinutes().toString().padStart(2,'0')}:${now.getSeconds().toString().padStart(2,'0')}.${now.getMilliseconds().toString().padStart(3,'0')}`;
+  entry.innerHTML = `<span class="log-time">${time}</span> <span class="log-${type}">${msg}</span>`;
+  log.appendChild(entry);
+  log.scrollTop = log.scrollHeight;
+}
+
+function resetPool() {
+  poolWorkers.forEach(w => w.terminate());
+  poolWorkers = [];
+  document.getElementById('pool-log').innerHTML = '';
+  document.getElementById('pool-completed').textContent=T("jtc_0_0");
+  document.getElementById('pool-time').textContent=T("jtc_x_2");
+  document.getElementById('pool-viz').innerHTML = '';
+  document.getElementById('pool-run-btn').disabled = false;
+}
+
+function runPool() {
+  const size = parseInt(document.getElementById('pool-size').value);
+  const taskCount = parseInt(document.getElementById('pool-tasks').value);
+  document.getElementById('pool-run-btn').disabled = true;
+
+  resetPool();
+  initPoolViz(size);
+
+  if (!poolBlob) {
+    poolBlob = new Blob([poolWorkerCode], { type: 'application/javascript' });
+  }
+
+  // Create workers
+  const workers = [];
+  for (let i = 0; i < size; i++) {
+    const w = new Worker(URL.createObjectURL(poolBlob));
+    w._id = i;
+    w._busy = false;
+    workers.push(w);
+  }
+  poolWorkers = workers;
+
+  // Create tasks
+  const tasks = [];
+  for (let i = 0; i < taskCount; i++) {
+    tasks.push({ taskId: i, duration: 300 + Math.floor(Math.random() * 700) });
+  }
+
+  const queue = [...tasks];
+  let completed = 0;
+  const startTime = performance.now();
+
+  poolLog(`Pool created: ${size} workers, ${taskCount} tasks`, 'pool');
+
+  function dispatch(worker) {
+    if (queue.length === 0) return;
+    const task = queue.shift();
+    worker._busy = true;
+    updatePoolWorker(worker._id, 'busy', task.taskId);
+    poolLog(`Worker ${worker._id} <- Task ${task.taskId} (${task.duration}ms)`, 'worker');
+
+    worker.onmessage = () => {
+      completed++;
+      worker._busy = false;
+      updatePoolWorker(worker._id, 'done');
+      poolLog(`Worker ${worker._id} -> Task ${task.taskId} complete`, 'main');
+      document.getElementById('pool-completed').textContent = `${completed} / ${taskCount}`;
+
+      if (completed === taskCount) {
+        const elapsed = performance.now() - startTime;
+        document.getElementById('pool-time').textContent = `${elapsed.toFixed(0)}ms`;
+        poolLog(`All ${taskCount} tasks complete in ${elapsed.toFixed(0)}ms`, 'pool');
+        document.getElementById('pool-run-btn').disabled = false;
+      } else {
+        // Dispatch next task
+        setTimeout(() => {
+          updatePoolWorker(worker._id, 'idle');
+          dispatch(worker);
+        }, 100);
+      }
+    };
+
+    worker.postMessage({ ...task, workerId: worker._id });
+  }
+
+  // Initial dispatch
+  workers.forEach(w => dispatch(w));
+}
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>光影绘画工具 - Light & Shadow Painter</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            color: white;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+
+        .sidebar {
+            width: 300px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 20px;
+            overflow-y: auto;
+            backdrop-filter: blur(10px);
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .canvas-container {
+            flex: 1;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: radial-gradient(circle at center, #2a2a3e, #1a1a2e);
+        }
+
+        #canvas {
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            cursor: crosshair;
+            background: #000;
+        }
+
+        .title {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 24px;
+            background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .section {
+            margin-bottom: 25px;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .section h3 {
+            margin-bottom: 15px;
+            color: #4ecdc4;
+            font-size: 16px;
+        }
+
+        .control-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 12px;
+            color: #ccc;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            margin-bottom: 10px;
+            -webkit-appearance: none;
+            height: 6px;
+            border-radius: 3px;
+            background: rgba(255, 255, 255, 0.2);
+            outline: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #4ecdc4;
+            cursor: pointer;
+        }
+
+        input[type="color"] {
+            width: 100%;
+            height: 40px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        select {
+            width: 100%;
+            padding: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 5px;
+            color: white;
+            font-size: 12px;
+        }
+
+        select option {
+            background: #2a2a3e;
+            color: white;
+        }
+
+        button {
+            width: 100%;
+            padding: 10px;
+            margin: 5px 0;
+            background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
+            border: none;
+            border-radius: 5px;
+            color: white;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.3s ease;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .preset-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .light-indicator {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 10px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .info-panel {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+
+        .brush-preview {
+            width: 50px;
+            height: 50px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            margin: 10px auto;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .mode-indicator {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 10px 15px;
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .light-mode { color: #ffeb3b; }
+        .shadow-mode { color: #9c27b0; }
+        .erase-mode { color: #f44336; }
+
+        @keyframes glow {
+            0%, 100% { box-shadow: 0 0 20px rgba(78, 205, 196, 0.3); }
+            50% { box-shadow: 0 0 40px rgba(78, 205, 196, 0.6); }
+        }
+
+        .glow-effect {
+            animation: glow 2s infinite;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <h1 class="title">光影绘画</h1>
+            
+            <div class="section">
+                <h3>🎨 绘画模式</h3>
+                <select id="paintMode">
+                    <option value="light">光源绘制</option>
+                    <option value="shadow">阴影绘制</option>
+                    <option value="erase">橡皮擦</option>
+                </select>
+            </div>
+
+            <div class="section">
+                <h3>💡 光源设置</h3>
+                <div class="control-group">
+                    <label>光源类型</label>
+                    <select id="lightType">
+                        <option value="point">点光源</option>
+                        <option value="directional">平行光</option>
+                        <option value="spot">聚光灯</option>
+                        <option value="ambient">环境光</option>
+                    </select>
+                </div>
+                
+                <div class="control-group">
+                    <label>光源强度: <span id="intensityValue">50</span>%</label>
+                    <input type="range" id="lightIntensity" min="0" max="100" value="50">
+                </div>
+                
+                <div class="control-group">
+                    <label>光源颜色</label>
+                    <input type="color" id="lightColor" value="#ffffff">
+                </div>
+                
+                <div class="control-group">
+                    <label>光源大小: <span id="sizeValue">30</span>px</label>
+                    <input type="range" id="lightSize" min="5" max="100" value="30">
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>🌑 阴影设置</h3>
+                <div class="control-group">
+                    <label>阴影强度: <span id="shadowIntensityValue">70</span>%</label>
+                    <input type="range" id="shadowIntensity" min="0" max="100" value="70">
+                </div>
+                
+                <div class="control-group">
+                    <label>阴影模糊: <span id="shadowBlurValue">10</span>px</label>
+                    <input type="range" id="shadowBlur" min="0" max="50" value="10">
+                </div>
+                
+                <div class="control-group">
+                    <label>阴影颜色</label>
+                    <input type="color" id="shadowColor" value="#000000">
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>🎭 混合模式</h3>
+                <select id="blendMode">
+                    <option value="normal">正常</option>
+                    <option value="multiply">正片叠底</option>
+                    <option value="screen">滤色</option>
+                    <option value="overlay">叠加</option>
+                    <option value="soft-light">柔光</option>
+                    <option value="hard-light">强光</option>
+                    <option value="color-dodge">颜色减淡</option>
+                    <option value="color-burn">颜色加深</option>
+                </select>
+            </div>
+
+            <div class="section">
+                <h3>🎪 预设场景</h3>
+                <div class="preset-buttons">
+                    <button onclick="loadPreset('sunset')">日落</button>
+                    <button onclick="loadPreset('moonlight')">月光</button>
+                    <button onclick="loadPreset('neon')">霓虹</button>
+                    <button onclick="loadPreset('candle')">烛光</button>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>🛠️ 工具</h3>
+                <button onclick="clearCanvas()">清空画布</button>
+                <button onclick="saveImage()">保存作品</button>
+                <button onclick="toggleAnimation()">动画效果</button>
+            </div>
+
+            <div class="brush-preview" id="brushPreview"></div>
+        </div>
+
+        <div class="canvas-container">
+            <div class="mode-indicator" id="modeIndicator">光源模式</div>
+            <canvas id="canvas" width="1200" height="800"></canvas>
+            <div class="info-panel">
+                <div><strong>操作提示:</strong></div>
+                <div>• 左键绘制光影</div>
+                <div>• 右键快速切换模式</div>
+                <div>• 滚轮调节笔刷大小</div>
+                <div>• 按住Shift直线绘制</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class LightShadowPainter {
+            constructor() {
+                this.canvas = document.getElementById('canvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.isDrawing = false;
+                this.lastX = 0;
+                this.lastY = 0;
+                this.startX = 0;
+                this.startY = 0;
+                this.shiftPressed = false;
+                this.tempCanvas = null;
+                this.tempCtx = null;
+                this.animationId = null;
+                this.animationEnabled = false;
+                this.lights = [];
+                
+                this.initializeControls();
+                this.setupEventListeners();
+                this.initializeCanvas();
+                this.createTempCanvas();
+            }
+
+            initializeControls() {
+                this.paintMode = document.getElementById('paintMode');
+                this.lightType = document.getElementById('lightType');
+                this.lightIntensity = document.getElementById('lightIntensity');
+                this.lightColor = document.getElementById('lightColor');
+                this.lightSize = document.getElementById('lightSize');
+                this.shadowIntensity = document.getElementById('shadowIntensity');
+                this.shadowBlur = document.getElementById('shadowBlur');
+                this.shadowColor = document.getElementById('shadowColor');
+                this.blendMode = document.getElementById('blendMode');
+                this.modeIndicator = document.getElementById('modeIndicator');
+                this.brushPreview = document.getElementById('brushPreview');
+
+                // 更新显示值
+                this.updateValueDisplays();
+            }
+
+            setupEventListeners() {
+                // 画布事件
+                this.canvas.addEventListener('mousedown', this.startDrawing.bind(this));
+                this.canvas.addEventListener('mousemove', this.draw.bind(this));
+                this.canvas.addEventListener('mouseup', (e) => this.stopDrawing(e));
+                this.canvas.addEventListener('mouseout', (e) => this.stopDrawing(e));
+                this.canvas.addEventListener('contextmenu', this.switchMode.bind(this));
+                this.canvas.addEventListener('wheel', this.adjustBrushSize.bind(this));
+
+                // 控制面板事件
+                this.paintMode.addEventListener('change', this.updateMode.bind(this));
+                this.lightIntensity.addEventListener('input', this.updateValueDisplays.bind(this));
+                this.lightSize.addEventListener('input', this.updateValueDisplays.bind(this));
+                this.shadowIntensity.addEventListener('input', this.updateValueDisplays.bind(this));
+                this.shadowBlur.addEventListener('input', this.updateValueDisplays.bind(this));
+                this.blendMode.addEventListener('change', this.updateBlendMode.bind(this));
+
+                // 键盘事件
+                document.addEventListener('keydown', this.handleKeyDown.bind(this));
+                document.addEventListener('keyup', this.handleKeyUp.bind(this));
+            }
+
+            initializeCanvas() {
+                this.ctx.fillStyle = '#000000';
+                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+                this.updateMode();
+                this.updateBrushPreview();
+            }
+
+            createTempCanvas() {
+                this.tempCanvas = document.createElement('canvas');
+                this.tempCanvas.width = this.canvas.width;
+                this.tempCanvas.height = this.canvas.height;
+                this.tempCtx = this.tempCanvas.getContext('2d');
+                
+                // 设置临时画布样式，使其覆盖在主画布上
+                this.tempCanvas.style.position = 'absolute';
+                this.tempCanvas.style.top = this.canvas.offsetTop + 'px';
+                this.tempCanvas.style.left = this.canvas.offsetLeft + 'px';
+                this.tempCanvas.style.pointerEvents = 'none';
+                this.tempCanvas.style.zIndex = '10';
+                this.canvas.parentNode.appendChild(this.tempCanvas);
+            }
+
+            startDrawing(e) {
+                this.isDrawing = true;
+                const rect = this.canvas.getBoundingClientRect();
+                this.lastX = e.clientX - rect.left;
+                this.lastY = e.clientY - rect.top;
+                this.startX = this.lastX;
+                this.startY = this.lastY;
+                
+                if (!this.shiftPressed) {
+                    this.draw(e);
+                }
+            }
+
+            draw(e) {
+                if (!this.isDrawing) return;
+
+                const rect = this.canvas.getBoundingClientRect();
+                const currentX = e.clientX - rect.left;
+                const currentY = e.clientY - rect.top;
+
+                const mode = this.paintMode.value;
+                const size = parseInt(this.lightSize.value);
+                const intensity = parseInt(this.lightIntensity.value) / 100;
+
+                if (this.shiftPressed) {
+                    // Shift模式：只显示直线预览，不绘制到主画布
+                    this.showLinePreview(this.startX, this.startY, currentX, currentY, mode, size, intensity);
+                } else {
+                    // 正常绘制模式
+                    this.ctx.globalCompositeOperation = this.blendMode.value;
+                    if (mode === 'light') {
+                        this.drawLight(currentX, currentY, size, intensity);
+                    } else if (mode === 'shadow') {
+                        this.drawShadow(currentX, currentY, size);
+                    } else if (mode === 'erase') {
+                        this.erase(currentX, currentY, size);
+                    }
+                }
+
+                this.lastX = currentX;
+                this.lastY = currentY;
+            }
+
+            drawLight(x, y, size, intensity) {
+                const lightType = this.lightType.value;
+                const color = this.lightColor.value;
+                
+                // 转换颜色为RGB
+                const rgb = this.hexToRgb(color);
+                
+                if (lightType === 'point') {
+                    this.drawPointLight(x, y, size, intensity, rgb);
+                } else if (lightType === 'directional') {
+                    this.drawDirectionalLight(x, y, size, intensity, rgb);
+                } else if (lightType === 'spot') {
+                    this.drawSpotLight(x, y, size, intensity, rgb);
+                } else if (lightType === 'ambient') {
+                    this.drawAmbientLight(x, y, size, intensity, rgb);
+                }
+            }
+
+            drawPointLight(x, y, size, intensity, rgb) {
+                const gradient = this.ctx.createRadialGradient(x, y, 0, x, y, size);
+                gradient.addColorStop(0, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${intensity})`);
+                gradient.addColorStop(0.5, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${intensity * 0.5})`);
+                gradient.addColorStop(1, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0)`);
+                
+                this.ctx.fillStyle = gradient;
+                this.ctx.beginPath();
+                this.ctx.arc(x, y, size, 0, Math.PI * 2);
+                this.ctx.fill();
+            }
+
+            drawDirectionalLight(x, y, size, intensity, rgb) {
+                const gradient = this.ctx.createLinearGradient(x - size, y - size, x + size, y + size);
+                gradient.addColorStop(0, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0)`);
+                gradient.addColorStop(0.5, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${intensity})`);
+                gradient.addColorStop(1, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0)`);
+                
+                this.ctx.fillStyle = gradient;
+                this.ctx.fillRect(x - size, y - size/4, size * 2, size/2);
+            }
+
+            drawSpotLight(x, y, size, intensity, rgb) {
+                const gradient = this.ctx.createRadialGradient(x, y, 0, x, y, size);
+                gradient.addColorStop(0, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${intensity})`);
+                gradient.addColorStop(0.7, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${intensity * 0.3})`);
+                gradient.addColorStop(1, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0)`);
+                
+                this.ctx.fillStyle = gradient;
+                this.ctx.beginPath();
+                this.ctx.arc(x, y, size, 0, Math.PI * 2);
+                this.ctx.fill();
+                
+                // 添加聚光效果
+                this.ctx.fillStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${intensity * 0.8})`;
+                this.ctx.beginPath();
+                this.ctx.arc(x, y, size * 0.3, 0, Math.PI * 2);
+                this.ctx.fill();
+            }
+
+            drawAmbientLight(x, y, size, intensity, rgb) {
+                this.ctx.fillStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${intensity * 0.1})`;
+                this.ctx.fillRect(x - size, y - size, size * 2, size * 2);
+            }
+
+            drawShadow(x, y, size) {
+                const intensity = parseInt(this.shadowIntensity.value) / 100;
+                const blur = parseInt(this.shadowBlur.value);
+                const color = this.shadowColor.value;
+                const rgb = this.hexToRgb(color);
+                
+                this.ctx.save();
+                this.ctx.filter = `blur(${blur}px)`;
+                
+                const gradient = this.ctx.createRadialGradient(x, y, 0, x, y, size);
+                gradient.addColorStop(0, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${intensity})`);
+                gradient.addColorStop(0.7, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${intensity * 0.5})`);
+                gradient.addColorStop(1, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0)`);
+                
+                this.ctx.fillStyle = gradient;
+                this.ctx.beginPath();
+                this.ctx.arc(x, y, size, 0, Math.PI * 2);
+                this.ctx.fill();
+                
+                this.ctx.restore();
+            }
+
+            erase(x, y, size) {
+                this.ctx.globalCompositeOperation = 'destination-out';
+                this.ctx.beginPath();
+                this.ctx.arc(x, y, size, 0, Math.PI * 2);
+                this.ctx.fill();
+            }
+
+            stopDrawing(e) {
+                if (this.isDrawing && this.shiftPressed) {
+                    // 完成直线绘制
+                    const rect = this.canvas.getBoundingClientRect();
+                    const currentX = e ? e.clientX - rect.left : this.lastX;
+                    const currentY = e ? e.clientY - rect.top : this.lastY;
+                    const mode = this.paintMode.value;
+                    const size = parseInt(this.lightSize.value);
+                    const intensity = parseInt(this.lightIntensity.value) / 100;
+                    
+                    // 清除预览
+                    this.clearLinePreview();
+                    
+                    // 绘制最终直线到主画布
+                    this.ctx.globalCompositeOperation = this.blendMode.value;
+                    this.drawStraightLine(this.startX, this.startY, currentX, currentY, mode, size, intensity);
+                }
+                this.isDrawing = false;
+            }
+
+            switchMode(e) {
+                e.preventDefault();
+                const modes = ['light', 'shadow', 'erase'];
+                const currentIndex = modes.indexOf(this.paintMode.value);
+                const nextIndex = (currentIndex + 1) % modes.length;
+                this.paintMode.value = modes[nextIndex];
+                this.updateMode();
+            }
+
+            adjustBrushSize(e) {
+                e.preventDefault();
+                const delta = e.deltaY > 0 ? -5 : 5;
+                const currentSize = parseInt(this.lightSize.value);
+                const newSize = Math.max(5, Math.min(100, currentSize + delta));
+                this.lightSize.value = newSize;
+                this.updateValueDisplays();
+                this.updateBrushPreview();
+            }
+
+            updateMode() {
+                const mode = this.paintMode.value;
+                const indicator = this.modeIndicator;
+                
+                indicator.className = 'mode-indicator ' + mode + '-mode';
+                
+                switch(mode) {
+                    case 'light':
+                        indicator.textContent = '💡 光源模式';
+                        break;
+                    case 'shadow':
+                        indicator.textContent = '🌑 阴影模式';
+                        break;
+                    case 'erase':
+                        indicator.textContent = '🧽 橡皮擦模式';
+                        break;
+                }
+                
+                this.updateBrushPreview();
+            }
+
+            updateBlendMode() {
+                // 混合模式会在绘制时应用
+            }
+
+            updateValueDisplays() {
+                document.getElementById('intensityValue').textContent = this.lightIntensity.value;
+                document.getElementById('sizeValue').textContent = this.lightSize.value;
+                document.getElementById('shadowIntensityValue').textContent = this.shadowIntensity.value;
+                document.getElementById('shadowBlurValue').textContent = this.shadowBlur.value;
+                this.updateBrushPreview();
+            }
+
+            updateBrushPreview() {
+                const preview = this.brushPreview;
+                const mode = this.paintMode.value;
+                const size = Math.min(40, parseInt(this.lightSize.value));
+                const color = mode === 'light' ? this.lightColor.value : this.shadowColor.value;
+                
+                preview.style.width = size + 'px';
+                preview.style.height = size + 'px';
+                
+                if (mode === 'light') {
+                    preview.style.background = `radial-gradient(circle, ${color}, transparent)`;
+                    preview.style.boxShadow = `0 0 ${size/2}px ${color}`;
+                } else if (mode === 'shadow') {
+                    preview.style.background = `radial-gradient(circle, ${color}, transparent)`;
+                    preview.style.boxShadow = 'none';
+                } else {
+                    preview.style.background = 'rgba(255, 255, 255, 0.3)';
+                    preview.style.boxShadow = 'none';
+                }
+            }
+
+            handleKeyDown(e) {
+                if (e.key === ' ') {
+                    e.preventDefault();
+                    this.switchMode(e);
+                } else if (e.key === 'Shift') {
+                    this.shiftPressed = true;
+                    if (this.isDrawing) {
+                        // 如果正在绘制，清除预览并重新开始直线模式
+                        this.clearLinePreview();
+                    }
+                }
+            }
+
+            handleKeyUp(e) {
+                if (e.key === 'Shift') {
+                    this.shiftPressed = false;
+                    if (this.isDrawing) {
+                        // 如果正在绘制，完成直线并切换到正常模式
+                        this.stopDrawing();
+                    }
+                    this.clearLinePreview();
+                }
+            }
+
+            showLinePreview(startX, startY, endX, endY, mode, size, intensity) {
+                // 清除之前的预览
+                this.tempCtx.clearRect(0, 0, this.tempCanvas.width, this.tempCanvas.height);
+                
+                // 设置预览样式
+                this.tempCtx.globalCompositeOperation = 'source-over';
+                this.tempCtx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+                this.tempCtx.lineWidth = 2;
+                this.tempCtx.setLineDash([5, 5]);
+                
+                // 绘制预览线
+                this.tempCtx.beginPath();
+                this.tempCtx.moveTo(startX, startY);
+                this.tempCtx.lineTo(endX, endY);
+                this.tempCtx.stroke();
+                
+                // 绘制起点和终点标记
+                this.tempCtx.setLineDash([]);
+                this.tempCtx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                this.tempCtx.beginPath();
+                this.tempCtx.arc(startX, startY, 3, 0, Math.PI * 2);
+                this.tempCtx.fill();
+                this.tempCtx.beginPath();
+                this.tempCtx.arc(endX, endY, 3, 0, Math.PI * 2);
+                this.tempCtx.fill();
+            }
+
+            clearLinePreview() {
+                if (this.tempCtx) {
+                    this.tempCtx.clearRect(0, 0, this.tempCanvas.width, this.tempCanvas.height);
+                }
+            }
+
+            drawStraightLine(startX, startY, endX, endY, mode, size, intensity) {
+                // 计算直线上的点
+                const distance = Math.sqrt((endX - startX) ** 2 + (endY - startY) ** 2);
+                const steps = Math.max(1, Math.floor(distance / (size / 4))); // 根据笔刷大小调整步数
+                
+                for (let i = 0; i <= steps; i++) {
+                    const t = i / steps;
+                    const x = startX + (endX - startX) * t;
+                    const y = startY + (endY - startY) * t;
+                    
+                    if (mode === 'light') {
+                        this.drawLight(x, y, size, intensity);
+                    } else if (mode === 'shadow') {
+                        this.drawShadow(x, y, size);
+                    } else if (mode === 'erase') {
+                        this.erase(x, y, size);
+                    }
+                }
+            }
+
+            hexToRgb(hex) {
+                const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+                return result ? {
+                    r: parseInt(result[1], 16),
+                    g: parseInt(result[2], 16),
+                    b: parseInt(result[3], 16)
+                } : null;
+            }
+        }
+
+        // 全局函数
+        let painter;
+
+        function loadPreset(preset) {
+            switch(preset) {
+                case 'sunset':
+                    document.getElementById('lightColor').value = '#ff6b35';
+                    document.getElementById('lightIntensity').value = '80';
+                    document.getElementById('shadowColor').value = '#4a0e4e';
+                    break;
+                case 'moonlight':
+                    document.getElementById('lightColor').value = '#b8c6db';
+                    document.getElementById('lightIntensity').value = '40';
+                    document.getElementById('shadowColor').value = '#2c3e50';
+                    break;
+                case 'neon':
+                    document.getElementById('lightColor').value = '#00ffff';
+                    document.getElementById('lightIntensity').value = '90';
+                    document.getElementById('shadowColor').value = '#ff00ff';
+                    break;
+                case 'candle':
+                    document.getElementById('lightColor').value = '#ffaa00';
+                    document.getElementById('lightIntensity').value = '60';
+                    document.getElementById('shadowColor').value = '#8b4513';
+                    break;
+            }
+            painter.updateValueDisplays();
+        }
+
+        function clearCanvas() {
+            painter.ctx.fillStyle = '#000000';
+            painter.ctx.fillRect(0, 0, painter.canvas.width, painter.canvas.height);
+        }
+
+        function saveImage() {
+            const link = document.createElement('a');
+            link.download = 'light-shadow-art-' + Date.now() + '.png';
+            link.href = painter.canvas.toDataURL();
+            link.click();
+        }
+
+        function toggleAnimation() {
+            painter.animationEnabled = !painter.animationEnabled;
+            if (painter.animationEnabled) {
+                painter.canvas.classList.add('glow-effect');
+            } else {
+                painter.canvas.classList.remove('glow-effect');
+            }
+        }
+
+        // 初始化应用
+        document.addEventListener('DOMContentLoaded', function() {
+            painter = new LightShadowPainter();
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>欢迎页生成器 Pro (定制版)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { background-color: #111827; font-family: 'Segoe UI', system-ui, sans-serif; color: white; }
+        .preview-iframe { border: none; width: 100%; height: 100%; background: #000; } 
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden">
+
+    <header class="bg-gray-900 border-b border-gray-800 px-8 py-4 flex justify-between items-center shadow-lg z-10">
+        <div class="flex items-center gap-3">
+            <div class="bg-gradient-to-r from-pink-500 to-purple-500 text-white p-2 rounded-lg"><i class="fa-solid fa-meteor"></i></div>
+            <h1 class="text-xl font-bold text-white">子鱼coding-欢迎页生成器 <span class="text-xs bg-gray-700 text-gray-300 px-2 py-1 rounded ml-2">V2.0</span></h1>
+        </div>
+        <div class="text-sm text-gray-400">
+            支持自定义头衔 · 全局替换修复
+        </div>
+    </header>
+
+    <main class="flex-1 flex overflow-hidden">
+        
+        <div class="w-1/3 min-w-[400px] bg-gray-800 border-r border-gray-700 p-8 flex flex-col gap-6 overflow-y-auto">
+            
+            <div class="space-y-3">
+                <h2 class="font-semibold text-gray-300 flex items-center gap-2">
+                    <span class="bg-gray-700 text-gray-300 w-6 h-6 rounded-full flex items-center justify-center text-xs">1</span>
+                    获取新版模板
+                </h2>
+                <div class="p-4 bg-gray-700/50 rounded-xl border border-gray-600">
+                    <p class="text-xs text-gray-400 mb-2">模板结构已更新，请下载新版使用。</p>
+                    <button onclick="downloadTemplate()" class="w-full flex items-center justify-center gap-2 bg-gray-700 hover:bg-gray-600 border border-gray-600 text-white py-2.5 rounded-lg transition-all text-sm font-medium shadow-sm">
+                        <i class="fa-solid fa-download text-pink-500"></i> 下载 Excel 模板 (含头衔列)
+                    </button>
+                </div>
+            </div>
+
+            <div class="space-y-3">
+                <h2 class="font-semibold text-gray-300 flex items-center gap-2">
+                    <span class="bg-gray-700 text-gray-300 w-6 h-6 rounded-full flex items-center justify-center text-xs">2</span>
+                    上传数据
+                </h2>
+                <label id="dropZone" class="block cursor-pointer group">
+                    <input type="file" id="excelInput" accept=".xlsx, .xls" class="hidden" />
+                    <div class="border-2 border-dashed border-gray-600 rounded-xl p-8 text-center transition-all group-hover:border-pink-500 group-hover:bg-gray-700">
+                        <div class="w-12 h-12 bg-gray-700 text-pink-500 rounded-full flex items-center justify-center mx-auto mb-3">
+                            <i class="fa-solid fa-file-excel text-xl"></i>
+                        </div>
+                        <p class="text-gray-300 font-medium">拖入 Excel 文件</p>
+                        <p class="text-xs text-gray-500 mt-1" id="fileNameDisplay">自动解析姓名与头衔</p>
+                    </div>
+                </label>
+            </div>
+
+            <div class="mt-auto pt-6 border-t border-gray-700">
+                <button id="downloadHtmlBtn" disabled class="w-full bg-gray-600 text-gray-400 py-3 rounded-lg font-semibold flex items-center justify-center gap-2 cursor-not-allowed transition-all">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i> 生成并下载页面
+                </button>
+            </div>
+        </div>
+
+        <div class="w-2/3 bg-black p-8 flex flex-col">
+            <div class="flex justify-between items-end mb-3 px-1 text-white">
+                <h2 class="font-bold">实时预览</h2>
+                <span class="text-xs text-gray-500">Preview Mode</span>
+            </div>
+            <div class="flex-1 bg-black rounded-xl shadow-2xl border border-gray-800 flex flex-col overflow-hidden relative">
+                <div class="bg-gray-900 border-b border-gray-800 p-3 flex items-center gap-3">
+                    <div class="flex gap-1.5">
+                        <div class="w-3 h-3 rounded-full bg-red-500"></div>
+                        <div class="w-3 h-3 rounded-full bg-yellow-500"></div>
+                        <div class="w-3 h-3 rounded-full bg-green-500"></div>
+                    </div>
+                    <div class="flex-1 bg-gray-800 rounded-md px-3 py-1 text-xs text-gray-400 flex items-center">
+                        <i class="fa-solid fa-lock mr-2"></i> galaxy_welcome.html
+                    </div>
+                </div>
+                <div class="flex-1 relative">
+                    <iframe id="previewFrame" class="preview-iframe"></iframe>
+                    <div id="emptyState" class="absolute inset-0 flex flex-col items-center justify-center bg-gray-900/90 backdrop-blur-sm z-10 text-white">
+                        <div class="text-gray-600 text-6xl mb-4"><i class="fa-solid fa-rocket"></i></div>
+                        <p class="text-gray-400">请上传 Excel 启动引擎</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        // ================= 核心逻辑区 =================
+        let generatedHtmlContent = "";
+
+        // 1. 下载新版模板：结构改为 Config + Table
+        function downloadTemplate() {
+            const data = [
+                // 第一部分：基础配置
+                ["【基础配置区】", "", ""], 
+                ["company_name", "星云科技", "公司名称(替换页面所有出现的名称)"],
+                ["new_staff_name", "林星辰", "新人姓名"],
+                ["welcome_title", "欢迎新伙伴", "主标题"],
+                ["", "", ""], // 空行分隔
+                // 第二部分：团队名单
+                ["【团队成员列表】", "", ""],
+                ["姓名", "头衔(例如: Java大拿)", "说明"], // 表头
+                ["风哥", "全能大佬", ""],
+                ["阿光", "Java大拿", ""],
+                ["小蓝", "前端扛把子", ""],
+                ["铃铛", "销售精英", ""]
+            ];
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.aoa_to_sheet(data);
+            ws['!cols'] = [{wch: 25}, {wch: 25}, {wch: 30}];
+            XLSX.utils.book_append_sheet(wb, ws, "Config");
+            XLSX.writeFile(wb, "欢迎页配置模板_v2.xlsx");
+        }
+
+        // 2. 文件处理
+        const dropZone = document.getElementById('dropZone');
+        dropZone.addEventListener('change', (e) => handleFile(e.target.files[0]));
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.children[1].classList.add('border-pink-500', 'bg-gray-700'); });
+        dropZone.addEventListener('dragleave', (e) => { e.preventDefault(); dropZone.children[1].classList.remove('border-pink-500', 'bg-gray-700'); });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.children[1].classList.remove('border-pink-500', 'bg-gray-700');
+            handleFile(e.dataTransfer.files[0]);
+        });
+
+        function handleFile(file) {
+            if(!file) return;
+            document.getElementById('fileNameDisplay').innerText = `已加载: ${file.name}`;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const workbook = XLSX.read(e.target.result, {type: 'array'});
+                const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                const jsonData = XLSX.utils.sheet_to_json(sheet, {header: 1}); // 按行读取数组
+                parseData(jsonData);
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        // 3. 解析逻辑：区分配置项和团队列表
+        function parseData(rows) {
+            const config = {};
+            const teamMembers = [];
+
+            // 预定义的配置Key
+            const configKeys = ["company_name", "new_staff_name", "welcome_title"];
+
+            rows.forEach(row => {
+                if (!row || row.length < 1) return;
+                
+                const key = row[0] ? row[0].toString().trim() : "";
+                const val = row[1] ? row[1].toString().trim() : "";
+
+                // 如果是基础配置项
+                if (configKeys.includes(key)) {
+                    config[key] = val;
+                }
+                // 如果是团队成员（简单的判断逻辑：不是ConfigKey，不是标题行，且AB列都有值）
+                else if (key && val && !key.includes("【") && !key.includes("姓名") && !key.includes("配置")) {
+                    teamMembers.push({
+                        name: key,
+                        role: val
+                    });
+                }
+            });
+
+            updatePreview(config, teamMembers);
+        }
+
+        // 4. 生成 HTML
+        function updatePreview(config, teamMembers) {
+            // 默认值
+            const company = config['company_name'] || "星云科技";
+            const newStaff = config['new_staff_name'] || "新伙伴";
+            const title = config['welcome_title'] || "欢迎加入";
+
+            // 生成 JS 数据字符串
+            const membersArrayJs = generateTeamJs(teamMembers);
+
+            let html = getStarryTemplate();
+
+            // === 修复点1：全局替换 company_name ===
+            // 使用正则表达式 /.../g 来替换所有出现的地方
+            html = html.replace(/{{company_name}}/g, company);
+            html = html.replace(/{{welcome_title}}/g, title);
+            html = html.replace(/{{new_staff_name}}/g, newStaff);
+            
+            // 注入团队数据
+            html = html.replace('/*{{TEAM_DATA_PLACEHOLDER}}*/', membersArrayJs);
+
+            generatedHtmlContent = html;
+            
+            // 渲染
+            const iframe = document.getElementById('previewFrame');
+            iframe.srcdoc = html;
+            document.getElementById('emptyState').classList.add('hidden');
+            
+            // 激活下载
+            const btn = document.getElementById('downloadHtmlBtn');
+            btn.disabled = false;
+            btn.classList.remove('bg-gray-600', 'text-gray-400', 'cursor-not-allowed');
+            btn.classList.add('bg-pink-600', 'text-white', 'hover:bg-pink-700', 'cursor-pointer');
+            btn.onclick = () => {
+                const blob = new Blob([generatedHtmlContent], {type: 'text/html'});
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = `Welcome_${newStaff}.html`;
+                link.click();
+            };
+        }
+
+        // 5. 构造团队数据 JS (保留随机颜色的酷炫，但使用 Excel 的头衔)
+        function generateTeamJs(members) {
+            if (!members || members.length === 0) return "[]";
+            
+            // 样式池（只负责颜色，不负责头衔了）
+            const styles = [
+                { type: "glow-gold", bg: "bg-gold" },
+                { type: "glow-purple", bg: "bg-purple" },
+                { type: "glow-blue", bg: "bg-blue" },
+                { type: "glow-pink", bg: "bg-pink" },
+                { type: "glow-green", bg: "bg-green" },
+                { type: "glow-white", bg: "bg-white" }
+            ];
+
+            let jsArrayStr = "[\n";
+            members.forEach(m => {
+                const randomStyle = styles[Math.floor(Math.random() * styles.length)];
+                // 这里的 role 使用 Excel 传入的 m.role
+                jsArrayStr += `    { name: "${m.name}", role: "${m.role}", type: "${randomStyle.type}", bg: "${randomStyle.bg}" },\n`;
+            });
+            jsArrayStr += "]";
+            return jsArrayStr;
+        }
+
+        // 6. HTML 模板 (包含你的酷炫特效)
+        function getStarryTemplate() {
+            return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>欢迎加入 {{company_name}} 大家庭</title>
+    <link href="https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&display=swap" rel="stylesheet">
+    <style>
+        /* --- 全局样式 --- */
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #050505; font-family: 'Microsoft YaHei', sans-serif; color: #fff; }
+        /* --- 启动页蒙层 --- */
+        #start-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 999; display: flex; justify-content: center; align-items: center; flex-direction: column; cursor: pointer; transition: opacity 1s; }
+        .start-btn { padding: 30px 60px; border: 4px solid #ff69b4; color: #ff69b4; font-size: 3.5rem; border-radius: 80px; background: rgba(255, 105, 180, 0.15); box-shadow: 0 0 30px #ff69b4; animation: pulse 1.5s infinite; font-weight: bold; text-align: center; font-family: 'ZCOOL KuaiLe', cursive; }
+        /* --- 背景 Canvas --- */
+        #bg-canvas { position: absolute; top: 0; left: 0; z-index: 1; }
+        /* --- 弹幕层 --- */
+        .danmu-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 50; pointer-events: none; }
+        .danmu-item { position: absolute; white-space: nowrap; font-size: 20px; font-weight: bold; opacity: 0.9; filter: drop-shadow(0 0 3px rgba(0,0,0,0.8)); animation: slideLeft linear forwards; font-family: 'Microsoft YaHei', sans-serif; }
+        /* --- 场景容器 --- */
+        .scene { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; justify-content: center; align-items: center; flex-direction: column; z-index: 100; transition: opacity 0.8s; }
+        /* --- 场景1: 欢迎页 --- */
+        .company-name { color: #aaddff; font-size: 2rem; letter-spacing: 8px; margin-bottom: 20px; text-shadow: 0 0 15px rgba(255,255,255,0.4); font-weight: bold; }
+        .welcome-title { font-size: 4rem; font-weight: 900; color: #fff; margin: 0; line-height: 1.1; text-align: center; }
+        .name-highlight { display: inline-block; font-family: 'ZCOOL KuaiLe', cursive; font-size: 8.5rem; color: #ffcc00; background: linear-gradient(to bottom, #ffeb3b, #ff9800); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-shadow: 0px 5px 20px rgba(255, 165, 0, 0.6); transform: rotate(-3deg); margin-top: 15px; animation: bounceName 2s infinite ease-in-out; }
+        /* 下一步按钮 */
+        .next-btn { margin-top: 60px; padding: 15px 40px; border: 2px solid #fff; color: #fff; background: rgba(255,255,255,0.1); font-size: 1.5rem; border-radius: 50px; cursor: pointer; transition: all 0.3s; opacity: 0; animation: fadeIn 2s forwards 3s; font-family: 'ZCOOL KuaiLe', cursive; }
+        .next-btn:hover { background: #fff; color: #000; transform: scale(1.1); box-shadow: 0 0 20px rgba(255,255,255,0.8); }
+        /* --- 场景过渡 --- */
+        #scene-interlude h2 { font-size: 2.5rem; color: #bbb; font-weight: normal; font-style: italic; text-align: center; animation: textGlow 2s infinite; }
+        /* --- 场景2: 星云大家庭 --- */
+        .group-title { font-size: 3rem; color: #fff; margin-bottom: 20px; text-shadow: 0 0 20px #ff00cc; font-family: 'ZCOOL KuaiLe', cursive; margin-top: 20px; }
+        .member-card-container { display: flex; gap: 15px; flex-wrap: wrap; justify-content: center; align-content: center; max-width: 1200px; padding: 20px; overflow-y: auto; max-height: 80vh; }
+        .member-card-container::-webkit-scrollbar { display: none; }
+        .member-card { background: rgba(255, 255, 255, 0.08); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.15); padding: 12px 20px; border-radius: 12px; text-align: center; opacity: 0; transform: scale(0.8) translateY(20px); box-shadow: 0 4px 15px rgba(0,0,0,0.3); transition: transform 0.3s; min-width: 140px; flex: 0 1 auto; }
+        .member-card:hover { transform: scale(1.1) !important; background: rgba(255, 255, 255, 0.15); z-index: 10; }
+        .pop-in { animation: popInEffect 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        .m-name { font-family: 'ZCOOL KuaiLe', cursive; font-size: 1.8rem; display: block; margin-bottom: 5px; }
+        .m-role { font-size: 0.9rem; color: #eee; padding: 2px 8px; border-radius: 4px; display: inline-block; font-weight: lighter; letter-spacing: 1px; }
+        /* 颜色定义 */
+        .glow-gold { text-shadow: 0 0 10px #FFD700; color: #FFD700; }
+        .glow-blue { text-shadow: 0 0 10px #00F2FF; color: #00F2FF; }
+        .glow-pink { text-shadow: 0 0 10px #FF69B4; color: #FF69B4; }
+        .glow-green { text-shadow: 0 0 10px #00FF7F; color: #00FF7F; }
+        .glow-purple { text-shadow: 0 0 10px #BD00FF; color: #BD00FF; }
+        .glow-white { text-shadow: 0 0 10px #ffffff; color: #ffffff; }
+        .bg-gold { background: rgba(255, 215, 0, 0.2); border: 1px solid rgba(255, 215, 0, 0.3); }
+        .bg-blue { background: rgba(0, 242, 255, 0.2); border: 1px solid rgba(0, 242, 255, 0.3); }
+        .bg-pink { background: rgba(255, 105, 180, 0.2); border: 1px solid rgba(255, 105, 180, 0.3); }
+        .bg-green { background: rgba(0, 255, 127, 0.2); border: 1px solid rgba(0, 255, 127, 0.3); }
+        .bg-purple { background: rgba(189, 0, 255, 0.2); border: 1px solid rgba(189, 0, 255, 0.3); }
+        .bg-white { background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); }
+        /* --- 动画 --- */
+        @keyframes pulse { 0% { transform: scale(1); box-shadow: 0 0 30px #ff69b4; } 50% { transform: scale(1.03); box-shadow: 0 0 50px #ff69b4; } 100% { transform: scale(1); box-shadow: 0 0 30px #ff69b4; } }
+        @keyframes slideLeft { from { transform: translateX(100vw); } to { transform: translateX(-100%); } }
+        @keyframes bounceName { 0%, 100% { transform: rotate(-3deg) scale(1); } 50% { transform: rotate(3deg) scale(1.05); } }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes textGlow { 0%, 100% { text-shadow: 0 0 5px #fff; opacity: 1; } 50% { text-shadow: 0 0 20px #fff; opacity: 0.7; } }
+        @keyframes popInEffect { 0% { opacity: 0; transform: scale(0.5) translateY(50px); } 70% { opacity: 1; transform: scale(1.1) translateY(-10px); } 100% { opacity: 1; transform: scale(1) translateY(0); } }
+        @media (max-width: 768px) { .name-highlight { font-size: 5rem; } .start-btn { font-size: 2rem; padding: 20px 40px; } .group-title { font-size: 2rem; } .member-card { width: 45%; font-size: 0.9rem; } #scene-interlude h2 { font-size: 1.5rem; padding: 0 20px; } }
+    </style>
+</head>
+<body>
+    <div id="start-overlay" onclick="startShow()">
+        <div class="start-btn">🎵 点击开启 欢迎仪式 🎵</div>
+    </div>
+    <canvas id="bg-canvas"></canvas>
+    <div class="danmu-container" id="danmu-layer"></div>
+    <div id="scene-1" class="scene">
+        <div class="hero-text" style="text-align: center;">
+            <div class="company-name">{{company_name}}</div>
+            <h1 class="welcome-title">{{welcome_title}}<br><span class="name-highlight">{{new_staff_name}}</span></h1>
+        </div>
+        <button class="next-btn" onclick="goToGroupScene()">👉 点击查收小惊喜 👈</button>
+    </div>
+    <div id="scene-interlude" class="scene">
+        <h2>（ {{company_name}} 大部队正在赶来... 🤫 ）</h2>
+    </div>
+    <div id="scene-2" class="scene">
+        <h1 class="group-title">🎉 {{company_name}}“最强”天团 🎉</h1>
+        <div class="member-card-container" id="team-container"></div>
+    </div>
+    <script>
+        // --- 团队数据配置 ---
+        // 代码生成器注入点：
+        const teamMembers = /*{{TEAM_DATA_PLACEHOLDER}}*/;
+
+        // --- 弹幕库 ---
+        let currentMessages = ["✨ 追求卓越 ✨", "🚀 诚信正直", "❤️ 至诚服务", "🏆 成就客户", "🔥 团结一致", "欢迎新人！🎉", "膜拜大佬", "代码写得飞起 💻", "这也太帅了吧 😍", "冲鸭！"];
+        const groupMessages = ["{{company_name}}牛逼！", "大神出道", "上大分", "前端组起飞", "AI改变世界", "销售组冲业绩", "Family ❤️", "大佬云集", "聚是一团火", "起飞起飞 🚀"];
+        const config = { danmuSpeedMin: 10, danmuSpeedMax: 18, colors: ['#ff9a9e', '#fad0c4', '#a18cd1', '#fbc2eb', '#84fab0', '#ffffff', '#ffd700'] };
+
+        // --- 启动 ---
+        function startShow() {
+            const overlay = document.getElementById('start-overlay');
+            const scene1 = document.getElementById('scene-1');
+            overlay.style.opacity = '0';
+            setTimeout(() => {
+                overlay.style.display = 'none';
+                scene1.style.display = 'flex';
+                scene1.style.opacity = '1';
+                initParticles();
+                startDanmu();
+                launchFireworks(5);
+            }, 800);
+        }
+
+        // --- 切换场景 ---
+        function goToGroupScene() {
+            const scene1 = document.getElementById('scene-1');
+            const interlude = document.getElementById('scene-interlude');
+            const scene2 = document.getElementById('scene-2');
+            scene1.style.opacity = '0';
+            setTimeout(() => {
+                scene1.style.display = 'none';
+                interlude.style.display = 'flex';
+                requestAnimationFrame(() => interlude.style.opacity = '1');
+                setTimeout(() => {
+                    interlude.style.opacity = '0';
+                    setTimeout(() => {
+                        interlude.style.display = 'none';
+                        scene2.style.display = 'flex';
+                        requestAnimationFrame(() => scene2.style.opacity = '1');
+                        currentMessages = currentMessages.concat(groupMessages);
+                        launchFireworks(15);
+                        renderTeamMembers();
+                    }, 800);
+                }, 2000);
+            }, 800);
+        }
+
+        // --- 渲染团队卡片 ---
+        function renderTeamMembers() {
+            const container = document.getElementById('team-container');
+            container.innerHTML = '';
+            teamMembers.forEach((member, index) => {
+                const card = document.createElement('div');
+                card.className = \`member-card pop-in\`;
+                card.style.animationDelay = \`\${index * 0.15}s\`;
+                card.innerHTML = \`<span class="m-name \${member.type}">\${member.name}</span><span class="m-role \${member.bg}">\${member.role}</span>\`;
+                container.appendChild(card);
+            });
+        }
+
+        // --- 弹幕逻辑 ---
+        function startDanmu() {
+            const container = document.getElementById('danmu-layer');
+            for(let i=0; i<20; i++) setTimeout(createSingleDanmu, Math.random() * 2000);
+            setInterval(() => createSingleDanmu(), 400);
+            function createSingleDanmu() {
+                const el = document.createElement('div');
+                el.className = 'danmu-item';
+                el.innerText = currentMessages[Math.floor(Math.random() * currentMessages.length)];
+                const topPos = Math.random() * 95;
+                const duration = config.danmuSpeedMin + Math.random() * (config.danmuSpeedMax - config.danmuSpeedMin);
+                const color = config.colors[Math.floor(Math.random() * config.colors.length)];
+                const size = 18 + Math.random() * 24;
+                el.style.top = topPos + '%';
+                el.style.color = color;
+                el.style.fontSize = size + 'px';
+                el.style.animationDuration = duration + 's';
+                container.appendChild(el);
+                setTimeout(() => el.remove(), duration * 1000);
+            }
+        }
+
+        // --- 粒子背景 ---
+        function initParticles() {
+            const canvas = document.getElementById('bg-canvas');
+            const ctx = canvas.getContext('2d');
+            let width, height;
+            let particles = [];
+            function resize() { width = canvas.width = window.innerWidth; height = canvas.height = window.innerHeight; }
+            window.addEventListener('resize', resize);
+            resize();
+            class Particle {
+                constructor() { this.reset(); }
+                reset() { this.x = Math.random() * width; this.y = Math.random() * height; this.vx = (Math.random() - 0.5) * 1.5; this.vy = (Math.random() - 0.5) * 1.5; this.size = Math.random() * 2.5; this.color = Math.random() > 0.5 ? 'rgba(255, 105, 180, 0.5)' : 'rgba(0, 242, 255, 0.5)'; }
+                update() { this.x += this.vx; this.y += this.vy; if (this.x < 0 || this.x > width) this.vx *= -1; if (this.y < 0 || this.y > height) this.vy *= -1; }
+                draw() { ctx.fillStyle = this.color; ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2); ctx.fill(); }
+            }
+            for (let i = 0; i < 120; i++) particles.push(new Particle());
+            function animate() {
+                ctx.clearRect(0, 0, width, height);
+                particles.forEach((p, index) => {
+                    p.update(); p.draw();
+                    for (let j = index + 1; j < particles.length; j++) {
+                        const p2 = particles[j];
+                        const dist = Math.sqrt((p.x-p2.x)**2 + (p.y-p2.y)**2);
+                        if (dist < 100) { ctx.strokeStyle = \`rgba(255, 255, 255, \${0.15 * (1 - dist/100)})\`; ctx.lineWidth = 0.5; ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p2.x, p2.y); ctx.stroke(); }
+                    }
+                });
+                updateFireworks(ctx);
+                requestAnimationFrame(animate);
+            }
+            animate();
+        }
+
+        // --- 烟花逻辑 ---
+        let fireworks = [];
+        function launchFireworks(amount = 5) { for(let i=0; i<amount; i++) setTimeout(() => createFirework(window.innerWidth/2 + (Math.random()-0.5)*700, window.innerHeight/2 + (Math.random()-0.5)*500), i * 400); }
+        function createFirework(x, y) {
+            const particleCount = 100; const colors = ['#ff00cc', '#ffcc00', '#00f2ff', '#ff69b4', '#ffffff'];
+            for (let i = 0; i < particleCount; i++) { fireworks.push({ x: x, y: y, vx: Math.cos(i * 2 * Math.PI / particleCount) * (Math.random() * 8), vy: Math.sin(i * 2 * Math.PI / particleCount) * (Math.random() * 8), life: 200 + Math.random() * 150, color: colors[Math.floor(Math.random() * colors.length)] }); }
+        }
+        function updateFireworks(ctx) {
+            for (let i = fireworks.length - 1; i >= 0; i--) {
+                const f = fireworks[i]; f.x += f.vx; f.y += f.vy; f.life--; f.vy += 0.03; f.vx *= 0.98; f.vy *= 0.98;
+                ctx.fillStyle = f.color; ctx.globalAlpha = Math.max(0, f.life / 250); ctx.beginPath(); ctx.arc(f.x, f.y, 2, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
+                if (f.life <= 0) fireworks.splice(i, 1);
+            }
+        }
+    <\/script>
+</body>
+</html>`;
+        }
+    </script>
+</body>
+</html>

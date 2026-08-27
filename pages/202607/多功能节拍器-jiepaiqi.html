@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>多功能节拍器</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Segoe UI', 'Microsoft YaHei', Arial, sans-serif;
+            background: #f7f8fa;
+            max-width: 480px;
+            margin: 0 auto;
+            padding: 32px 8px 24px 8px;
+            text-align: center;
+        }
+        h1 {
+            font-size: 2.1rem;
+            font-weight: 700;
+            margin-bottom: 24px;
+            color: #222;
+            letter-spacing: 1px;
+        }
+        .control-panel {
+            background: #fff;
+            box-shadow: 0 4px 24px 0 rgba(0,0,0,0.07);
+            border-radius: 22px;
+            padding: 28px 18px 18px 18px;
+            margin: 0 0 28px 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 18px;
+        }
+        .control-panel label {
+            font-size: 1rem;
+            color: #444;
+            margin-right: 6px;
+        }
+        .control-panel input[type="number"],
+        .control-panel select {
+            border: none;
+            background: #f2f3f7;
+            border-radius: 12px;
+            padding: 8px 16px;
+            font-size: 1rem;
+            color: #222;
+            outline: none;
+            margin: 0 4px;
+            transition: box-shadow 0.2s;
+        }
+        .control-panel input[type="number"]:focus,
+        .control-panel select:focus {
+            box-shadow: 0 0 0 2px #007aff33;
+        }
+        .control-panel button {
+            background: #007aff;
+            color: #fff;
+            border: none;
+            border-radius: 16px;
+            padding: 10px 28px;
+            font-size: 1rem;
+            font-weight: 600;
+            margin: 0 4px;
+            cursor: pointer;
+            box-shadow: 0 2px 8px 0 rgba(0,122,255,0.08);
+            transition: background 0.2s, box-shadow 0.2s, transform 0.1s;
+        }
+        .control-panel button:hover {
+            background: #005ecb;
+            box-shadow: 0 4px 16px 0 rgba(0,122,255,0.13);
+            transform: translateY(-2px) scale(1.03);
+        }
+        #status {
+            color: #888;
+            font-size: 0.98rem;
+            margin-bottom: 18px;
+            letter-spacing: 0.5px;
+        }
+        #visualBeat {
+            display: flex;
+            justify-content: center;
+            margin: 32px 0 0 0;
+            gap: 18px;
+        }
+        #visualBeat div {
+            width: 32px !important;
+            height: 32px !important;
+            border-radius: 50%;
+            background: #e5e6ea !important;
+            box-shadow: 0 2px 8px 0 rgba(0,0,0,0.04);
+            transition: all 0.18s cubic-bezier(.4,0,.2,1);
+            opacity: 0.7;
+        }
+        #visualBeat div.active {
+            background: #007aff !important;
+            opacity: 1;
+            transform: scale(1.25);
+            box-shadow: 0 4px 16px 0 rgba(0,122,255,0.13);
+        }
+        @media (max-width: 600px) {
+            body {
+                padding: 12px 0 12px 0;
+            }
+            .control-panel {
+                padding: 18px 4px 12px 4px;
+            }
+            #visualBeat div {
+                width: 22px !important;
+                height: 22px !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>多功能节拍器</h1>
+    
+    <div class="control-panel">
+        <label for="tempo">节拍速度 (BPM):</label>
+        <input type="number" id="tempo" min="40" max="300" value="120">
+        
+        <label for="pattern">节奏模式:</label>
+        <select id="pattern">
+            <option value="1">4/4拍 (标准)</option>
+            <option value="2">3/4拍 (华尔兹)</option>
+            <option value="3">2/4拍 (进行曲)</option>
+            <option value="4">6/8拍 (爵士)</option>
+        </select>
+        
+        <label for="soundType">音色类型:</label>
+        <select id="soundType">
+            <option value="1">电子音</option>
+            <option value="2">木鱼声</option>
+            <option value="3">鼓声</option>
+            <option value="4">铃铛声</option>
+        </select>
+        
+        <button id="start">开始</button>
+        <button id="stop">停止</button>
+        <button id="download">下载音频</button>
+    </div>
+    
+    <div id="status">准备就绪</div>
+    
+    <div id="visualBeat" style="display: flex; justify-content: center; margin: 20px 0;">
+        <!-- 节奏点将通过JS动态生成 -->
+    </div>
+    
+    <script>
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        let timer;
+        let currentBeat = 0;
+        let isPlaying = false;
+        let beatDots = [];
+        let soundType = 1;
+        
+        // 创建音频缓冲区（仅合成音效）
+        function createBeepBuffer(duration = 0.05, frequency = 800, type = soundType) {
+            const sampleRate = audioContext.sampleRate;
+            const numSamples = Math.floor(duration * sampleRate);
+            const buffer = audioContext.createBuffer(1, numSamples, sampleRate);
+            const data = buffer.getChannelData(0);
+            
+            switch(type) {
+                case 2: // 木鱼声（保持原有优化）
+                    for (let i = 0; i < numSamples; i++) {
+                        const t = i / sampleRate;
+                        data[i] = (
+                            0.7 * Math.sin(2 * Math.PI * 600 * t) * Math.exp(-t * 18) +
+                            0.3 * Math.sin(2 * Math.PI * 900 * t) * Math.exp(-t * 25)
+                        ) * (1 - t / duration);
+                    }
+                    break;
+                case 3: // 鼓声（电子鼓合成，带频率包络）
+                    // 参考 https://www.nickwritesablog.com/drum-synthesis-in-javascript/
+                    // 频率从高滑到低，带有pitch envelope
+                    const baseFreq = 50; // 最终低频
+                    const startFreq = 180; // 起始高频
+                    const pitchDecay = 0.025; // 频率包络衰减（秒）
+                    for (let i = 0; i < numSamples; i++) {
+                        const t = i / sampleRate;
+                        // 指数包络让频率从高滑到低
+                        const env = Math.exp(-t * 3.5); // 振幅包络
+                        const pitchEnv = startFreq * Math.exp(-t / pitchDecay) + baseFreq * (1 - Math.exp(-t / pitchDecay));
+                        // 轻微clip提升冲击感
+                        let sample = Math.sin(2 * Math.PI * pitchEnv * t);
+                        // 加入初始冲击
+                        const attack = Math.exp(-t * 30);
+                        sample = Math.tanh(sample * 2.5) * env * (0.7 + 0.3 * attack);
+                        data[i] = sample;
+                    }
+                    break;
+                case 4: // 铃铛声（保持优化）
+                    for (let i = 0; i < numSamples; i++) {
+                        const t = i / sampleRate;
+                        const env = Math.exp(-t * 3);
+                        data[i] = (
+                            0.6 * Math.sin(2 * Math.PI * 1800 * t) +
+                            0.3 * Math.sin(2 * Math.PI * 2400 * t) +
+                            0.2 * Math.sin(2 * Math.PI * 3200 * t)
+                        ) * env * (1 - t / duration);
+                    }
+                    break;
+                default: // 电子音
+                    for (let i = 0; i < numSamples; i++) {
+                        const t = i / sampleRate;
+                        data[i] = Math.sin(2 * Math.PI * frequency * t) * Math.exp(-t * 10);
+                    }
+            }
+            return buffer;
+        }
+        
+        // 播放音频
+        function playBeep(buffer, accent = false) {
+            const source = audioContext.createBufferSource();
+            source.buffer = buffer;
+            if (accent) {
+                const gainNode = audioContext.createGain();
+                gainNode.gain.value = 1.5;
+                source.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+            } else {
+                source.connect(audioContext.destination);
+            }
+            source.start();
+        }
+        
+        // 初始化节奏点视觉指示器
+        function initBeatVisualizer() {
+            const visualBeat = document.getElementById('visualBeat');
+            visualBeat.innerHTML = '';
+            beatDots = [];
+            
+            const pattern = parseInt(document.getElementById('pattern').value);
+            const beats = pattern === 1 ? 4 : pattern === 2 ? 3 : pattern === 3 ? 2 : 6;
+            
+            for (let i = 0; i < beats; i++) {
+                const dot = document.createElement('div');
+                if (i === 0) dot.classList.add('active');
+                visualBeat.appendChild(dot);
+                beatDots.push(dot);
+            }
+        }
+        
+        // 更新节奏点视觉指示器
+        function updateBeatVisualizer(beatIndex) {
+            beatDots.forEach((dot, index) => {
+                if (index === beatIndex) {
+                    dot.classList.add('active');
+                } else {
+                    dot.classList.remove('active');
+                }
+            });
+        }
+        
+        // 开始节拍
+        function startMetronome() {
+            // 如果正在播放，先停止当前节拍
+            if (isPlaying) {
+                stopMetronome();
+            }
+            
+            isPlaying = true;
+            document.getElementById('status').textContent = '播放中...';
+            
+            const tempo = parseInt(document.getElementById('tempo').value);
+            const pattern = parseInt(document.getElementById('pattern').value);
+            soundType = parseInt(document.getElementById('soundType').value);
+            
+            // 初始化节奏点视觉指示器
+            initBeatVisualizer();
+            const interval = 60000 / tempo; // 转换为毫秒
+            
+            const beepBuffer = createBeepBuffer();
+            const accentBuffer = createBeepBuffer(0.1, 1200);
+            
+            currentBeat = 0;
+            
+            timer = setInterval(() => {
+                currentBeat++;
+                
+                // 根据节奏模式播放不同音效
+                let playAccent = false;
+                if (pattern === 1 && currentBeat % 4 === 1) playAccent = true; // 4/4
+                else if (pattern === 2 && currentBeat % 3 === 1) playAccent = true; // 3/4
+                else if (pattern === 3 && currentBeat % 2 === 1) playAccent = true; // 2/4
+                else if (pattern === 4 && currentBeat % 6 === 1) playAccent = true; // 6/8
+                
+                playBeep(playAccent ? accentBuffer : beepBuffer, playAccent);
+                updateBeatVisualizer((currentBeat - 1) % beatDots.length);
+                
+                // 重置计数以避免过大数字
+                if (currentBeat > 1000) currentBeat = 1;
+            }, interval);
+        }
+        
+        // 停止节拍
+        function stopMetronome() {
+            if (!isPlaying) return;
+            
+            clearInterval(timer);
+            isPlaying = false;
+            document.getElementById('status').textContent = '已停止';
+        }
+        
+        // 下载音频
+        function downloadAudio() {
+            const tempo = parseInt(document.getElementById('tempo').value);
+            const pattern = parseInt(document.getElementById('pattern').value);
+            const interval = 60000 / tempo;
+            
+            // 创建10秒的音频示例
+            const duration = 10;
+            const numBeats = Math.floor(duration * tempo / 60);
+            
+            // 创建离线音频上下文
+            const offlineCtx = new OfflineAudioContext(1, duration * 44100, 44100);
+            
+            // 创建音频缓冲区
+            const beepBuffer = createBeepBuffer();
+            const accentBuffer = createBeepBuffer(0.1, 1200);
+            
+            // 安排节拍
+            for (let i = 0; i < numBeats; i++) {
+                const time = i * interval / 1000;
+                
+                let playAccent = false;
+                if (pattern === 1 && (i % 4) === 0) playAccent = true;
+                else if (pattern === 2 && (i % 3) === 0) playAccent = true;
+                else if (pattern === 3 && (i % 2) === 0) playAccent = true;
+                else if (pattern === 4 && (i % 6) === 0) playAccent = true;
+                
+                const source = offlineCtx.createBufferSource();
+                source.buffer = playAccent ? accentBuffer : beepBuffer;
+                
+                if (playAccent) {
+                    const gainNode = offlineCtx.createGain();
+                    gainNode.gain.value = 1.5;
+                    source.connect(gainNode);
+                    gainNode.connect(offlineCtx.destination);
+                } else {
+                    source.connect(offlineCtx.destination);
+                }
+                
+                source.start(time);
+            }
+            
+            // 渲染音频
+            offlineCtx.startRendering().then(renderedBuffer => {
+                // 转换为WAV格式
+                const wavBuffer = bufferToWave(renderedBuffer, renderedBuffer.length);
+                const blob = new Blob([wavBuffer], { type: 'audio/wav' });
+                
+                // 创建下载链接
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = `节拍器_${tempo}BPM_${document.getElementById('pattern').options[pattern-1].text.split(' ')[0]}.wav`;
+                document.body.appendChild(a);
+                a.click();
+                
+                // 清理
+                setTimeout(() => {
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(url);
+                }, 100);
+            });
+        }
+        
+        // 将音频缓冲区转换为WAV格式
+        function bufferToWave(abuffer, len) {
+            const numOfChan = abuffer.numberOfChannels;
+            const length = len * numOfChan * 2 + 44;
+            const buffer = new ArrayBuffer(length);
+            const view = new DataView(buffer);
+            let pos = 44; // 数据写入起点
+
+            // 写入WAV头部
+            writeString(view, 0, 'RIFF');
+            view.setUint32(4, 36 + len * numOfChan * 2, true);
+            writeString(view, 8, 'WAVE');
+            writeString(view, 12, 'fmt ');
+            view.setUint32(16, 16, true);
+            view.setUint16(20, 1, true);
+            view.setUint16(22, numOfChan, true);
+            view.setUint32(24, abuffer.sampleRate, true);
+            view.setUint32(28, abuffer.sampleRate * 2 * numOfChan, true);
+            view.setUint16(32, numOfChan * 2, true);
+            view.setUint16(34, 16, true);
+            writeString(view, 36, 'data');
+            view.setUint32(40, len * numOfChan * 2, true);
+
+            // 写入音频数据
+            for (let i = 0; i < len; i++) {
+                for (let channel = 0; channel < numOfChan; channel++) {
+                    let sample = abuffer.getChannelData(channel)[i];
+                    sample = Math.max(-1, Math.min(1, sample));
+                    sample = sample < 0 ? sample * 32768 : sample * 32767;
+                    view.setInt16(pos, sample, true);
+                    pos += 2;
+                }
+            }
+            return buffer;
+        }
+        
+        function writeString(view, offset, string) {
+            for (let i = 0; i < string.length; i++) {
+                view.setUint8(offset + i, string.charCodeAt(i));
+            }
+        }
+        
+        // 事件监听
+        document.getElementById('start').addEventListener('click', startMetronome);
+        document.getElementById('pattern').addEventListener('change', initBeatVisualizer);
+        document.getElementById('stop').addEventListener('click', stopMetronome);
+        document.getElementById('download').addEventListener('click', downloadAudio);
+    </script>
+</body>
+</html>

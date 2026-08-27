@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>预算规划工具</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#10B981',
+                        secondary: '#3B82F6',
+                        accent: '#F59E0B',
+                        danger: '#EF4444',
+                        dark: '#1F2937',
+                        light: '#F3F4F6',
+                        income: '#10B981',
+                        expense: '#EF4444'
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .card-shadow {
+                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            }
+            .transition-bg {
+                transition: background-color 0.3s ease;
+            }
+            .input-focus {
+                @apply focus:ring-2 focus:ring-primary focus:border-primary transition-all;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen font-sans text-gray-800">
+    <!-- 顶部导航 -->
+    <header class="bg-white shadow-sm sticky top-0 z-30">
+        <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center space-x-2">
+                <i class="fa fa-line-chart text-primary text-2xl"></i>
+                <h1 class="text-xl font-bold text-dark">预算规划工具</h1>
+            </div>
+            <div class="flex space-x-3">
+                <button id="save-budget-btn" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-md text-dark flex items-center transition-colors">
+                    <i class="fa fa-save mr-2"></i>保存预算
+                </button>
+                <div class="relative group">
+                    <button class="px-4 py-2 bg-primary hover:bg-green-700 rounded-md text-white flex items-center transition-colors">
+                        <i class="fa fa-download mr-2"></i>导出
+                        <i class="fa fa-chevron-down ml-1 text-xs"></i>
+                    </button>
+                    <div class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 hidden group-hover:block">
+                        <button id="export-csv-btn" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                            <i class="fa fa-file-text-o mr-2"></i>导出为CSV
+                        </button>
+                        <button id="export-pdf-btn" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                            <i class="fa fa-file-pdf-o mr-2"></i>导出为PDF
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-4 py-6">
+        <!-- 预算概览卡片 -->
+        <section class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div class="bg-white rounded-xl p-6 card-shadow border-l-4 border-secondary">
+                <div class="flex justify-between items-start mb-4">
+                    <div>
+                        <p class="text-gray-500 text-sm">本月收入</p>
+                        <h3 id="total-income" class="text-3xl font-bold text-secondary">¥0.00</h3>
+                    </div>
+                    <div class="bg-blue-100 p-3 rounded-full">
+                        <i class="fa fa-arrow-down text-secondary text-xl"></i>
+                    </div>
+                </div>
+                <div class="flex items-center text-sm">
+                    <span id="income-change" class="text-green-500 flex items-center">
+                        <i class="fa fa-arrow-up mr-1"></i>0%
+                    </span>
+                    <span class="text-gray-400 ml-2">相比上月</span>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl p-6 card-shadow border-l-4 border-danger">
+                <div class="flex justify-between items-start mb-4">
+                    <div>
+                        <p class="text-gray-500 text-sm">本月支出</p>
+                        <h3 id="total-expenses" class="text-3xl font-bold text-danger">¥0.00</h3>
+                    </div>
+                    <div class="bg-red-100 p-3 rounded-full">
+                        <i class="fa fa-arrow-up text-danger text-xl"></i>
+                    </div>
+                </div>
+                <div class="flex items-center text-sm">
+                    <span id="expense-change" class="text-red-500 flex items-center">
+                        <i class="fa fa-arrow-up mr-1"></i>0%
+                    </span>
+                    <span class="text-gray-400 ml-2">相比上月</span>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl p-6 card-shadow border-l-4 border-primary">
+                <div class="flex justify-between items-start mb-4">
+                    <div>
+                        <p class="text-gray-500 text-sm">预算余额</p>
+                        <h3 id="budget-balance" class="text-3xl font-bold text-primary">¥0.00</h3>
+                    </div>
+                    <div class="bg-green-100 p-3 rounded-full">
+                        <i class="fa fa-balance-scale text-primary text-xl"></i>
+                    </div>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2.5 mt-4">
+                    <div id="budget-progress" class="bg-primary h-2.5 rounded-full" style="width: 0%"></div>
+                </div>
+                <div class="flex justify-between text-xs text-gray-500 mt-1">
+                    <span>预算使用</span>
+                    <span id="budget-percentage">0%</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- 主要内容区 -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- 左侧：添加交易和预算设置 -->
+            <div class="lg:col-span-1 space-y-6">
+                <!-- 添加交易表单 -->
+                <div class="bg-white rounded-xl p-6 card-shadow">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center">
+                        <i class="fa fa-plus-circle text-primary mr-2"></i>添加交易
+                    </h2>
+                    <form id="transaction-form" class="space-y-4">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="col-span-2 sm:col-span-1">
+                                <label class="block text-sm font-medium text-gray-700 mb-1">交易类型</label>
+                                <div class="flex">
+                                    <button type="button" data-type="income" class="transaction-type-btn flex-1 py-2 bg-green-100 text-green-700 rounded-l-md border border-green-200 transition-colors">
+                                        <i class="fa fa-arrow-down mr-1"></i>收入
+                                    </button>
+                                    <button type="button" data-type="expense" class="transaction-type-btn flex-1 py-2 bg-white text-gray-700 rounded-r-md border-t border-b border-gray-200 transition-colors">
+                                        <i class="fa fa-arrow-up mr-1"></i>支出
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="col-span-2 sm:col-span-1">
+                                <label class="block text-sm font-medium text-gray-700 mb-1">金额 (¥)</label>
+                                <input type="number" id="transaction-amount" min="0.01" step="0.01" required
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-md input-focus"
+                                    placeholder="0.00">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">分类</label>
+                            <select id="transaction-category" required
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md input-focus bg-white">
+                                <option value="" disabled selected>选择分类</option>
+                                <optgroup label="收入">
+                                    <option value="salary">工资</option>
+                                    <option value="bonus">奖金</option>
+                                    <option value="investment">投资收益</option>
+                                    <option value="side-income">副业收入</option>
+                                    <option value="other-income">其他收入</option>
+                                </optgroup>
+                                <optgroup label="支出">
+                                    <option value="housing">住房</option>
+                                    <option value="food">餐饮</option>
+                                    <option value="transportation">交通</option>
+                                    <option value="utilities">水电煤</option>
+                                    <option value="entertainment">娱乐</option>
+                                    <option value="shopping">购物</option>
+                                    <option value="healthcare">医疗</option>
+                                    <option value="education">教育</option>
+                                    <option value="other-expense">其他支出</option>
+                                </optgroup>
+                            </select>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">日期</label>
+                                <input type="date" id="transaction-date" required
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-md input-focus">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">支付方式</label>
+                                <select id="transaction-payment" class="w-full px-3 py-2 border border-gray-300 rounded-md input-focus bg-white">
+                                    <option value="cash">现金</option>
+                                    <option value="credit-card">信用卡</option>
+                                    <option value="debit-card">借记卡</option>
+                                    <option value="mobile-payment">移动支付</option>
+                                    <option value="bank-transfer">银行转账</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">备注 (可选)</label>
+                            <textarea id="transaction-notes" rows="2"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md input-focus"
+                                placeholder="添加备注..."></textarea>
+                        </div>
+
+                        <button type="submit" class="w-full py-2 bg-primary hover:bg-green-700 text-white rounded-md transition-colors">
+                            添加交易
+                        </button>
+                    </form>
+                </div>
+
+                <!-- 预算设置 -->
+                <div class="bg-white rounded-xl p-6 card-shadow">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center">
+                        <i class="fa fa-cog text-primary mr-2"></i>预算设置
+                    </h2>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">月度预算总额</label>
+                            <div class="relative">
+                                <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500">¥</span>
+                                <input type="number" id="monthly-budget" min="0" step="100"
+                                    class="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md input-focus"
+                                    placeholder="设置月度预算">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-3">分类预算</label>
+                            <div id="category-budgets" class="space-y-3 max-h-60 overflow-y-auto pr-2">
+                                <!-- 分类预算项将通过JavaScript动态生成 -->
+                            </div>
+                        </div>
+
+                        <button id="save-budget-settings" class="w-full py-2 bg-primary hover:bg-green-700 text-white rounded-md transition-colors">
+                            保存预算设置
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右侧：图表和交易列表 -->
+            <div class="lg:col-span-2 space-y-6">
+                <!-- 图表区域 -->
+                <div class="bg-white rounded-xl p-6 card-shadow">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-lg font-semibold flex items-center">
+                            <i class="fa fa-pie-chart text-primary mr-2"></i>支出分析
+                        </h2>
+                        <div class="flex space-x-2">
+                            <button class="period-btn px-3 py-1 text-sm bg-primary text-white rounded-md">本月</button>
+                            <button class="period-btn px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-md">上月</button>
+                            <button class="period-btn px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-md">全年</button>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="h-64">
+                            <canvas id="expense-chart"></canvas>
+                        </div>
+                        <div class="h-64">
+                            <canvas id="trend-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 最近交易 -->
+                <div class="bg-white rounded-xl p-6 card-shadow">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-lg font-semibold flex items-center">
+                            <i class="fa fa-list-alt text-primary mr-2"></i>最近交易
+                        </h2>
+                        <div class="relative">
+                            <input type="text" id="transaction-search" placeholder="搜索交易..."
+                                class="pl-8 pr-3 py-1 text-sm border border-gray-300 rounded-md input-focus w-48">
+                            <i class="fa fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm"></i>
+                        </div>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">日期</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">描述</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">分类</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">金额</th>
+                                    <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="transactions-table-body" class="bg-white divide-y divide-gray-200">
+                                <!-- 交易记录将通过JavaScript动态生成 -->
+                                <tr class="text-center text-gray-500">
+                                    <td colspan="5" class="px-6 py-10">
+                                        <i class="fa fa-folder-open-o text-3xl mb-2 block mx-auto"></i>
+                                        暂无交易记录
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="flex justify-between items-center mt-4 text-sm">
+                        <div class="text-gray-500">显示 <span id="transaction-count">0</span> 条记录</div>
+                        <div class="flex space-x-1">
+                            <button id="prev-page" class="px-3 py-1 rounded border border-gray-300 text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                                <i class="fa fa-chevron-left"></i>
+                            </button>
+                            <span id="page-info">第 1 页</span>
+                            <button id="next-page" class="px-3 py-1 rounded border border-gray-300 text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                                <i class="fa fa-chevron-right"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 底部状态栏 -->
+    <footer class="bg-white border-t border-gray-200 py-3 px-4 mt-8 text-center text-xs text-gray-500">
+        <div>预算规划工具 &copy; 2023 | 数据存储在浏览器本地，刷新页面不会丢失</div>
+    </footer>
+
+    <!-- 交易编辑模态框 -->
+    <div id="edit-transaction-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center">
+        <div class="bg-white rounded-xl p-6 w-full max-w-md mx-4 card-shadow">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-semibold">编辑交易</h3>
+                <button id="close-modal-btn" class="text-gray-400 hover:text-gray-600">
+                    <i class="fa fa-times"></i>
+                </button>
+            </div>
+            <form id="edit-transaction-form" class="space-y-4">
+                <input type="hidden" id="edit-transaction-id">
+                <!-- 表单内容与添加交易表单类似，将通过JavaScript动态生成 -->
+            </form>
+        </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script>
+        // 全局变量
+        let transactions = [];
+        let budgetSettings = {
+            monthlyBudget: 0,
+            categoryBudgets: {}
+        };
+        let currentTransactionType = 'income';
+        let currentPeriod = 'month';
+        let currentPage = 1;
+        const transactionsPerPage = 10;
+        let expenseChart = null;
+        let trendChart = null;
+        const categoryIcons = {
+            'salary': 'fa-money',
+            'bonus': 'fa-gift',
+            'investment': 'fa-line-chart',
+            'side-income': 'fa-briefcase',
+            'other-income': 'fa-credit-card',
+            'housing': 'fa-home',
+            'food': 'fa-cutlery',
+            'transportation': 'fa-car',
+            'utilities': 'fa-bolt',
+            'entertainment': 'fa-film',
+            'shopping': 'fa-shopping-bag',
+            'healthcare': 'fa-medkit',
+            'education': 'fa-book',
+            'other-expense': 'fa-ellipsis-h'
+        };
+        const categoryColors = {
+            'housing': '#FF6384',
+            'food': '#36A2EB',
+            'transportation': '#FFCE56',
+            'utilities': '#4BC0C0',
+            'entertainment': '#9966FF',
+            'shopping': '#FF9F40',
+            'healthcare': '#C9CBCF',
+            'education': '#6B5B95',
+            'other-expense': '#B2B2B2'
+        };
+        const categories = [
+            { id: 'housing', name: '住房', type: 'expense' },
+            { id: 'food', name: '餐饮', type: 'expense' },
+            { id: 'transportation', name: '交通', type: 'expense' },
+            { id: 'utilities', name: '水电煤', type: 'expense' },
+            { id: 'entertainment', name: '娱乐', type: 'expense' },
+            { id: 'shopping', name: '购物', type: 'expense' },
+            { id: 'healthcare', name: '医疗', type: 'expense' },
+            { id: 'education', name: '教育', type: 'expense' },
+            { id: 'other-expense', name: '其他支出', type: 'expense' },
+            { id: 'salary', name: '工资', type: 'income' },
+            { id: 'bonus', name: '奖金', type: 'income' },
+            { id: 'investment', name: '投资收益', type: 'income' },
+            { id: 'side-income', name: '副业收入', type: 'income' },
+            { id: 'other-income', name: '其他收入', type: 'income' }
+        ];
+
+        // DOM 加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            // 初始化日期输入为今天
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('transaction-date').value = today;
+
+            // 加载数据
+            loadTransactions();
+            loadBudgetSettings();
+
+            // 初始化图表
+            initCharts();
+
+            // 生成分类预算设置
+            generateCategoryBudgetInputs();
+
+            // 设置事件监听
+            setupEventListeners();
+
+            // 更新UI
+            updateUI();
+        });
+
+        // 初始化图表
+        function initCharts() {
+            // 支出分析饼图
+            const expenseCtx = document.getElementById('expense-chart').getContext('2d');
+            expenseChart = new Chart(expenseCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        data: [],
+                        backgroundColor: [],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            labels: {
+                                boxWidth: 12,
+                                padding: 15
+                            }
+                        },
+                        title: {
+                            display: true,
+                            text: '支出分类占比'
+                        }
+                    },
+                    cutout: '60%'
+                }
+            });
+
+            // 趋势图
+            const trendCtx = document.getElementById('trend-chart').getContext('2d');
+            trendChart = new Chart(trendCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: '收入',
+                        data: [],
+                        borderColor: '#10B981',
+                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                        tension: 0.3,
+                        fill: true
+                    }, {
+                        label: '支出',
+                        data: [],
+                        borderColor: '#EF4444',
+                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                        tension: 0.3,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            labels: {
+                                boxWidth: 12,
+                                padding: 15
+                            }
+                        },
+                        title: {
+                            display: true,
+                            text: '收支趋势'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return '¥' + value;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // 生成分类预算输入项
+        function generateCategoryBudgetInputs() {
+            const container = document.getElementById('category-budgets');
+            container.innerHTML = '';
+
+            // 只显示支出分类
+            const expenseCategories = categories.filter(cat => cat.type === 'expense');
+
+            expenseCategories.forEach(category => {
+                const categoryDiv = document.createElement('div');
+                categoryDiv.className = 'flex items-center justify-between';
+                categoryDiv.innerHTML = `
+                    <div class="flex items-center">
+                        <i class=

@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html tk="title_js_regex_engine_visualize" lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JS Regex Engine Visualizer</title>
+<meta name="description" content="Interactive regex engine visualizer showing NFA state transitions, backtracking, and match steps">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:system-ui,-apple-system,sans-serif;background:#0a0a0f;color:#e0e0e0;min-height:100vh}
+header{background:linear-gradient(135deg,#1a1a2e,#16213e);padding:16px 24px;border-bottom:1px solid #333}
+header h1{font-size:1.3rem;color:#7c4dff}
+header p{font-size:.85rem;color:#888;margin-top:2px}
+.app{display:grid;grid-template-columns:1fr 320px;grid-template-rows:auto 1fr;height:calc(100vh - 80px)}
+.input-bar{grid-column:1/-1;padding:12px 16px;background:#111;border-bottom:1px solid #222;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.input-bar label{font-size:.8rem;color:#888}
+.input-bar input{background:#1a1a2e;border:1px solid #333;color:#e0e0e0;padding:6px 10px;border-radius:4px;font-family:'Consolas','Fira Code',monospace;font-size:.9rem}
+#regexInput{width:240px}
+#stringInput{width:280px}
+.presets{display:flex;gap:6px;margin-left:auto}
+.presets button{background:#1a1a2e;border:1px solid #333;color:#aaa;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:.75rem;transition:all .2s}
+.presets button:hover,.presets button.active{background:#7c4dff;color:#fff;border-color:#7c4dff}
+.main{overflow:auto;padding:16px;display:flex;flex-direction:column;gap:16px}
+.controls{display:flex;gap:8px;align-items:center}
+.controls button{background:#1a1a2e;border:1px solid #333;color:#ccc;padding:6px 14px;border-radius:4px;cursor:pointer;font-size:.8rem;transition:all .2s}
+.controls button:hover{background:#7c4dff;color:#fff;border-color:#7c4dff}
+.controls button:disabled{opacity:.3;cursor:not-allowed}
+.step-info{font-size:.8rem;color:#888;margin-left:8px}
+.string-view{background:#111;border:1px solid #222;border-radius:8px;padding:16px;min-height:60px}
+.string-view h3{font-size:.8rem;color:#666;margin-bottom:8px;text-transform:uppercase;letter-spacing:.05em}
+.char-row{display:flex;gap:2px;flex-wrap:wrap}
+.char-cell{width:32px;height:36px;display:flex;align-items:center;justify-content:center;border:1px solid #333;border-radius:4px;font-family:'Consolas',monospace;font-size:.95rem;position:relative;transition:all .3s}
+.char-cell.current{border-color:#7c4dff;background:rgba(124,77,255,.15);box-shadow:0 0 8px rgba(124,77,255,.3)}
+.char-cell.matched{border-color:#00e676;background:rgba(0,230,118,.12)}
+.char-cell.failed{border-color:#ff5252;background:rgba(255,82,82,.1)}
+.char-cell.backtrack{border-color:#ff9100;background:rgba(255,145,0,.12)}
+.char-cell .idx{position:absolute;top:-14px;font-size:.6rem;color:#555}
+.nfa-view{background:#111;border:1px solid #222;border-radius:8px;padding:16px;min-height:200px}
+.nfa-view h3{font-size:.8rem;color:#666;margin-bottom:8px;text-transform:uppercase;letter-spacing:.05em}
+.nfa-canvas{position:relative;overflow-x:auto}
+svg{display:block}
+svg text{font-family:'Consolas',monospace;font-size:11px}
+.state-node{transition:all .3s}
+.state-node.active circle{fill:#7c4dff;stroke:#b388ff}
+.state-node.visited circle{fill:#1a3a1a;stroke:#00e676}
+.state-node.failed circle{fill:#3a1a1a;stroke:#ff5252}
+.log-view{background:#111;border:1px solid #222;border-radius:8px;padding:16px;max-height:200px;overflow-y:auto}
+.log-view h3{font-size:.8rem;color:#666;margin-bottom:8px;text-transform:uppercase;letter-spacing:.05em}
+.log-entry{font-size:.75rem;font-family:'Consolas',monospace;padding:2px 0;border-bottom:1px solid #1a1a1a}
+.log-entry.match-step{color:#7c4dff}
+.log-entry.fail-step{color:#ff5252}
+.log-entry.backtrack-step{color:#ff9100}
+.log-entry.success-step{color:#00e676}
+.sidebar{background:#0d0d14;border-left:1px solid #222;overflow-y:auto;padding:16px}
+.sidebar h3{font-size:.85rem;color:#7c4dff;margin-bottom:8px}
+.sidebar p,.sidebar li{font-size:.8rem;color:#aaa;line-height:1.5}
+.sidebar ul{padding-left:16px;margin-bottom:12px}
+.detail-box{background:#111;border:1px solid #222;border-radius:6px;padding:12px;margin-bottom:12px}
+.detail-box h4{font-size:.75rem;color:#666;text-transform:uppercase;margin-bottom:6px}
+.regex-breakdown{margin-bottom:12px}
+.regex-part{display:inline-block;padding:2px 6px;margin:2px;border-radius:3px;font-family:'Consolas',monospace;font-size:.8rem}
+.regex-part.literal{background:#1a2a1a;color:#69f0ae;border:1px solid #2e7d32}
+.regex-part.quantifier{background:#2a1a2a;color:#ce93d8;border:1px solid #7b1fa2}
+.regex-part.group{background:#1a1a2e;color:#90caf9;border:1px solid #1565c0}
+.regex-part.anchor{background:#2a2a1a;color:#fff176;border:1px solid #f9a825}
+.regex-part.charset{background:#1a2a2a;color:#80deea;border:1px solid #00838f}
+.regex-part.alternation{background:#2a1a1a;color:#ef9a9a;border:1px solid #c62828}
+.regex-part.active{box-shadow:0 0 8px rgba(124,77,255,.5);border-color:#7c4dff}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.stat{text-align:center;padding:8px;background:#111;border:1px solid #222;border-radius:6px}
+.stat .val{font-size:1.2rem;font-weight:700;color:#7c4dff}
+.stat .lbl{font-size:.65rem;color:#666;margin-top:2px}
+table{width:100%;border-collapse:collapse;font-size:.75rem;margin-bottom:12px}
+th{text-align:left;padding:4px 8px;color:#666;border-bottom:1px solid #222}
+td{padding:4px 8px;border-bottom:1px solid #1a1a1a;color:#aaa}
+.badge{display:inline-block;padding:1px 6px;border-radius:3px;font-size:.7rem;font-weight:600}
+.badge-match{background:#1a3a1a;color:#69f0ae}
+.badge-fail{background:#3a1a1a;color:#ff5252}
+.badge-bt{background:#3a2a1a;color:#ff9100}
+</style>
+</head>
+<body>
+
+
+<header>
+<h1 ti="title_js_regex_engine_visualize" ti="h1_js_regex_engine_visualize">JS Regex Engine Visualizer</h1>
+<p>Step through regex matching: NFA states, backtracking, and character consumption</p>
+</header>
+<div class="app">
+<div class="input-bar">
+<label ti="label_regex">Regex:</label>
+<input id="regexInput" value="a(b|c)*d" tp="placeholder_pattern" placeholder="/pattern/">
+<label ti="label_string">String:</label>
+<input id="stringInput" value="abcbd" tp="placeholder_test_string" placeholder="test string">
+<button onclick="startMatch()" style="background:#7c4dff;color:#fff;border:1px solid #7c4dff;padding:6px 14px;border-radius:4px;cursor:pointer;font-size:.8rem" ti="btn_run">Run</button>
+<div class="presets">
+<button class="active" onclick="loadPreset(0,this)" ti="btn_alternation">Alternation</button>
+<button onclick="loadPreset(1,this)" ti="btn_greedy">Greedy★</button>
+<button onclick="loadPreset(2,this)" ti="btn_lazy">Lazy★?</button>
+<button onclick="loadPreset(3,this)" ti="btn_backtrack">Backtrack</button>
+<button onclick="loadPreset(4,this)" ti="btn_catastrophic">Catastrophic</button>
+<button onclick="loadPreset(5,this)" ti="btn_anchors">Anchors</button>
+<button onclick="loadPreset(6,this)" ti="btn_groups">Groups</button>
+<button onclick="loadPreset(7,this)" ti="btn_lookahead">Lookahead</button>
+</div>
+</div>
+<div class="main">
+<div class="controls">
+<button id="prevBtn" onclick="prevStep()" disabled>&larr; Prev</button>
+<button id="nextBtn" onclick="nextStep()">Next &rarr;</button>
+<button id="autoBtn" onclick="toggleAuto()">&#9654; Auto</button>
+<button onclick="resetSteps()" ti="btn_reset">Reset</button>
+<span class="step-info" id="stepInfo">Step 0 / 0</span>
+</div>
+<div class="string-view">
+<h3 ti="h3_input_string">Input String</h3>
+<div class="char-row" id="charRow"></div>
+</div>
+<div class="nfa-view">
+<h3 ti="h3_nfa_state_graph">NFA State Graph</h3>
+<div class="nfa-canvas" id="nfaCanvas"></div>
+</div>
+<div class="log-view">
+<h3 ti="h3_execution_log">Execution Log</h3>
+<div id="logEntries"></div>
+</div>
+</div>
+<div class="sidebar">
+<h3 ti="h3_details">Details</h3>
+<div id="details">
+<div class="detail-box">
+<h4>How It Works</h4>
+<p>This visualizer simulates a backtracking regex engine (like JavaScript's). Select a preset or enter your own regex and string, then step through the matching process.</p>
+</div>
+</div>
+<div class="detail-box">
+<h4>Pattern Breakdown</h4>
+<div class="regex-breakdown" id="regexBreakdown"></div>
+</div>
+<div class="stats" id="statsArea">
+<div class="stat"><div class="val" id="stSteps">0</div><div class="lbl">Steps</div></div>
+<div class="stat"><div class="val" id="stBacktracks">0</div><div class="lbl">Backtracks</div></div>
+<div class="stat"><div class="val" id="stStates">0</div><div class="lbl">States</div></div>
+<div class="stat"><div class="val" id="stResult">—</div><div class="lbl">Result</div></div>
+</div>
+<div class="detail-box">
+<h4>Current Step</h4>
+<p id="stepDetail">Press Next or Auto to begin.</p>
+</div>
+<div class="detail-box">
+<h4>Reference</h4>
+<table>
+<tr><th ti="th_concept">Concept</th><th ti="th_description">Description</th></tr>
+<tr><td>NFA</td><td>Non-deterministic finite automaton. Multiple paths explored via backtracking</td></tr>
+<tr><td>Backtracking</td><td>Engine returns to previous choice point when current path fails</td></tr>
+<tr><td>Greedy</td><td>Quantifiers (*, +, {n,m}) match as much as possible first</td></tr>
+<tr><td>Lazy</td><td>*?, +?, {n,m}? match as little as possible first</td></tr>
+<tr><td>Catastrophic</td><td>Exponential backtracking from nested quantifiers on overlapping patterns</td></tr>
+<tr><td>Lookahead</td><td>(?=...) asserts what follows without consuming characters</td></tr>
+</table>
+<table>
+<tr><th ti="th_symbol">Symbol</th><th ti="th_meaning">Meaning</th></tr>
+<tr><td>ε</td><td>Epsilon transition (no character consumed)</td></tr>
+<tr><td>●</td><td>Start state</td></tr>
+<tr><td>◎</td><td>Accept state (match found)</td></tr>
+<tr><td style="color:#ff9100">↩</td><td>Backtrack (undo and try alternative)</td></tr>
+</table>
+</div>
+</div>
+</div>
+
+
+<script>var _LANG={'title_js_regex_engine_visualize':["JS Regex Engine Visualizer", "JS 正则表达式引擎可视化工具"],'metadesc_interactive_regex_engine':["Interactive regex engine visualizer showing NFA state transitions, backtracking, and match steps", "交互式正则表达式引擎可视化工具，展示 NFA 状态转换、回溯和匹配步骤"],'h1_js_regex_engine_visualize':["JS Regex Engine Visualizer", "JS 正则表达式引擎可视化工具"],'h3_input_string':["Input String", "输入字符串"],'h3_nfa_state_graph':["NFA State Graph", "NFA状态图"],'h3_execution_log':["Execution Log", "执行日志"],'h3_details':["Details", "细节"],'btn_run':["Run", "跑步"],'btn_alternation':["Alternation", "交替"],'btn_greedy':["Greedy★", "贪婪★"],'btn_lazy':["Lazy★?", "懒惰★？"],'btn_backtrack':["Backtrack", "回溯"],'btn_catastrophic':["Catastrophic", "灾难性的"],'btn_anchors':["Anchors", "锚"],'btn_groups':["Groups", "团体"],'btn_lookahead':["Lookahead", "展望未来"],'btn_prev':["← Prev", "← 上一页"],'btn_next':["Next →", "下一页 →"],'btn_auto':["▶ Auto", "▶ 自动"],'btn_reset':["Reset", "重置"],'placeholder_pattern':["/pattern/", "/图案/"],'placeholder_test_string':["test string", "测试字符串"],'th_concept':["Concept", "概念"],'th_description':["Description", "描述"],'th_symbol':["Symbol", "象征"],'th_meaning':["Meaning", "意义"],'label_regex':["Regex:", "正则表达式："],'label_string':["String:", "细绳："],'jtc_auto':["▶ Auto", "▶ 自动"],'jtc_parse_error':["Parse error:", "解析错误："],'jtc_reset_press_next_to_begin':["Reset. Press Next to begin.", "重置。按“下一步”开始。"],'jtc_auto_2':["▶ Auto", "▶ 自动"],'jtc_auto_3':["▶ Auto", "▶ 自动"],'jtc_pause':["⏸ Pause", "⏸ 暂停"],'jtcpre_parse_error':["Parse error: ", "解析错误："]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>
+const presets=[
+{regex:'a(b|c)*d',str:'abcbd',desc:'Alternation with Kleene star. Engine tries b|c repeatedly, then matches d.'},
+{regex:'a.*b',str:'aXbYb',desc:'Greedy .* consumes as much as possible, then backtracks to find last b.'},
+{regex:'a.*?b',str:'aXbYb',desc:'Lazy .*? consumes as little as possible, matching first b.'},
+{regex:'(a+)+b',str:'aaac',desc:'Backtracking explosion: nested quantifiers cause exponential paths on failure.'},
+{regex:'(a|a)+b',str:'aaac',desc:'Catastrophic backtracking: alternation creates 2^n paths. Watch step count explode.'},
+{regex:'^ab$',str:'ab',desc:'Anchors ^ and $ constrain match to full string. No backtracking needed.'},
+{regex:'(\\w+)@(\\w+)',str:'user@host',desc:'Capture groups store matched substrings. \\w+ matches word characters greedily.'},
+{regex:'a(?=b).',str:'abac',desc:'Positive lookahead: (?=b) checks next char is b without consuming it, then . consumes.'},
+];
+
+let steps=[],curStep=-1,autoTimer=null;
+
+function loadPreset(i,btn){
+  document.querySelectorAll('.presets button').forEach(b=>b.classList.remove('active'));
+  if(btn)btn.classList.add('active');
+  document.getElementById('regexInput').value=presets[i].regex;
+  document.getElementById('stringInput').value=presets[i].str;
+  startMatch();
+}
+
+// --- Simplified NFA Construction (Thompson's subset) ---
+let nfaStates=[], nfaEdges=[];
+let stateId=0;
+
+function newState(label=''){return{id:stateId++,label,accept:false};}
+
+function buildNFA(pattern){
+  stateId=0;nfaStates=[];nfaEdges=[];
+  const tokens=tokenize(pattern);
+  const frag=parseExpr(tokens,0);
+  frag.end.accept=true;
+  return{start:frag.start,states:nfaStates,edges:nfaEdges};
+}
+
+function tokenize(p){
+  const toks=[];let i=0;
+  while(i<p.length){
+    const c=p[i];
+    if(c==='\\' && i+1<p.length){
+      const nc=p[i+1];
+      if('dwsDWS'.includes(nc))toks.push({type:'class',val:'\\'+nc});
+      else toks.push({type:'lit',val:nc});
+      i+=2;
+    }else if(c==='.'){toks.push({type:'dot'});i++;}
+    else if('*+?'.includes(c)){toks.push({type:'quant',val:c});i++;
+      if(i<p.length&&p[i]==='?'){toks[toks.length-1].lazy=true;i++;}
+    }else if(c==='('){
+      let kind='group';
+      if(p[i+1]==='?' && p[i+2]==='='){kind='lookahead';i+=3;}
+      else{i++;}
+      toks.push({type:'lparen',kind});
+    }else if(c===')'){toks.push({type:'rparen'});i++;}
+    else if(c==='|'){toks.push({type:'alt'});i++;}
+    else if(c==='^'){toks.push({type:'anchor',val:'^'});i++;}
+    else if(c==='$'){toks.push({type:'anchor',val:'$'});i++;}
+    else if(c==='['){
+      let j=i+1,neg=false;
+      if(p[j]==='^'){neg=true;j++;}
+      while(j<p.length&&p[j]!==']')j++;
+      toks.push({type:'charset',val:p.slice(i,j+1),neg});i=j+1;
+    }else{toks.push({type:'lit',val:c});i++;}
+  }
+  return toks;
+}
+
+function parseExpr(toks,pos){
+  let {frag,pos:p}=parseSeq(toks,pos);
+  while(p<toks.length&&toks[p].type==='alt'){
+    p++;
+    const right=parseSeq(toks,p);p=right.pos;
+    const s=newState('split');nfaStates.push(s);
+    const e=newState('join');nfaStates.push(e);
+    nfaEdges.push({from:s.id,to:frag.start.id,label:'ε'});
+    nfaEdges.push({from:s.id,to:right.frag.start.id,label:'ε'});
+    nfaEdges.push({from:frag.end.id,to:e.id,label:'ε'});
+    nfaEdges.push({from:right.frag.end.id,to:e.id,label:'ε'});
+    frag={start:s,end:e};
+  }
+  return{frag,pos:p};
+}
+
+function parseSeq(toks,pos){
+  let frags=[];
+  while(pos<toks.length && toks[pos].type!=='alt' && toks[pos].type!=='rparen'){
+    let f;
+    if(toks[pos].type==='lparen'){
+      const kind=toks[pos].kind;pos++;
+      const inner=parseExpr(toks,pos);pos=inner.pos;
+      if(pos<toks.length&&toks[pos].type==='rparen')pos++;
+      if(kind==='lookahead'){
+        const s=newState('LA?');nfaStates.push(s);
+        const e=newState('LA✓');nfaStates.push(e);
+        nfaEdges.push({from:s.id,to:inner.frag.start.id,label:'(?=)'});
+        nfaEdges.push({from:inner.frag.end.id,to:e.id,label:'ε'});
+        f={start:s,end:e};
+      }else{
+        f=inner.frag;
+      }
+    }else if(toks[pos].type==='lit'){
+      const s=newState();nfaStates.push(s);
+      const e=newState();nfaStates.push(e);
+      nfaEdges.push({from:s.id,to:e.id,label:toks[pos].val});
+      f={start:s,end:e};pos++;
+    }else if(toks[pos].type==='dot'){
+      const s=newState();nfaStates.push(s);
+      const e=newState();nfaStates.push(e);
+      nfaEdges.push({from:s.id,to:e.id,label:'.'});
+      f={start:s,end:e};pos++;
+    }else if(toks[pos].type==='class'){
+      const s=newState();nfaStates.push(s);
+      const e=newState();nfaStates.push(e);
+      nfaEdges.push({from:s.id,to:e.id,label:toks[pos].val});
+      f={start:s,end:e};pos++;
+    }else if(toks[pos].type==='charset'){
+      const s=newState();nfaStates.push(s);
+      const e=newState();nfaStates.push(e);
+      nfaEdges.push({from:s.id,to:e.id,label:toks[pos].val});
+      f={start:s,end:e};pos++;
+    }else if(toks[pos].type==='anchor'){
+      const s=newState(toks[pos].val);nfaStates.push(s);
+      f={start:s,end:s};pos++;
+    }else{pos++;continue;}
+
+    // Quantifiers
+    if(pos<toks.length&&toks[pos].type==='quant'){
+      const q=toks[pos];pos++;
+      const qs=newState('q');nfaStates.push(qs);
+      const qe=newState('q');nfaStates.push(qe);
+      if(q.val==='*'){
+        nfaEdges.push({from:qs.id,to:f.start.id,label:'ε'});
+        nfaEdges.push({from:qs.id,to:qe.id,label:'ε'});
+        nfaEdges.push({from:f.end.id,to:f.start.id,label:'ε'});
+        nfaEdges.push({from:f.end.id,to:qe.id,label:'ε'});
+      }else if(q.val==='+'){
+        nfaEdges.push({from:qs.id,to:f.start.id,label:'ε'});
+        nfaEdges.push({from:f.end.id,to:f.start.id,label:'ε'});
+        nfaEdges.push({from:f.end.id,to:qe.id,label:'ε'});
+      }else if(q.val==='?'){
+        nfaEdges.push({from:qs.id,to:f.start.id,label:'ε'});
+        nfaEdges.push({from:qs.id,to:qe.id,label:'ε'});
+        nfaEdges.push({from:f.end.id,to:qe.id,label:'ε'});
+      }
+      f={start:qs,end:qe};
+    }
+    frags.push(f);
+  }
+  if(frags.length===0){
+    const s=newState('ε');nfaStates.push(s);
+    return{frag:{start:s,end:s},pos};
+  }
+  // Concatenate
+  for(let i=1;i<frags.length;i++){
+    nfaEdges.push({from:frags[i-1].end.id,to:frags[i].start.id,label:'ε'});
+  }
+  return{frag:{start:frags[0].start,end:frags[frags.length-1].end},pos};
+}
+
+// --- Simulate matching with step recording ---
+function simulateMatch(nfa,str){
+  const steps=[];
+  let btCount=0;
+  const MAX_STEPS=500;// safety limit for catastrophic backtracking
+
+  function simulate(stateId,strPos,path,depth){
+    if(steps.length>=MAX_STEPS){
+      steps.push({type:'limit',state:stateId,pos:strPos,msg:`Step limit (${MAX_STEPS}) reached — likely catastrophic backtracking`});
+      return false;
+    }
+    const st=nfaStates.find(s=>s.id===stateId);
+    if(!st)return false;
+
+    if(st.accept){
+      steps.push({type:'success',state:stateId,pos:strPos,msg:`State ${stateId} is ACCEPT → Match found at position 0..${strPos}`,matched:str.slice(0,strPos)});
+      return true;
+    }
+
+    // Find outgoing edges
+    const edges=nfaEdges.filter(e=>e.from===stateId);
+    for(const edge of edges){
+      if(edge.label==='ε'||edge.label==='(?=)'){
+        steps.push({type:'epsilon',state:stateId,nextState:edge.to,pos:strPos,msg:`ε-transition: State ${stateId} → State ${edge.to} (no char consumed)`});
+        if(simulate(edge.to,strPos,[...path,edge.to],depth+1))return true;
+      }else{
+        // Check if edge matches current character
+        const ch=str[strPos];
+        let matches=false;
+        if(ch===undefined){matches=false;}
+        else if(edge.label==='.'){matches=true;}
+        else if(edge.label==='\\w'){matches=/\w/.test(ch);}
+        else if(edge.label==='\\d'){matches=/\d/.test(ch);}
+        else if(edge.label==='\\s'){matches=/\s/.test(ch);}
+        else if(edge.label==='\\W'){matches=/\W/.test(ch);}
+        else if(edge.label==='\\D'){matches=/\D/.test(ch);}
+        else if(edge.label==='\\S'){matches=/\S/.test(ch);}
+        else if(edge.label.startsWith('[')){
+          try{matches=new RegExp(edge.label).test(ch);}catch(e){matches=false;}
+        }else{matches=ch===edge.label;}
+
+        if(matches){
+          steps.push({type:'match',state:stateId,nextState:edge.to,pos:strPos,char:ch,label:edge.label,msg:`Match '${ch}' with /${edge.label}/: State ${stateId} → State ${edge.to}, advance to pos ${strPos+1}`});
+          if(simulate(edge.to,strPos+1,[...path,edge.to],depth+1))return true;
+        }else{
+          steps.push({type:'fail',state:stateId,pos:strPos,char:ch||'EOF',label:edge.label,msg:`Fail: '${ch||'EOF'}' ≠ /${edge.label}/ at State ${stateId}`});
+        }
+      }
+    }
+    // Backtrack
+    if(edges.length>0){
+      btCount++;
+      steps.push({type:'backtrack',state:stateId,pos:strPos,msg:`Backtrack from State ${stateId} (all paths from here failed)`});
+    }
+    return false;
+  }
+
+  const result=simulate(nfa.start.id,0,[nfa.start.id],0);
+  if(!result && steps[steps.length-1]?.type!=='limit'){
+    steps.push({type:'no-match',state:0,pos:0,msg:'No match found — all paths exhausted'});
+  }
+  return{steps,backtracks:btCount};
+}
+
+// --- Rendering ---
+function renderNFAGraph(nfa,activeState=-1,visitedStates=new Set(),failedStates=new Set()){
+  const states=nfa.states;
+  const edges=nfa.edges;
+  if(states.length===0)return;
+
+  // Layout: topological sort-ish, simple left-to-right
+  const levels=new Map();
+  const visited=new Set();
+  function assignLevel(id,lv){
+    if(visited.has(id))return;
+    visited.add(id);
+    levels.set(id,Math.max(lv,levels.get(id)||0));
+    edges.filter(e=>e.from===id).forEach(e=>assignLevel(e.to,lv+1));
+  }
+  assignLevel(nfa.start.id,0);
+  // Assign positions
+  const maxLevel=Math.max(...levels.values(),0);
+  const levelNodes=new Map();
+  states.forEach(s=>{
+    const lv=levels.get(s.id)||0;
+    if(!levelNodes.has(lv))levelNodes.set(lv,[]);
+    levelNodes.get(lv).push(s);
+  });
+
+  const nodeW=70,nodeH=55;
+  const W=(maxLevel+1)*nodeW+60;
+  const maxPerLevel=Math.max(...[...levelNodes.values()].map(a=>a.length),1);
+  const H=maxPerLevel*nodeH+40;
+
+  const pos=new Map();
+  levelNodes.forEach((nodes,lv)=>{
+    const startY=(H-nodes.length*nodeH)/2;
+    nodes.forEach((n,i)=>{pos.set(n.id,{x:30+lv*nodeW,y:startY+i*nodeH+nodeH/2});});
+  });
+
+  let svg=`<svg width="${W}" height="${Math.max(H,120)}" viewBox="0 0 ${W} ${Math.max(H,120)}">`;
+  svg+=`<defs><marker id="ah" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#555"/></marker></defs>`;
+
+  // Edges
+  edges.forEach(e=>{
+    const p1=pos.get(e.from),p2=pos.get(e.to);
+    if(!p1||!p2)return;
+    const isEps=e.label==='ε'||e.label==='(?=)';
+    const color=isEps?'#444':'#7c4dff';
+    const dash=isEps?'stroke-dasharray="4,3"':'';
+    if(e.from===e.to){
+      svg+=`<path d="M${p1.x} ${p1.y-16} C${p1.x-20} ${p1.y-40} ${p1.x+20} ${p1.y-40} ${p1.x} ${p1.y-16}" fill="none" stroke="${color}" ${dash} marker-end="url(#ah)"/>`;
+      svg+=`<text x="${p1.x}" y="${p1.y-42}" text-anchor="middle" fill="${color}">${e.label}</text>`;
+    }else{
+      const mx=(p1.x+p2.x)/2,my=(p1.y+p2.y)/2-8;
+      svg+=`<line x1="${p1.x+16}" y1="${p1.y}" x2="${p2.x-16}" y2="${p2.y}" stroke="${color}" ${dash} marker-end="url(#ah)"/>`;
+      svg+=`<text x="${mx}" y="${my}" text-anchor="middle" fill="${color}" font-size="10">${e.label}</text>`;
+    }
+  });
+
+  // Nodes
+  states.forEach(s=>{
+    const p=pos.get(s.id);if(!p)return;
+    let cls='';
+    if(s.id===activeState)cls='active';
+    else if(failedStates.has(s.id))cls='failed';
+    else if(visitedStates.has(s.id))cls='visited';
+    const stroke=s.accept?'#00e676':'#555';
+    const sw=s.accept?2.5:1.5;
+    const fill=cls==='active'?'#7c4dff':cls==='visited'?'#1a3a1a':cls==='failed'?'#3a1a1a':'#1a1a2e';
+    const r=s.accept?14:12;
+    svg+=`<g class="state-node ${cls}">`;
+    svg+=`<circle cx="${p.x}" cy="${p.y}" r="${r}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>`;
+    if(s.accept)svg+=`<circle cx="${p.x}" cy="${p.y}" r="${r+4}" fill="none" stroke="${stroke}" stroke-width="1"/>`;
+    svg+=`<text x="${p.x}" y="${p.y+4}" text-anchor="middle" fill="#e0e0e0" font-size="9">${s.id}</text>`;
+    svg+=`</g>`;
+  });
+
+  svg+=`</svg>`;
+  document.getElementById('nfaCanvas').innerHTML=svg;
+}
+
+function renderString(str,pos,matchedTo,failPos,btPos){
+  const row=document.getElementById('charRow');
+  row.innerHTML='';
+  for(let i=0;i<str.length;i++){
+    const d=document.createElement('div');
+    d.className='char-cell';
+    d.innerHTML=`<span class="idx">${i}</span>${str[i]==' '?'␣':str[i]}`;
+    if(i===pos)d.classList.add('current');
+    if(matchedTo>0 && i<matchedTo)d.classList.add('matched');
+    if(i===failPos)d.classList.add('failed');
+    if(i===btPos)d.classList.add('backtrack');
+    row.appendChild(d);
+  }
+  // EOF marker
+  const eof=document.createElement('div');
+  eof.className='char-cell';
+  eof.innerHTML=`<span class="idx">${str.length}</span>$`;
+  eof.style.color='#555';eof.style.borderStyle='dashed';
+  if(pos===str.length)eof.classList.add('current');
+  row.appendChild(eof);
+}
+
+function renderLog(steps,upTo){
+  const el=document.getElementById('logEntries');
+  el.innerHTML='';
+  for(let i=0;i<=upTo&&i<steps.length;i++){
+    const s=steps[i];
+    const d=document.createElement('div');
+    d.className='log-entry';
+    if(s.type==='match'||s.type==='epsilon')d.classList.add('match-step');
+    else if(s.type==='fail')d.classList.add('fail-step');
+    else if(s.type==='backtrack')d.classList.add('backtrack-step');
+    else if(s.type==='success')d.classList.add('success-step');
+    d.textContent=`[${i}] ${s.msg}`;
+    el.appendChild(d);
+  }
+  el.scrollTop=el.scrollHeight;
+}
+
+function breakdownRegex(pattern){
+  const el=document.getElementById('regexBreakdown');
+  el.innerHTML='';
+  const tokens=tokenize(pattern);
+  tokens.forEach(t=>{
+    const span=document.createElement('span');
+    span.className='regex-part';
+    if(t.type==='lit')span.classList.add('literal');
+    else if(t.type==='quant')span.classList.add('quantifier');
+    else if(t.type==='lparen'||t.type==='rparen')span.classList.add('group');
+    else if(t.type==='anchor')span.classList.add('anchor');
+    else if(t.type==='charset')span.classList.add('charset');
+    else if(t.type==='alt')span.classList.add('alternation');
+    else if(t.type==='dot')span.classList.add('literal');
+    else if(t.type==='class')span.classList.add('charset');
+    const val=t.type==='lparen'?(t.kind==='lookahead'?'(?=':'('):t.type==='rparen'?')':t.type==='alt'?'|':t.type==='dot'?'.':t.type==='quant'?(t.val+(t.lazy?'?':'')):t.val;
+    span.textContent=val;
+    el.appendChild(span);
+  });
+}
+
+let nfa=null;
+function startMatch(){
+  if(autoTimer){clearInterval(autoTimer);autoTimer=null;document.getElementById('autoBtn').textContent=T("jtc_auto");}
+  const pattern=document.getElementById('regexInput').value;
+  const str=document.getElementById('stringInput').value;
+  try{
+    nfa=buildNFA(pattern);
+  }catch(e){
+    document.getElementById('stepDetail').textContent=T("jtcpre_parse_error")+e.message;
+    return;
+  }
+  const result=simulateMatch(nfa,str);
+  steps=result.steps;
+  curStep=-1;
+  document.getElementById('stSteps').textContent=steps.length;
+  document.getElementById('stBacktracks').textContent=result.backtracks;
+  document.getElementById('stStates').textContent=nfaStates.length;
+  document.getElementById('stResult').textContent=steps.length>0&&steps[steps.length-1].type==='success'?'✓':'✗';
+  document.getElementById('stResult').style.color=steps[steps.length-1]?.type==='success'?'#00e676':'#ff5252';
+  breakdownRegex(pattern);
+  renderString(str,-1,0,-1,-1);
+  renderNFAGraph(nfa,-1);
+  renderLog([],0);
+  document.getElementById('stepInfo').textContent=`Step 0 / ${steps.length}`;
+  document.getElementById('prevBtn').disabled=true;
+  document.getElementById('nextBtn').disabled=steps.length===0;
+
+  // Show preset description
+  const pi=presets.findIndex(p=>p.regex===pattern&&p.str===str);
+  if(pi>=0){
+    document.getElementById('stepDetail').textContent=presets[pi].desc;
+  }else{
+    document.getElementById('stepDetail').textContent=`${nfaStates.length} states, ${nfaEdges.length} transitions. Press Next to begin.`;
+  }
+}
+
+function showStep(i){
+  if(i<0||i>=steps.length)return;
+  curStep=i;
+  const s=steps[i];
+  const str=document.getElementById('stringInput').value;
+
+  // Collect visited and failed states up to current step
+  const visited=new Set(),failed=new Set();
+  let matchedTo=0;
+  for(let j=0;j<=i;j++){
+    const st=steps[j];
+    if(st.state!==undefined)visited.add(st.state);
+    if(st.nextState!==undefined)visited.add(st.nextState);
+    if(st.type==='fail')failed.add(st.state);
+    if(st.type==='success')matchedTo=st.pos;
+  }
+
+  const activeState=s.nextState!==undefined?s.nextState:s.state;
+  const failPos=s.type==='fail'?s.pos:-1;
+  const btPos=s.type==='backtrack'?s.pos:-1;
+
+  renderString(str,s.pos,s.type==='success'?s.pos:0,failPos,btPos);
+  renderNFAGraph(nfa,activeState,visited,failed);
+  renderLog(steps,i);
+
+  document.getElementById('stepDetail').textContent=s.msg;
+  document.getElementById('stepInfo').textContent=`Step ${i+1} / ${steps.length}`;
+  document.getElementById('prevBtn').disabled=i<=0;
+  document.getElementById('nextBtn').disabled=i>=steps.length-1;
+}
+
+function nextStep(){if(curStep<steps.length-1)showStep(curStep+1);}
+function prevStep(){if(curStep>0)showStep(curStep-1);}
+function resetSteps(){
+  curStep=-1;
+  const str=document.getElementById('stringInput').value;
+  renderString(str,-1,0,-1,-1);
+  if(nfa)renderNFAGraph(nfa,-1);
+  renderLog([],0);
+  document.getElementById('stepInfo').textContent=`Step 0 / ${steps.length}`;
+  document.getElementById('prevBtn').disabled=true;
+  document.getElementById('nextBtn').disabled=steps.length===0;
+  document.getElementById('stepDetail').textContent=T("jtc_reset_press_next_to_begin");
+}
+
+function toggleAuto(){
+  if(autoTimer){
+    clearInterval(autoTimer);autoTimer=null;
+    document.getElementById('autoBtn').textContent=T("jtc_auto");
+  }else{
+    if(curStep>=steps.length-1)resetSteps();
+    autoTimer=setInterval(()=>{
+      if(curStep>=steps.length-1){clearInterval(autoTimer);autoTimer=null;document.getElementById('autoBtn').textContent=T("jtc_auto");return;}
+      nextStep();
+    },400);
+    document.getElementById('autoBtn').textContent=T("jtc_pause");
+  }
+}
+
+// Init
+startMatch();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+</body>
+</html>

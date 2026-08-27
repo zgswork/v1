@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>数据表格生成器</title>
+  <style>
+    :root {
+      --bg: #0f1220;
+      --card: #161a2f;
+      --text: #e6e8f2;
+      --muted: #9aa3b2;
+      --primary: #4f7cff;
+      --primary-2: #7da2ff;
+      --border: #2a2f45;
+      --success: #30c48d;
+      --danger: #ff6b6b;
+      --warning: #ffb84d;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0; padding: 0; background: var(--bg); color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Helvetica Neue", Arial, "Noto Sans", "PingFang SC", "Microsoft YaHei", sans-serif;
+      line-height: 1.5;
+    }
+
+    .app {
+      max-width: 1200px; margin: 0 auto; padding: 16px 16px 64px;
+    }
+
+    .header {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      margin-bottom: 16px;
+    }
+    .title { font-weight: 700; font-size: 22px; }
+    .subtitle { color: var(--muted); font-size: 13px; }
+
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+
+    .form-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+    }
+    @media (max-width: 768px) {
+      .form-grid { grid-template-columns: 1fr; }
+      .header { flex-direction: column; align-items: flex-start; }
+    }
+
+    .section-title { font-weight: 600; margin: 8px 0 12px; font-size: 15px; }
+
+    label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 8px; }
+    input[type="text"], input[type="number"], select, textarea {
+      width: 100%; padding: 10px 12px; color: var(--text);
+      background: #111425; border: 1px solid var(--border); border-radius: 10px;
+      outline: none; transition: border-color .15s ease;
+    }
+    textarea { min-height: 120px; resize: vertical; }
+    input:focus, select:focus, textarea:focus { border-color: var(--primary); }
+
+    .inline {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+    }
+    @media (max-width: 480px) { .inline { grid-template-columns: 1fr; } }
+
+    .options {
+      display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px;
+    }
+    @media (max-width: 768px) { .options { grid-template-columns: 1fr; } }
+
+    .checkbox {
+      display: flex; align-items: center; gap: 8px; font-size: 13px;
+      padding: 8px 10px; border-radius: 10px; border: 1px dashed var(--border);
+    }
+    .checkbox input { width: 16px; height: 16px; }
+
+    .btns {
+      display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px;
+    }
+    .btn {
+      padding: 9px 14px; border-radius: 10px; border: 1px solid var(--border);
+      background: #12162a; color: var(--text); cursor: pointer; font-size: 13px;
+      transition: background .15s ease, border-color .15s ease, transform .05s ease;
+      user-select: none;
+    }
+    .btn:hover { background: #151a33; border-color: #3a4161; }
+    .btn:active { transform: translateY(1px); }
+    .btn.primary { background: var(--primary); border-color: var(--primary); color: white; }
+    .btn.primary:hover { background: var(--primary-2); border-color: var(--primary-2); }
+    .btn.success { background: var(--success); border-color: var(--success); color: #001b12; }
+    .btn.danger { background: var(--danger); border-color: var(--danger); color: #280000; }
+
+    .preview-wrap { margin-top: 16px; }
+    .preview-head { display: flex; justify-content: space-between; align-items: center; }
+    .preview-head .info { color: var(--muted); font-size: 12px; }
+
+    .table-scroll {
+      width: 100%; overflow: auto; border: 1px solid var(--border);
+      border-radius: 10px; background: #0d1021;
+    }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 10px 12px; border: 1px solid transparent; }
+    .with-border th, .with-border td { border-color: #293050; }
+    thead th { background: #1a2040; font-weight: 600; }
+    tbody tr:nth-child(odd).zebra td { background: #121737; }
+    tbody tr:nth-child(even).zebra td { background: #0f1430; }
+    .compact th, .compact td { padding: 6px 8px; font-size: 12px; }
+    .align-center th, .align-center td { text-align: center; }
+    .align-left th, .align-left td { text-align: left; }
+    .align-right th, .align-right td { text-align: right; }
+
+    .code-view { margin-top: 12px; }
+    .code-box {
+      background: #0d1021; border: 1px solid var(--border); border-radius: 10px;
+      padding: 10px; overflow: auto; max-height: 240px;
+    }
+    pre { margin: 0; color: #9edfff; font-size: 12px; }
+
+    .notice { font-size: 12px; color: var(--muted); }
+    .status { font-size: 12px; margin-top: 8px; }
+    .status.ok { color: var(--success); }
+    .status.warn { color: var(--warning); }
+    .status.err { color: var(--danger); }
+    /* Tabs & form-mode */
+    .tabs { display: inline-flex; gap: 8px; margin: 6px 0 10px; }
+    .tab {
+      padding: 6px 10px; font-size: 12px; border-radius: 8px;
+      border: 1px solid var(--border); background: #10132a; color: var(--text);
+      cursor: pointer;
+    }
+    .tab.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+    .row-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+    .row { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+    .row .row-grid { flex: 1; }
+    .row .rm { white-space: nowrap; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="header">
+      <div>
+        <div class="title">数据表格生成器</div>
+        <div class="subtitle">页面自适应大小，支持电脑与手机使用</div>
+      </div>
+      <div class="notice">小提示：可粘贴 CSV/TSV 文本，或自定义分隔符生成表格。</div>
+    </div>
+
+    <div class="card">
+      <div class="form-grid">
+        <div>
+          <div class="section-title">数据输入</div>
+          <div class="tabs">
+            <button class="tab active" id="modeText">文本输入</button>
+            <button class="tab" id="modeForm">表单输入</button>
+          </div>
+
+          <!-- 文本输入模式 -->
+          <div id="text-input-wrap">
+            <label for="data-input">每行一条记录，列之间使用分隔符（留空则生成空表格）</label>
+            <textarea id="data-input" placeholder="示例：\n姓名,年龄,城市\n张三,28,上海\n李四,32,北京"></textarea>
+
+            <div class="inline" style="margin-top: 10px;">
+              <div>
+                <label>分隔符</label>
+                <select id="delimiter">
+                  <option value="comma">逗号 ,</option>
+                  <option value="tab">制表符 \t</option>
+                  <option value="pipe">竖线 |</option>
+                  <option value="space">空格</option>
+                  <option value="semi">分号 ;</option>
+                  <option value="custom">自定义</option>
+                </select>
+              </div>
+              <div>
+                <label>自定义分隔符（当选择“自定义”时生效）</label>
+                <input id="custom-delim" type="text" placeholder="例如：# 或 ::" />
+              </div>
+            </div>
+
+            <div class="inline" style="margin-top: 10px;">
+              <div>
+                <label>行数（数据留空时使用）</label>
+                <input id="rows" type="number" min="1" max="500" value="4" />
+              </div>
+              <div>
+                <label>列数（数据留空时使用）</label>
+                <input id="cols" type="number" min="1" max="50" value="3" />
+              </div>
+            </div>
+          </div>
+
+          <!-- 表单输入模式 -->
+          <div id="form-input-wrap" style="display:none">
+            <div class="inline">
+              <div>
+                <label>列数（1-50）</label>
+                <input id="form-cols" type="number" min="1" max="50" value="3" />
+              </div>
+              <div>
+                <label>初始行数（1-500）</label>
+                <input id="form-rows-init" type="number" min="1" max="500" value="3" />
+              </div>
+            </div>
+
+            <div id="form-header-wrap" style="margin-top: 10px;">
+              <label>表头（受右侧“第一行作为表头”控制）</label>
+              <div id="form-header" class="row-grid"></div>
+            </div>
+
+            <div style="margin-top: 10px;">
+              <div style="display:flex; justify-content: space-between; align-items:center;">
+                <label>数据行</label>
+                <button class="btn" id="addRow">添加一行</button>
+              </div>
+              <div id="form-rows"></div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="section-title">选项</div>
+          <div class="options">
+            <label class="checkbox"><input id="use-header" type="checkbox" checked /> 第一行作为表头</label>
+            <label class="checkbox"><input id="editable" type="checkbox" /> 可编辑单元格</label>
+            <label class="checkbox"><input id="with-border" type="checkbox" checked /> 显示边框</label>
+            <label class="checkbox"><input id="zebra" type="checkbox" checked /> 斑马条纹</label>
+            <label class="checkbox"><input id="compact" type="checkbox" /> 紧凑模式</label>
+            <label class="checkbox"><input id="center" type="checkbox" /> 居中对齐</label>
+            <label class="checkbox"><input id="auto-sample" type="checkbox" checked /> 自动填充示例数据（空表时）</label>
+          </div>
+          <div class="btns">
+            <button class="btn primary" id="gen">生成表格</button>
+            <button class="btn" id="clear">清空输入</button>
+            <button class="btn success" id="copyHtml">复制 HTML</button>
+            <button class="btn" id="downloadHtml">下载 HTML</button>
+            <button class="btn" id="exportCsv">导出 CSV</button>
+            <button class="btn" id="copyCsv">复制 CSV</button>
+          </div>
+          <div id="status" class="status"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="preview-wrap">
+      <div class="preview-head">
+        <div class="section-title">预览</div>
+        <div class="info" id="meta">尚未生成</div>
+      </div>
+      <div class="table-scroll" id="preview"></div>
+      <div class="code-view">
+        <div class="btns">
+          <button class="btn" id="toggleCode">显示/隐藏 HTML 源码</button>
+        </div>
+        <div class="code-box" id="codeBox" style="display:none"><pre id="code"></pre></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const $ = (sel) => document.querySelector(sel);
+
+    function getDelimiterValue() {
+      const d = $('#delimiter').value;
+      if (d === 'comma') return ',';
+      if (d === 'tab') return '\t';
+      if (d === 'pipe') return '|';
+      if (d === 'space') return ' ';
+      if (d === 'semi') return ';';
+      if (d === 'custom') return $('#custom-delim').value || ',';
+      return ',';
+    }
+
+    function parseTextToMatrix(text, delim) {
+      if (!text.trim()) return [];
+      const lines = text.replace(/\r/g, '').split('\n').filter(l => l.length > 0);
+      const matrix = lines.map(line => {
+        // 简易分隔：不处理复杂引号场景
+        if (delim === ' ') {
+          return line.trim().split(/\s+/);
+        }
+        return line.split(delim);
+      });
+      return matrix;
+    }
+
+    function matrixDimensions(matrix) {
+      const rows = matrix.length;
+      const cols = Math.max(0, ...matrix.map(r => r.length));
+      return { rows, cols };
+    }
+
+    function buildMatrixFromSize(rows, cols, useSample) {
+      const m = [];
+      for (let r = 0; r < rows; r++) {
+        const row = [];
+        for (let c = 0; c < cols; c++) {
+          row.push(useSample ? `R${r+1}C${c+1}` : '');
+        }
+        m.push(row);
+      }
+      return m;
+    }
+
+    function buildTable(matrix, opts) {
+      const table = document.createElement('table');
+      const { withBorder, zebra, compact, align, useHeader, editable } = opts;
+
+      if (withBorder) table.classList.add('with-border');
+      if (compact) table.classList.add('compact');
+      table.classList.add(align === 'center' ? 'align-center' : align === 'right' ? 'align-right' : 'align-left');
+
+      const thead = document.createElement('thead');
+      const tbody = document.createElement('tbody');
+
+      if (useHeader && matrix.length > 0) {
+        const tr = document.createElement('tr');
+        matrix[0].forEach(cell => {
+          const th = document.createElement('th');
+          th.textContent = cell ?? '';
+          tr.appendChild(th);
+        });
+        thead.appendChild(tr);
+      }
+
+      const dataRows = useHeader ? matrix.slice(1) : matrix;
+      dataRows.forEach((row, idx) => {
+        const tr = document.createElement('tr');
+        if (zebra) tr.classList.add('zebra');
+        row.forEach(cell => {
+          const td = document.createElement('td');
+          td.textContent = cell ?? '';
+          if (editable) td.contentEditable = 'true';
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+
+      table.appendChild(thead);
+      table.appendChild(tbody);
+      return table;
+    }
+
+    function tableToHtml(tableEl) {
+      const tmp = document.createElement('div');
+      tmp.appendChild(tableEl.cloneNode(true));
+      return tmp.innerHTML.trim();
+    }
+
+    function updateMeta(matrix) {
+      const { rows, cols } = matrixDimensions(matrix);
+      $('#meta').textContent = rows && cols ? `行：${rows}，列：${cols}` : '空表';
+    }
+
+    function setStatus(type, text) {
+      const el = $('#status');
+      el.className = `status ${type}`;
+      el.textContent = text;
+    }
+
+    function csvEscape(value) {
+      const v = String(value ?? '');
+      const needQuote = /[",\n\r]/.test(v);
+      const escaped = v.replace(/"/g, '""');
+      return needQuote ? `"${escaped}"` : escaped;
+    }
+
+    function matrixToCsv(matrix, delimChar) {
+      const d = delimChar || ',';
+      return matrix.map(row => row.map(cell => csvEscape(cell)).join(d)).join('\n');
+    }
+
+    function download(filename, content, mime) {
+      const blob = new Blob([content], { type: mime || 'text/plain;charset=utf-8' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => { URL.revokeObjectURL(link.href); link.remove(); }, 0);
+    }
+
+    function copyToClipboard(text) {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        return navigator.clipboard.writeText(text);
+      }
+      const ta = document.createElement('textarea');
+      ta.value = text; document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); } finally { ta.remove(); }
+      return Promise.resolve();
+    }
+
+    function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
+
+    function getOptions() {
+      return {
+        useHeader: $('#use-header').checked,
+        editable: $('#editable').checked,
+        withBorder: $('#with-border').checked,
+        zebra: $('#zebra').checked,
+        compact: $('#compact').checked,
+        align: $('#center').checked ? 'center' : 'left',
+        sample: $('#auto-sample').checked,
+      };
+    }
+
+    // ---- 表单输入模式支持 ----
+    let mode = 'text';
+    let genTimer = null;
+    const scheduleGenerate = () => {
+      clearTimeout(genTimer);
+      genTimer = setTimeout(generate, 120);
+    };
+
+    function setMode(m) {
+      mode = m;
+      $('#text-input-wrap').style.display = (m === 'text') ? 'block' : 'none';
+      $('#form-input-wrap').style.display = (m === 'form') ? 'block' : 'none';
+      $('#modeText').classList.toggle('active', m === 'text');
+      $('#modeForm').classList.toggle('active', m === 'form');
+      scheduleGenerate();
+    }
+
+    function renderFormHeader(cols) {
+      const headerWrap = $('#form-header');
+      headerWrap.innerHTML = '';
+      for (let c = 0; c < cols; c++) {
+        const inp = document.createElement('input');
+        inp.type = 'text'; inp.placeholder = `列${c+1}`; inp.addEventListener('input', scheduleGenerate);
+        headerWrap.appendChild(inp);
+      }
+    }
+
+    function addFormRow(cols, values) {
+      const row = document.createElement('div');
+      row.className = 'row';
+      const grid = document.createElement('div');
+      grid.className = 'row-grid';
+      for (let c = 0; c < cols; c++) {
+        const inp = document.createElement('input');
+        inp.type = 'text'; inp.placeholder = `R${($('#form-rows').children.length+1)}C${c+1}`;
+        inp.value = values?.[c] ?? '';
+        inp.addEventListener('input', scheduleGenerate);
+        grid.appendChild(inp);
+      }
+      const rm = document.createElement('button');
+      rm.className = 'btn rm'; rm.textContent = '删除';
+      rm.addEventListener('click', () => { row.remove(); scheduleGenerate(); });
+      row.appendChild(grid); row.appendChild(rm);
+      $('#form-rows').appendChild(row);
+    }
+
+    function initFormIfNeeded() {
+      const cols = clamp(parseInt($('#form-cols').value || '3', 10), 1, 50);
+      const initRows = clamp(parseInt($('#form-rows-init').value || '3', 10), 1, 500);
+      renderFormHeader(cols);
+      const rowsWrap = $('#form-rows');
+      rowsWrap.innerHTML = '';
+      for (let r = 0; r < initRows; r++) addFormRow(cols);
+    }
+
+    function readFormMatrix() {
+      const opts = getOptions();
+      const cols = clamp(parseInt($('#form-cols').value || '3', 10), 1, 50);
+      const matrix = [];
+      if (opts.useHeader) {
+        const headerValues = [...$('#form-header').querySelectorAll('input')].slice(0, cols).map(i => i.value);
+        matrix.push(headerValues);
+      }
+      const rowEls = [...$('#form-rows').children];
+      rowEls.forEach(row => {
+        const vals = [...row.querySelectorAll('input')].slice(0, cols).map(i => i.value);
+        matrix.push(vals);
+      });
+      return matrix;
+    }
+
+    function generate() {
+      try {
+        let matrix = [];
+        if (mode === 'form') {
+          matrix = readFormMatrix();
+          if (matrix.length === 0) {
+            const rows = clamp(parseInt($('#form-rows-init').value || '3', 10), 1, 500);
+            const cols = clamp(parseInt($('#form-cols').value || '3', 10), 1, 50);
+            matrix = buildMatrixFromSize(rows, cols, getOptions().sample);
+          }
+        } else {
+          const text = $('#data-input').value || '';
+          const delim = getDelimiterValue();
+          matrix = parseTextToMatrix(text, delim);
+          if (matrix.length === 0) {
+            let rows = parseInt($('#rows').value || '0', 10);
+            let cols = parseInt($('#cols').value || '0', 10);
+            rows = clamp(isNaN(rows) ? 0 : rows, 1, 500);
+            cols = clamp(isNaN(cols) ? 0 : cols, 1, 50);
+            matrix = buildMatrixFromSize(rows, cols, getOptions().sample);
+          }
+        }
+
+        const opts = getOptions();
+        const table = buildTable(matrix, opts);
+        $('#preview').innerHTML = '';
+        $('#preview').appendChild(table);
+        updateMeta(matrix);
+
+        const html = tableToHtml(table);
+        $('#code').textContent = html;
+        setStatus('ok', '生成成功');
+      } catch (err) {
+        console.error(err);
+        setStatus('err', '生成失败：' + (err?.message || '未知错误'));
+      }
+    }
+
+    function clearInput() {
+      $('#data-input').value = '';
+      $('#rows').value = '4';
+      $('#cols').value = '3';
+      setStatus('', '');
+      $('#preview').innerHTML = '';
+      $('#code').textContent = '';
+      $('#codeBox').style.display = 'none';
+      $('#meta').textContent = '尚未生成';
+    }
+
+    function exportCsv() {
+      const table = $('#preview table');
+      if (!table) { setStatus('warn', '请先生成表格'); return; }
+      // 从预览读取数据
+      const rows = [];
+      const headerCells = [...table.querySelectorAll('thead th')].map(th => th.textContent);
+      if (headerCells.length) rows.push(headerCells);
+      const bodyRows = [...table.querySelectorAll('tbody tr')].map(tr => [...tr.children].map(td => td.textContent));
+      rows.push(...bodyRows);
+      const csv = matrixToCsv(rows, ',');
+      // 加 BOM 便于 Excel 识别 UTF-8
+      const content = new Uint8Array([0xEF, 0xBB, 0xBF, ...new TextEncoder().encode(csv)]);
+      const blob = new Blob([content], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'table.csv';
+      document.body.appendChild(a); a.click();
+      setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 0);
+      setStatus('ok', '已导出 CSV');
+    }
+
+    function copyHtml() {
+      const html = $('#code').textContent.trim();
+      if (!html) { setStatus('warn', '请先生成表格'); return; }
+      copyToClipboard(html).then(() => setStatus('ok', 'HTML 已复制到剪贴板'));
+    }
+
+    function downloadHtml() {
+      const html = $('#code').textContent.trim();
+      if (!html) { setStatus('warn', '请先生成表格'); return; }
+      const doc = `<!DOCTYPE html>\n<html lang=\"zh-CN\"><head><meta charset=\"utf-8\" /><title>导出表格</title></head><body>${html}</body></html>`;
+      download('table.html', doc, 'text/html;charset=utf-8');
+      setStatus('ok', '已下载 HTML');
+    }
+
+    function copyCsv() {
+      const table = $('#preview table');
+      if (!table) { setStatus('warn', '请先生成表格'); return; }
+      const rows = [];
+      const headerCells = [...table.querySelectorAll('thead th')].map(th => th.textContent);
+      if (headerCells.length) rows.push(headerCells);
+      const bodyRows = [...table.querySelectorAll('tbody tr')].map(tr => [...tr.children].map(td => td.textContent));
+      rows.push(...bodyRows);
+      const csv = matrixToCsv(rows, ',');
+      copyToClipboard(csv).then(() => setStatus('ok', 'CSV 已复制到剪贴板'));
+    }
+
+    function toggleCodeView() {
+      const box = $('#codeBox');
+      box.style.display = box.style.display === 'none' ? 'block' : 'none';
+    }
+
+    // Event bindings
+    $('#gen').addEventListener('click', generate);
+    $('#clear').addEventListener('click', clearInput);
+    $('#exportCsv').addEventListener('click', exportCsv);
+    $('#copyHtml').addEventListener('click', copyHtml);
+    $('#downloadHtml').addEventListener('click', downloadHtml);
+    $('#copyCsv').addEventListener('click', copyCsv);
+    $('#toggleCode').addEventListener('click', toggleCodeView);
+
+    // 模式切换
+    $('#modeText').addEventListener('click', () => setMode('text'));
+    $('#modeForm').addEventListener('click', () => setMode('form'));
+    
+    // 表单输入区交互
+    $('#form-cols').addEventListener('input', () => { 
+      const cols = clamp(parseInt($('#form-cols').value || '3', 10), 1, 50);
+      renderFormHeader(cols);
+      // 重新构造每行输入控件以匹配列数
+      const rowsWrap = $('#form-rows');
+      const rows = [...rowsWrap.children];
+      rows.forEach((row, idx) => {
+        const grid = row.querySelector('.row-grid');
+        grid.innerHTML = '';
+        for (let c = 0; c < cols; c++) {
+          const inp = document.createElement('input');
+          inp.type = 'text'; inp.placeholder = `R${idx+1}C${c+1}`; inp.addEventListener('input', scheduleGenerate);
+          grid.appendChild(inp);
+        }
+      });
+      scheduleGenerate();
+    });
+
+    $('#form-rows-init').addEventListener('input', () => {
+      const cols = clamp(parseInt($('#form-cols').value || '3', 10), 1, 50);
+      const initRows = clamp(parseInt($('#form-rows-init').value || '3', 10), 1, 500);
+      const rowsWrap = $('#form-rows');
+      rowsWrap.innerHTML = '';
+      for (let r = 0; r < initRows; r++) addFormRow(cols);
+      scheduleGenerate();
+    });
+
+    $('#addRow').addEventListener('click', () => {
+      const cols = clamp(parseInt($('#form-cols').value || '3', 10), 1, 50);
+      addFormRow(cols);
+      scheduleGenerate();
+    });
+
+    // 勾选“第一行作为表头”时，控制表单表头区域可见性
+    $('#use-header').addEventListener('change', () => {
+      const visible = $('#use-header').checked;
+      $('#form-header-wrap').style.display = visible ? 'block' : 'none';
+      scheduleGenerate();
+    });
+
+    // 初次载入：文本模式示例 & 初始化表单模式结构
+    window.addEventListener('DOMContentLoaded', () => {
+      $('#data-input').value = '姓名,年龄,城市\n张三,28,上海\n李四,32,北京';
+      initFormIfNeeded();
+      $('#form-header-wrap').style.display = $('#use-header').checked ? 'block' : 'none';
+      setMode('text');
+    });
+  </script>
+</body>
+</html>

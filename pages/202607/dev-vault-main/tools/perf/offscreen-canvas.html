@@ -1,0 +1,997 @@
+<!DOCTYPE html>
+<html tk="title_offscreencanvas_web_worke" lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OffscreenCanvas + Web Workers Playground</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d1117;--surface:#161b22;--surface2:#21262d;--border:#30363d;
+  --text:#e6edf3;--text2:#8b949e;--accent:#58a6ff;--accent2:#3fb950;
+  --warn:#d29922;--error:#f85149;--font:ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+html{font-size:14px}
+body{background:var(--bg);color:var(--text);font-family:var(--font);line-height:1.5;min-height:100vh}
+h1,h2,h3{font-weight:600}
+button{font-family:var(--font);cursor:pointer;border:1px solid var(--border);background:var(--surface2);color:var(--text);padding:6px 14px;border-radius:6px;font-size:.85rem;transition:background .15s}
+button:hover{background:var(--border)}
+button.primary{background:#238636;border-color:#2ea043;color:#fff}
+button.primary:hover{background:#2ea043}
+button.danger{background:#da3633;border-color:#f85149;color:#fff}
+button.danger:hover{background:#b62324}
+select,input[type=range]{font-family:var(--font);background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:4px 8px}
+select{font-size:.85rem}
+
+.header{padding:20px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.header h1{font-size:1.3rem;color:var(--accent)}
+.header .subtitle{color:var(--text2);font-size:.85rem}
+.browser-support{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap}
+.browser-badge{font-size:.75rem;padding:3px 8px;border-radius:12px;border:1px solid var(--border);display:flex;align-items:center;gap:4px}
+.browser-badge.supported{border-color:var(--accent2);color:var(--accent2)}
+.browser-badge.unsupported{border-color:var(--error);color:var(--error)}
+
+.main{padding:20px 24px;max-width:1400px;margin:0 auto}
+
+.controls{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:20px;padding:14px;background:var(--surface);border:1px solid var(--border);border-radius:8px}
+.control-group{display:flex;align-items:center;gap:8px}
+.control-group label{color:var(--text2);font-size:.8rem;white-space:nowrap}
+.control-group .value{color:var(--accent);min-width:48px;text-align:right;font-size:.85rem}
+#particleSlider{width:140px;accent-color:var(--accent)}
+
+.presets{display:flex;gap:6px;flex-wrap:wrap}
+.presets button.active{background:var(--accent);color:#000;border-color:var(--accent)}
+
+.canvas-area{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
+@media(max-width:800px){.canvas-area{grid-template-columns:1fr}}
+.canvas-panel{background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.canvas-header{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border)}
+.canvas-title{font-size:.9rem;font-weight:600}
+.canvas-title.main-thread{color:var(--warn)}
+.canvas-title.worker-thread{color:var(--accent2)}
+.fps-display{font-size:.85rem;padding:2px 10px;border-radius:12px;border:1px solid var(--border)}
+.fps-display.good{color:var(--accent2);border-color:var(--accent2)}
+.fps-display.ok{color:var(--warn);border-color:var(--warn)}
+.fps-display.bad{color:var(--error);border-color:var(--error)}
+.canvas-wrap{padding:8px}
+.canvas-wrap canvas{width:100%;height:300px;border-radius:4px;background:#000;display:block}
+
+.metrics-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:20px}
+@media(max-width:800px){.metrics-row{grid-template-columns:1fr}}
+
+.metric-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px}
+.metric-card h3{font-size:.8rem;color:var(--text2);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px}
+
+.blocker-section{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.blocker-section button{font-size:.85rem}
+.blocker-status{color:var(--text2);font-size:.85rem}
+
+.latency-section .latency-input{width:100%;padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--font);font-size:.85rem;margin-top:8px}
+.latency-result{margin-top:8px;font-size:.85rem;color:var(--text2)}
+
+.timeline-section{margin-bottom:20px}
+.timeline-section h3{font-size:.9rem;margin-bottom:10px}
+.timeline-canvas{width:100%;height:120px;background:var(--surface);border:1px solid var(--border);border-radius:8px;display:block}
+
+.code-section{background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-bottom:20px;overflow:hidden}
+.code-header{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer;user-select:none}
+.code-header h3{font-size:.85rem;color:var(--text2)}
+.code-header .toggle{color:var(--text2);font-size:.8rem}
+.code-body{display:none;padding:14px;overflow-x:auto}
+.code-body.open{display:block}
+.code-body pre{font-size:.8rem;line-height:1.6;color:var(--text);white-space:pre;tab-size:2}
+.copy-btn{font-size:.75rem;padding:2px 8px;position:relative}
+.copy-btn.copied{color:var(--accent2);border-color:var(--accent2)}
+
+.footer{text-align:center;padding:20px;color:var(--text2);font-size:.75rem;border-top:1px solid var(--border)}
+</style>
+</head>
+<body>
+
+
+
+
+
+
+
+
+
+
+
+<div class="header">
+  <div>
+    <h1 ti="h1_offscreencanvas_web_worke" ti="h1_offscreencanvas_web_worke" ti="h1_offscreencanvas_web_worke" ti="h1_offscreencanvas_web_worke" ti="h1_offscreencanvas_web_worke">OffscreenCanvas + Web Workers</h1>
+    <div class="subtitle">Interactive performance comparison playground</div>
+  </div>
+  <div class="browser-support" id="browserSupport"></div>
+</div>
+
+<div class="main">
+  <!-- Controls -->
+  <div class="controls">
+    <div class="control-group">
+      <label ti="label_particles" ti="label_particles" ti="label_particles" ti="label_particles" ti="label_particles">Particles:</label>
+      <input type="range" id="particleSlider" min="100" max="10000" step="100" value="1000">
+      <span class="value" id="particleValue">1000</span>
+    </div>
+    <div class="control-group">
+      <label ti="label_animation" ti="label_animation" ti="label_animation" ti="label_animation" ti="label_animation">Animation:</label>
+      <select id="animationType">
+        <option value="particles">Particles</option>
+        <option value="fractal">Fractal</option>
+        <option value="wave">Wave Field</option>
+      </select>
+    </div>
+    <div class="control-group presets">
+      <label ti="label_presets" ti="label_presets" ti="label_presets" ti="label_presets" ti="label_presets">Presets:</label>
+      <button data-preset="light" class="active" ti="btn_light" ti="btn_light" ti="btn_light" ti="btn_light" ti="btn_light">Light</button>
+      <button data-preset="heavy" ti="btn_heavy_particles" ti="btn_heavy_particles" ti="btn_heavy_particles" ti="btn_heavy_particles" ti="btn_heavy_particles">Heavy Particles</button>
+      <button data-preset="blocking" ti="btn_with_blocking" ti="btn_with_blocking" ti="btn_with_blocking" ti="btn_with_blocking" ti="btn_with_blocking">With Blocking</button>
+      <button data-preset="fractal" ti="btn_fractal" ti="btn_fractal" ti="btn_fractal" ti="btn_fractal" ti="btn_fractal">Fractal</button>
+    </div>
+  </div>
+
+  <!-- Side-by-side canvases -->
+  <div class="canvas-area">
+    <div class="canvas-panel">
+      <div class="canvas-header">
+        <span class="canvas-title main-thread">Main Thread Canvas</span>
+        <span class="fps-display good" id="mainFps">-- FPS</span>
+      </div>
+      <div class="canvas-wrap">
+        <canvas id="mainCanvas" width="600" height="300"></canvas>
+      </div>
+    </div>
+    <div class="canvas-panel">
+      <div class="canvas-header">
+        <span class="canvas-title worker-thread">OffscreenCanvas (Worker)</span>
+        <span class="fps-display good" id="workerFps">-- FPS</span>
+      </div>
+      <div class="canvas-wrap">
+        <canvas id="workerCanvas" width="600" height="300"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Metrics row -->
+  <div class="metrics-row">
+    <div class="metric-card">
+      <h3 ti="h3_main_thread_blocker" ti="h3_main_thread_blocker" ti="h3_main_thread_blocker" ti="h3_main_thread_blocker" ti="h3_main_thread_blocker">Main Thread Blocker</h3>
+      <div class="blocker-section">
+        <button class="danger" id="blockBtn" ti="btn_block_500ms" ti="btn_block_500ms" ti="btn_block_500ms" ti="btn_block_500ms" ti="btn_block_500ms">Block 500ms</button>
+        <button class="danger" id="blockHeavyBtn" ti="btn_block_2000ms" ti="btn_block_2000ms" ti="btn_block_2000ms" ti="btn_block_2000ms" ti="btn_block_2000ms">Block 2000ms</button>
+        <div class="blocker-status" id="blockerStatus">Idle</div>
+      </div>
+    </div>
+    <div class="metric-card">
+      <h3 ti="h3_input_latency_test" ti="h3_input_latency_test" ti="h3_input_latency_test" ti="h3_input_latency_test" ti="h3_input_latency_test">Input Latency Test</h3>
+      <div class="latency-section">
+        <div style="font-size:.8rem;color:var(--text2)">Type below while animation runs:</div>
+        <input type="text" class="latency-input" id="latencyInput" tp="placeholder_type_here_to_measure_inpu" tp="placeholder_type_here_to_measure_inpu" tp="placeholder_type_here_to_measure_inpu" tp="placeholder_type_here_to_measure_inpu" tp="placeholder_type_here_to_measure_inpu" placeholder="Type here to measure input latency...">
+        <div class="latency-result" id="latencyResult">Waiting for input...</div>
+      </div>
+    </div>
+    <div class="metric-card">
+      <h3 ti="h3_frame_stats" ti="h3_frame_stats" ti="h3_frame_stats" ti="h3_frame_stats" ti="h3_frame_stats">Frame Stats</h3>
+      <div style="font-size:.85rem">
+        <div>Main avg: <span id="mainAvg" style="color:var(--warn)">--</span>ms</div>
+        <div>Worker avg: <span id="workerAvg" style="color:var(--accent2)">--</span>ms</div>
+        <div>Dropped (main): <span id="droppedMain" style="color:var(--error)">0</span></div>
+        <div>Dropped (worker): <span id="droppedWorker" style="color:var(--accent2)">0</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Performance Timeline -->
+  <div class="timeline-section">
+    <h3>Performance Timeline <span style="font-size:.75rem;color:var(--text2)">(frame time in ms &mdash; lower is better)</span></h3>
+    <canvas class="timeline-canvas" id="timelineCanvas" width="1200" height="120"></canvas>
+  </div>
+
+  <!-- Code Snippets -->
+  <div class="code-section">
+    <div class="code-header" onclick="toggleCode('code1')">
+      <h3 ti="h3_offscreencanvas_worker_se" ti="h3_offscreencanvas_worker_se" ti="h3_offscreencanvas_worker_se" ti="h3_offscreencanvas_worker_se" ti="h3_offscreencanvas_worker_se">OffscreenCanvas + Worker Setup</h3>
+      <div><button class="copy-btn" onclick="event.stopPropagation();copyCode('code1',this)" ti="btn_copy" ti="btn_copy_2" ti="btn_copy_3" ti="btn_copy" ti="btn_copy_2" ti="btn_copy_3" ti="btn_copy" ti="btn_copy_2" ti="btn_copy_3" ti="btn_copy" ti="btn_copy_2" ti="btn_copy_3" ti="btn_copy" ti="btn_copy_2" ti="btn_copy_3">Copy</button> <span class="toggle" id="code1Toggle">Show</span></div>
+    </div>
+    <div class="code-body" id="code1">
+      <pre>// Main thread: transfer canvas control to worker
+const canvas = document.getElementById('myCanvas');
+const offscreen = canvas.transferControlToOffscreen();
+
+const worker = new Worker('worker.js');
+worker.postMessage({ type: 'init', canvas: offscreen }, [offscreen]);
+
+// Worker (worker.js):
+self.onmessage = (e) => {
+  if (e.data.type === 'init') {
+    const canvas = e.data.canvas;
+    const ctx = canvas.getContext('2d');
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      // ... your rendering code ...
+      requestAnimationFrame(draw);
+    }
+    draw();
+  }
+};</pre>
+    </div>
+  </div>
+
+  <div class="code-section">
+    <div class="code-header" onclick="toggleCode('code2')">
+      <h3 ti="h3_blob_url_worker_single_fi" ti="h3_blob_url_worker_single_fi" ti="h3_blob_url_worker_single_fi" ti="h3_blob_url_worker_single_fi" ti="h3_blob_url_worker_single_fi">Blob URL Worker (Single-File Embedding)</h3>
+      <div><button class="copy-btn" onclick="event.stopPropagation();copyCode('code2',this)">Copy</button> <span class="toggle" id="code2Toggle">Show</span></div>
+    </div>
+    <div class="code-body" id="code2">
+      <pre>// Embed worker code as a Blob URL — no separate file needed
+const workerCode = `
+  self.onmessage = (e) => {
+    const canvas = e.data.canvas;
+    const ctx = canvas.getContext('2d');
+    function animate() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      // render ...
+      requestAnimationFrame(animate);
+    }
+    animate();
+  };
+`;
+
+const blob = new Blob([workerCode], { type: 'application/javascript' });
+const workerUrl = URL.createObjectURL(blob);
+const worker = new Worker(workerUrl);
+
+const offscreen = canvas.transferControlToOffscreen();
+worker.postMessage({ canvas: offscreen }, [offscreen]);</pre>
+    </div>
+  </div>
+
+  <div class="code-section">
+    <div class="code-header" onclick="toggleCode('code3')">
+      <h3>Feature Detection &amp; Fallback</h3>
+      <div><button class="copy-btn" onclick="event.stopPropagation();copyCode('code3',this)">Copy</button> <span class="toggle" id="code3Toggle">Show</span></div>
+    </div>
+    <div class="code-body" id="code3">
+      <pre>// Check if OffscreenCanvas is available
+if (typeof OffscreenCanvas !== 'undefined') {
+  // Use OffscreenCanvas in a worker
+  const offscreen = canvas.transferControlToOffscreen();
+  worker.postMessage({ canvas: offscreen }, [offscreen]);
+} else {
+  // Fallback: render on main thread
+  const ctx = canvas.getContext('2d');
+  function fallbackRender() {
+    // ... main thread rendering ...
+    requestAnimationFrame(fallbackRender);
+  }
+  fallbackRender();
+}
+
+// Also check transferControlToOffscreen support
+const supportsTransfer = typeof HTMLCanvasElement.prototype
+  .transferControlToOffscreen === 'function';</pre>
+    </div>
+  </div>
+</div>
+
+<div class="footer">
+  OffscreenCanvas + Web Workers Playground &mdash; No external dependencies. Pure vanilla JS.
+</div>
+
+
+
+
+
+<script>var _LANG={'title_offscreencanvas_web_worke':["OffscreenCanvas + Web Workers Playground", "OffscreenCanvas + Web Workers Playground"],'h1_offscreencanvas_web_worke':["OffscreenCanvas + Web Workers", "OffscreenCanvas + Web Workers"],'h3_main_thread_blocker':["Main Thread Blocker", "主线程阻塞器"],'h3_input_latency_test':["Input Latency Test", "输入延迟测试"],'h3_frame_stats':["Frame Stats", "帧统计"],'h3_offscreencanvas_worker_se':["OffscreenCanvas + Worker Setup", "OffscreenCanvas + Worker 设置"],'h3_blob_url_worker_single_fi':["Blob URL Worker (Single-File Embedding)", "Blob URL 工作器（单文件嵌入）"],'h3_feature_detection_fallbac':["Feature Detection & Fallback", "特征检测与回退"],'btn_light':["Light", "光"],'btn_heavy_particles':["Heavy Particles", "重粒子"],'btn_with_blocking':["With Blocking", "阻塞"],'btn_fractal':["Fractal", "分形"],'btn_block_500ms':["Block 500ms", "500毫秒"],'btn_block_2000ms':["Block 2000ms", "块 2000 毫秒"],'btn_copy':["Copy", "复制"],'btn_copy_2':["Copy", "复制"],'btn_copy_3':["Copy", "复制"],'placeholder_type_here_to_measure_inpu':["Type here to measure input latency...", "在此输入以测量输入延迟……"],'label_particles':["Particles:", "粒子："],'label_animation':["Animation:", "动画片："],'label_presets':["Presets:", "预设："],'jtc_n_a':["N/A", "不适用"],'jtc_500':["500", "500"],'jtc_8000':["8000", "8000"],'jtc_3000':["3000", "3000"],'jtc_1000':["1000", "1000"],'jtc_idle':["Idle", "闲置的"],'jtc_copied':["Copied!", "已复制！"],'jtc_copy':["Copy", "复制"],'jalert_your_browser_does_not_sup':["Your browser does not support OffscreenCanvas + transferControlToOffscreen. The worker canvas will not render.", "您的浏览器不支持 OffscreenCanvas + transferControlToOffscreen。工作画布将不会渲染。"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>var _LANG={'title_offscreencanvas_web_worke':["OffscreenCanvas + Web Workers Playground", "OffscreenCanvas + Web Workers Playground"],'h1_offscreencanvas_web_worke':["OffscreenCanvas + Web Workers", "OffscreenCanvas + Web Workers"],'h3_main_thread_blocker':["Main Thread Blocker", "主线程阻塞器"],'h3_input_latency_test':["Input Latency Test", "输入延迟测试"],'h3_frame_stats':["Frame Stats", "帧统计"],'h3_offscreencanvas_worker_se':["OffscreenCanvas + Worker Setup", "OffscreenCanvas + Worker 设置"],'h3_blob_url_worker_single_fi':["Blob URL Worker (Single-File Embedding)", "Blob URL 工作器（单文件嵌入）"],'h3_feature_detection_fallbac':["Feature Detection & Fallback", "特征检测与回退"],'btn_light':["Light", "光"],'btn_heavy_particles':["Heavy Particles", "重粒子"],'btn_with_blocking':["With Blocking", "阻塞"],'btn_fractal':["Fractal", "分形"],'btn_block_500ms':["Block 500ms", "500毫秒"],'btn_block_2000ms':["Block 2000ms", "块 2000 毫秒"],'btn_copy':["Copy", "复制"],'btn_copy_2':["Copy", "复制"],'btn_copy_3':["Copy", "复制"],'placeholder_type_here_to_measure_inpu':["Type here to measure input latency...", "在此输入以测量输入延迟……"],'label_particles':["Particles:", "粒子："],'label_animation':["Animation:", "动画片："],'label_presets':["Presets:", "预设："],'jtc_n_a':["N/A", "不适用"],'jtc_500':["500", "500"],'jtc_8000':["8000", "8000"],'jtc_3000':["3000", "3000"],'jtc_1000':["1000", "1000"],'jtc_idle':["Idle", "闲置的"],'jtc_copied':["Copied!", "已复制！"],'jtc_copy':["Copy", "复制"],'jalert_your_browser_does_not_sup':["Your browser does not support OffscreenCanvas + transferControlToOffscreen. The worker canvas will not render.", "您的浏览器不支持 OffscreenCanvas + transferControlToOffscreen。工作画布将不会渲染。"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>var _LANG={'title_offscreencanvas_web_worke':["OffscreenCanvas + Web Workers Playground", "OffscreenCanvas + Web Workers Playground"],'h1_offscreencanvas_web_worke':["OffscreenCanvas + Web Workers", "OffscreenCanvas + Web Workers"],'h3_main_thread_blocker':["Main Thread Blocker", "主线程阻塞器"],'h3_input_latency_test':["Input Latency Test", "输入延迟测试"],'h3_frame_stats':["Frame Stats", "帧统计"],'h3_offscreencanvas_worker_se':["OffscreenCanvas + Worker Setup", "OffscreenCanvas + Worker 设置"],'h3_blob_url_worker_single_fi':["Blob URL Worker (Single-File Embedding)", "Blob URL 工作器（单文件嵌入）"],'h3_feature_detection_fallbac':["Feature Detection & Fallback", "特征检测与回退"],'btn_light':["Light", "光"],'btn_heavy_particles':["Heavy Particles", "重粒子"],'btn_with_blocking':["With Blocking", "阻塞"],'btn_fractal':["Fractal", "分形"],'btn_block_500ms':["Block 500ms", "500毫秒"],'btn_block_2000ms':["Block 2000ms", "块 2000 毫秒"],'btn_copy':["Copy", "复制"],'btn_copy_2':["Copy", "复制"],'btn_copy_3':["Copy", "复制"],'placeholder_type_here_to_measure_inpu':["Type here to measure input latency...", "在此输入以测量输入延迟……"],'label_particles':["Particles:", "粒子："],'label_animation':["Animation:", "动画片："],'label_presets':["Presets:", "预设："],'jtc_n_a':["N/A", "不适用"],'jtc_500':["500", "500"],'jtc_8000':["8000", "8000"],'jtc_3000':["3000", "3000"],'jtc_1000':["1000", "1000"],'jtc_idle':["Idle", "闲置的"],'jtc_copied':["Copied!", "已复制！"],'jtc_copy':["Copy", "复制"],'jalert_your_browser_does_not_sup':["Your browser does not support OffscreenCanvas + transferControlToOffscreen. The worker canvas will not render.", "您的浏览器不支持 OffscreenCanvas + transferControlToOffscreen。工作画布将不会渲染。"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>var _LANG={'title_offscreencanvas_web_worke':["OffscreenCanvas + Web Workers Playground", "OffscreenCanvas + Web Workers Playground"],'h1_offscreencanvas_web_worke':["OffscreenCanvas + Web Workers", "OffscreenCanvas + Web Workers"],'h3_main_thread_blocker':["Main Thread Blocker", "主线程阻塞器"],'h3_input_latency_test':["Input Latency Test", "输入延迟测试"],'h3_frame_stats':["Frame Stats", "帧统计"],'h3_offscreencanvas_worker_se':["OffscreenCanvas + Worker Setup", "OffscreenCanvas + Worker 设置"],'h3_blob_url_worker_single_fi':["Blob URL Worker (Single-File Embedding)", "Blob URL 工作器（单文件嵌入）"],'h3_feature_detection_fallbac':["Feature Detection & Fallback", "特征检测与回退"],'btn_light':["Light", "光"],'btn_heavy_particles':["Heavy Particles", "重粒子"],'btn_with_blocking':["With Blocking", "阻塞"],'btn_fractal':["Fractal", "分形"],'btn_block_500ms':["Block 500ms", "500毫秒"],'btn_block_2000ms':["Block 2000ms", "块 2000 毫秒"],'btn_copy':["Copy", "复制"],'btn_copy_2':["Copy", "复制"],'btn_copy_3':["Copy", "复制"],'placeholder_type_here_to_measure_inpu':["Type here to measure input latency...", "在此输入以测量输入延迟……"],'label_particles':["Particles:", "粒子："],'label_animation':["Animation:", "动画片："],'label_presets':["Presets:", "预设："],'jtc_n_a':["N/A", "不适用"],'jtc_500':["500", "500"],'jtc_8000':["8000", "8000"],'jtc_3000':["3000", "3000"],'jtc_1000':["1000", "1000"],'jtc_idle':["Idle", "闲置的"],'jtc_copied':["Copied!", "已复制！"],'jtc_copy':["Copy", "复制"],'jalert_your_browser_does_not_sup':["Your browser does not support OffscreenCanvas + transferControlToOffscreen. The worker canvas will not render.", "您的浏览器不支持 OffscreenCanvas + transferControlToOffscreen。工作画布将不会渲染。"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>
+// ============================================================
+// Browser support detection
+// ============================================================
+(function detectSupport() {
+  const el = document.getElementById('browserSupport');
+  const hasOffscreen = typeof OffscreenCanvas !== 'undefined';
+  const hasTransfer = typeof HTMLCanvasElement.prototype.transferControlToOffscreen === 'function';
+  const hasWorker = typeof Worker !== 'undefined';
+  const supported = hasOffscreen && hasTransfer && hasWorker;
+
+  const browsers = [
+    { name: 'Chrome 69+', ok: true },
+    { name: 'Firefox 105+', ok: true },
+    { name: 'Safari 16.4+', ok: true },
+  ];
+  browsers.forEach(b => {
+    const badge = document.createElement('span');
+    badge.className = 'browser-badge supported';
+    badge.textContent = b.name;
+    el.appendChild(badge);
+  });
+
+  const runtimeBadge = document.createElement('span');
+  runtimeBadge.className = 'browser-badge ' + (supported ? 'supported' : 'unsupported');
+  runtimeBadge.textContent = supported ? 'This browser: OK' : 'This browser: No support';
+  el.appendChild(runtimeBadge);
+
+  if (!supported) {
+    T("jalert_your_browser_does_not_sup");
+  }
+})();
+
+// ============================================================
+// Worker code (embedded as Blob URL)
+// ============================================================
+const WORKER_SOURCE = `
+'use strict';
+
+let canvas, ctx, particles = [], animType = 'particles', running = true;
+let lastTime = 0, frameCount = 0, fps = 0, fpsTime = 0;
+let frameTimes = [];
+
+function initParticles(count, w, h) {
+  particles = [];
+  for (let i = 0; i < count; i++) {
+    particles.push({
+      x: Math.random() * w,
+      y: Math.random() * h,
+      vx: (Math.random() - 0.5) * 2,
+      vy: (Math.random() - 0.5) * 2,
+      r: Math.random() * 3 + 1,
+      hue: Math.random() * 360
+    });
+  }
+}
+
+function drawParticles(t) {
+  const w = canvas.width, h = canvas.height;
+  ctx.fillStyle = 'rgba(0,0,0,0.15)';
+  ctx.fillRect(0, 0, w, h);
+  for (let i = 0; i < particles.length; i++) {
+    const p = particles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    if (p.x < 0 || p.x > w) p.vx *= -1;
+    if (p.y < 0 || p.y > h) p.vy *= -1;
+    p.hue = (p.hue + 0.5) % 360;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+    ctx.fillStyle = 'hsl(' + p.hue + ',80%,60%)';
+    ctx.fill();
+  }
+}
+
+function drawFractal(t) {
+  const w = canvas.width, h = canvas.height;
+  const imageData = ctx.createImageData(w, h);
+  const data = imageData.data;
+  const zoom = 200 + Math.sin(t * 0.0005) * 50;
+  const cx = -0.7 + Math.sin(t * 0.0003) * 0.1;
+  const cy = 0.27015 + Math.cos(t * 0.0004) * 0.05;
+  const maxIter = 40;
+  for (let px = 0; px < w; px++) {
+    for (let py = 0; py < h; py++) {
+      let x = (px - w / 2) / zoom;
+      let y = (py - h / 2) / zoom;
+      let i = 0;
+      while (x * x + y * y < 4 && i < maxIter) {
+        const tmp = x * x - y * y + cx;
+        y = 2 * x * y + cy;
+        x = tmp;
+        i++;
+      }
+      const idx = (py * w + px) * 4;
+      if (i === maxIter) {
+        data[idx] = data[idx+1] = data[idx+2] = 0;
+      } else {
+        const hue = (i / maxIter) * 360;
+        const c = hslToRgb(hue, 80, 50);
+        data[idx] = c[0]; data[idx+1] = c[1]; data[idx+2] = c[2];
+      }
+      data[idx+3] = 255;
+    }
+  }
+  ctx.putImageData(imageData, 0, 0);
+}
+
+function drawWave(t) {
+  const w = canvas.width, h = canvas.height;
+  ctx.fillStyle = 'rgba(0,0,0,0.1)';
+  ctx.fillRect(0, 0, w, h);
+  const cols = Math.min(particles.length, 80);
+  const rows = Math.min(Math.floor(particles.length / cols), 40);
+  const gapX = w / (cols + 1);
+  const gapY = h / (rows + 1);
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const bx = (c + 1) * gapX;
+      const by = (r + 1) * gapY;
+      const dist = Math.sqrt((bx - w/2) ** 2 + (by - h/2) ** 2);
+      const offset = Math.sin(dist * 0.03 - t * 0.003) * 8;
+      const size = 2 + Math.sin(dist * 0.02 - t * 0.002) * 2;
+      const hue = (dist * 0.5 + t * 0.05) % 360;
+      ctx.beginPath();
+      ctx.arc(bx + offset, by + offset, Math.max(size, 0.5), 0, Math.PI * 2);
+      ctx.fillStyle = 'hsl(' + hue + ',70%,55%)';
+      ctx.fill();
+    }
+  }
+}
+
+function hslToRgb(h, s, l) {
+  s /= 100; l /= 100;
+  const k = n => (n + h / 30) % 12;
+  const a = s * Math.min(l, 1 - l);
+  const f = n => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+  return [Math.round(f(0)*255), Math.round(f(8)*255), Math.round(f(4)*255)];
+}
+
+function animate(ts) {
+  if (!running) return;
+  const dt = ts - lastTime;
+  lastTime = ts;
+
+  frameTimes.push(dt);
+  if (frameTimes.length > 120) frameTimes.shift();
+
+  frameCount++;
+  if (ts - fpsTime >= 1000) {
+    fps = frameCount;
+    frameCount = 0;
+    fpsTime = ts;
+    self.postMessage({ type: 'fps', fps: fps, frameTimes: frameTimes.slice() });
+  }
+
+  if (animType === 'particles') drawParticles(ts);
+  else if (animType === 'fractal') drawFractal(ts);
+  else if (animType === 'wave') drawWave(ts);
+
+  requestAnimationFrame(animate);
+}
+
+self.onmessage = function(e) {
+  const msg = e.data;
+  if (msg.type === 'init') {
+    canvas = msg.canvas;
+    ctx = canvas.getContext('2d');
+    initParticles(msg.particleCount || 1000, canvas.width, canvas.height);
+    requestAnimationFrame(animate);
+  } else if (msg.type === 'updateParticles') {
+    initParticles(msg.count, canvas.width, canvas.height);
+  } else if (msg.type === 'updateAnimation') {
+    animType = msg.animType;
+  } else if (msg.type === 'resize') {
+    canvas.width = msg.width;
+    canvas.height = msg.height;
+    initParticles(msg.particleCount, canvas.width, canvas.height);
+  }
+};
+`;
+
+// ============================================================
+// Main thread rendering (mirror of worker logic)
+// ============================================================
+const mainCanvas = document.getElementById('mainCanvas');
+const mainCtx = mainCanvas.getContext('2d');
+let mainParticles = [];
+let mainAnimType = 'particles';
+let mainLastTime = 0, mainFrameCount = 0, mainFps = 0, mainFpsTime = 0;
+let mainFrameTimes = [];
+let mainRunning = true;
+
+function hslToRgb(h, s, l) {
+  s /= 100; l /= 100;
+  const k = n => (n + h / 30) % 12;
+  const a = s * Math.min(l, 1 - l);
+  const f = n => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+  return [Math.round(f(0)*255), Math.round(f(8)*255), Math.round(f(4)*255)];
+}
+
+function initMainParticles(count) {
+  const w = mainCanvas.width, h = mainCanvas.height;
+  mainParticles = [];
+  for (let i = 0; i < count; i++) {
+    mainParticles.push({
+      x: Math.random() * w, y: Math.random() * h,
+      vx: (Math.random() - 0.5) * 2, vy: (Math.random() - 0.5) * 2,
+      r: Math.random() * 3 + 1, hue: Math.random() * 360
+    });
+  }
+}
+
+function drawMainParticles(t) {
+  const w = mainCanvas.width, h = mainCanvas.height;
+  mainCtx.fillStyle = 'rgba(0,0,0,0.15)';
+  mainCtx.fillRect(0, 0, w, h);
+  for (let i = 0; i < mainParticles.length; i++) {
+    const p = mainParticles[i];
+    p.x += p.vx; p.y += p.vy;
+    if (p.x < 0 || p.x > w) p.vx *= -1;
+    if (p.y < 0 || p.y > h) p.vy *= -1;
+    p.hue = (p.hue + 0.5) % 360;
+    mainCtx.beginPath();
+    mainCtx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+    mainCtx.fillStyle = `hsl(${p.hue},80%,60%)`;
+    mainCtx.fill();
+  }
+}
+
+function drawMainFractal(t) {
+  const w = mainCanvas.width, h = mainCanvas.height;
+  const imageData = mainCtx.createImageData(w, h);
+  const data = imageData.data;
+  const zoom = 200 + Math.sin(t * 0.0005) * 50;
+  const cx = -0.7 + Math.sin(t * 0.0003) * 0.1;
+  const cy = 0.27015 + Math.cos(t * 0.0004) * 0.05;
+  const maxIter = 40;
+  for (let px = 0; px < w; px++) {
+    for (let py = 0; py < h; py++) {
+      let x = (px - w / 2) / zoom, y = (py - h / 2) / zoom, i = 0;
+      while (x * x + y * y < 4 && i < maxIter) {
+        const tmp = x * x - y * y + cx;
+        y = 2 * x * y + cy; x = tmp; i++;
+      }
+      const idx = (py * w + px) * 4;
+      if (i === maxIter) { data[idx] = data[idx+1] = data[idx+2] = 0; }
+      else {
+        const c = hslToRgb((i / maxIter) * 360, 80, 50);
+        data[idx] = c[0]; data[idx+1] = c[1]; data[idx+2] = c[2];
+      }
+      data[idx+3] = 255;
+    }
+  }
+  mainCtx.putImageData(imageData, 0, 0);
+}
+
+function drawMainWave(t) {
+  const w = mainCanvas.width, h = mainCanvas.height;
+  mainCtx.fillStyle = 'rgba(0,0,0,0.1)';
+  mainCtx.fillRect(0, 0, w, h);
+  const cols = Math.min(mainParticles.length, 80);
+  const rows = Math.min(Math.floor(mainParticles.length / cols), 40);
+  const gapX = w / (cols + 1), gapY = h / (rows + 1);
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const bx = (c + 1) * gapX, by = (r + 1) * gapY;
+      const dist = Math.sqrt((bx - w/2) ** 2 + (by - h/2) ** 2);
+      const offset = Math.sin(dist * 0.03 - t * 0.003) * 8;
+      const size = 2 + Math.sin(dist * 0.02 - t * 0.002) * 2;
+      const hue = (dist * 0.5 + t * 0.05) % 360;
+      mainCtx.beginPath();
+      mainCtx.arc(bx + offset, by + offset, Math.max(size, 0.5), 0, Math.PI * 2);
+      mainCtx.fillStyle = `hsl(${hue},70%,55%)`;
+      mainCtx.fill();
+    }
+  }
+}
+
+function mainAnimate(ts) {
+  if (!mainRunning) return;
+  const dt = ts - mainLastTime;
+  mainLastTime = ts;
+
+  mainFrameTimes.push(dt);
+  if (mainFrameTimes.length > 120) mainFrameTimes.shift();
+
+  mainFrameCount++;
+  if (ts - mainFpsTime >= 1000) {
+    mainFps = mainFrameCount;
+    mainFrameCount = 0;
+    mainFpsTime = ts;
+    updateFpsDisplay('mainFps', mainFps);
+    document.getElementById('mainAvg').textContent =
+      (mainFrameTimes.reduce((a, b) => a + b, 0) / mainFrameTimes.length).toFixed(1);
+    document.getElementById('droppedMain').textContent =
+      mainFrameTimes.filter(t => t > 20).length;
+  }
+
+  if (mainAnimType === 'particles') drawMainParticles(ts);
+  else if (mainAnimType === 'fractal') drawMainFractal(ts);
+  else if (mainAnimType === 'wave') drawMainWave(ts);
+
+  requestAnimationFrame(mainAnimate);
+}
+
+// ============================================================
+// Worker setup
+// ============================================================
+let worker = null;
+let workerFrameTimes = [];
+
+function setupWorker() {
+  const workerCanvas = document.getElementById('workerCanvas');
+  try {
+    const offscreen = workerCanvas.transferControlToOffscreen();
+    const blob = new Blob([WORKER_SOURCE], { type: 'application/javascript' });
+    const url = URL.createObjectURL(blob);
+    worker = new Worker(url);
+    URL.revokeObjectURL(url);
+
+    worker.postMessage({
+      type: 'init',
+      canvas: offscreen,
+      particleCount: parseInt(document.getElementById('particleSlider').value)
+    }, [offscreen]);
+
+    worker.onmessage = function(e) {
+      if (e.data.type === 'fps') {
+        updateFpsDisplay('workerFps', e.data.fps);
+        workerFrameTimes = e.data.frameTimes;
+        document.getElementById('workerAvg').textContent =
+          (workerFrameTimes.reduce((a, b) => a + b, 0) / workerFrameTimes.length).toFixed(1);
+        document.getElementById('droppedWorker').textContent =
+          workerFrameTimes.filter(t => t > 20).length;
+      }
+    };
+  } catch (err) {
+    console.error('OffscreenCanvas setup failed:', err);
+    document.getElementById('workerFps').textContent=T("jtc_n_a");
+  }
+}
+
+function updateFpsDisplay(id, fps) {
+  const el = document.getElementById(id);
+  el.textContent = fps + ' FPS';
+  el.className = 'fps-display ' + (fps >= 50 ? 'good' : fps >= 30 ? 'ok' : 'bad');
+}
+
+// ============================================================
+// Canvas sizing
+// ============================================================
+function resizeCanvases() {
+  const wraps = document.querySelectorAll('.canvas-wrap');
+  wraps.forEach(wrap => {
+    const c = wrap.querySelector('canvas');
+    if (c === mainCanvas) {
+      const rect = wrap.getBoundingClientRect();
+      mainCanvas.width = Math.floor(rect.width - 16);
+      mainCanvas.height = 300;
+      initMainParticles(parseInt(document.getElementById('particleSlider').value));
+    }
+  });
+  // Notify worker of resize
+  if (worker) {
+    const wrap = document.querySelectorAll('.canvas-wrap')[1];
+    if (wrap) {
+      const rect = wrap.getBoundingClientRect();
+      worker.postMessage({
+        type: 'resize',
+        width: Math.floor(rect.width - 16),
+        height: 300,
+        particleCount: parseInt(document.getElementById('particleSlider').value)
+      });
+    }
+  }
+  // Timeline canvas
+  const tlWrap = document.getElementById('timelineCanvas').parentElement;
+  const tlRect = tlWrap.getBoundingClientRect();
+  document.getElementById('timelineCanvas').width = Math.floor(tlRect.width);
+}
+
+// ============================================================
+// Controls
+// ============================================================
+const particleSlider = document.getElementById('particleSlider');
+const particleValue = document.getElementById('particleValue');
+const animSelect = document.getElementById('animationType');
+
+particleSlider.addEventListener('input', () => {
+  const count = parseInt(particleSlider.value);
+  particleValue.textContent = count;
+  initMainParticles(count);
+  if (worker) worker.postMessage({ type: 'updateParticles', count });
+});
+
+animSelect.addEventListener('change', () => {
+  mainAnimType = animSelect.value;
+  if (worker) worker.postMessage({ type: 'updateAnimation', animType: animSelect.value });
+});
+
+// Presets
+document.querySelectorAll('[data-preset]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-preset]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const preset = btn.dataset.preset;
+    switch (preset) {
+      case 'light':
+        particleSlider.value = 500; particleValue.textContent=T("jtc_500");
+        animSelect.value = 'particles';
+        break;
+      case 'heavy':
+        particleSlider.value = 8000; particleValue.textContent=T("jtc_8000");
+        animSelect.value = 'particles';
+        break;
+      case 'blocking':
+        particleSlider.value = 3000; particleValue.textContent=T("jtc_3000");
+        animSelect.value = 'particles';
+        setTimeout(() => blockMainThread(1000), 300);
+        break;
+      case 'fractal':
+        particleSlider.value = 1000; particleValue.textContent=T("jtc_1000");
+        animSelect.value = 'fractal';
+        break;
+    }
+    mainAnimType = animSelect.value;
+    initMainParticles(parseInt(particleSlider.value));
+    if (worker) {
+      worker.postMessage({ type: 'updateParticles', count: parseInt(particleSlider.value) });
+      worker.postMessage({ type: 'updateAnimation', animType: animSelect.value });
+    }
+  });
+});
+
+// ============================================================
+// Main thread blocker
+// ============================================================
+function blockMainThread(ms) {
+  const status = document.getElementById('blockerStatus');
+  status.textContent = `Blocking for ${ms}ms...`;
+  status.style.color = 'var(--error)';
+  // Use setTimeout so the status text renders before blocking
+  setTimeout(() => {
+    const start = performance.now();
+    while (performance.now() - start < ms) {
+      // Busy wait — intentionally blocks the main thread
+      Math.sqrt(Math.random());
+    }
+    status.textContent = `Blocked ${ms}ms — done`;
+    status.style.color = 'var(--accent2)';
+    setTimeout(() => { status.textContent=T("jtc_idle"); status.style.color = 'var(--text2)'; }, 2000);
+  }, 50);
+}
+
+document.getElementById('blockBtn').addEventListener('click', () => blockMainThread(500));
+document.getElementById('blockHeavyBtn').addEventListener('click', () => blockMainThread(2000));
+
+// ============================================================
+// Input latency measurement
+// ============================================================
+let lastKeyTime = 0;
+const latencyInput = document.getElementById('latencyInput');
+const latencyResult = document.getElementById('latencyResult');
+let latencies = [];
+
+latencyInput.addEventListener('keydown', () => {
+  lastKeyTime = performance.now();
+});
+latencyInput.addEventListener('input', () => {
+  if (lastKeyTime > 0) {
+    const latency = performance.now() - lastKeyTime;
+    latencies.push(latency);
+    if (latencies.length > 20) latencies.shift();
+    const avg = latencies.reduce((a, b) => a + b, 0) / latencies.length;
+    latencyResult.textContent =
+      `Last: ${latency.toFixed(1)}ms | Avg: ${avg.toFixed(1)}ms (${latencies.length} samples)`;
+    latencyResult.style.color = latency < 16 ? 'var(--accent2)' : latency < 50 ? 'var(--warn)' : 'var(--error)';
+  }
+});
+
+// ============================================================
+// Performance timeline
+// ============================================================
+const tlCanvas = document.getElementById('timelineCanvas');
+const tlCtx = tlCanvas.getContext('2d');
+
+function drawTimeline() {
+  const w = tlCanvas.width, h = tlCanvas.height;
+  tlCtx.fillStyle = '#161b22';
+  tlCtx.fillRect(0, 0, w, h);
+
+  const maxSamples = 120;
+  const barW = Math.max(1, Math.floor(w / maxSamples / 2) - 1);
+  const maxMs = 50; // scale: 50ms = full height
+
+  // 16.67ms line (60 FPS target)
+  const targetY = h - (16.67 / maxMs) * h;
+  tlCtx.strokeStyle = '#30363d';
+  tlCtx.setLineDash([4, 4]);
+  tlCtx.beginPath();
+  tlCtx.moveTo(0, targetY);
+  tlCtx.lineTo(w, targetY);
+  tlCtx.stroke();
+  tlCtx.setLineDash([]);
+  tlCtx.fillStyle = '#484f58';
+  tlCtx.font = '10px monospace';
+  tlCtx.fillText('16.7ms (60fps)', 4, targetY - 3);
+
+  // Main thread bars (left half)
+  const halfW = w / 2;
+  for (let i = 0; i < mainFrameTimes.length && i < maxSamples; i++) {
+    const ft = Math.min(mainFrameTimes[i], maxMs);
+    const barH = (ft / maxMs) * h;
+    const x = (i / maxSamples) * halfW;
+    const color = ft < 16.67 ? '#3fb950' : ft < 33 ? '#d29922' : '#f85149';
+    tlCtx.fillStyle = color;
+    tlCtx.fillRect(x, h - barH, barW, barH);
+  }
+
+  // Worker bars (right half)
+  for (let i = 0; i < workerFrameTimes.length && i < maxSamples; i++) {
+    const ft = Math.min(workerFrameTimes[i], maxMs);
+    const barH = (ft / maxMs) * h;
+    const x = halfW + (i / maxSamples) * halfW;
+    const color = ft < 16.67 ? '#58a6ff' : ft < 33 ? '#d29922' : '#f85149';
+    tlCtx.fillStyle = color;
+    tlCtx.fillRect(x, h - barH, barW, barH);
+  }
+
+  // Labels
+  tlCtx.fillStyle = '#d29922';
+  tlCtx.font = '11px monospace';
+  tlCtx.fillText('Main Thread', 8, 14);
+  tlCtx.fillStyle = '#58a6ff';
+  tlCtx.fillText('Worker', halfW + 8, 14);
+
+  requestAnimationFrame(drawTimeline);
+}
+
+// ============================================================
+// Code toggle / copy
+// ============================================================
+function toggleCode(id) {
+  const body = document.getElementById(id);
+  const toggle = document.getElementById(id + 'Toggle');
+  body.classList.toggle('open');
+  toggle.textContent = body.classList.contains('open') ? 'Hide' : 'Show';
+}
+
+function copyCode(id, btn) {
+  const pre = document.getElementById(id).querySelector('pre');
+  navigator.clipboard.writeText(pre.textContent).then(() => {
+    btn.textContent=T("jtc_copied");
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent=T("jtc_copy"); btn.classList.remove('copied'); }, 1500);
+  });
+}
+
+// ============================================================
+// Init
+// ============================================================
+window.addEventListener('load', () => {
+  resizeCanvases();
+  initMainParticles(parseInt(particleSlider.value));
+  setupWorker();
+  requestAnimationFrame(mainAnimate);
+  requestAnimationFrame(drawTimeline);
+});
+
+window.addEventListener('resize', () => {
+  // Only resize main canvas (worker canvas is controlled by the worker)
+  const wrap = document.querySelectorAll('.canvas-wrap')[0];
+  const rect = wrap.getBoundingClientRect();
+  mainCanvas.width = Math.floor(rect.width - 16);
+  mainCanvas.height = 300;
+  initMainParticles(parseInt(particleSlider.value));
+
+  const tlWrap = document.getElementById('timelineCanvas').parentElement;
+  const tlRect = tlWrap.getBoundingClientRect();
+  document.getElementById('timelineCanvas').width = Math.floor(tlRect.width);
+});
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+</body>
+</html>

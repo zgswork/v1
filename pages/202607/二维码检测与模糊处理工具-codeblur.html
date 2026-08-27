@@ -1,0 +1,1170 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>二维码检测与模糊处理工具</title>
+    <!-- 主要jsQR库CDN链接 -->
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    <!-- 备用jsQR库CDN链接，当主要链接失败时使用 -->
+    <script>
+        // 检查jsQR是否已加载，如果没有则尝试使用备用CDN
+        window.addEventListener('load', function() {
+            if (typeof jsQR !== 'function') {
+                console.warn('主要jsQR库加载失败，尝试加载备用库...');
+                var backupScript = document.createElement('script');
+                backupScript.src = "https://unpkg.com/jsqr@1.4.0/dist/jsQR.min.js";
+                backupScript.onload = function() {
+                    console.log('备用jsQR库加载成功');
+                    // 重新启用上传区域
+                    if (document.getElementById('drop-area')) {
+                        document.getElementById('drop-area').style.pointerEvents = '';
+                        document.getElementById('drop-area').style.opacity = '';
+                    }
+                    if (document.getElementById('status')) {
+                        document.getElementById('status').className = 'status';
+                        document.getElementById('status').textContent = '请选择图片文件开始处理';
+                    }
+                };
+                backupScript.onerror = function() {
+                    console.error('备用jsQR库也加载失败');
+                };
+                document.head.appendChild(backupScript);
+            }
+        });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+    <style>
+        :root {
+            --primary: #4361ee;
+            --primary-hover: #3a56d4;
+            --secondary: #4cc9f0;
+            --success: #2ec4b6;
+            --warning: #ff9f1c;
+            --danger: #e71d36;
+            --bg: #f8f9fa;
+            --surface: #ffffff;
+            --text: #2b2d42;
+            --text-secondary: #6c757d;
+            --border: #dee2e6;
+            --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            --radius: 8px;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+        
+        header {
+            background-color: var(--primary);
+            color: white;
+            padding: 1.5rem 0;
+            text-align: center;
+            box-shadow: var(--shadow);
+        }
+        
+        .header-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 1.5rem;
+        }
+        
+        h1 {
+            margin: 0;
+            font-size: 2rem;
+            font-weight: 700;
+        }
+        
+        .subtitle {
+            margin-top: 0.5rem;
+            font-size: 1rem;
+            opacity: 0.9;
+        }
+        
+        main {
+            flex: 1;
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 0 1.5rem;
+        }
+        
+        .container {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 2rem;
+        }
+        
+        @media (min-width: 768px) {
+            .container {
+                grid-template-columns: 350px 1fr;
+            }
+        }
+        
+        .upload-section {
+            background-color: var(--surface);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 1.5rem;
+            position: sticky;
+            top: 2rem;
+            height: fit-content;
+        }
+        
+        .section-title {
+            font-size: 1.25rem;
+            margin-top: 0;
+            margin-bottom: 1.5rem;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .section-title svg {
+            width: 1.25rem;
+            height: 1.25rem;
+        }
+        
+        .drop-area {
+            border: 2px dashed var(--primary);
+            border-radius: var(--radius);
+            padding: 2rem 1.5rem;
+            text-align: center;
+            background-color: rgba(67, 97, 238, 0.05);
+            transition: all 0.3s ease;
+            margin-bottom: 1.5rem;
+            cursor: pointer;
+        }
+        
+        .drop-area:hover, .drop-area.dragover {
+            background-color: rgba(67, 97, 238, 0.1);
+            border-color: var(--primary-hover);
+        }
+        
+        .drop-icon {
+            font-size: 2.5rem;
+            color: var(--primary);
+            margin-bottom: 1rem;
+        }
+        
+        .drop-text {
+            margin-bottom: 1rem;
+            color: var(--text);
+        }
+        
+        .drop-hint {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+        
+        input[type="file"] {
+            display: none;
+        }
+        
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            border-radius: var(--radius);
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: none;
+            font-size: 1rem;
+            text-align: center;
+            width: 100%;
+        }
+        
+        .btn-primary {
+            background-color: var(--primary);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background-color: var(--primary-hover);
+        }
+        
+        .btn-success {
+            background-color: var(--success);
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background-color: #25a99d;
+        }
+        
+        .btn-secondary {
+            background-color: var(--surface);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+        
+        .btn-secondary:hover {
+            background-color: #f1f3f5;
+        }
+        
+        .btn:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+        
+        .settings {
+            margin-top: 1.5rem;
+        }
+        
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+        
+        .form-control {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            font-size: 1rem;
+            transition: border-color 0.3s;
+        }
+        
+        .form-control:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+        
+        .form-check {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .form-check-input {
+            width: 1.25rem;
+            height: 1.25rem;
+            cursor: pointer;
+        }
+        
+        .form-check-label {
+            cursor: pointer;
+        }
+        
+        .status {
+            margin-top: 1.5rem;
+            padding: 1rem;
+            border-radius: var(--radius);
+            background-color: #f1f3f5;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+        
+        .status.processing {
+            background-color: rgba(255, 159, 28, 0.1);
+            color: var(--warning);
+        }
+        
+        .status.success {
+            background-color: rgba(46, 196, 182, 0.1);
+            color: var(--success);
+        }
+        
+        .status.error {
+            background-color: rgba(231, 29, 54, 0.1);
+            color: var(--danger);
+        }
+        
+        .progress-container {
+            margin-top: 1rem;
+            height: 6px;
+            background-color: #e9ecef;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        
+        .progress-bar {
+            height: 100%;
+            background-color: var(--primary);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        
+        .preview-section {
+            background-color: var(--surface);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 1.5rem;
+        }
+        
+        .preview-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+        
+        .preview-count {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+        
+        .preview-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 1.5rem;
+        }
+        
+        .preview-card {
+            background-color: #f8f9fa;
+            border-radius: var(--radius);
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        
+        .preview-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        .preview-img-container {
+            position: relative;
+            padding-top: 75%;
+            overflow: hidden;
+            background-color: #e9ecef;
+        }
+        
+        .preview-img {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        
+        .preview-info {
+            padding: 1rem;
+        }
+        
+        .preview-title {
+            font-size: 0.875rem;
+            margin: 0 0 0.5rem 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .preview-meta {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-bottom: 1rem;
+        }
+        
+        .preview-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        .preview-btn {
+            flex: 1;
+            padding: 0.5rem;
+            font-size: 0.75rem;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 3rem 1.5rem;
+            color: var(--text-secondary);
+        }
+        
+        .empty-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            color: #dee2e6;
+        }
+        
+        .empty-text {
+            font-size: 1.125rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .empty-hint {
+            font-size: 0.875rem;
+        }
+        
+        footer {
+            background-color: var(--surface);
+            border-top: 1px solid var(--border);
+            padding: 1.5rem 0;
+            text-align: center;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            margin-top: 2rem;
+        }
+        
+        .footer-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 1.5rem;
+        }
+        
+        /* 加载动画 */
+        .loading {
+            display: inline-block;
+            width: 1.5rem;
+            height: 1.5rem;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        /* 工具提示 */
+        .tooltip {
+            position: relative;
+            display: inline-block;
+            cursor: help;
+        }
+        
+        .tooltip .tooltip-text {
+            visibility: hidden;
+            width: 200px;
+            background-color: #333;
+            color: #fff;
+            text-align: center;
+            border-radius: 6px;
+            padding: 0.5rem;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            transform: translateX(-50%);
+            opacity: 0;
+            transition: opacity 0.3s;
+            font-size: 0.75rem;
+        }
+        
+        .tooltip:hover .tooltip-text {
+            visibility: visible;
+            opacity: 1;
+        }
+        
+        /* 响应式调整 */
+        @media (max-width: 576px) {
+            .preview-grid {
+                grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            }
+            
+            .btn {
+                padding: 0.625rem 1.25rem;
+                font-size: 0.875rem;
+            }
+            
+            h1 {
+                font-size: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <h1>二维码检测与模糊处理工具</h1>
+            <p class="subtitle">自动检测图片中的二维码，并用毛玻璃效果替换，保护您的隐私</p>
+        </div>
+    </header>
+    
+    <main>
+        <div class="container">
+            <div class="upload-section">
+                <h2 class="section-title">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="17 8 12 3 7 8"></polyline>
+                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                    </svg>
+                    上传图片
+                </h2>
+                
+                <label for="image-input" class="drop-area" id="drop-area">
+                    <div class="drop-icon">📁</div>
+                    <div class="drop-text">拖放图片到这里或点击上传</div>
+                    <div class="drop-hint">支持 JPG、PNG、GIF 等常见图片格式</div>
+                </label>
+                <input type="file" id="image-input" accept="image/*" multiple>
+                
+                <div class="settings">
+                    <h3 class="section-title" style="font-size: 1rem;">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="3"></circle>
+                            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                        </svg>
+                        处理设置
+                    </h3>
+                    
+                    <div class="form-group">
+                        <label class="form-label">模糊效果强度</label>
+                        <input type="range" class="form-control" id="blur-intensity" min="10" max="50" value="20">
+                    </div>
+                    
+                    <div class="form-group">
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="add-overlay" checked>
+                            <label class="form-check-label" for="add-overlay">添加半透明覆盖层</label>
+                        </div>
+                        
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="add-border" checked>
+                            <label class="form-check-label" for="add-border">添加边框效果</label>
+                        </div>
+                        
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="enhance-detection" checked>
+                            <label class="form-check-label" for="enhance-detection">增强检测能力</label>
+                            <span class="tooltip">ℹ️
+                                <span class="tooltip-text">对图像进行预处理以提高二维码检测率，但可能会增加处理时间</span>
+                            </span>
+                        </div>
+                        
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="wechat-mode" checked>
+                            <label class="form-check-label" for="wechat-mode">微信二维码优化</label>
+                            <span class="tooltip">ℹ️
+                                <span class="tooltip-text">针对微信二维码进行特殊优化，提高识别率</span>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                
+                <button id="download-all" class="btn btn-success" style="display: none; margin-top: 1.5rem;">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="7 10 12 15 17 10"></polyline>
+                        <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg>
+                    下载所有处理后的图片 (ZIP)
+                </button>
+                
+                <div id="status" class="status">请选择图片文件开始处理</div>
+                <div class="progress-container" id="progress-container" style="display: none;">
+                    <div class="progress-bar" id="progress-bar"></div>
+                </div>
+            </div>
+            
+            <div class="preview-section">
+                <div class="preview-header">
+                    <h2 class="section-title">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                            <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                            <polyline points="21 15 16 10 5 21"></polyline>
+                        </svg>
+                        处理结果
+                    </h2>
+                    <span class="preview-count" id="preview-count"></span>
+                </div>
+                
+                <div id="image-previews" class="preview-grid">
+                    <div class="empty-state">
+                        <div class="empty-icon">🖼️</div>
+                        <div class="empty-text">暂无处理结果</div>
+                        <div class="empty-hint">上传图片后将在此处显示处理结果</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <footer>
+        <div class="footer-content">
+            <p>二维码检测与模糊处理工具 &copy; 2023 | 保护您的隐私安全</p>
+        </div>
+    </footer>
+
+    <script>
+        // 页面加载完成后检查jsQR库是否正确加载
+        window.addEventListener('DOMContentLoaded', function() {
+            // 检查jsQR库是否正确加载
+            if (typeof jsQR !== 'function') {
+                console.error('jsQR 库未正确加载');
+                document.getElementById('status').className = 'status error';
+                document.getElementById('status').textContent = '❌ jsQR 库未正确加载，请刷新页面重试';
+                // 禁用上传区域
+                document.getElementById('drop-area').style.pointerEvents = 'none';
+                document.getElementById('drop-area').style.opacity = '0.5';
+            } else {
+                console.log('jsQR 库已成功加载');
+            }
+        });
+        
+        // DOM 元素
+        const imageInput = document.getElementById('image-input');
+        const dropArea = document.getElementById('drop-area');
+        const previewsContainer = document.getElementById('image-previews');
+        const downloadAllButton = document.getElementById('download-all');
+        const statusText = document.getElementById('status');
+        const progressContainer = document.getElementById('progress-container');
+        const progressBar = document.getElementById('progress-bar');
+        const previewCount = document.getElementById('preview-count');
+        const blurIntensity = document.getElementById('blur-intensity');
+        const addOverlay = document.getElementById('add-overlay');
+        const addBorder = document.getElementById('add-border');
+        const enhanceDetection = document.getElementById('enhance-detection');
+        const wechatMode = document.getElementById('wechat-mode');
+        
+        // 存储处理后的图片
+        const processedImages = [];
+        
+        // 事件监听
+        imageInput.addEventListener('change', handleImageUpload);
+        downloadAllButton.addEventListener('click', downloadAllAsZip);
+        
+        // 拖放功能
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, preventDefaults, false);
+        });
+        
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropArea.addEventListener(eventName, () => {
+                dropArea.classList.add('dragover');
+            }, false);
+        });
+        
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, () => {
+                dropArea.classList.remove('dragover');
+            }, false);
+        });
+        
+        dropArea.addEventListener('drop', (e) => {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            imageInput.files = files;
+            handleImageUpload({ target: { files } });
+        }, false);
+        
+        // 处理图片上传
+        async function handleImageUpload(event) {
+            const files = event.target.files;
+            if (files.length === 0) return;
+            
+            // 清空预览区域和处理图片数组
+            previewsContainer.innerHTML = '';
+            processedImages.length = 0;
+            downloadAllButton.style.display = 'none';
+            
+            // 更新状态
+            statusText.className = 'status processing';
+            statusText.textContent = `准备处理 ${files.length} 张图片...`;
+            progressContainer.style.display = 'block';
+            progressBar.style.width = '0%';
+            
+            // 处理每张图片
+            for (let i = 0; i < files.length; i++) {
+                statusText.textContent = `正在处理: ${files[i].name} (${i + 1}/${files.length})`;
+                progressBar.style.width = `${(i / files.length) * 100}%`;
+                await processImage(files[i], i, files.length);
+            }
+            
+            // 更新状态
+            progressBar.style.width = '100%';
+            statusText.className = 'status success';
+            statusText.textContent = `✅ 所有图片处理完成！共 ${files.length} 张，检测到二维码 ${processedImages.filter(img => img.hasQR).length} 张。`;
+            previewCount.textContent = `共 ${files.length} 张图片`;
+            
+            // 显示下载按钮
+            if (processedImages.length > 0) {
+                downloadAllButton.style.display = 'block';
+            }
+            
+            // 延迟隐藏进度条
+            setTimeout(() => {
+                progressContainer.style.display = 'none';
+            }, 1500);
+        }
+        
+        // 处理单张图片
+        function processImage(file, index, total) {
+            return new Promise(resolve => {
+                const reader = new FileReader();
+                
+                // 添加错误处理
+                reader.onerror = function(event) {
+                    console.error("文件读取错误:", event.target.error);
+                    statusText.className = 'status error';
+                    statusText.textContent = `❌ 读取文件 ${file.name} 时出错`;
+                    resolve();
+                };
+                
+                reader.onload = e => {
+                    console.log(`开始处理图片: ${file.name}`);
+                    
+                    const img = new Image();
+                    
+                    // 添加图片加载错误处理
+                    img.onerror = function() {
+                        console.error(`图片加载失败: ${file.name}`);
+                        statusText.className = 'status error';
+                        statusText.textContent = `❌ 加载图片 ${file.name} 失败`;
+                        resolve();
+                    };
+                    
+                    img.onload = () => {
+                        console.log(`图片已加载: ${file.name}, 尺寸: ${img.width}x${img.height}`);
+                        
+                        try {
+                            // 创建画布
+                            const canvas = document.createElement('canvas');
+                            const ctx = canvas.getContext('2d');
+                            canvas.width = img.width;
+                            canvas.height = img.height;
+                            ctx.drawImage(img, 0, 0);
+                            
+                            // 获取图像数据
+                            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                            console.log(`获取图像数据成功: ${imageData.width}x${imageData.height}`);
+                            
+                            // 准备多种增强版本的图像数据用于检测
+                            const imageDataVariants = [];
+                            
+                            // 添加原始图像数据
+                            imageDataVariants.push({
+                                data: imageData,
+                                name: "原始图像"
+                            });
+                            
+                            // 如果启用了增强检测，添加增强版本
+                            if (enhanceDetection.checked) {
+                                // 标准增强版本
+                                const enhancedImageData = enhanceImage(imageData, 1.2, 128);
+                                imageDataVariants.push({
+                                    data: enhancedImageData,
+                                    name: "标准增强"
+                                });
+                                
+                                // 高对比度版本
+                                const highContrastImageData = enhanceImage(imageData, 1.5, 120);
+                                imageDataVariants.push({
+                                    data: highContrastImageData,
+                                    name: "高对比度"
+                                });
+                            }
+                            
+                            // 如果启用了微信模式，添加针对微信二维码的优化版本
+                            if (wechatMode.checked) {
+                                // 微信二维码优化版本1 - 调整灰度权重
+                                const wechatImageData1 = enhanceImage(imageData, 1.3, 125, {
+                                    red: 0.3,
+                                    green: 0.6,
+                                    blue: 0.1
+                                });
+                                imageDataVariants.push({
+                                    data: wechatImageData1,
+                                    name: "微信优化1"
+                                });
+                                
+                                // 微信二维码优化版本2 - 更高对比度
+                                const wechatImageData2 = enhanceImage(imageData, 1.7, 110, {
+                                    red: 0.33,
+                                    green: 0.5,
+                                    blue: 0.17
+                                });
+                                imageDataVariants.push({
+                                    data: wechatImageData2,
+                                    name: "微信优化2"
+                                });
+                                
+                                // 微信二维码优化版本3 - 更低阈值
+                                const wechatImageData3 = enhanceImage(imageData, 1.4, 100, {
+                                    red: 0.25,
+                                    green: 0.65,
+                                    blue: 0.1
+                                });
+                                imageDataVariants.push({
+                                    data: wechatImageData3,
+                                    name: "微信优化3"
+                                });
+                            }
+                            
+                            console.log(`准备了 ${imageDataVariants.length} 种图像变体用于检测`);
+                            
+                            // 检查jsQR是否可用
+                            if (typeof jsQR !== 'function') {
+                                console.error('jsQR 库未正确加载');
+                                statusText.className = 'status error';
+                                statusText.textContent = '❌ jsQR 库未正确加载，请刷新页面重试';
+                                resolve();
+                                return;
+                            }
+                            
+                            // 尝试检测二维码
+                            let code = null;
+                            let detectionMethod = "";
+                            
+                            // 尝试所有图像变体进行检测
+                            for (const variant of imageDataVariants) {
+                                console.log(`尝试使用 ${variant.name} 变体检测二维码`);
+                                
+                                // 尝试多种检测配置
+                                const detectionConfigs = [
+                                    {
+                                        inversionAttempts: "attemptBoth",
+                                        canOverwriteImage: true,
+                                        greyScaleWeights: {
+                                            red: 0.299,
+                                            green: 0.587,
+                                            blue: 0.114
+                                        }
+                                    },
+                                    {
+                                        inversionAttempts: "invertFirst",
+                                        canOverwriteImage: true,
+                                        greyScaleWeights: {
+                                            red: 0.2,
+                                            green: 0.7,
+                                            blue: 0.1
+                                        }
+                                    },
+                                    {
+                                        inversionAttempts: "dontInvert",
+                                        canOverwriteImage: true,
+                                        greyScaleWeights: {
+                                            red: 0.33,
+                                            green: 0.34,
+                                            blue: 0.33
+                                        }
+                                    }
+                                ];
+                                
+                                // 如果是微信模式，添加更多针对微信二维码的检测配置
+                                if (wechatMode.checked) {
+                                    detectionConfigs.push({
+                                        inversionAttempts: "attemptBoth",
+                                        canOverwriteImage: true,
+                                        greyScaleWeights: {
+                                            red: 0.4,
+                                            green: 0.5,
+                                            blue: 0.1
+                                        }
+                                    });
+                                    
+                                    detectionConfigs.push({
+                                        inversionAttempts: "onlyInvert",
+                                        canOverwriteImage: true,
+                                        greyScaleWeights: {
+                                            red: 0.3,
+                                            green: 0.4,
+                                            blue: 0.3
+                                        }
+                                    });
+                                }
+                                
+                                // 尝试每种检测配置
+                                for (const config of detectionConfigs) {
+                                    try {
+                                        console.log(`尝试配置: ${config.inversionAttempts}`);
+                                        const result = jsQR(
+                                            variant.data.data, 
+                                            variant.data.width, 
+                                            variant.data.height, 
+                                            config
+                                        );
+                                        if (result) {
+                                            code = result;
+                                            detectionMethod = `${variant.name} + ${config.inversionAttempts}`;
+                                            console.log(`检测到二维码! 方法: ${detectionMethod}`);
+                                            break;
+                                        }
+                                    } catch (err) {
+                                        console.error(`jsQR 检测错误:`, err);
+                                    }
+                                }
+                                
+                                // 如果找到了二维码，停止尝试
+                                if (code) break;
+                            }
+                            
+                            // 创建预览卡片
+                            let hasQR = false;
+                            
+                            // 如果检测到二维码，应用模糊效果
+                            if (code) {
+                                console.log(`应用模糊效果到二维码区域`);
+                                applyBlurEffect(ctx, code.location, canvas.width, canvas.height);
+                                hasQR = true;
+                            } else {
+                                console.log(`未检测到二维码`);
+                            }
+                            
+                            // 创建预览卡片
+                            const previewCard = createPreviewCard(canvas, file.name, hasQR, code ? code.data : null, detectionMethod);
+                            previewsContainer.appendChild(previewCard);
+                            
+                            // 将处理后的图片添加到数组
+                            canvas.toBlob(blob => {
+                                processedImages.push({
+                                    name: file.name,
+                                    blob,
+                                    hasQR,
+                                    qrData: code ? code.data : null,
+                                    detectionMethod
+                                });
+                                console.log(`图片处理完成: ${file.name}`);
+                                resolve();
+                            });
+                        } catch (error) {
+                            console.error(`处理图片时出错:`, error);
+                            statusText.className = 'status error';
+                            statusText.textContent = `❌ 处理图片 ${file.name} 时出错: ${error.message}`;
+                            resolve();
+                        }
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+        
+        // 增强图像以提高二维码检测率
+        function enhanceImage(imageData, contrastFactor = 1.2, threshold = 128, customWeights = null) {
+            const data = imageData.data;
+            const enhancedData = new Uint8ClampedArray(data);
+            
+            // 增强对比度
+            const contrast = contrastFactor; // 对比度增强系数
+            const intercept = 128 * (1 - contrast);
+            
+            // 使用默认或自定义灰度权重
+            const weights = customWeights || {
+                red: 0.299,
+                green: 0.587,
+                blue: 0.114
+            };
+            
+            for (let i = 0; i < data.length; i += 4) {
+                // 转换为灰度，使用指定的权重
+                const gray = (data[i] * weights.red + data[i + 1] * weights.green + data[i + 2] * weights.blue);
+                
+                // 应用对比度调整
+                const adjusted = gray * contrast + intercept;
+                
+                // 二值化处理
+                const binary = adjusted > threshold ? 255 : 0;
+                
+                enhancedData[i] = binary;
+                enhancedData[i + 1] = binary;
+                enhancedData[i + 2] = binary;
+            }
+            
+            return new ImageData(enhancedData, imageData.width, imageData.height);
+        }
+        
+        // 应用模糊效果
+        function applyBlurEffect(ctx, location, width, height) {
+            const { topLeftCorner, topRightCorner, bottomLeftCorner, bottomRightCorner } = location;
+            const x = Math.min(topLeftCorner.x, bottomLeftCorner.x);
+            const y = Math.min(topLeftCorner.y, topRightCorner.y);
+            const qrWidth = Math.max(topRightCorner.x, bottomRightCorner.x) - x;
+            const qrHeight = Math.max(bottomLeftCorner.y, bottomRightCorner.y) - y;
+            
+            // 获取模糊强度（百分比转换为像素）
+            const blurRadius = Math.min(qrWidth, qrHeight) * (blurIntensity.value / 100);
+            
+            // 使用更高级的毛玻璃效果实现
+            // 1. 先保存当前二维码区域的图像数据
+            const qrImageData = ctx.getImageData(Math.max(0, x - blurRadius), Math.max(0, y - blurRadius), 
+                                       qrWidth + blurRadius * 2, qrHeight + blurRadius * 2);
+            
+            // 2. 应用模糊效果
+            ctx.save();
+            
+            // 为了防止模糊边缘效应，模糊区域需要比二维码稍大一些
+            const padding = blurRadius * 2;
+            
+            // 使用 filter 实现毛玻璃效果 - 扩大模糊区域以避免边缘锯齿
+            ctx.filter = `blur(${blurRadius}px)`;
+            ctx.drawImage(
+                ctx.canvas,
+                Math.max(0, x - padding),
+                Math.max(0, y - padding),
+                qrWidth + padding * 2,
+                qrHeight + padding * 2,
+                Math.max(0, x - padding),
+                Math.max(0, y - padding),
+                qrWidth + padding * 2,
+                qrHeight + padding * 2
+            );
+            
+            // 3. 添加半透明覆盖层，增强毛玻璃质感
+            if (addOverlay.checked) {
+                // 使用更亮的白色覆盖层，提高透明度以增强毛玻璃效果
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+                ctx.fillRect(x, y, qrWidth, qrHeight);
+            }
+            
+            // 4. 如果启用了边框，添加一个更明显的边框
+            if (addBorder.checked) {
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(x, y, qrWidth, qrHeight);
+            }
+            
+            ctx.restore();
+        }
+        
+        // 创建预览卡片
+        function createPreviewCard(canvas, fileName, hasQR, qrData, detectionMethod) {
+            // 移除空状态
+            const emptyState = document.querySelector('.empty-state');
+            if (emptyState) {
+                emptyState.remove();
+            }
+            
+            // 创建卡片元素
+            const card = document.createElement('div');
+            card.className = 'preview-card';
+            
+            // 创建图片容器
+            const imgContainer = document.createElement('div');
+            imgContainer.className = 'preview-img-container';
+            
+            // 将 canvas 转换为图片
+            const img = new Image();
+            img.src = canvas.toDataURL('image/png');
+            img.className = 'preview-img';
+            imgContainer.appendChild(img);
+            
+            // 创建信息区域
+            const info = document.createElement('div');
+            info.className = 'preview-info';
+            
+            // 创建标题
+            const title = document.createElement('h3');
+            title.className = 'preview-title';
+            title.textContent = fileName;
+            title.title = fileName; // 添加工具提示
+            
+            // 创建元数据
+            const meta = document.createElement('div');
+            meta.className = 'preview-meta';
+            
+            if (hasQR) {
+                meta.innerHTML = `检测到二维码${qrData ? '：<br>' + truncateText(qrData, 30) : ''}`;
+                if (detectionMethod) {
+                    meta.innerHTML += `<br><small>检测方式：${detectionMethod}</small>`;
+                }
+            } else {
+                meta.textContent = '未检测到二维码';
+            }
+            
+            // 创建操作按钮区域
+            const actions = document.createElement('div');
+            actions.className = 'preview-actions';
+            
+            // 创建下载按钮
+            const downloadBtn = document.createElement('a');
+            downloadBtn.className = 'btn btn-primary preview-btn';
+            downloadBtn.href = canvas.toDataURL('image/png');
+            downloadBtn.download = `processed_${fileName}`;
+            downloadBtn.textContent = '下载';
+            
+            // 添加元素到卡片
+            info.appendChild(title);
+            info.appendChild(meta);
+            info.appendChild(actions);
+            actions.appendChild(downloadBtn);
+            
+            card.appendChild(imgContainer);
+            card.appendChild(info);
+            
+            return card;
+        }
+        
+        // 截断文本
+        function truncateText(text, maxLength) {
+            if (text.length <= maxLength) return text;
+            return text.substring(0, maxLength) + '...';
+        }
+        
+        // 下载所有处理后的图片为 ZIP
+        function downloadAllAsZip() {
+            if (processedImages.length === 0) return;
+            
+            // 更新状态
+            statusText.className = 'status processing';
+            statusText.textContent = '正在生成 ZIP 文件...';
+            downloadAllButton.disabled = true;
+            downloadAllButton.innerHTML = '<span class="loading"></span> 正在打包...';
+            
+            // 创建 ZIP 文件
+            const zip = new JSZip();
+            const folder = zip.folder("processed_images");
+            
+            // 添加图片到 ZIP
+            processedImages.forEach(imgData => {
+                folder.file(`processed_${imgData.name}`, imgData.blob);
+            });
+            
+            // 生成并下载 ZIP
+            zip.generateAsync({ type: 'blob' }).then(content => {
+                // 创建下载链接
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(content);
+                link.download = 'processed_images.zip';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                // 更新状态
+                statusText.className = 'status success';
+                statusText.textContent = '✅ ZIP 文件已下载！';
+                downloadAllButton.disabled = false;
+                downloadAllButton.innerHTML = `
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="7 10 12 15 17 10"></polyline>
+                        <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg>
+                    下载所有处理后的图片 (ZIP)
+                `;
+            }).catch(err => {
+                // 处理错误
+                console.error('生成 ZIP 文件时出错:', err);
+                statusText.className = 'status error';
+                statusText.textContent = '❌ 生成 ZIP 文件时出错，请重试';
+                downloadAllButton.disabled = false;
+                downloadAllButton.innerHTML = `
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="7 10 12 15 17 10"></polyline>
+                        <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg>
+                    下载所有处理后的图片 (ZIP)
+                `;
+            });
+        }
+    </script>
+</body>
+</html>

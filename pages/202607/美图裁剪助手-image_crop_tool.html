@@ -1,0 +1,956 @@
+<html lang="zh-CN"><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>美图裁剪助手</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#FF69B4', // 粉色
+                        secondary: '#9D84B7', // 紫色
+                        accent: '#FFB6C1', // 浅粉色
+                        light: '#FFF0F5', // 淡粉色背景
+                        dark: '#4A4A4A', // 深灰色文本
+                    },
+                    fontFamily: {
+                        cute: ['"Comic Sans MS"', '"Marker Felt"', 'Arial', 'sans-serif'],
+                    },
+                    animation: {
+                        'float': 'float 3s ease-in-out infinite',
+                        'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    },
+                    keyframes: {
+                        float: {
+                            '0%, 100%': { transform: 'translateY(0)' },
+                            '50%': { transform: 'translateY(-10px)' },
+                        }
+                    }
+                },
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .text-shadow {
+                text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+            }
+            .bg-gradient-cute {
+                background: linear-gradient(135deg, #FF69B4 0%, #9D84B7 100%);
+            }
+            .border-cute {
+                border: 3px dashed #FF69B4;
+            }
+            .hover-scale {
+                transition: transform 0.3s ease;
+            }
+            .hover-scale:hover {
+                transform: scale(1.05);
+            }
+            .print-border {
+                box-shadow: 0 0 0 5px rgba(255, 105, 180, 0.5) inset;
+            }
+            .touch-friendly {
+                padding: 12px 16px;
+                min-height: 44px;
+                min-width: 44px;
+            }
+        }
+    </style>
+</head>
+<body class="bg-light min-h-screen font-cute text-dark">
+    <!-- 导航栏 -->
+    <nav class="bg-gradient-cute text-white shadow-lg sticky top-0 z-50">
+        <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center space-x-2">
+                <i class="fa fa-scissors text-2xl animate-pulse-slow"></i>
+                <h1 class="text-xl md:text-2xl font-bold text-shadow">美图裁剪助手</h1>
+            </div>
+            <button id="helpBtn" class="bg-white/20 hover:bg-white/30 transition-all duration-300 rounded-full p-2">
+                <i class="fa fa-question-circle text-lg"></i>
+            </button>
+        </div>
+    </nav>
+
+    <!-- 主内容区 -->
+    <main class="container mx-auto px-4 py-8">
+        <!-- 欢迎消息 -->
+        <div class="text-center mb-8 animate-float">
+            <h2 class="text-[clamp(1.5rem,3vw,2.5rem)] font-bold text-primary mb-2">
+                <i class="fa fa-heart text-red-400"></i> 欢迎使用图片裁切工具 <i class="fa fa-heart text-red-400"></i>
+            </h2>
+            <p class="text-gray-600 max-w-2xl mx-auto">
+                上传图片，选择喜欢的比例，一键生成可爱的裁切图片！
+            </p>
+        </div>
+
+        <!-- 错误提示区 -->
+        <div id="errorContainer" class="hidden mb-6">
+            <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded">
+                <div class="flex">
+                    <div class="flex-shrink-0">
+                        <i class="fa fa-exclamation-triangle text-red-500"></i>
+                    </div>
+                    <div class="ml-3">
+                        <h3 class="text-sm font-medium">图片处理错误</h3>
+                        <div class="mt-2 text-sm" id="errorMessage">
+                            <!-- 错误信息将在这里显示 -->
+                        </div>
+                        <div class="mt-4 text-sm" id="errorSolution">
+                            <!-- 解决办法将在这里显示 -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- 左侧控制面板 -->
+            <div class="lg:col-span-1 space-y-6">
+                <!-- 上传区域 -->
+                <div class="bg-white rounded-xl shadow-lg p-6 hover-scale">
+                    <h3 class="text-lg font-bold text-secondary mb-4 flex items-center">
+                        <i class="fa fa-upload mr-2 text-primary"></i> 上传图片
+                    </h3>
+                    <div id="dropArea" class="border-cute rounded-lg p-8 text-center cursor-pointer bg-pink-50 transition-all duration-300 hover:bg-pink-100">
+                        <i class="fa fa-picture-o text-4xl text-primary mb-3"></i>
+                        <p class="mb-2">拖拽图片到这里，或</p>
+                        <button id="uploadBtn" class="bg-primary hover:bg-primary/90 text-white py-2 px-4 rounded-lg transition-all duration-300 shadow-md hover:shadow-lg touch-friendly">
+                            <i class="fa fa-plus mr-1"></i> 选择图片
+                        </button>
+                        <input type="file" id="fileInput" class="hidden" accept="image/*">
+                        <p class="mt-3 text-xs text-gray-500">支持 JPG、PNG、GIF、WebP、SVG、TIFF 格式，最大 20MB</p>
+                    </div>
+                </div>
+
+                <!-- 图片信息 -->
+                <div id="imageInfo" class="hidden bg-white rounded-xl shadow-lg p-6 hover-scale">
+                    <h3 class="text-lg font-bold text-secondary mb-4 flex items-center">
+                        <i class="fa fa-info-circle mr-2 text-primary"></i> 图片信息
+                    </h3>
+                    <div class="space-y-3">
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">文件名:</span>
+                            <span id="fileName" class="font-medium"></span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">尺寸:</span>
+                            <span id="fileSize" class="font-medium"></span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">分辨率:</span>
+                            <span id="fileResolution" class="font-medium"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 裁切设置 -->
+                <div id="cropSettings" class="hidden bg-white rounded-xl shadow-lg p-6 hover-scale">
+                    <h3 class="text-lg font-bold text-secondary mb-4 flex items-center">
+                        <i class="fa fa-sliders mr-2 text-primary"></i> 裁切设置
+                    </h3>
+                    
+                    <!-- 比例选择 -->
+                    <div class="mb-6">
+                        <label class="block text-gray-700 mb-2 font-medium">选择比例:</label>
+                        <div class="grid grid-cols-3 gap-3">
+                            <button class="aspect-ratio-btn bg-pink-100 hover:bg-pink-200 border-2 border-pink-300 rounded-lg p-2 text-center transition-all duration-300 active touch-friendly" data-ratio="1:1">
+                                <div class="aspect-square bg-white rounded-sm mx-auto"></div>
+                                <span class="text-xs mt-1">1:1</span>
+                            </button>
+                            <button class="aspect-ratio-btn bg-pink-100 hover:bg-pink-200 border-2 border-transparent rounded-lg p-2 text-center transition-all duration-300 touch-friendly" data-ratio="3:2">
+                                <div class="aspect-[3/2] bg-white rounded-sm mx-auto"></div>
+                                <span class="text-xs mt-1">3:2</span>
+                            </button>
+                            <button class="aspect-ratio-btn bg-pink-100 hover:bg-pink-200 border-2 border-transparent rounded-lg p-2 text-center transition-all duration-300 touch-friendly" data-ratio="4:3">
+                                <div class="aspect-[4/3] bg-white rounded-sm mx-auto"></div>
+                                <span class="text-xs mt-1">4:3</span>
+                            </button>
+                            <button class="aspect-ratio-btn bg-pink-100 hover:bg-pink-200 border-2 border-transparent rounded-lg p-2 text-center transition-all duration-300 touch-friendly" data-ratio="16:9">
+                                <div class="aspect-video bg-white rounded-sm mx-auto"></div>
+                                <span class="text-xs mt-1">16:9</span>
+                            </button>
+                            <button class="aspect-ratio-btn bg-pink-100 hover:bg-pink-200 border-2 border-transparent rounded-lg p-2 text-center transition-all duration-300 touch-friendly" data-ratio="9:16">
+                                <div class="aspect-[9/16] bg-white rounded-sm mx-auto"></div>
+                                <span class="text-xs mt-1">9:16</span>
+                            </button>
+                            <button class="aspect-ratio-btn bg-pink-100 hover:bg-pink-200 border-2 border-transparent rounded-lg p-2 text-center transition-all duration-300 touch-friendly" data-ratio="2:3">
+                                <div class="aspect-[2/3] bg-white rounded-sm mx-auto"></div>
+                                <span class="text-xs mt-1">2:3</span>
+                            </button>
+                            <button class="aspect-ratio-btn bg-pink-100 hover:bg-pink-200 border-2 border-transparent rounded-lg p-2 text-center transition-all duration-300 touch-friendly" data-ratio="3:4">
+                                <div class="aspect-[3/4] bg-white rounded-sm mx-auto"></div>
+                                <span class="text-xs mt-1">3:4</span>
+                            </button>
+                            <button class="aspect-ratio-btn bg-pink-100 hover:bg-pink-200 border-2 border-transparent rounded-lg p-2 text-center transition-all duration-300 touch-friendly" data-ratio="16:10">
+                                <div class="aspect-[16/10] bg-white rounded-sm mx-auto"></div>
+                                <span class="text-xs mt-1">16:10</span>
+                            </button>
+                            <button class="aspect-ratio-btn bg-pink-100 hover:bg-pink-200 border-2 border-transparent rounded-lg p-2 text-center transition-all duration-300 touch-friendly" data-ratio="21:9">
+                                <div class="aspect-[21/9] bg-white rounded-sm mx-auto"></div>
+                                <span class="text-xs mt-1">21:9</span>
+                            </button>
+                            <button class="aspect-ratio-btn bg-pink-100 hover:bg-pink-200 border-2 border-transparent rounded-lg p-2 text-center transition-all duration-300 touch-friendly" data-ratio="4:5">
+                                <div class="aspect-[4/5] bg-white rounded-sm mx-auto"></div>
+                                <span class="text-xs mt-1">4:5</span>
+                            </button>
+                            <button id="customRatioBtn" class="aspect-ratio-btn bg-pink-100 hover:bg-pink-200 border-2 border-transparent rounded-lg p-2 text-center transition-all duration-300 touch-friendly" data-ratio="custom">
+                                <div class="aspect-square bg-white rounded-sm mx-auto flex items-center justify-center">
+                                    <i class="fa fa-sliders text-primary"></i>
+                                </div>
+                                <span class="text-xs mt-1">自定义</span>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- 自定义比例输入 -->
+                    <div id="customRatioContainer" class="hidden mb-6 p-4 bg-pink-50 rounded-lg">
+                        <h4 class="text-sm font-medium text-gray-700 mb-3">设置自定义比例</h4>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs text-gray-500 mb-1">宽度比例</label>
+                                <input type="number" id="customWidthRatio" class="w-full px-3 py-2 border border-pink-300 rounded-md focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent touch-friendly" placeholder="例如: 3" value="1">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-500 mb-1">高度比例</label>
+                                <input type="number" id="customHeightRatio" class="w-full px-3 py-2 border border-pink-300 rounded-md focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent touch-friendly" placeholder="例如: 4" value="1">
+                            </div>
+                        </div>
+                        <button id="applyCustomRatioBtn" class="mt-3 w-full bg-primary hover:bg-primary/90 text-white py-2 px-4 rounded-md transition-all duration-300 text-sm touch-friendly">
+                            应用自定义比例
+                        </button>
+                    </div>
+                    
+                    <!-- 分块选择 -->
+                    <div>
+                        <label class="block text-gray-700 mb-2 font-medium">分块数量:</label>
+                        <div class="grid grid-cols-3 gap-3">
+                            <button class="split-btn bg-pink-100 hover:bg-pink-200 border-2 border-transparent rounded-lg p-3 text-center transition-all duration-300 touch-friendly" data-split="4">
+                                <div class="grid grid-cols-2 gap-1 w-full h-10 mx-auto">
+                                    <div class="bg-white rounded-sm"></div>
+                                    <div class="bg-white rounded-sm"></div>
+                                    <div class="bg-white rounded-sm"></div>
+                                    <div class="bg-white rounded-sm"></div>
+                                </div>
+                                <span class="text-xs mt-1">1切4</span>
+                            </button>
+                            <button class="split-btn bg-pink-100 hover:bg-pink-200 border-2 border-pink-300 rounded-lg p-3 text-center transition-all duration-300 active touch-friendly" data-split="6">
+                                <div class="grid grid-cols-3 gap-1 w-full h-10 mx-auto">
+                                    <div class="bg-white rounded-sm col-span-2"></div>
+                                    <div class="bg-white rounded-sm col-span-1"></div>
+                                    <div class="bg-white rounded-sm col-span-1"></div>
+                                    <div class="bg-white rounded-sm col-span-2"></div>
+                                </div>
+                                <span class="text-xs mt-1">1切6</span>
+                            </button>
+                            <button class="split-btn bg-pink-100 hover:bg-pink-200 border-2 border-transparent rounded-lg p-3 text-center transition-all duration-300 touch-friendly" data-split="9">
+                                <div class="grid grid-cols-3 gap-1 w-full h-10 mx-auto">
+                                    <div class="bg-white rounded-sm"></div>
+                                    <div class="bg-white rounded-sm"></div>
+                                    <div class="bg-white rounded-sm"></div>
+                                    <div class="bg-white rounded-sm"></div>
+                                    <div class="bg-white rounded-sm"></div>
+                                    <div class="bg-white rounded-sm"></div>
+                                    <div class="bg-white rounded-sm"></div>
+                                    <div class="bg-white rounded-sm"></div>
+                                    <div class="bg-white rounded-sm"></div>
+                                </div>
+                                <span class="text-xs mt-1">1切9</span>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- 打印选项 -->
+                    <div class="mt-6">
+                        <label class="flex items-center">
+                            <input type="checkbox" id="printMode" class="w-5 h-5 text-primary focus:ring-primary border-pink-300 rounded touch-friendly">
+                            <span class="ml-2 text-gray-700">为打印调整边缘（增加安全区域）</span>
+                        </label>
+                        <p class="text-xs text-gray-500 mt-1">勾选此项可为打印添加安全区域，避免内容被裁切掉</p>
+                    </div>
+                    
+                    <!-- 裁切按钮 -->
+                    <button id="cropBtn" class="mt-6 w-full bg-secondary hover:bg-secondary/90 text-white py-3 px-4 rounded-lg transition-all duration-300 shadow-md hover:shadow-lg flex justify-center items-center touch-friendly">
+                        <i class="fa fa-scissors mr-2"></i> 开始裁切
+                    </button>
+                </div>
+            </div>
+
+            <!-- 右侧预览和结果区 -->
+            <div class="lg:col-span-2 space-y-6">
+                <!-- 预览区域 -->
+                <div id="previewContainer" class="hidden bg-white rounded-xl shadow-lg p-6 hover-scale">
+                    <h3 class="text-lg font-bold text-secondary mb-4 flex items-center">
+                        <i class="fa fa-eye mr-2 text-primary"></i> 预览
+                    </h3>
+                    <div class="flex justify-center items-center">
+                        <div id="previewWrapper" class="relative max-w-full">
+                            <img id="previewImage" src="" alt="预览图片" class="max-w-full max-h-[400px] object-contain">
+                            <div id="cropOverlay" class="absolute inset-0 pointer-events-none hidden">
+                                <!-- 裁切网格将通过JS动态生成 -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 结果区域 -->
+                <div id="resultsContainer" class="hidden bg-white rounded-xl shadow-lg p-6 hover-scale">
+                    <h3 class="text-lg font-bold text-secondary mb-4 flex items-center">
+                        <i class="fa fa-images mr-2 text-primary"></i> 裁切结果
+                    </h3>
+                    <div id="resultsGrid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                        <!-- 结果图片将通过JS动态生成 -->
+                    </div>
+                    <button id="downloadAllBtn" class="mt-6 w-full bg-primary hover:bg-primary/90 text-white py-3 px-4 rounded-lg transition-all duration-300 shadow-md hover:shadow-lg flex justify-center items-center touch-friendly">
+                        <i class="fa fa-download mr-2"></i> 下载全部图片
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 教程模态框 -->
+    <div id="helpModal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center hidden">
+        <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto m-4">
+            <div class="p-6 border-b border-gray-200">
+                <div class="flex justify-between items-center">
+                    <h3 class="text-xl font-bold text-secondary">使用教程</h3>
+                    <button id="closeHelpBtn" class="text-gray-500 hover:text-gray-700 touch-friendly">
+                        <i class="fa fa-times text-xl"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="p-6 space-y-6">
+                <div>
+                    <h4 class="font-bold text-primary text-lg mb-2">1. 上传图片</h4>
+                    <p>点击"选择图片"按钮或拖拽图片到上传区域。支持JPG、PNG、GIF、WebP、SVG、TIFF格式，最大20MB。</p>
+                </div>
+                <div>
+                    <h4 class="font-bold text-primary text-lg mb-2">2. 选择裁切比例</h4>
+                    <p>从多种预设比例中选择，或点击"自定义"设置您需要的宽高比例。</p>
+                </div>
+                <div>
+                    <h4 class="font-bold text-primary text-lg mb-2">3. 选择分块数量</h4>
+                    <p>选择将图片切成4块、6块或9块。</p>
+                </div>
+                <div>
+                    <h4 class="font-bold text-primary text-lg mb-2">4. 打印选项</h4>
+                    <p>如果需要打印，请勾选"为打印调整边缘"选项，系统会自动添加安全区域，避免内容被裁切掉。</p>
+                </div>
+                <div>
+                    <h4 class="font-bold text-primary text-lg mb-2">5. 预览与裁切</h4>
+                    <p>上传成功后会显示预览图，点击"开始裁切"按钮进行裁切。</p>
+                </div>
+                <div>
+                    <h4 class="font-bold text-primary text-lg mb-2">6. 下载结果</h4>
+                    <p>裁切完成后，可以单独下载每张图片或点击"下载全部图片"。</p>
+                </div>
+                <div class="bg-yellow-50 p-4 rounded-lg">
+                    <h4 class="font-bold text-yellow-600 mb-2 flex items-center">
+                        <i class="fa fa-lightbulb-o mr-2"></i> 小提示
+                    </h4>
+                    <ul class="list-disc pl-5 space-y-1">
+                        <li>图片分辨率不会改变，仅按比例裁切。</li>
+                        <li>对于较大的图片，处理可能需要一些时间。</li>
+                        <li>如果遇到问题，请检查图片格式和大小是否符合要求。</li>
+                        <li>打印时建议选择300DPI以上的图片以获得最佳效果。</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 页脚 -->
+    <footer class="bg-gradient-cute text-white py-6 mt-12">
+        <div class="container mx-auto px-4 text-center">
+            <div class="flex justify-center items-center space-x-3 mb-4">
+                <i class="fa fa-weixin text-2xl"></i>
+                <span class="font-medium">2537471224</span>
+            </div>
+            <p class="text-sm opacity-80">© 2025 可爱图片裁切 - 为您提供最萌的图片处理体验</p>
+        </div>
+    </footer>
+
+    <script>
+        // 全局变量
+        let originalImage = null;
+        let selectedRatio = "1:1"; // 默认比例改为1:1
+        let customRatio = { width: 1, height: 1 };
+        let selectedSplit = 6;
+        let printMode = false;
+        let croppedImages = [];
+
+        // DOM元素
+        const dropArea = document.getElementById('dropArea');
+        const fileInput = document.getElementById('fileInput');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const previewContainer = document.getElementById('previewContainer');
+        const previewImage = document.getElementById('previewImage');
+        const cropOverlay = document.getElementById('cropOverlay');
+        const cropBtn = document.getElementById('cropBtn');
+        const resultsContainer = document.getElementById('resultsContainer');
+        const resultsGrid = document.getElementById('resultsGrid');
+        const downloadAllBtn = document.getElementById('downloadAllBtn');
+        const imageInfo = document.getElementById('imageInfo');
+        const fileName = document.getElementById('fileName');
+        const fileSize = document.getElementById('fileSize');
+        const fileResolution = document.getElementById('fileResolution');
+        const errorContainer = document.getElementById('errorContainer');
+        const errorMessage = document.getElementById('errorMessage');
+        const errorSolution = document.getElementById('errorSolution');
+        const helpBtn = document.getElementById('helpBtn');
+        const helpModal = document.getElementById('helpModal');
+        const closeHelpBtn = document.getElementById('closeHelpBtn');
+        const aspectRatioBtns = document.querySelectorAll('.aspect-ratio-btn');
+        const splitBtns = document.querySelectorAll('.split-btn');
+        const customRatioBtn = document.getElementById('customRatioBtn');
+        const customRatioContainer = document.getElementById('customRatioContainer');
+        const customWidthRatio = document.getElementById('customWidthRatio');
+        const customHeightRatio = document.getElementById('customHeightRatio');
+        const applyCustomRatioBtn = document.getElementById('applyCustomRatioBtn');
+        const printModeCheckbox = document.getElementById('printMode');
+        
+        // 定义cropSettings变量
+        const cropSettings = document.getElementById('cropSettings');
+
+        // 初始化
+        init();
+
+        function init() {
+            // 绑定事件监听器
+            uploadBtn.addEventListener('click', () => {
+                fileInput.click();
+                console.log('上传按钮点击，触发文件选择'); // 调试日志
+            });
+            
+            fileInput.addEventListener('change', handleFileSelect);
+            
+            // 拖放事件处理
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                dropArea.addEventListener(eventName, preventDefaults, false);
+            });
+            
+            function preventDefaults(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+            
+            ['dragenter', 'dragover'].forEach(eventName => {
+                dropArea.addEventListener(eventName, highlight, false);
+            });
+            
+            ['dragleave', 'drop'].forEach(eventName => {
+                dropArea.addEventListener(eventName, unhighlight, false);
+            });
+            
+            function highlight() {
+                dropArea.classList.add('bg-pink-200');
+            }
+            
+            function unhighlight() {
+                dropArea.classList.remove('bg-pink-200');
+            }
+            
+            dropArea.addEventListener('drop', handleDrop, false);
+            
+            cropBtn.addEventListener('click', handleCrop);
+            downloadAllBtn.addEventListener('click', downloadAllImages);
+            helpBtn.addEventListener('click', () => helpModal.classList.remove('hidden'));
+            closeHelpBtn.addEventListener('click', () => helpModal.classList.add('hidden'));
+            
+            // 比例选择按钮
+            aspectRatioBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    // 隐藏自定义比例输入框
+                    customRatioContainer.classList.add('hidden');
+                    
+                    // 更新按钮状态
+                    aspectRatioBtns.forEach(b => b.classList.remove('active', 'border-pink-300'));
+                    aspectRatioBtns.forEach(b => b.classList.add('border-transparent'));
+                    btn.classList.add('active', 'border-pink-300');
+                    btn.classList.remove('border-transparent');
+                    
+                    // 更新选中的比例
+                    selectedRatio = btn.dataset.ratio;
+                    
+                    // 如果是自定义比例，显示自定义输入框
+                    if (selectedRatio === 'custom') {
+                        customRatioContainer.classList.remove('hidden');
+                    } else {
+                        updatePreviewOverlay();
+                    }
+                });
+            });
+            
+            // 自定义比例应用按钮
+            applyCustomRatioBtn.addEventListener('click', () => {
+                const width = parseInt(customWidthRatio.value) || 1;
+                const height = parseInt(customHeightRatio.value) || 1;
+                
+                customRatio = { width, height };
+                selectedRatio = `${width}:${height}`;
+                
+                // 更新自定义按钮的显示
+                customRatioBtn.innerHTML = `
+                    <div class="aspect-square bg-white rounded-sm mx-auto flex items-center justify-center">
+                        <span class="text-xs font-medium">${width}:${height}</span>
+                    </div>
+                    <span class="text-xs mt-1">自定义</span>
+                `;
+                
+                // 隐藏自定义比例输入框
+                customRatioContainer.classList.add('hidden');
+                
+                // 更新预览
+                updatePreviewOverlay();
+            });
+            
+            // 分块选择按钮
+            splitBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    splitBtns.forEach(b => b.classList.remove('active', 'border-pink-300'));
+                    splitBtns.forEach(b => b.classList.add('border-transparent'));
+                    btn.classList.add('active', 'border-pink-300');
+                    btn.classList.remove('border-transparent');
+                    selectedSplit = parseInt(btn.dataset.split);
+                    updatePreviewOverlay();
+                });
+            });
+            
+            // 打印模式切换
+            printModeCheckbox.addEventListener('change', () => {
+                printMode = printModeCheckbox.checked;
+                updatePreviewOverlay();
+            });
+            
+            // 点击模态框外部关闭
+            helpModal.addEventListener('click', (e) => {
+                if (e.target === helpModal) {
+                    helpModal.classList.add('hidden');
+                }
+            });
+            
+            // 添加键盘事件处理
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    helpModal.classList.add('hidden');
+                }
+            });
+            
+            console.log('初始化完成，等待用户操作'); // 调试日志
+        }
+
+        // 处理文件选择
+        function handleFileSelect(e) {
+            console.log('文件选择事件触发'); // 调试日志
+            
+            const file = e.target.files[0];
+            if (file) {
+                console.log('选择的文件:', file.name); // 调试日志
+                processImage(file);
+            } else {
+                console.log('未选择文件'); // 调试日志
+            }
+        }
+
+        // 处理拖放事件
+        function handleDrop(e) {
+            console.log('文件拖放事件触发'); // 调试日志
+            
+            const dt = e.dataTransfer;
+            const file = dt.files[0];
+            
+            if (file) {
+                console.log('拖放的文件:', file.name); // 调试日志
+                processImage(file);
+            }
+        }
+
+        // 处理图片
+        function processImage(file) {
+            console.log('开始处理图片:', file.name); // 调试日志
+            
+            // 验证文件类型和大小
+            if (!file.type.match('image.*')) {
+                showError('文件类型错误', '请上传图片文件（支持JPG、PNG、GIF、WebP、SVG、TIFF格式）');
+                return;
+            }
+            
+            if (file.size > 20 * 1024 * 1024) { // 20MB
+                showError('文件太大', '请上传小于20MB的图片');
+                return;
+            }
+            
+            // 隐藏错误信息
+            hideError();
+            
+            // 创建图片对象
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                originalImage = new Image();
+                originalImage.onload = function() {
+                    console.log('图片加载成功，尺寸:', originalImage.width, 'x', originalImage.height); // 调试日志
+                    
+                    // 显示图片信息
+                    imageInfo.classList.remove('hidden');
+                    fileName.textContent = file.name;
+                    fileSize.textContent = formatFileSize(file.size);
+                    fileResolution.textContent = `${originalImage.width} x ${originalImage.height}`;
+                    
+                    // 显示预览
+                    previewImage.src = e.target.result;
+                    previewContainer.classList.remove('hidden');
+                    cropSettings.classList.remove('hidden');
+                    
+                    // 初始化预览覆盖层
+                    updatePreviewOverlay();
+                };
+                originalImage.onerror = function() {
+                    showError('图片加载失败', '无法加载所选图片，请尝试其他图片');
+                };
+                originalImage.src = e.target.result;
+            };
+            reader.onerror = function() {
+                showError('文件读取错误', '无法读取所选图片，请尝试其他图片');
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // 更新预览覆盖层
+        function updatePreviewOverlay() {
+            if (!originalImage) return;
+            
+            console.log('更新预览覆盖层，比例:', selectedRatio, '分块:', selectedSplit); // 调试日志
+            
+            cropOverlay.innerHTML = '';
+            cropOverlay.classList.remove('hidden');
+            
+            // 获取预览图片的尺寸和位置
+            const previewWrapper = document.getElementById('previewWrapper');
+            const previewRect = previewImage.getBoundingClientRect();
+            const wrapperRect = previewWrapper.getBoundingClientRect();
+            
+            // 计算预览图片的实际宽高
+            const previewWidth = previewRect.width;
+            const previewHeight = previewRect.height;
+            
+            // 计算比例
+            const [widthRatio, heightRatio] = selectedRatio.split(':').map(Number);
+            const ratio = widthRatio / heightRatio;
+            
+            // 根据比例计算裁切区域尺寸
+            let cropWidth, cropHeight;
+            if (previewWidth / previewHeight > ratio) {
+                // 图片比目标比例宽，以高度为基准
+                cropHeight = previewHeight;
+                cropWidth = cropHeight * ratio;
+            } else {
+                // 图片比目标比例高，以宽度为基准
+                cropWidth = previewWidth;
+                cropHeight = cropWidth / ratio;
+            }
+            
+            // 计算网格数量
+            let rows, cols;
+            if (selectedSplit === 4) {
+                rows = 2;
+                cols = 2;
+            } else if (selectedSplit === 6) {
+                rows = 2;
+                cols = 3;
+            } else if (selectedSplit === 9) {
+                rows = 3;
+                cols = 3;
+            }
+            
+            // 设置覆盖层样式
+            cropOverlay.style.width = `${cropWidth}px`;
+            cropOverlay.style.height = `${cropHeight}px`;
+            cropOverlay.style.left = `${(previewWidth - cropWidth) / 2}px`;
+            cropOverlay.style.top = `${(previewHeight - cropHeight) / 2}px`;
+            
+            // 如果是打印模式，添加安全区域指示
+            if (printMode) {
+                const safetyMargin = cropWidth * 0.05; // 5%的安全边距
+                const safetyArea = document.createElement('div');
+                safetyArea.style.position = 'absolute';
+                safetyArea.style.left = `${safetyMargin}px`;
+                safetyArea.style.top = `${safetyMargin}px`;
+                safetyArea.style.width = `${cropWidth - safetyMargin * 2}px`;
+                safetyArea.style.height = `${cropHeight - safetyMargin * 2}px`;
+                safetyArea.style.border = '2px dashed rgba(255, 255, 255, 0.8)';
+                safetyArea.style.zIndex = '2';
+                safetyArea.style.pointerEvents = 'none';
+                cropOverlay.appendChild(safetyArea);
+            }
+            
+            // 创建网格线
+            const gridWidth = cropWidth / cols;
+            const gridHeight = cropHeight / rows;
+            
+            // 垂直线
+            for (let i = 1; i < cols; i++) {
+                const line = document.createElement('div');
+                line.style.position = 'absolute';
+                line.style.left = `${i * gridWidth}px`;
+                line.style.top = '0px';
+                line.style.width = '2px';
+                line.style.height = '100%';
+                line.style.backgroundColor = 'rgba(255, 255, 255, 0.6)';
+                line.style.zIndex = '1';
+                cropOverlay.appendChild(line);
+            }
+            
+            // 水平线
+            for (let i = 1; i < rows; i++) {
+                const line = document.createElement('div');
+                line.style.position = 'absolute';
+                line.style.left = '0px';
+                line.style.top = `${i * gridHeight}px`;
+                line.style.width = '100%';
+                line.style.height = '2px';
+                line.style.backgroundColor = 'rgba(255, 255, 255, 0.6)';
+                line.style.zIndex = '1';
+                cropOverlay.appendChild(line);
+            }
+            
+            // 添加网格编号
+            for (let row = 0; row < rows; row++) {
+                for (let col = 0; col < cols; col++) {
+                    const index = row * cols + col + 1;
+                    const label = document.createElement('div');
+                    label.style.position = 'absolute';
+                    label.style.left = `${col * gridWidth + 5}px`;
+                    label.style.top = `${row * gridHeight + 5}px`;
+                    label.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+                    label.style.color = 'white';
+                    label.style.fontSize = '12px';
+                    label.style.padding = '2px 5px';
+                    label.style.borderRadius = '3px';
+                    label.style.zIndex = '3';
+                    label.textContent = `${index}`;
+                    cropOverlay.appendChild(label);
+                }
+            }
+        }
+
+        // 处理裁切
+        function handleCrop() {
+            if (!originalImage) {
+                showError('没有图片', '请先上传一张图片');
+                return;
+            }
+            
+            console.log('开始裁切图片，比例:', selectedRatio, '分块:', selectedSplit); // 调试日志
+            
+            // 创建一个临时canvas用于裁切
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            // 计算比例
+            const [widthRatio, heightRatio] = selectedRatio.split(':').map(Number);
+            const ratio = widthRatio / heightRatio;
+            
+            // 计算裁切区域在原图中的尺寸和位置
+            let cropWidth, cropHeight, cropX, cropY;
+            const imageWidth = originalImage.width;
+            const imageHeight = originalImage.height;
+            
+            if (imageWidth / imageHeight > ratio) {
+                // 图片比目标比例宽，以高度为基准
+                cropHeight = imageHeight;
+                cropWidth = cropHeight * ratio;
+                cropX = (imageWidth - cropWidth) / 2;
+                cropY = 0;
+            } else {
+                // 图片比目标比例高，以宽度为基准
+                cropWidth = imageWidth;
+                cropHeight = cropWidth / ratio;
+                cropX = 0;
+                cropY = (imageHeight - cropHeight) / 2;
+            }
+            
+            // 计算网格数量
+            let rows, cols;
+            if (selectedSplit === 4) {
+                rows = 2;
+                cols = 2;
+            } else if (selectedSplit === 6) {
+                rows = 2;
+                cols = 3;
+            } else if (selectedSplit === 9) {
+                rows = 3;
+                cols = 3;
+            }
+            
+            // 计算每个网格的尺寸
+            const gridWidth = cropWidth / cols;
+            const gridHeight = cropHeight / rows;
+            
+            // 清空结果网格
+            resultsGrid.innerHTML = '';
+            croppedImages = [];
+            
+            // 为每个网格创建canvas并绘制
+            for (let row = 0; row < rows; row++) {
+                for (let col = 0; col < cols; col++) {
+                    const gridCanvas = document.createElement('canvas');
+                    const gridCtx = gridCanvas.getContext('2d');
+                    
+                    // 设置canvas尺寸为网格大小
+                    gridCanvas.width = gridWidth;
+                    gridCanvas.height = gridHeight;
+                    
+                    // 计算当前网格在原图中的位置
+                    const gridX = cropX + col * gridWidth;
+                    const gridY = cropY + row * gridHeight;
+                    
+                    // 如果是打印模式，考虑安全区域
+                    if (printMode) {
+                        const safetyMarginX = gridWidth * 0.05; // 5%的安全边距
+                        const safetyMarginY = gridHeight * 0.05;
+                        
+                        // 调整绘制区域，保留安全区域
+                        gridCtx.drawImage(
+                            originalImage,
+                            gridX + safetyMarginX,
+                            gridY + safetyMarginY,
+                            gridWidth - safetyMarginX * 2,
+                            gridHeight - safetyMarginY * 2,
+                            0,
+                            0,
+                            gridWidth,
+                            gridHeight
+                        );
+                    } else {
+                        // 正常绘制整个网格
+                        gridCtx.drawImage(
+                            originalImage,
+                            gridX,
+                            gridY,
+                            gridWidth,
+                            gridHeight,
+                            0,
+                            0,
+                            gridWidth,
+                            gridHeight
+                        );
+                    }
+                    
+                    // 将canvas添加到结果网格
+                    const gridItem = document.createElement('div');
+                    gridItem.className = 'bg-white rounded-lg shadow-md overflow-hidden hover-scale';
+                    
+                    const gridImage = document.createElement('img');
+                    gridImage.src = gridCanvas.toDataURL('image/png');
+                    gridImage.alt = `裁切图片 ${row * cols + col + 1}`;
+                    gridImage.className = 'w-full h-auto object-cover';
+                    
+                    const gridInfo = document.createElement('div');
+                    gridInfo.className = 'p-3 bg-pink-50';
+                    
+                    const gridTitle = document.createElement('h4');
+                    gridTitle.className = 'font-medium text-center';
+                    gridTitle.textContent = `图片 ${row * cols + col + 1}`;
+                    
+                    const downloadBtn = document.createElement('button');
+                    downloadBtn.className = 'mt-2 w-full bg-primary hover:bg-primary/90 text-white py-1.5 rounded transition-all duration-300 text-sm touch-friendly';
+                    downloadBtn.innerHTML = '<i class="fa fa-download mr-1"></i> 下载';
+                    downloadBtn.onclick = (function(canvas, index) {
+                        return function() {
+                            downloadCanvas(canvas, `裁切图片_${index}.png`);
+                        };
+                    })(gridCanvas, row * cols + col + 1);
+                    
+                    gridInfo.appendChild(gridTitle);
+                    gridInfo.appendChild(downloadBtn);
+                    gridItem.appendChild(gridImage);
+                    gridItem.appendChild(gridInfo);
+                    resultsGrid.appendChild(gridItem);
+                    
+                    // 保存裁剪后的图片数据
+                    croppedImages.push({
+                        canvas: gridCanvas,
+                        index: row * cols + col + 1
+                    });
+                }
+            }
+            
+            // 显示结果区域
+            resultsContainer.classList.remove('hidden');
+            
+            // 平滑滚动到结果区域
+            resultsContainer.scrollIntoView({ behavior: 'smooth' });
+            
+            console.log('图片裁切完成，共生成', croppedImages.length, '张图片'); // 调试日志
+        }
+
+        // 下载单个canvas
+        function downloadCanvas(canvas, filename) {
+            console.log('下载图片:', filename); // 调试日志
+            
+            // 创建下载链接
+            const link = document.createElement('a');
+            link.download = filename;
+            link.href = canvas.toDataURL('image/png');
+            
+            // 模拟点击下载
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // 下载所有图片
+        function downloadAllImages() {
+            console.log('下载所有图片，共', croppedImages.length, '张'); // 调试日志
+            
+            if (croppedImages.length === 0) {
+                showError('没有裁切结果', '请先裁切图片');
+                return;
+            }
+            
+            // 逐个下载图片
+            croppedImages.forEach((item, index) => {
+                // 添加延迟，避免浏览器阻止多个下载
+                setTimeout(() => {
+                    downloadCanvas(item.canvas, `裁切图片_${item.index}.png`);
+                }, index * 300); // 每张图片间隔300毫秒
+            });
+        }
+
+        // 显示错误信息
+        function showError(message, solution) {
+            errorMessage.textContent = message;
+            errorSolution.textContent = solution;
+            errorContainer.classList.remove('hidden');
+            
+            // 平滑滚动到错误信息
+            errorContainer.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // 隐藏错误信息
+        function hideError() {
+            errorContainer.classList.add('hidden');
+        }
+
+        // 格式化文件大小
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        // 窗口大小改变时更新预览覆盖层
+        window.addEventListener('resize', updatePreviewOverlay);
+    </script>
+
+</body></html>    

@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>问题跟踪工具</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#2563eb',
+                        secondary: '#10b981',
+                        accent: '#f59e0b',
+                        danger: '#ef4444',
+                        warning: '#f59e0b',
+                        info: '#3b82f6',
+                        light: '#f3f4f6',
+                        dark: '#1f2937',
+                        issue-bug: '#ef4444',
+                        issue-feature: '#10b981',
+                        issue-enhancement: '#3b82f6',
+                        issue-question: '#f59e0b'
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .issue-card {
+                @apply bg-white rounded-lg p-4 shadow-sm border border-gray-200 hover:shadow-md transition-shadow duration-200 cursor-pointer;
+            }
+            .status-badge {
+                @apply text-xs font-medium px-2.5 py-0.5 rounded-full;
+            }
+            .issue-type-bug {
+                @apply border-l-4 border-issue-bug;
+            }
+            .issue-type-feature {
+                @apply border-l-4 border-issue-feature;
+            }
+            .issue-type-enhancement {
+                @apply border-l-4 border-issue-enhancement;
+            }
+            .issue-type-question {
+                @apply border-l-4 border-issue-question;
+            }
+            .priority-high {
+                @apply bg-red-100 text-red-800;
+            }
+            .priority-medium {
+                @apply bg-yellow-100 text-yellow-800;
+            }
+            .priority-low {
+                @apply bg-green-100 text-green-800;
+            }
+            .status-open {
+                @apply bg-blue-100 text-blue-800;
+            }
+            .status-in-progress {
+                @apply bg-purple-100 text-purple-800;
+            }
+            .status-resolved {
+                @apply bg-green-100 text-green-800;
+            }
+            .status-closed {
+                @apply bg-gray-100 text-gray-800;
+            }
+            .scrollbar-hide::-webkit-scrollbar {
+                display: none;
+            }
+            .scrollbar-hide {
+                -ms-overflow-style: none;
+                scrollbar-width: none;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen font-sans">
+    <!-- 顶部导航 -->
+    <header class="bg-white shadow-sm sticky top-0 z-30">
+        <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center space-x-2">
+                <i class="fa fa-bug text-primary text-2xl"></i>
+                <h1 class="text-xl font-bold text-gray-800">问题跟踪工具</h1>
+            </div>
+            <div class="flex items-center space-x-4">
+                <button id="create-issue-btn" class="px-4 py-2 bg-primary hover:bg-blue-700 text-white rounded-md flex items-center transition-colors duration-200">
+                    <i class="fa fa-plus mr-2"></i>创建问题
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主内容区 -->
+    <main class="container mx-auto px-4 py-6">
+        <!-- 统计概览 -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <div class="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm text-gray-500">总问题数</p>
+                        <h3 class="text-2xl font-bold text-gray-800" id="total-issues-count">0</h3>
+                    </div>
+                    <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-primary">
+                        <i class="fa fa-tasks"></i>
+                    </div>
+                </div>
+                <div class="mt-2 text-xs text-green-500 flex items-center">
+                    <i class="fa fa-arrow-up mr-1"></i> 12% 较上周
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm text-gray-500">未解决问题</p>
+                        <h3 class="text-2xl font-bold text-gray-800" id="open-issues-count">0</h3>
+                    </div>
+                    <div class="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center text-orange-500">
+                        <i class="fa fa-exclamation-circle"></i>
+                    </div>
+                </div>
+                <div class="mt-2 text-xs text-red-500 flex items-center">
+                    <i class="fa fa-arrow-up mr-1"></i> 5% 较上周
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm text-gray-500">进行中问题</p>
+                        <h3 class="text-2xl font-bold text-gray-800" id="in-progress-count">0</h3>
+                    </div>
+                    <div class="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center text-purple-500">
+                        <i class="fa fa-spinner"></i>
+                    </div>
+                </div>
+                <div class="mt-2 text-xs text-green-500 flex items-center">
+                    <i class="fa fa-arrow-up mr-1"></i> 8% 较上周
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm text-gray-500">已关闭问题</p>
+                        <h3 class="text-2xl font-bold text-gray-800" id="closed-issues-count">0</h3>
+                    </div>
+                    <div class="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center text-green-500">
+                        <i class="fa fa-check-circle"></i>
+                    </div>
+                </div>
+                <div class="mt-2 text-xs text-green-500 flex items-center">
+                    <i class="fa fa-arrow-up mr-1"></i> 15% 较上周
+                </div>
+            </div>
+        </div>
+
+        <!-- 图表和筛选器 -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+            <div class="lg:col-span-1 bg-white rounded-lg p-4 shadow-sm border border-gray-200">
+                <h3 class="text-lg font-semibold mb-4">问题分布</h3>
+                <div class="h-64">
+                    <canvas id="issuesChart"></canvas>
+                </div>
+            </div>
+
+            <div class="lg:col-span-2 bg-white rounded-lg p-4 shadow-sm border border-gray-200">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+                    <h3 class="text-lg font-semibold">问题列表</h3>
+                    <div class="flex flex-wrap gap-2">
+                        <div class="relative">
+                            <select id="status-filter" class="pl-3 pr-8 py-2 rounded-md border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary appearance-none bg-white">
+                                <option value="all">所有状态</option>
+                                <option value="open">未解决</option>
+                                <option value="in-progress">进行中</option>
+                                <option value="resolved">已解决</option>
+                                <option value="closed">已关闭</option>
+                            </select>
+                            <i class="fa fa-chevron-down absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none"></i>
+                        </div>
+                        <div class="relative">
+                            <select id="type-filter" class="pl-3 pr-8 py-2 rounded-md border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary appearance-none bg-white">
+                                <option value="all">所有类型</option>
+                                <option value="bug">缺陷</option>
+                                <option value="feature">功能</option>
+                                <option value="enhancement">改进</option>
+                                <option value="question">疑问</option>
+                            </select>
+                            <i class="fa fa-chevron-down absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none"></i>
+                        </div>
+                        <div class="relative">
+                            <select id="priority-filter" class="pl-3 pr-8 py-2 rounded-md border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary appearance-none bg-white">
+                                <option value="all">所有优先级</option>
+                                <option value="high">高</option>
+                                <option value="medium">中</option>
+                                <option value="low">低</option>
+                            </select>
+                            <i class="fa fa-chevron-down absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none"></i>
+                        </div>
+                        <div class="relative">
+                            <input type="text" id="search-issues" placeholder="搜索问题..." class="pl-8 pr-3 py-2 rounded-md border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary w-full md:w-48">
+                            <i class="fa fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 问题列表 -->
+                <div id="issues-container" class="space-y-3 max-h-[400px] overflow-y-auto scrollbar-hide pr-2">
+                    <!-- 问题卡片将通过JS动态生成 -->
+                    <div class="text-center py-10 text-gray-500">
+                        <i class="fa fa-search text-3xl mb-2"></i>
+                        <p>选择筛选条件或创建新问题</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 创建/编辑问题模态框 -->
+    <div id="issue-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-lg shadow-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div class="p-5 border-b border-gray-200 flex justify-between items-center">
+                <h3 class="text-lg font-semibold" id="modal-title">创建新问题</h3>
+                <button id="close-modal" class="text-gray-400 hover:text-gray-600">
+                    <i class="fa fa-times"></i>
+                </button>
+            </div>
+            <div class="p-5 space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1" for="issue-type">问题类型</label>
+                        <select id="issue-type" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary">
+                            <option value="bug">缺陷 (Bug)</option>
+                            <option value="feature">功能请求</option>
+                            <option value="enhancement">改进</option>
+                            <option value="question">疑问</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1" for="issue-priority">优先级</label>
+                        <select id="issue-priority" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary">
+                            <option value="high">高</option>
+                            <option value="medium" selected>中</option>
+                            <option value="low">低</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1" for="issue-title">问题标题</label>
+                    <input type="text" id="issue-title" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary" placeholder="简洁明了地描述问题">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1" for="issue-description">问题描述</label>
+                    <textarea id="issue-description" rows="4" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary" placeholder="详细描述问题的复现步骤、预期行为和实际行为"></textarea>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1" for="issue-assignee">负责人</label>
+                        <div class="flex items-center">
+                            <input type="text" id="issue-assignee" class="flex-grow px-3 py-2 border border-gray-300 rounded-l-md focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary" placeholder="输入负责人姓名">
+                            <button id="clear-assignee" class="px-3 py-2 border border-l-0 border-gray-300 rounded-r-md bg-gray-50 text-gray-500 hover:bg-gray-100">
+                                <i class="fa fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1" for="issue-due-date">截止日期</label>
+                        <input type="date" id="issue-due-date" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1" for="issue-status">状态</label>
+                    <select id="issue-status" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary">
+                        <option value="open">未解决</option>
+                        <option value="in-progress">进行中</option>
+                        <option value="resolved">已解决</option>
+                        <option value="closed">已关闭</option>
+                    </select>
+                </div>
+            </div>
+            <div class="p-5 border-t border-gray-200 flex justify-end space-x-3">
+                <button id="cancel-issue" class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors duration-200">取消</button>
+                <button id="save-issue" class="px-4 py-2 bg-primary hover:bg-blue-700 text-white rounded-md transition-colors duration-200">保存问题</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 问题详情模态框 -->
+    <div id="issue-detail-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-lg shadow-lg w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+            <div class="p-5 border-b border-gray-200 flex justify-between items-center">
+                <h3 class="text-lg font-semibold" id="detail-title">问题详情</h3>
+                <div class="flex space-x-2">
+                    <button id="edit-issue-btn" class="text-gray-600 hover:text-primary p-2"><i class="fa fa-pencil"></i></button>
+                    <button id="close-detail-modal" class="text-gray-400 hover:text-gray-600 p-2"><i class="fa fa-times"></i></button>
+                </div>
+            </div>
+            <div class="p-5 space-y-6" id="issue-detail-content">
+                <!-- 问题详情内容将通过JS动态生成 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 成功提示 -->
+    <div id="toast" class="fixed bottom-4 right-4 bg-green-500 text-white px-4 py-3 rounded-lg shadow-lg transform translate-y-20 opacity-0 transition-all duration-300 flex items-center z-50">
+        <i class="fa fa-check-circle mr-2"></i>
+        <span id="toast-message">操作成功!</span>
+    </div>
+
+    <script>
+        // 全局变量
+        let issues = [];
+        let currentIssueId = null;
+        let issuesChart = null;
+
+        // DOM 加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            // 初始化日期选择器为今天
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('issue-due-date').value = today;
+
+            // 从本地存储加载问题
+            loadIssues();
+
+            // 渲染问题
+            renderIssues();
+
+            // 初始化图表
+            initChart();
+
+            // 设置事件监听器
+            setupEventListeners();
+        });
+
+        // 从本地存储加载问题
+        function loadIssues() {
+            const savedIssues = localStorage.getItem('trackerIssues');
+            if (savedIssues) {
+                try {
+                    issues = JSON.parse(savedIssues);
+                } catch (e) {
+                    console.error('Failed to parse issues from localStorage:', e);
+                    issues = [];
+                }
+            } else {
+                // 添加示例问题
+                issues = [
+                    {
+                        id: generateId(),
+                        title: '登录页面在移动设备上显示异常',
+                        description: '在iPhone和Android设备上，登录按钮被截断，表单元素对齐方式不正确',
+                        type: 'bug',
+                        status: 'open',
+                        priority: 'high',
+                        assignee: '张三',
+                        dueDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                        createdAt: new Date().toISOString(),
+                        updatedAt: new Date().toISOString()
+                    },
+                    {
+                        id: generateId(),
+                        title: '添加用户角色管理功能',
+                        description: '需要实现基于角色的访问控制，包括管理员、编辑和查看者三种角色',
+                        type: 'feature',
+                        status: 'in-progress',
+                        priority: 'medium',
+                        assignee: '李四',
+                        dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                        createdAt: new Date().toISOString(),
+                        updatedAt: new Date().toISOString()
+                    },
+                    {
+                        id: generateId(),
+                        title: '优化首页加载速度',
+                        description: '首页首次加载时间超过3秒，需要优化图片大小和减少HTTP请求',
+                        type: 'enhancement',
+                        status: 'open',
+                        priority: 'medium',
+                        assignee: '王五',
+                        dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                        createdAt: new Date().toISOString(),
+                        updatedAt: new Date().toISOString()
+                    },
+                    {
+                        id: generateId(),
+                        title: '如何导出数据到Excel?',
+                        description: '用户希望将报表数据导出为Excel格式，是否有此功能或计划?',
+                        type: 'question',
+                        status: 'resolved',
+                        priority: 'low',
+                        assignee: '',
+                        dueDate: '',
+                        createdAt: new Date().toISOString(),
+                        updatedAt: new Date().toISOString()
+                    }
+                ];
+                saveIssues();
+            }
+        }
+
+        // 保存问题到本地存储
+        function saveIssues() {
+            localStorage.setItem('trackerIssues', JSON.stringify(issues));
+            // 更新统计数据
+            updateStatistics();
+            // 更新图表
+            updateChart();
+        }
+
+        // 渲染问题列表
+        function renderIssues() {
+            const container = document.getElementById('issues-container');
+            const statusFilter = document.getElementById('status-filter').value;
+            const typeFilter = document.getElementById('type-filter').value;
+            const priorityFilter = document.getElementById('priority-filter').value;
+            const searchTerm = document.getElementById('search-issues').value.toLowerCase();
+
+            // 过滤问题
+            let filteredIssues = issues;
+
+            if (statusFilter !== 'all') {
+                filteredIssues = filteredIssues.filter(issue => issue.status === statusFilter);
+            }
+
+            if (typeFilter !== 'all') {
+                filteredIssues = filteredIssues.filter(issue => issue.type === typeFilter);
+            }
+
+            if (priorityFilter !== 'all') {
+                filteredIssues = filteredIssues.filter(issue => issue.priority === priorityFilter);
+            }
+
+            if (searchTerm) {
+                filteredIssues = filteredIssues.filter(issue => 
+                    issue.title.toLowerCase().includes(searchTerm) || 
+                    issue.description.toLowerCase().includes(searchTerm) ||
+                    (issue.assignee && issue.assignee.toLowerCase().includes(searchTerm))
+                );
+            }
+
+            // 清空容器
+            container.innerHTML = '';
+
+            if (filteredIssues.length === 0) {
+                // 显示空状态
+                container.innerHTML = `
+                    <div class="text-center py-10 text-gray-500">
+                        <i class="fa fa-search text-3xl mb-2"></i>
+                        <p>没有找到匹配的问题</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // 添加问题卡片
+            filteredIssues.forEach(issue => {
+                const issueElement = createIssueElement(issue);
+                container.appendChild(issueElement);
+            });
+        }
+
+        // 创建问题卡片元素
+        function createIssueElement(issue) {
+            const issueElement = document.createElement('div');
+            issueElement.className = `issue-card ${getIssueTypeClass(issue.type)}`;
+            issueElement.setAttribute('data-issue-id', issue.id);
+
+            // 格式化日期
+            const formattedDate = formatDate(issue.dueDate);
+
+            // 设置问题内容
+            issueElement.innerHTML = `
+                <div class="flex justify-between items-start mb-2">
+                    <h4 class="font-medium text-gray-800 hover:text-primary transition-colors">${issue.title}</h4>
+                    <span class="status-badge ${getStatusClass(issue.status)}">${getStatusText(issue.status)}</span>
+                </div>
+                <p class="text-sm text-gray-600 mb-3 line-clamp-2">${issue.description || ''}</p>
+                <div class="flex flex-wrap justify-between items-center text-xs text-gray-500 gap-2">
+                    <span class="flex items-center"><i class="fa fa-user-o mr-1"></i> ${issue.assignee || '未分配'}</span>
+                    ${issue.dueDate ? `<span class="flex items-center"><i class="fa fa-calendar-o mr-1"></i> ${formattedDate}</span>` : ''}
+                    <span class="status-badge ${getPriorityClass(issue.priority)}">${getPriorityText(issue.priority)}</span>
+                </div>
+            `;
+
+            // 添加点击事件以查看详情
+            issueElement.addEventListener('click', function() {
+                const issueId = this.getAttribute('data-issue-id');
+                showIssueDetail(issueId);
+            });
+
+            return issueElement;
+        }
+
+        // 显示问题详情
+        function showIssueDetail(issueId) {
+            const issue = issues.find(i => i.id === issueId);
+            if (!issue) return;
+
+            currentIssueId = issueId;
+            const detailContent = document.getElementById('issue-detail-content');
+            document.getElementById('detail-title').textContent = issue.title;
+
+            // 格式化日期
+            const createdAt = new Date(issue.createdAt).toLocaleString('zh-CN');
+            const updatedAt = new Date(issue.updatedAt).toLocaleString('zh-CN');
+            const formattedDueDate = issue.dueDate ? formatDate(issue.dueDate) : '无截止日期';
+
+            // 设置详情内容
+            detailContent.innerHTML = `
+                <div class="flex flex-wrap gap-4 mb-4">
+                    <span class="status-badge ${getIssueTypeClassForBadge(issue.type)}">${getIssueTypeText(issue.type)}</span>
+                    <span class="status-badge ${getStatusClass(issue.status)}">${getStatusText(issue.status)}</span>
+                    <span class="status-badge ${getPriorityClass(issue.priority)}">${getPriorityText(issue.priority)}</span>
+                </div>
+
+                <div>
+                    <h4 class="text-sm font-medium text-gray-700 mb-2">问题描述</h4>
+                    <div class="prose max-w-none text-gray-700 bg-gray-50 p-4 rounded-md">
+                        ${issue.description ? issue.description.replace(/\n/g, '<br>') : '<p>无描述</p>'}
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <h4 class="text-sm font-medium text-gray-700 mb-2">负责人</h4>
+                        <p>${issue.assignee || '未分配'}</p>
+                    </div>
+                    <div>
+                        <h4 class="text-sm font-medium text-gray-700 mb-2">截止日期</h4>
+                        <p>${formattedDueDate}</p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <h4 class="text-sm font-medium text-gray-700 mb-2">创建时间</h4>
+                        <p>${createdAt}</p>
+                    </div>
+                    <div>
+                        <h4 class="text-sm font-medium text-gray-700 mb-2">最后更新</h4>
+                        <p>${updatedAt}</p>
+                    </div>
+                </div>
+
+                <div class="flex justify-end pt-4 border-t border-gray-200">
+                    <button id="close-issue-btn" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-md mr-2 transition-colors duration-200">关闭详情</button>
+                    <button id="edit-issue-detail-btn" class="px-4 py-2 bg-primary hover:bg-blue-700 text-white rounded-md transition-colors duration-200">编辑问题</button>
+                </div>
+            `;
+
+            // 添加按钮事件
+            document.getElementById('close-issue-btn').addEventListener('click', closeIssueDetailModal);
+            document.getElementById('edit-issue-detail-btn').addEventListener('click', function() {
+                closeIssueDetailModal();
+                openEditIssueModal(issueId);
+            });
+
+            // 显示详情模态框
+            document.getElementById('issue-detail-modal').classList.remove('hidden');
+            document.getElementById('issue-detail-modal').classList.add('flex');
+        }
+
+        // 关闭问题详情模态框
+        function closeIssueDetailModal() {
+            document.getElementById('issue-detail-modal').classList.add('hidden');
+            document.getElementById('issue-detail-modal').classList.remove('flex');
+            currentIssueId = null;
+        }
+
+        // 打开编辑问题模态框
+        function openEditIssueModal(issueId) {
+            const issue = issues.find(i => i.id === issueId);
+            if (!issue) return;
+
+            currentIssueId = issueId;
+            document.getElementById('modal-title').textContent = '编辑问题';
+            document.getElementById('issue-type').value = issue.type || 'bug';
+            document.getElementById('issue-priority').value = issue.priority || 'medium';
+            document.getElementById('issue-title').value = issue.title || '';
+            document.getElementById('issue-description').value = issue.description || '';
+            document.getElementById('issue-assignee').value = issue.assignee || '';
+            document.getElementById('issue-due-date').value = issue.dueDate || '';
+            document.getElementById('issue-status').value = issue.status || 'open';
+
+            // 显示模态框
+            document.getElementById('issue-modal').classList.remove('hidden');
+            document.getElementById('issue-modal').classList.add('flex');
+            // 聚焦到问题标题输入框
+            document.getElementById('issue-title').focus();
+        }
+
+        // 初始化图表
+        function initChart() {
+            const ctx = document.getElementById('issuesChart').getContext('2d');
+            issuesChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['缺陷', '功能请求', '改进', '疑问'],
+                    datasets: [{
+                        data: [0, 0, 0, 0],
+                        backgroundColor: [
+                            '#ef4444', // bug
+                            '#10b981', // feature
+                            '#3b82f6', // enhancement
+                            '#f59e0b'  // question
+                        ],
+                        borderWidth: 0,
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                padding: 20,
+                                usePointStyle: true,
+                                pointStyle: 'circle'
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = context.raw || 0;
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
+                                    return `${label}: ${value} (${percentage}%)`;
+                                }
+                            }
+                        }
+                    },
+                    cutout: '70%'
+                }
+            });
+
+            // 更新图表数据
+            updateChart();
+        }
+
+        // 更新图表数据
+        function updateChart() {
+            if (!issuesChart) return;
+
+            // 计算各类问题数量
+            const bugCount = issues.filter(issue => issue.type === 'bug').length;
+            const featureCount = issues.filter(issue => issue.type === 'feature').length;
+            const enhancementCount = issues.filter(issue => issue.type === 'enhancement').length;
+            const questionCount = issues.filter(issue => issue.type === 'question').length;
+
+            // 更新图表数据
+            issuesChart.data.datasets[0].data = [bugCount, featureCount, enhancementCount, questionCount];
+            issuesChart.update();
+        }
+
+        // 更新统计数据
+        function updateStatistics() {
+            document.getElementById('total-issues-count').textContent = issues.length;
+            document.getElementById('open-issues-count').textContent = issues.filter(issue => issue.status === 'open').length;
+            document.getElementById('in-progress-count').textContent = issues.filter(issue => issue.status === 'in-progress').length;
+            document.getElementById('closed-issues-count').textContent = issues.filter(issue => issue.status === 'closed').length;
+        }
+
+        // 设置所有事件监听器
+        function setupEventListeners() {
+            // 创建问题按钮
+            document.getElementById('create-issue-btn').addEventListener('click', openAddIssueModal);
+
+            // 关闭模态框按钮
+            document.getElementById('close-modal').addEventListener('click', closeIssueModal);
+            document.getElementById('cancel-issue').addEventListener('click', closeIssueModal);
+
+            // 保存问题按钮
+            document.getElementById('save-issue').addEventListener('click', saveIssue);
+
+            // 清空负责人按钮
+            document.getElementById('clear-assignee').addEventListener('click', function() {
+                document.getElementById('issue-assignee').value = '';
+            });
+
+            // 筛选器变化事件
+            document.getElementById('status-filter').addEventListener('change', renderIssues);
+            document.getElementById('type-filter').addEventListener('change', renderIssues);
+            document.getElementById('priority-filter').addEventListener('change', renderIssues);
+            document.getElementById('search-issues').addEventListener('input', renderIssues);
+
+            // 关闭详情模态框
+            document.getElementById('close-detail-modal').addEventListener('click', closeIssueDetailModal);
+            document.getElementById('edit-issue-btn').addEventListener('click', function() {
+                closeIssueDetailModal();
+                if (currentIssueId) {
+                    openEditIssueModal(currentIssueId);
+                }
+            });
+        }
+
+        // 打开添加问题模态框
+        function openAddIssueModal() {
+            currentIssueId = null;
+            document.getElementById('modal-title').textContent = '创建新问题';
+            document.getElementById('issue-type').value = 'bug';
+            document.getElementById('issue-priority').value = 'medium';
+            document.getElementById('issue-title').value = '';
+            document.getElementById('issue-description').value = '';
+            document.getElementById('issue-assignee').value = '';
+            document.getElementById('issue-status').value = 'open';
+
+            // 设置日期为今天
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('issue-due-date').value = today;
+
+            // 显示模态框
+            document.getElementById('issue-modal').classList.remove('hidden');
+            document.getElementById('issue-modal').classList.add('flex');
+            // 聚焦到问题标题输入框
+            document.getElementById('issue-title').focus();
+        }
+
+        // 关闭问题模态框
+        function closeIssueModal() {
+            document.getElementById('issue-modal').classList.add('hidden');
+            document.getElementById('issue-modal').classList.remove('flex');
+            currentIssueId = null;
+        }
+
+        // 保存问题
+        function saveIssue() {
+            const title = document.getElementById('issue-title').value.trim();
+            if (!title) {
+                alert('请输入问题标题');
+                return;
+            }
+
+            const issueData = {
+                type: document.getElementById('issue-type').value,
+                priority: document.getElementById('issue-priority').value,
+                title: title,
+                description: document.getElementById('issue-description').value.trim(),
+                assignee: document.getElementById('issue-assignee').value.trim(),
+                dueDate: document.getElementById('issue-due-date').value,
+                status: document.getElementById('issue-status').value,
+                updatedAt: new Date().toISOString()
+            };
+
+            if (currentIssueId) {
+                // 更新现有问题
+                const issueIndex = issues.findIndex(i => i.id === currentIssueId);
+                if (issueIndex !== -1) {
+                    // 保留原有的id和创建时间
+                    issueData.id = currentIssueId;
+                    issueData.createdAt = issues[issueIndex].createdAt;
+                    issues[issueIndex] = issueData;
+                    saveIssues();
+                    renderIssues();
+                    showToast('问题已更新');
+                }
+            } else {
+                // 添加新问题
+                issueData.id = generateId();
+                issueData.createdAt = new Date().toISOString();
+                issues.push(issueData);
+                saveIssues();
+                renderIssues();
+                showToast('问题已创建');
+            }
+
+            // 关闭模态框
+            closeIssueModal();
+        }
+
+        // 显示提示消息
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toast-message');
+            toastMessage.textContent = message;
+
+            // 显示提示
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+
+            // 3秒后隐藏
+            setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+                toast.classList.remove('translate-y-0', 'opacity-100');
+            }, 3000);
+        }
+
+        // 工具函数：生成唯一ID
+        function generateId() {
+            return Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+        }
+
+        // 工具函数：格式化日期
+        function formatDate(dateString) {
+            if (!dateString) return '';
+            const date = new Date(dateString);
+            return date.toLocaleDateString('zh-CN', { year: 'numeric', month: 'short', day: 'numeric' });
+        }
+
+        // 获取问题类型样式类
+        function getIssueTypeClass(type) {
+            switch(type) {
+                case 'bug': return 'issue-type-bug';
+                case 'feature': return 'issue-type-feature';
+                case 'enhancement': return 'issue-type-enhancement';
+                case 'question': return 'issue-type-question';
+                default: return '';
+            }
+        }
+
+        // 获取问题类型样式类(用于徽章)
+        function getIssueTypeClassForBadge(type) {
+            switch(type) {
+                case 'bug': return 'bg-red-100 text-red-800';
+                case 'feature': return 'bg-green-100 text-green-800';
+                case 'enhancement': return 'bg-blue-100 text-blue-800';
+                case 'question': return 'bg-yellow-100 text-yellow-800';
+                default: return 'bg-gray-100 text-gray-800';
+            }
+        }
+
+        // 获取问题类型文本
+        function getIssueTypeText(type) {
+            switch(type) {
+                case 'bug': return '缺陷';
+                case 'feature': return '功能请求';
+                case 'enhancement': return '改进';
+                case 'question': return '疑问';
+                default: return '未知类型';
+            }
+        }
+
+        // 获取状态样式类
+        function getStatusClass(status) {
+            switch(status) {
+                case 'open': return 'status-open';
+                case 'in-progress': return 'status-in-progress';
+                case 'resolved': return 'status-resolved';
+                case 'closed': return 'status-closed';
+                default: return 'bg-gray-100 text-gray-800';
+            }
+        }
+
+        // 获取状态文本
+        function getStatusText(status) {
+            switch(status) {
+                case 'open': return '未解决';
+                case 'in-progress': return '进行中';
+                case 'resolved': return '已解决';
+                case 'closed': return '已关闭';
+                default: return '未知状态';
+            }
+        }
+
+        // 获取优先级样式类
+        function getPriorityClass(priority) {
+            switch(priority) {
+                case 'high': return 'priority-high';
+                case 'medium': return 'priority-medium';
+                case 'low': return 'priority-low';
+                default: return 'bg-gray-100 text-gray-800';
+            }
+        }
+
+        // 获取优先级文本
+        function getPriorityText(priority) {
+            switch(priority) {
+                case 'high': return '高优先级';
+                case 'medium': return '中优先级';
+                case 'low': return '低优先级';
+                default: return '未知优先级';
+            }
+        }
+    </script>
+</body>
+</html>

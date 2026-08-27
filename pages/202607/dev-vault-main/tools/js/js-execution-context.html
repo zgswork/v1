@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html tk="title_js_execution_context_call" lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JS Execution Context & Call Stack</title>
+<meta name="description" content="Interactive JavaScript execution context visualizer. Call stack, creation phase, execution phase, hoisting, closures, this binding, variable/lexical environment. Step-through code execution.">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:system-ui,-apple-system,sans-serif;background:#0a0a1a;color:#e0e0e0;min-height:100vh;display:flex;flex-direction:column}
+header{padding:12px 20px;background:#111128;border-bottom:1px solid #2a2a4a;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+header h1{font-size:1.1rem;color:#cc5de8}
+.controls{display:flex;gap:8px;align-items:center;margin-left:auto}
+.controls button{padding:6px 14px;border:1px solid #3a3a6a;border-radius:6px;background:#1a1a3a;color:#e0e0e0;cursor:pointer;font-size:.85rem}
+.controls button:hover{background:#2a2a5a}
+.controls button.primary{background:#7048e8;border-color:#845ef7;color:#fff}
+select{padding:6px 10px;border:1px solid #3a3a6a;border-radius:6px;background:#1a1a3a;color:#e0e0e0;font-size:.85rem}
+.main{display:grid;grid-template-columns:1fr 240px 340px;flex:1;overflow:hidden}
+.code-col{overflow:auto;padding:16px;border-right:1px solid #2a2a4a}
+.stack-col{overflow:auto;padding:12px;border-right:1px solid #2a2a4a}
+.detail-col{overflow:auto;padding:12px}
+.panel{background:#111128;border:1px solid #2a2a4a;border-radius:8px;padding:12px;margin-bottom:12px}
+.panel h3{font-size:.85rem;margin-bottom:8px}
+.code-block{font-family:'Fira Code',monospace;font-size:.8rem;line-height:1.8}
+.code-line{padding:2px 8px;border-radius:3px;display:flex;gap:8px;transition:background .2s}
+.code-line .ln{color:#555;min-width:24px;text-align:right;user-select:none}
+.code-line.active{background:rgba(204,93,232,.15);border-left:3px solid #cc5de8}
+.code-line.done{opacity:.5}
+.stack-frame{border:2px solid #2a2a4a;border-radius:8px;padding:10px;margin-bottom:6px;transition:all .4s}
+.stack-frame.current{border-color:#cc5de8;background:rgba(204,93,232,.08)}
+.stack-frame.popped{opacity:.3;transform:scale(.95)}
+.frame-name{font-size:.8rem;font-weight:700;margin-bottom:6px;display:flex;justify-content:space-between}
+.frame-global .frame-name{color:#ffa94d}
+.frame-func .frame-name{color:#4dabf7}
+.frame-arrow .frame-name{color:#69db7c}
+.var-row{display:flex;justify-content:space-between;padding:2px 0;font-size:.72rem;font-family:monospace}
+.var-name{color:#e0e0e0}
+.var-val{color:#ffd43b}
+.var-val.undefined{color:#ff6b6b;font-style:italic}
+.var-val.func{color:#4dabf7}
+.this-val{font-size:.7rem;color:#cc5de8;margin-top:4px;padding-top:4px;border-top:1px solid #2a2a4a}
+.phase-badge{display:inline-block;padding:1px 6px;border-radius:8px;font-size:.65rem;font-weight:600}
+.ph-creation{background:rgba(255,212,59,.2);color:#ffd43b}
+.ph-execution{background:rgba(105,219,124,.2);color:#69db7c}
+.step-desc{padding:8px 12px;background:#0d0d20;border:1px solid #2a2a4a;border-radius:6px;font-size:.8rem;line-height:1.5;margin-bottom:12px}
+.info-card{background:#0d0d20;border:1px solid #2a2a4a;border-radius:6px;padding:10px;margin-bottom:8px}
+.info-card h4{font-size:.8rem;margin-bottom:6px;color:#cc5de8}
+.info-card p{font-size:.75rem;line-height:1.5;color:#aaa}
+.ref-table{width:100%;border-collapse:collapse;font-size:.73rem}
+.ref-table th{text-align:left;padding:5px 8px;border-bottom:1px solid #2a2a4a;color:#cc5de8}
+.ref-table td{padding:5px 8px;border-bottom:1px solid #1a1a3a}
+.output-line{padding:3px 8px;font-family:monospace;font-size:.78rem;color:#69db7c;border-left:2px solid #69db7c;margin:2px 0}
+@media(max-width:1000px){.main{grid-template-columns:1fr;grid-template-rows:auto auto auto}}
+</style>
+</head>
+<body>
+
+
+<header>
+<h1 ti="h1_execution_context_call_st">Execution Context & Call Stack</h1>
+<select id="scenarioSelect"></select>
+<div class="controls">
+<button onclick="stepBack()" ti="btn_back">← Back</button>
+<button onclick="stepForward()" class="primary" ti="btn_step">Step →</button>
+<button onclick="autoPlay()" ti="btn_auto">▶ Auto</button>
+<button onclick="reset()" ti="btn_reset">Reset</button>
+</div>
+</header>
+<div class="main">
+<div class="code-col">
+<div class="panel" id="codePanel"></div>
+<div class="panel"><h3 ti="h3_console_output">Console Output</h3><div id="output"></div></div>
+</div>
+<div class="stack-col">
+<div class="panel"><h3 ti="h3_call_stack">Call Stack</h3><div id="callStack"></div></div>
+</div>
+<div class="detail-col">
+<div class="step-desc" id="stepDesc">Step through to see how JavaScript creates and executes code.</div>
+<div id="detailPanel"></div>
+</div>
+</div>
+
+<script>var _LANG={'title_js_execution_context_call':["JS Execution Context & Call Stack", "JS 执行上下文和调用堆栈"],'metadesc_interactive_javascript_ex':["Interactive JavaScript execution context visualizer. Call stack, creation phase, execution phase, hoisting, closures, this binding, variable/lexical environment. Step-through code execution.", "交互式 JavaScript 执行上下文可视化工具。调用栈、创建阶段、执行阶段、提升、闭包、this 绑定、变量/词法环境。单步执行代码。"],'h1_execution_context_call_st':["Execution Context & Call Stack", "执行上下文和调用堆栈"],'h3_console_output':["Console Output", "控制台输出"],'h3_call_stack':["Call Stack", "调用栈"],'h3_source_code':["Source Code", "源代码"],'btn_back':["← Back", "← 返回"],'btn_step':["Step →", "步骤 →"],'btn_auto':["▶ Auto", "▶ 自动"],'btn_reset':["Reset", "重置"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>
+const SCENARIOS=[
+{name:'Hoisting (var vs let)',
+ code:['console.log(a);      // ?','console.log(b);      // ?','var a = 10;','let b = 20;','console.log(a);      // 10','console.log(b);      // 20'],
+ steps:[
+  {line:-1,stack:[{name:'Global',type:'global',phase:'creation',vars:{a:{val:'undefined',note:'var hoisted'},b:{val:'<TDZ>',note:'let in TDZ'}},this:'window'}],desc:'Creation Phase: JavaScript engine scans the code. var declarations are hoisted and initialized to undefined. let/const declarations are hoisted but NOT initialized (Temporal Dead Zone).',detail:'The Variable Environment stores var declarations. The Lexical Environment stores let/const declarations. During creation, var gets undefined, let/const get <uninitialized>.'},
+  {line:0,stack:[{name:'Global',type:'global',phase:'execution',vars:{a:{val:'undefined'},b:{val:'<TDZ>'}},this:'window'}],output:'undefined',desc:'Execution: console.log(a) → undefined. var a was hoisted, so a exists but is undefined (not yet assigned).',detail:'var hoisting: the declaration (var a) is moved to the top of the scope, but the assignment (= 10) stays in place. So a exists but equals undefined.'},
+  {line:1,stack:[{name:'Global',type:'global',phase:'execution',vars:{a:{val:'undefined'},b:{val:'<TDZ>'}},this:'window'}],output:'ReferenceError: Cannot access \'b\' before initialization',outputErr:true,desc:'Execution: console.log(b) → ReferenceError! let b is in the Temporal Dead Zone (TDZ). It exists but cannot be accessed before its declaration.',detail:'TDZ: let and const are hoisted (the engine knows they exist) but accessing them before the declaration line throws ReferenceError. This prevents bugs caused by using variables before they\'re defined.'},
+  {line:2,stack:[{name:'Global',type:'global',phase:'execution',vars:{a:{val:'10'},b:{val:'<TDZ>'}},this:'window'}],desc:'Execution: var a = 10. The assignment happens now. a is updated from undefined to 10.',detail:'This is why var hoisting can be confusing: the declaration is at the top, but the value assignment happens at the original line. With let/const, TDZ prevents this confusion.'},
+  {line:3,stack:[{name:'Global',type:'global',phase:'execution',vars:{a:{val:'10'},b:{val:'20'}},this:'window'}],desc:'Execution: let b = 20. TDZ ends here. b is now initialized and accessible.',detail:'The TDZ for b spans from the start of the scope to this line. After initialization, b behaves normally. This is the key difference from var.'},
+  {line:4,stack:[{name:'Global',type:'global',phase:'execution',vars:{a:{val:'10'},b:{val:'20'}},this:'window'}],output:'10',desc:'console.log(a) → 10. a was assigned on line 3.',detail:'Normal execution. a is 10 as expected.'},
+  {line:5,stack:[{name:'Global',type:'global',phase:'execution',vars:{a:{val:'10'},b:{val:'20'}},this:'window'}],output:'20',desc:'console.log(b) → 20. b is now past TDZ and accessible.',detail:'b is fully initialized. Program complete.'}
+ ]
+},
+{name:'Function Call Stack',
+ code:['function greet(name) {','  const msg = "Hello " + name;','  return msg;','}','function main() {','  const result = greet("World");','  console.log(result);','}','main();'],
+ steps:[
+  {line:-1,stack:[{name:'Global',type:'global',phase:'creation',vars:{greet:{val:'ƒ greet()'},main:{val:'ƒ main()'}},this:'window'}],desc:'Creation Phase: Function declarations are fully hoisted — the entire function object is available immediately.',detail:'Unlike var (hoisted as undefined), function declarations are hoisted with their complete definition. You can call a function before its declaration in the code.'},
+  {line:8,stack:[{name:'Global',type:'global',phase:'execution',vars:{greet:{val:'ƒ greet()'},main:{val:'ƒ main()'}},this:'window'}],desc:'Execution: main() is called. A new execution context is created and pushed onto the call stack.',detail:'Each function call creates a new execution context with its own Variable Environment, Lexical Environment, and this binding.'},
+  {line:4,stack:[{name:'main()',type:'func',phase:'creation',vars:{result:{val:'undefined',note:'let → TDZ'}},this:'window'},{name:'Global',type:'global',phase:'execution',vars:{greet:{val:'ƒ greet()'},main:{val:'ƒ main()'}},this:'window'}],desc:'main() Creation Phase: const result is registered in lexical environment (TDZ until assigned).',detail:'The main() execution context is now on top of the call stack. Local variables are scoped to this context.'},
+  {line:5,stack:[{name:'main()',type:'func',phase:'execution',vars:{result:{val:'undefined'}},this:'window'},{name:'Global',type:'global',phase:'execution',vars:{greet:{val:'ƒ greet()'},main:{val:'ƒ main()'}},this:'window'}],desc:'Execution: greet("World") is called. Another execution context is created.',detail:'Function calls are nested: main() called greet(). The call stack grows. When greet() returns, its context is popped.'},
+  {line:0,stack:[{name:'greet("World")',type:'func',phase:'creation',vars:{name:{val:'"World"'},msg:{val:'undefined'}},this:'window'},{name:'main()',type:'func',phase:'execution',vars:{result:{val:'undefined'}},this:'window'},{name:'Global',type:'global',phase:'execution',vars:{greet:{val:'ƒ greet()'},main:{val:'ƒ main()'}},this:'window'}],desc:'greet() Creation Phase: Parameter name = "World". const msg in TDZ.',detail:'Parameters are part of the function\'s Variable Environment. They are initialized with the argument values during creation phase.'},
+  {line:1,stack:[{name:'greet("World")',type:'func',phase:'execution',vars:{name:{val:'"World"'},msg:{val:'"Hello World"'}},this:'window'},{name:'main()',type:'func',phase:'execution',vars:{result:{val:'undefined'}},this:'window'},{name:'Global',type:'global',phase:'execution',vars:{greet:{val:'ƒ greet()'},main:{val:'ƒ main()'}},this:'window'}],desc:'Execution: msg = "Hello " + "World" = "Hello World".',detail:'String concatenation produces "Hello World". msg is now initialized.'},
+  {line:2,stack:[{name:'greet("World")',type:'func',phase:'execution',vars:{name:{val:'"World"'},msg:{val:'"Hello World"'}},this:'window'},{name:'main()',type:'func',phase:'execution',vars:{result:{val:'undefined'}},this:'window'},{name:'Global',type:'global',phase:'execution',vars:{greet:{val:'ƒ greet()'},main:{val:'ƒ main()'}},this:'window'}],desc:'return msg → "Hello World" is returned. greet() context is popped from call stack.',detail:'The return value is passed back to the calling context (main). The greet() execution context is destroyed — its variables are garbage collected.'},
+  {line:5,stack:[{name:'main()',type:'func',phase:'execution',vars:{result:{val:'"Hello World"'}},this:'window'},{name:'Global',type:'global',phase:'execution',vars:{greet:{val:'ƒ greet()'},main:{val:'ƒ main()'}},this:'window'}],desc:'Back in main(): result = "Hello World" (returned from greet).',detail:'The call stack is back to 2 frames. result is now assigned.'},
+  {line:6,stack:[{name:'main()',type:'func',phase:'execution',vars:{result:{val:'"Hello World"'}},this:'window'},{name:'Global',type:'global',phase:'execution',vars:{greet:{val:'ƒ greet()'},main:{val:'ƒ main()'}},this:'window'}],output:'"Hello World"',desc:'console.log(result) → "Hello World". main() finishes.',detail:'main() has no more statements. Its context will be popped from the stack.'},
+  {line:8,stack:[{name:'Global',type:'global',phase:'execution',vars:{greet:{val:'ƒ greet()'},main:{val:'ƒ main()'}},this:'window'}],desc:'main() returns. Call stack is back to just the Global context. Program complete.',detail:'Only the Global execution context remains. It persists until the script/page is unloaded.'}
+ ]
+},
+{name:'Closure',
+ code:['function counter() {','  let count = 0;','  return function increment() {','    count++;','    return count;','  };','}','const inc = counter();','console.log(inc()); // ?','console.log(inc()); // ?'],
+ steps:[
+  {line:-1,stack:[{name:'Global',type:'global',phase:'creation',vars:{counter:{val:'ƒ counter()'},inc:{val:'undefined'}},this:'window'}],desc:'Creation: counter is hoisted as function. inc (const) is in TDZ.',detail:'Function declarations are fully hoisted. const/let go through TDZ.'},
+  {line:7,stack:[{name:'Global',type:'global',phase:'execution',vars:{counter:{val:'ƒ counter()'},inc:{val:'undefined'}},this:'window'}],desc:'Execution: counter() is called.',detail:'A new execution context for counter() is created.'},
+  {line:0,stack:[{name:'counter()',type:'func',phase:'creation',vars:{count:{val:'undefined'}},this:'window'},{name:'Global',type:'global',phase:'execution',vars:{counter:{val:'ƒ counter()'},inc:{val:'undefined'}},this:'window'}],desc:'counter() Creation: let count registered.',detail:'count is in the lexical environment of counter().'},
+  {line:1,stack:[{name:'counter()',type:'func',phase:'execution',vars:{count:{val:'0'}},this:'window'},{name:'Global',type:'global',phase:'execution',vars:{counter:{val:'ƒ counter()'},inc:{val:'undefined'}},this:'window'}],desc:'count = 0. Then return the inner function increment.',detail:'The increment function is created. It captures a reference to counter()\'s lexical environment — this is the closure.'},
+  {line:7,stack:[{name:'Global',type:'global',phase:'execution',vars:{counter:{val:'ƒ counter()'},inc:{val:'ƒ increment()','note':'[closure: count=0]'}},this:'window'}],desc:'counter() returns. inc = increment function. But count is NOT destroyed — it\'s captured by the closure!',detail:'Even though counter() has returned and its execution context is popped, the inner function increment still has a reference to counter()\'s lexical environment. count lives on in the closure.'},
+  {line:8,stack:[{name:'increment()',type:'arrow',phase:'execution',vars:{'[[Closure]]':{val:'count: 0 → 1'}},this:'window'},{name:'Global',type:'global',phase:'execution',vars:{counter:{val:'ƒ counter()'},inc:{val:'ƒ increment()'}},this:'window'}],output:'1',desc:'inc() → increment runs. count++ (0→1). Returns 1. The closure\'s count is modified!',detail:'increment() accesses count through its closure (outer lexical environment reference). count is incremented from 0 to 1. This proves count is still alive.'},
+  {line:9,stack:[{name:'increment()',type:'arrow',phase:'execution',vars:{'[[Closure]]':{val:'count: 1 → 2'}},this:'window'},{name:'Global',type:'global',phase:'execution',vars:{counter:{val:'ƒ counter()'},inc:{val:'ƒ increment()'}},this:'window'}],output:'2',desc:'inc() again → count++ (1→2). Returns 2. The closure preserves state between calls!',detail:'Each call to inc() modifies the same count variable. This is private state — no code outside can access count directly. This is the module pattern foundation.'}
+ ]
+},
+{name:'this Binding (4 Rules)',
+ code:['const obj = {','  name: "Alice",','  greet() { return this.name; },','};','console.log(obj.greet());   // ?','const fn = obj.greet;','console.log(fn());          // ?','console.log(fn.call(obj));  // ?'],
+ steps:[
+  {line:-1,stack:[{name:'Global',type:'global',phase:'creation',vars:{obj:{val:'{...}'},fn:{val:'undefined'}},this:'window'}],desc:'Creation: obj and fn registered. this in global context is window (browser) or global (Node.js).',detail:'The "this" keyword is determined at call-time, not at definition-time. The same function can have different "this" values depending on HOW it\'s called.'},
+  {line:4,stack:[{name:'obj.greet()',type:'func',phase:'execution',vars:{},this:'obj {name:"Alice"}',thisNote:'Method call: this = obj'},{name:'Global',type:'global',phase:'execution',vars:{obj:{val:'{name:"Alice",greet:ƒ}'},fn:{val:'undefined'}},this:'window'}],output:'"Alice"',desc:'Rule 1 — Implicit binding: obj.greet(). When called as a method (dot notation), this = the object before the dot.',detail:'this is set to obj because greet is called as obj.greet(). The dot notation creates an implicit binding. Returns "Alice".'},
+  {line:5,stack:[{name:'Global',type:'global',phase:'execution',vars:{obj:{val:'{name:"Alice",greet:ƒ}'},fn:{val:'ƒ greet()'}},this:'window'}],desc:'fn = obj.greet — the function reference is copied. The binding to obj is LOST.',detail:'Assigning a method to a variable strips the implicit binding. fn is now just a plain function reference, not attached to any object.'},
+  {line:6,stack:[{name:'fn()',type:'func',phase:'execution',vars:{},this:'window (or undefined in strict)',thisNote:'Default binding: this = window'},{name:'Global',type:'global',phase:'execution',vars:{obj:{val:'{...}'},fn:{val:'ƒ greet()'}},this:'window'}],output:'undefined',desc:'Rule 2 — Default binding: fn(). Plain function call → this = window (sloppy) or undefined (strict mode). window.name is undefined.',detail:'This is the #1 "this" gotcha. Extracting a method loses its binding. In strict mode, this is undefined instead of window, causing TypeError.'},
+  {line:7,stack:[{name:'fn.call(obj)',type:'func',phase:'execution',vars:{},this:'obj {name:"Alice"}',thisNote:'Explicit binding: call/apply/bind'},{name:'Global',type:'global',phase:'execution',vars:{obj:{val:'{...}'},fn:{val:'ƒ greet()'}},this:'window'}],output:'"Alice"',desc:'Rule 3 — Explicit binding: fn.call(obj). call/apply/bind explicitly set this. Returns "Alice" again.',detail:'call(thisArg, ...args), apply(thisArg, [args]), bind(thisArg) all explicitly set "this". bind returns a new function with permanent binding. Arrow functions ignore all these rules — they inherit this from their enclosing scope.'}
+ ]
+}
+];
+
+let curScenario=0,curStep=-1,autoInterval=null,outputs=[];
+
+function init(){
+  const sel=document.getElementById('scenarioSelect');
+  SCENARIOS.forEach((s,i)=>{const o=document.createElement('option');o.value=i;o.textContent=s.name;sel.appendChild(o)});
+  sel.onchange=()=>{curScenario=+sel.value;reset()};
+  reset();
+}
+
+function reset(){
+  if(autoInterval){clearInterval(autoInterval);autoInterval=null}
+  curStep=-1;outputs=[];render();
+}
+
+function render(){
+  const s=SCENARIOS[curScenario];
+  const step=s.steps[curStep];
+
+  // Code
+  let codeHtml='<h3 ti="h3_source_code">Source Code</h3><div class="code-block">';
+  s.code.forEach((line,i)=>{
+    let cls='';
+    if(step&&step.line===i)cls='active';
+    else if(step&&step.line>i)cls='done';
+    codeHtml+=`<div class="code-line ${cls}"><span class="ln">${i+1}</span><span>${esc(line)}</span></div>`;
+  });
+  codeHtml+='</div>';
+  document.getElementById('codePanel').innerHTML=codeHtml;
+
+  // Output
+  if(step&&step.output)outputs.push({text:step.output,err:step.outputErr});
+  document.getElementById('output').innerHTML=outputs.map(o=>
+    `<div class="output-line" style="${o.err?'color:#ff6b6b;border-left-color:#ff6b6b':''}">${esc(o.text)}</div>`
+  ).join('')||'<div style="color:#555;font-size:.8rem;padding:4px">No output yet.</div>';
+
+  // Call Stack
+  const stackHtml=step?step.stack.map((f,i)=>{
+    const isCurrent=i===0;
+    const typeCls=f.type==='global'?'frame-global':f.type==='arrow'?'frame-arrow':'frame-func';
+    let html=`<div class="stack-frame ${typeCls} ${isCurrent?'current':''}">`;
+    html+=`<div class="frame-name"><span>${esc(f.name)}</span>`;
+    if(f.phase)html+=`<span class="phase-badge ${f.phase==='creation'?'ph-creation':'ph-execution'}">${f.phase}</span>`;
+    html+=`</div>`;
+    Object.entries(f.vars).forEach(([k,v])=>{
+      const valCls=v.val==='undefined'||v.val==='<TDZ>'?'undefined':v.val.startsWith('ƒ')?'func':'';
+      html+=`<div class="var-row"><span class="var-name">${esc(k)}</span><span class="var-val ${valCls}">${esc(v.val)}</span></div>`;
+    });
+    if(f.this)html+=`<div class="this-val">this: ${esc(f.this)}</div>`;
+    if(f.thisNote)html+=`<div style="font-size:.65rem;color:#888;margin-top:2px">${esc(f.thisNote)}</div>`;
+    html+=`</div>`;
+    return html;
+  }).join(''):'<div style="color:#555;font-size:.8rem;padding:8px">Stack empty. Step forward to begin.</div>';
+  document.getElementById('callStack').innerHTML=stackHtml;
+
+  // Step description
+  document.getElementById('stepDesc').textContent=step?step.desc:'Step through to see execution contexts and the call stack.';
+
+  // Detail
+  let detailHtml='';
+  if(step){
+    detailHtml+=`<div class="info-card"><h4>Step ${curStep+1} / ${s.steps.length}</h4><p>${step.detail}</p></div>`;
+    detailHtml+=`<div class="info-card"><h4>Stack Depth</h4><p>${step.stack.length} frame${step.stack.length>1?'s':''}</p></div>`;
+  }
+  // Reference always visible
+  detailHtml+=`
+  <div class="info-card"><h4>Execution Context Lifecycle</h4>
+  <table class="ref-table">
+  <tr><td>1. Creation</td><td>Create VariableEnv + LexicalEnv, bind this, hoist declarations</td></tr>
+  <tr><td>2. Execution</td><td>Execute code line-by-line, assign values</td></tr>
+  <tr><td>3. Pop</td><td>When function returns, context is popped from stack</td></tr>
+  </table></div>
+  <div class="info-card"><h4>this Binding Rules (Priority)</h4>
+  <table class="ref-table">
+  <tr><td>1. new</td><td>new Foo() → this = new object</td></tr>
+  <tr><td>2. Explicit</td><td>call/apply/bind → this = specified</td></tr>
+  <tr><td>3. Implicit</td><td>obj.method() → this = obj</td></tr>
+  <tr><td>4. Default</td><td>fn() → this = window / undefined</td></tr>
+  <tr><td>5. Arrow</td><td>Inherits this from enclosing scope</td></tr>
+  </table></div>`;
+  document.getElementById('detailPanel').innerHTML=detailHtml;
+}
+
+function stepForward(){
+  const s=SCENARIOS[curScenario];
+  if(curStep<s.steps.length-1){curStep++;render()}
+}
+function stepBack(){
+  if(curStep>=0){curStep--;outputs=[];
+    for(let i=0;i<=curStep;i++){const st=SCENARIOS[curScenario].steps[i];if(st&&st.output)outputs.push({text:st.output,err:st.outputErr})}
+    render();
+  }
+}
+function autoPlay(){
+  if(autoInterval){clearInterval(autoInterval);autoInterval=null;return}
+  autoInterval=setInterval(()=>{
+    if(curStep>=SCENARIOS[curScenario].steps.length-1){clearInterval(autoInterval);autoInterval=null;return}
+    stepForward();
+  },1500);
+}
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+init();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+</body>
+</html>

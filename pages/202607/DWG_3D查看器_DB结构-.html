@@ -1,0 +1,2311 @@
+<!DOCTYPE html>
+<!-- saved from url=(0039)https://zldl.zml84.xyz/dwg-view/3D.html -->
+<html lang="zh-CN">
+
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+        <title>DWG 3D 查看器 + DB 结构</title>
+        <!-- Three.js Import Map -->
+        <script type="importmap">{"imports": {"three": "https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"}}
+        </script>
+        <style>
+            /* ===== 全局重置 ===== */
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+                user-select: none;
+            }
+
+            body {
+                display: flex;
+                height: 100vh;
+                overflow: hidden;
+                background: #0f0f0f;
+                color: #e0e0e0;
+                font-family: 'Segoe UI', system-ui, sans-serif;
+            }
+
+            /* ===== 左侧边栏 ===== */
+            #sidebar {
+                width: 280px;
+                min-width: 280px;
+                background: #2d2d30;
+                border-right: 1px solid #3e3e42;
+                display: flex;
+                flex-direction: column;
+                overflow: hidden;
+                z-index: 10;
+                box-shadow: 2px 0 8px rgba(0, 0, 0, 0.5);
+                transition: width 0.3s ease, min-width 0.3s ease, opacity 0.3s ease;
+                flex-shrink: 0;
+            }
+
+            #sidebar.collapsed {
+                width: 0;
+                min-width: 0;
+                opacity: 0;
+                border-right: none;
+                padding: 0;
+                overflow: hidden;
+            }
+
+            #sidebar-header {
+                padding: 16px 18px;
+                background: #3a3a3e;
+                border-bottom: 1px solid #3e3e42;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                flex-shrink: 0;
+            }
+
+            #sidebar-header h2 {
+                font-size: 1.1rem;
+                font-weight: 500;
+                color: #cccccc;
+                margin: 0;
+            }
+
+            #sidebar-header .collapse-btn {
+                background: none;
+                border: none;
+                color: #9e9e9e;
+                font-size: 20px;
+                cursor: pointer;
+                padding: 0 4px;
+                transition: color 0.2s;
+                line-height: 1;
+            }
+
+            #sidebar-header .collapse-btn:hover {
+                color: #f0f0f0;
+            }
+
+            #openBtn {
+                display: block;
+                width: 100%;
+                padding: 10px 0;
+                background: #0e639c;
+                border: none;
+                border-radius: 6px;
+                color: white;
+                font-size: 0.95rem;
+                font-weight: 500;
+                cursor: pointer;
+                transition: background 0.2s;
+                margin-top: 10px;
+            }
+
+            #openBtn:hover {
+                background: #1177bb;
+            }
+
+            #openBtn:disabled {
+                opacity: 0.5;
+                pointer-events: none;
+            }
+
+            #fileStatus {
+                font-size: 0.85rem;
+                color: #9e9e9e;
+                margin-top: 8px;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            #layerContainer {
+                flex: 1;
+                overflow-y: auto;
+                padding: 8px 0;
+            }
+
+            #layerContainer::-webkit-scrollbar {
+                width: 6px;
+            }
+
+            #layerContainer::-webkit-scrollbar-track {
+                background: #2d2d30;
+            }
+
+            #layerContainer::-webkit-scrollbar-thumb {
+                background: #5a5a5e;
+                border-radius: 4px;
+            }
+
+            .layer-item {
+                display: flex;
+                align-items: center;
+                padding: 6px 18px;
+                gap: 10px;
+                cursor: default;
+                border-bottom: 1px solid #2d2d30;
+            }
+
+            .layer-item:hover {
+                background: #3a3a3e;
+            }
+
+            .layer-item input[type="checkbox"] {
+                width: 16px;
+                height: 16px;
+                accent-color: #0e639c;
+                cursor: pointer;
+                flex-shrink: 0;
+            }
+
+            .layer-color {
+                width: 16px;
+                height: 16px;
+                border-radius: 4px;
+                border: 1px solid #555;
+                flex-shrink: 0;
+            }
+
+            .layer-name {
+                flex: 1;
+                font-size: 0.9rem;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            .layer-count {
+                font-size: 0.75rem;
+                color: #888;
+                background: #4a4a4e;
+                padding: 0 8px;
+                border-radius: 12px;
+                line-height: 20px;
+            }
+
+            .layer-empty {
+                padding: 20px 18px;
+                color: #6a6a6e;
+                text-align: center;
+                font-size: 0.9rem;
+            }
+
+            /* ===== 左侧打开按钮（浮动） ===== */
+            #openLeftSidebar {
+                position: absolute;
+                top: 16px;
+                left: 16px;
+                z-index: 20;
+                width: 40px;
+                height: 40px;
+                border-radius: 50%;
+                border: 1px solid rgba(90, 160, 180, 0.5);
+                background: rgba(30, 40, 45, 0.85);
+                backdrop-filter: blur(12px);
+                color: #d4f1f9;
+                font-size: 22px;
+                cursor: pointer;
+                transition: all 0.25s;
+                display: none;
+                align-items: center;
+                justify-content: center;
+                box-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
+            }
+
+            #openLeftSidebar:hover {
+                background: rgba(60, 80, 90, 0.9);
+                border-color: rgba(90, 200, 220, 0.8);
+                transform: scale(1.05);
+            }
+
+            #sidebar.collapsed~#canvasWrapper #openLeftSidebar {
+                display: flex;
+            }
+
+            /* ===== 画布区域 ===== */
+            #canvasWrapper {
+                flex: 1;
+                background: #111;
+                position: relative;
+                overflow: hidden;
+                cursor: grab;
+            }
+
+            #canvasWrapper:active {
+                cursor: grabbing;
+            }
+
+            #dwgCanvas {
+                display: none;
+                /* 隐藏原canvas，改用Three渲染器 */
+            }
+
+            #canvasWrapper .three-container {
+                width: 100%;
+                height: 100%;
+                display: block;
+            }
+
+            /* ===== 信息覆盖层 ===== */
+            #infoOverlay {
+                position: absolute;
+                bottom: 20px;
+                left: 20px;
+                font-size: 0.8rem;
+                color: #d4f1f9;
+                background: rgba(20, 30, 35, 0.85);
+                backdrop-filter: blur(12px);
+                padding: 8px 18px;
+                border-radius: 24px;
+                border: 1px solid rgba(90, 160, 180, 0.7);
+                pointer-events: none;
+                user-select: none;
+                font-family: 'JetBrains Mono', monospace;
+                z-index: 15;
+            }
+
+            #infoOverlay span {
+                margin-right: 18px;
+            }
+
+            #coordsDisplay {
+                position: absolute;
+                bottom: 20px;
+                right: 20px;
+                font-size: 0.85rem;
+                color: #d4f1f9;
+                background: rgba(20, 30, 35, 0.85);
+                backdrop-filter: blur(12px);
+                padding: 8px 18px;
+                border-radius: 24px;
+                border: 1px solid rgba(90, 160, 180, 0.7);
+                pointer-events: none;
+                user-select: none;
+                font-family: 'JetBrains Mono', monospace;
+                z-index: 15;
+            }
+
+            #statusBar {
+                position: absolute;
+                top: 20px;
+                left: 50%;
+                transform: translateX(-50%);
+                background: rgba(0, 0, 0, 0.7);
+                padding: 8px 24px;
+                border-radius: 30px;
+                font-size: 0.9rem;
+                color: #eee;
+                backdrop-filter: blur(4px);
+                pointer-events: none;
+                opacity: 0;
+                transition: opacity 0.3s;
+                white-space: nowrap;
+                z-index: 15;
+            }
+
+            #statusBar.show {
+                opacity: 1;
+            }
+
+            /* ===== 右侧边栏切换按钮 ===== */
+            #toggleRightSidebar {
+                position: absolute;
+                top: 16px;
+                right: 16px;
+                z-index: 20;
+                width: 40px;
+                height: 40px;
+                border-radius: 50%;
+                border: 1px solid rgba(90, 160, 180, 0.5);
+                background: rgba(30, 40, 45, 0.85);
+                backdrop-filter: blur(12px);
+                color: #d4f1f9;
+                font-size: 20px;
+                cursor: pointer;
+                transition: all 0.25s;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                box-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
+            }
+
+            #toggleRightSidebar:hover {
+                background: rgba(60, 80, 90, 0.9);
+                border-color: rgba(90, 200, 220, 0.8);
+                transform: scale(1.05);
+            }
+
+            #toggleRightSidebar.active {
+                background: rgba(14, 99, 156, 0.85);
+                border-color: #0e639c;
+            }
+
+            /* ===== 右侧边栏 ===== */
+            #rightSidebar {
+                position: fixed;
+                top: 0;
+                right: 0;
+                width: 420px;
+                max-width: 90vw;
+                height: 100vh;
+                background: #2d2d30;
+                border-left: 1px solid #3e3e42;
+                z-index: 50;
+                transform: translateX(100%);
+                transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+                display: flex;
+                flex-direction: column;
+                box-shadow: -4px 0 24px rgba(0, 0, 0, 0.7);
+                font-family: 'Segoe UI', system-ui, sans-serif;
+            }
+
+            #rightSidebar.open {
+                transform: translateX(0);
+            }
+
+            #rightSidebarHeader {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 14px 20px;
+                background: #3a3a3e;
+                border-bottom: 1px solid #3e3e42;
+                flex-shrink: 0;
+            }
+
+            #rightSidebarHeader .title {
+                font-size: 1.05rem;
+                font-weight: 500;
+                color: #cccccc;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+
+            #rightSidebarHeader .title .badge {
+                font-size: 0.7rem;
+                background: #0e639c;
+                color: #fff;
+                padding: 0 10px;
+                border-radius: 12px;
+                line-height: 20px;
+                font-weight: 400;
+            }
+
+            #rightSidebarHeader .close-btn {
+                background: none;
+                border: none;
+                color: #9e9e9e;
+                font-size: 22px;
+                cursor: pointer;
+                padding: 0 6px;
+                transition: color 0.2s;
+                line-height: 1;
+            }
+
+            #rightSidebarHeader .close-btn:hover {
+                color: #f0f0f0;
+            }
+
+            #rightSidebarToolbar {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                padding: 8px 20px;
+                background: #252526;
+                border-bottom: 1px solid #3a3a3e;
+                flex-shrink: 0;
+                flex-wrap: wrap;
+            }
+
+            #rightSidebarToolbar button {
+                background: #3a3a3e;
+                border: none;
+                border-radius: 4px;
+                color: #d0d0d0;
+                padding: 4px 14px;
+                font-size: 0.8rem;
+                cursor: pointer;
+                transition: background 0.2s;
+            }
+
+            #rightSidebarToolbar button:hover {
+                background: #4a4a50;
+            }
+
+            #rightSidebarToolbar .stats {
+                font-size: 0.75rem;
+                color: #888;
+                margin-left: auto;
+            }
+
+            #dbTreeContainer {
+                flex: 1;
+                overflow: auto;
+                padding: 8px 0 20px 0;
+                font-size: 0.85rem;
+                line-height: 1.6;
+                background: #1e1e1e;
+            }
+
+            #dbTreeContainer::-webkit-scrollbar {
+                width: 6px;
+            }
+
+            #dbTreeContainer::-webkit-scrollbar-track {
+                background: #1e1e1e;
+            }
+
+            #dbTreeContainer::-webkit-scrollbar-thumb {
+                background: #4a4a50;
+                border-radius: 4px;
+            }
+
+            #dbTreeContainer .empty-msg {
+                padding: 30px 20px;
+                color: #6a6a6e;
+                text-align: center;
+                font-size: 0.95rem;
+            }
+
+            /* ===== 树形节点样式 ===== */
+            .tree-node {
+                position: relative;
+            }
+
+            .tree-node-header {
+                display: flex;
+                align-items: center;
+                padding: 2px 6px 2px 12px;
+                cursor: pointer;
+                border-radius: 4px;
+                transition: background 0.12s;
+                gap: 4px;
+                min-height: 26px;
+            }
+
+            .tree-node-header:hover {
+                background: #2a2a2e;
+            }
+
+            .tree-node-header .arrow {
+                display: inline-block;
+                width: 18px;
+                text-align: center;
+                font-size: 0.7rem;
+                color: #888;
+                transition: transform 0.2s;
+                flex-shrink: 0;
+            }
+
+            .tree-node-header .arrow.expanded {
+                transform: rotate(90deg);
+            }
+
+            .tree-node-header .arrow.leaf {
+                visibility: hidden;
+            }
+
+            .tree-node-header .key {
+                color: #9cdcfe;
+                font-weight: 500;
+                margin-right: 4px;
+                flex-shrink: 0;
+            }
+
+            .tree-node-header .key.array-index {
+                color: #b5b5b5;
+                font-weight: 400;
+            }
+
+            .tree-node-header .colon {
+                color: #666;
+                margin-right: 4px;
+            }
+
+            .tree-node-header .type-badge {
+                font-size: 0.6rem;
+                background: #3a3a40;
+                color: #aaa;
+                padding: 0 8px;
+                border-radius: 10px;
+                line-height: 18px;
+                margin-right: 4px;
+                flex-shrink: 0;
+            }
+
+            .tree-node-header .type-badge.object {
+                background: #1e4a5a;
+                color: #8dd0e6;
+            }
+
+            .tree-node-header .type-badge.array {
+                background: #4a3a5a;
+                color: #c8a8e6;
+            }
+
+            .tree-node-header .type-badge.string {
+                background: #3a4a3a;
+                color: #a8d8a8;
+            }
+
+            .tree-node-header .type-badge.number {
+                background: #4a4a3a;
+                color: #d8d8a8;
+            }
+
+            .tree-node-header .type-badge.boolean {
+                background: #4a3a4a;
+                color: #d8a8d8;
+            }
+
+            .tree-node-header .type-badge.null {
+                background: #3a3a3a;
+                color: #888;
+            }
+
+            .tree-node-header .type-badge.function {
+                background: #4a2a2a;
+                color: #d8a8a8;
+            }
+
+            .tree-node-header .preview {
+                color: #b0b0b0;
+                font-size: 0.8rem;
+                margin-left: 4px;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+                max-width: 180px;
+            }
+
+            .tree-node-header .preview.string-val {
+                color: #ce9178;
+            }
+
+            .tree-node-header .preview.number-val {
+                color: #b5cea8;
+            }
+
+            .tree-node-header .preview.boolean-val {
+                color: #569cd6;
+            }
+
+            .tree-node-header .preview.null-val {
+                color: #888;
+                font-style: italic;
+            }
+
+            .tree-node-children {
+                padding-left: 20px;
+                display: none;
+                border-left: 1px dotted #3a3a40;
+                margin-left: 10px;
+            }
+
+            .tree-node-children.open {
+                display: block;
+            }
+
+            /* ==============================================================
+           模态对话框样式
+           ============================================================== */
+            .modal-overlay {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100vw;
+                height: 100vh;
+                background: rgba(0, 0, 0, 0.65);
+                backdrop-filter: blur(4px);
+                z-index: 999;
+                display: none;
+                align-items: center;
+                justify-content: center;
+                animation: fadeIn 0.2s ease;
+            }
+
+            .modal-overlay.open {
+                display: flex;
+            }
+
+            .modal-overlay .modal-card {
+                background: #2d2d30;
+                border-radius: 12px;
+                border: 1px solid #3e3e42;
+                max-width: 600px;
+                width: 92%;
+                max-height: 80vh;
+                display: flex;
+                flex-direction: column;
+                box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+                animation: slideUp 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+                overflow: hidden;
+            }
+
+            .modal-overlay .modal-header {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 16px 22px;
+                background: #3a3a3e;
+                border-bottom: 1px solid #3e3e42;
+                flex-shrink: 0;
+            }
+
+            .modal-overlay .modal-header .title {
+                font-size: 1.1rem;
+                font-weight: 500;
+                color: #d4f1f9;
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            }
+
+            .modal-overlay .modal-header .title .type-tag {
+                font-size: 0.7rem;
+                background: #0e639c;
+                color: #fff;
+                padding: 0 12px;
+                border-radius: 20px;
+                line-height: 22px;
+                font-weight: 400;
+            }
+
+            .modal-overlay .modal-header .close-modal {
+                background: none;
+                border: none;
+                color: #9e9e9e;
+                font-size: 24px;
+                cursor: pointer;
+                padding: 0 6px;
+                transition: color 0.2s;
+                line-height: 1;
+            }
+
+            .modal-overlay .modal-header .close-modal:hover {
+                color: #f0f0f0;
+            }
+
+            .modal-overlay .modal-body {
+                flex: 1;
+                overflow-y: auto;
+                padding: 18px 22px 22px 22px;
+                font-size: 0.9rem;
+                background: #1e1e1e;
+            }
+
+            .modal-overlay .modal-body::-webkit-scrollbar {
+                width: 6px;
+            }
+
+            .modal-overlay .modal-body::-webkit-scrollbar-track {
+                background: #1e1e1e;
+            }
+
+            .modal-overlay .modal-body::-webkit-scrollbar-thumb {
+                background: #4a4a50;
+                border-radius: 4px;
+            }
+
+            .modal-overlay .modal-body .prop-row {
+                display: flex;
+                padding: 5px 0;
+                border-bottom: 1px solid #2a2a2e;
+                gap: 12px;
+                align-items: baseline;
+            }
+
+            .modal-overlay .modal-body .prop-row .prop-key {
+                min-width: 100px;
+                font-weight: 500;
+                color: #9cdcfe;
+                flex-shrink: 0;
+                font-size: 0.85rem;
+            }
+
+            .modal-overlay .modal-body .prop-row .prop-value {
+                color: #d0d0d0;
+                word-break: break-all;
+                font-size: 0.85rem;
+                font-family: 'JetBrains Mono', monospace;
+            }
+
+            .modal-overlay .modal-body .prop-row .prop-value.coord {
+                color: #b5cea8;
+            }
+
+            .modal-overlay .modal-body .prop-row .prop-value.color-swatch {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+
+            .modal-overlay .modal-body .prop-row .prop-value .swatch {
+                display: inline-block;
+                width: 18px;
+                height: 18px;
+                border-radius: 4px;
+                border: 1px solid #555;
+                flex-shrink: 0;
+            }
+
+            .modal-overlay .modal-body .prop-row .prop-value .array-preview {
+                color: #888;
+                font-style: italic;
+            }
+
+            .modal-overlay .modal-body .no-entity {
+                color: #6a6a6e;
+                text-align: center;
+                padding: 20px 0;
+                font-size: 1rem;
+            }
+
+            .modal-overlay .modal-footer {
+                padding: 12px 22px;
+                background: #252526;
+                border-top: 1px solid #3a3a3e;
+                text-align: right;
+                flex-shrink: 0;
+            }
+
+            .modal-overlay .modal-footer .close-btn-footer {
+                background: #0e639c;
+                border: none;
+                border-radius: 6px;
+                color: white;
+                padding: 6px 24px;
+                font-size: 0.85rem;
+                cursor: pointer;
+                transition: background 0.2s;
+            }
+
+            .modal-overlay .modal-footer .close-btn-footer:hover {
+                background: #1177bb;
+            }
+
+            @keyframes fadeIn {
+                from {
+                    opacity: 0;
+                }
+
+                to {
+                    opacity: 1;
+                }
+            }
+
+            @keyframes slideUp {
+                from {
+                    transform: translateY(20px) scale(0.97);
+                    opacity: 0;
+                }
+
+                to {
+                    transform: translateY(0) scale(1);
+                    opacity: 1;
+                }
+            }
+
+            /* ==============================================================
+           右键菜单样式
+           ============================================================== */
+            #contextMenu {
+                position: fixed;
+                z-index: 1000;
+                background: #2d2d30;
+                border: 1px solid #3e3e42;
+                border-radius: 8px;
+                min-width: 200px;
+                padding: 6px 0;
+                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7);
+                display: none;
+                flex-direction: column;
+                font-family: 'Segoe UI', system-ui, sans-serif;
+                backdrop-filter: blur(8px);
+                background: rgba(45, 45, 48, 0.96);
+            }
+
+            #contextMenu.open {
+                display: flex;
+            }
+
+            #contextMenu .menu-item {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                padding: 8px 18px;
+                font-size: 0.9rem;
+                color: #d0d0d0;
+                cursor: pointer;
+                transition: background 0.15s;
+                border: none;
+                background: transparent;
+                width: 100%;
+                text-align: left;
+                font-family: inherit;
+                white-space: nowrap;
+            }
+
+            #contextMenu .menu-item:hover {
+                background: #3a3a3e;
+            }
+
+            #contextMenu .menu-item:active {
+                background: #4a4a50;
+            }
+
+            #contextMenu .menu-item .icon {
+                font-size: 1.1rem;
+                width: 24px;
+                text-align: center;
+                flex-shrink: 0;
+            }
+
+            #contextMenu .menu-item .label {
+                flex: 1;
+            }
+
+            #contextMenu .menu-item .shortcut {
+                font-size: 0.7rem;
+                color: #6a6a6e;
+                margin-left: 12px;
+            }
+
+            #contextMenu .menu-item.disabled {
+                opacity: 0.4;
+                pointer-events: none;
+                cursor: default;
+            }
+
+            #contextMenu .menu-divider {
+                height: 1px;
+                background: #3a3a3e;
+                margin: 4px 12px;
+            }
+
+            #contextMenu .menu-item .badge-status {
+                font-size: 0.65rem;
+                background: #0e639c;
+                color: #fff;
+                padding: 0 8px;
+                border-radius: 10px;
+                line-height: 18px;
+            }
+
+            /* ===== 响应式 ===== */
+            @media (max-width: 768px) {
+                #sidebar {
+                    width: 220px;
+                    min-width: 220px;
+                }
+
+                #rightSidebar {
+                    width: 100vw;
+                    max-width: 100vw;
+                }
+
+                #toggleRightSidebar {
+                    top: 12px;
+                    right: 12px;
+                    width: 36px;
+                    height: 36px;
+                    font-size: 17px;
+                }
+
+                #openLeftSidebar {
+                    top: 12px;
+                    left: 12px;
+                    width: 36px;
+                    height: 36px;
+                    font-size: 18px;
+                }
+
+                .tree-node-header .preview {
+                    max-width: 100px;
+                }
+
+                .modal-overlay .modal-card {
+                    max-width: 95vw;
+                    max-height: 85vh;
+                }
+
+                .modal-overlay .modal-body .prop-row .prop-key {
+                    min-width: 70px;
+                    font-size: 0.8rem;
+                }
+
+                .modal-overlay .modal-body .prop-row .prop-value {
+                    font-size: 0.8rem;
+                }
+
+                #contextMenu {
+                    min-width: 160px;
+                }
+
+                #contextMenu .menu-item {
+                    font-size: 0.8rem;
+                    padding: 6px 14px;
+                }
+            }
+        </style>
+        <style>
+            .Po4BvhR1CK2tJaywJ6AN path {
+                fill: var(--icon-path-fill);
+            }
+
+            .Oz4yDjua3Qe6thqkZYf_ path {
+                transition: 0.2s all;
+            }
+
+            .Oz4yDjua3Qe6thqkZYf_:hover path {
+                fill: var(--icon-hover-fill);
+            }
+        </style>
+        <style>
+            /* ！！！切勿直接改动该文件，该文件由 generator.ts 自动生成！！！ */
+            /* !!! DONT MODIFY THIS FILE DIRECTLY, THIS FILE IS GENERATED BY generator.ts AUTOMATICALLY !!! */
+            .ibW4Oa5B7s2zJKKZ4pCg {
+                user-select: none;
+            }
+
+            .AtqKyJetjrG4smuk35Np {
+                max-width: 346px;
+                width: auto;
+                height: 36px;
+                background-color: var(--quark-style-white-color, #fff);
+                padding-left: 10px;
+                padding-right: 4px;
+                display: flex;
+                align-items: center;
+                box-sizing: border-box;
+                border: 1px solid var(--quark-style-gray-20-color, rgba(6, 10, 38, 0.12));
+                box-shadow: 0 12px 32px -6px var(--quark-style-gray-30-fixed-color, rgba(6, 10, 38, 0.24));
+                border-radius: 10px;
+            }
+
+            .ibW4Oa5B7s2zJKKZ4pCg .g6iGsZa_KHMeW2yICzQQ {
+                height: 28px;
+                display: flex;
+                align-items: center;
+                margin-right: 6px;
+            }
+
+            .ibW4Oa5B7s2zJKKZ4pCg .e4UXx38MPgfHdym_Lzt0 {
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                cursor: pointer;
+                height: 28px;
+                padding: 0 6px;
+                margin-right: 2px;
+                border-radius: 6px;
+                column-gap: 4px;
+            }
+
+            .ibW4Oa5B7s2zJKKZ4pCg .e4UXx38MPgfHdym_Lzt0:hover:not(.ibW4Oa5B7s2zJKKZ4pCg .kNOcXLDT_cCrcoY8LTm8) {
+                background: var(--quark-style-gray-10-color, rgba(6, 10, 38, 0.06));
+            }
+
+            .ibW4Oa5B7s2zJKKZ4pCg .kNOcXLDT_cCrcoY8LTm8 {
+                cursor: default;
+            }
+
+            .ibW4Oa5B7s2zJKKZ4pCg .kNOcXLDT_cCrcoY8LTm8 .Va3czASiR9Zztyl_lD4M {
+                color: var(--quark-style-gray-40-color, rgba(6, 10, 38, 0.4)) !important;
+            }
+
+            .ibW4Oa5B7s2zJKKZ4pCg .e4UXx38MPgfHdym_Lzt0 .Va3czASiR9Zztyl_lD4M {
+                font-size: 12px;
+                color: var(--quark-style-gray-color, #060A26);
+                line-height: 16px;
+                white-space: nowrap;
+                position: relative;
+            }
+
+            .ibW4Oa5B7s2zJKKZ4pCg .llw0qsmiI_08u93bFdNg {
+                position: relative;
+                width: 28px;
+                height: 28px;
+                overflow: visible !important;
+            }
+
+            .ibW4Oa5B7s2zJKKZ4pCg .LEo8kpqIERehkv8AhAfG {
+                width: 28px;
+                height: 28px;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                cursor: pointer;
+                border-radius: 6px;
+                overflow: visible !important;
+            }
+
+            .ibW4Oa5B7s2zJKKZ4pCg .LEo8kpqIERehkv8AhAfG:hover {
+                background: var(--quark-style-gray-10-color, rgba(6, 10, 38, 0.06));
+            }
+
+            .ibW4Oa5B7s2zJKKZ4pCg .zoNmooxAnbLEJSN8m1Jg {
+                box-sizing: border-box;
+                position: absolute;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                width: 110px;
+                max-height: 136px;
+                height: auto;
+                top: 36px;
+                right: -5px;
+                padding: 4px 0;
+                background-color: var(--quark-style-white-color, #fff);
+                border: 1px solid var(--quark-style-gray-20-color, rgba(6, 10, 38, 0.12));
+                box-shadow: 0 4px 16px -6px var(--quark-style-gray-20-fixed-color, rgba(6, 10, 38, 0.12));
+                border-radius: 8px;
+                overflow: visible !important;
+                row-gap: 4px;
+            }
+
+            .ibW4Oa5B7s2zJKKZ4pCg .O1imPofna4elG_8NcQnR {
+                top: -77px;
+            }
+
+            .ibW4Oa5B7s2zJKKZ4pCg .mdH0IY7jS3Swn5vdX6tz {
+                width: 102px;
+                height: 28px;
+                display: flex;
+                align-items: center;
+                justify-content: flex-start;
+                cursor: pointer;
+                column-gap: 8px;
+                border-radius: 6px;
+                padding: 0 6px;
+                box-sizing: border-box;
+            }
+
+            .ibW4Oa5B7s2zJKKZ4pCg .mdH0IY7jS3Swn5vdX6tz:hover:not(.ibW4Oa5B7s2zJKKZ4pCg .dEdHLVmn_L2GAzb_cmwt) {
+                background: var(--quark-style-gray-10-color, rgba(6, 10, 38, 0.06));
+            }
+
+            .ibW4Oa5B7s2zJKKZ4pCg .dEdHLVmn_L2GAzb_cmwt {
+                cursor: default;
+            }
+
+            .ibW4Oa5B7s2zJKKZ4pCg .dEdHLVmn_L2GAzb_cmwt .zEraruudgjR2MToGu4Kw {
+                color: var(--quark-style-gray-40-color, rgba(6, 10, 38, 0.4)) !important;
+            }
+
+            .ibW4Oa5B7s2zJKKZ4pCg .XfCMwvO0DsqFCeyzPYP2 {
+                width: 16px;
+                height: 16px;
+            }
+
+            .ibW4Oa5B7s2zJKKZ4pCg .zEraruudgjR2MToGu4Kw {
+                font-size: 12px;
+                color: var(--quark-style-gray-color, #060A26);
+            }
+
+            .ibW4Oa5B7s2zJKKZ4pCg .KZeoAuXbMIkWzOT4PcH5 {
+                width: 100%;
+                height: 1px;
+                background: var(--quark-style-gray-10-color, rgba(6, 10, 38, 0.06));
+            }
+
+            .ZL32C_XdLL8UQRZ3zObd {
+                display: flex;
+                align-items: center;
+            }
+
+            .u5llx7cIQZLdrjP5Vag1 {
+                width: 28px;
+                height: 28px;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                border-radius: 16px;
+                cursor: pointer;
+                margin-right: 12px;
+                background: var(--quark-style-gray-60-color, rgba(6, 10, 38, 0.6));
+            }
+
+            .ZL32C_XdLL8UQRZ3zObd .LEo8kpqIERehkv8AhAfG {
+                border-radius: 16px !important;
+                background: var(--quark-style-gray-60-color, rgba(6, 10, 38, 0.6)) !important;
+            }
+
+            .ZL32C_XdLL8UQRZ3zObd .zoNmooxAnbLEJSN8m1Jg {
+                right: 0 !important;
+            }
+
+            .ZL32C_XdLL8UQRZ3zObd {
+                overflow: visible !important;
+            }
+        </style>
+    </head>
+
+    <body>
+        <!-- ===== 左侧边栏 ===== -->
+        <div id="sidebar">
+            <div id="sidebar-header">
+                <h2>📁 DWG 3D 查看器</h2> <button class="collapse-btn" id="collapseLeftSidebar" title="折叠左侧边栏">✕</button>
+            </div>
+            <button id="openBtn">📂 打开 DWG 文件</button>
+            <div id="fileStatus">未加载文件</div>
+            <div id="layerContainer">
+                <div class="layer-empty">请打开 DWG 文件</div>
+            </div>
+        </div>
+        <!-- ===== 画布区域 ===== -->
+        <div id="canvasWrapper">
+            <button id="openLeftSidebar" title="展开左侧边栏" style="display: none;">☰</button>
+            <!-- 原canvas隐藏，Three渲染器将添加到此处 -->
+            <canvas id="dwgCanvas" style="display: none;"></canvas>
+            <button id="toggleRightSidebar" title="查看 DB 结构 (右侧边栏)">📊</button>
+            <div id="statusBar" class="" style="background: rgba(0, 0, 0, 0.7);">✅ 库加载成功</div>
+            <div id="infoOverlay">
+                <span id="entityInfo">图元: 0</span> <span id="layerInfo">图层: 0</span> <span id="zoomInfo">缩放: 100%</span>
+            </div>
+            <div id="coordsDisplay">🖱️ X: -19.977, Y: 123.561, Z: 0.000</div>
+            <!-- ===== 右键菜单 ===== -->
+            <div id="contextMenu">
+                <button class="menu-item" data-action="open">
+                    <span class="icon">📂</span> <span class="label">打开 DWG 文件</span> <span
+                        class="shortcut">Ctrl+O</span>
+                </button>
+                <div class="menu-divider"></div>
+                <button class="menu-item" data-action="db">
+                    <span class="icon">📊</span> <span class="label">查看 DB 结构</span> <span
+                        class="shortcut">Ctrl+D</span>
+                </button>
+                <button class="menu-item" data-action="showall">
+                    <span class="icon">👁</span> <span class="label">显示全部图元</span> <span class="shortcut">Ctrl+A</span>
+                </button>
+                <button class="menu-item" data-action="fullscreen">
+                    <span class="icon">⛶</span> <span class="label">全屏显示</span> <span class="shortcut">Ctrl+F</span>
+                </button>
+            </div>
+            <canvas data-engine="three.js r160" width="1640" height="920"
+                style="display: block; width: 100%; height: 100%; touch-action: none;"></canvas>
+        </div>
+        <!-- ===== 右侧边栏（DB 结构查看器） ===== -->
+        <div id="rightSidebar">
+            <div id="rightSidebarHeader">
+                <span class="title"> 📊 DB 结构 <span class="badge" id="dbSizeBadge">0</span> </span>
+                <button class="close-btn" id="closeRightSidebar" title="关闭侧边栏">✕</button>
+            </div>
+            <div id="rightSidebarToolbar">
+                <button id="expandAllBtn">▶ 展开全部</button>
+                <button id="collapseAllBtn">◀ 折叠全部</button>
+                <span class="stats" id="treeStats">节点: 0</span>
+            </div>
+            <div id="dbTreeContainer">
+                <div class="empty-msg">📭 尚未加载 DWG 文件<br><span style="font-size:0.8rem;color:#555;">打开文件后自动显示 DB
+                        结构</span></div>
+            </div>
+        </div>
+        <!-- ===== 模态对话框 ===== -->
+        <div class="modal-overlay" id="entityModal">
+            <div class="modal-card">
+                <div class="modal-header">
+                    <span class="title"> 📐 图元详情 <span class="type-tag" id="modalTypeTag">未知</span> </span>
+                    <button class="close-modal" id="closeModalBtn">✕</button>
+                </div>
+                <div class="modal-body" id="modalBody">
+                    <!-- 动态渲染 -->
+                </div>
+                <div class="modal-footer"> <button class="close-btn-footer" id="closeModalFooterBtn">关闭</button> </div>
+            </div>
+        </div>
+        <script type="module">
+            // ================================================================
+            // 1. 导入 Three.js 及相关组件
+            // ================================================================
+            import * as THREE from 'three';
+            import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+            // ================================================================
+            // 2. 原有模块导入与配置 (libredwg)
+            // ================================================================
+            const WASM_DIR = 'https://cdn.jsdelivr.net/npm/@mlightcad/libredwg-web@0.7.9/wasm';
+            const LIB_URL = 'https://cdn.jsdelivr.net/npm/@mlightcad/libredwg-web@0.7.9/dist/libredwg-web.js';
+            // ---- DOM 引用 ----
+            const openBtn = document.getElementById('openBtn');
+            const fileStatus = document.getElementById('fileStatus');
+            const layerContainer = document.getElementById('layerContainer');
+            const entityInfo = document.getElementById('entityInfo');
+            const layerInfo = document.getElementById('layerInfo');
+            const zoomInfo = document.getElementById('zoomInfo');
+            const coordsDisplay = document.getElementById('coordsDisplay');
+            const statusBar = document.getElementById('statusBar');
+            const wrapper = document.getElementById('canvasWrapper');
+            // ---- 侧边栏 DOM ----
+            const sidebar = document.getElementById('sidebar');
+            const collapseLeftBtn = document.getElementById('collapseLeftSidebar');
+            const openLeftBtn = document.getElementById('openLeftSidebar');
+            const rightSidebar = document.getElementById('rightSidebar');
+            const toggleRightBtn = document.getElementById('toggleRightSidebar');
+            const closeRightBtn = document.getElementById('closeRightSidebar');
+            const dbTreeContainer = document.getElementById('dbTreeContainer');
+            const dbSizeBadge = document.getElementById('dbSizeBadge');
+            const treeStats = document.getElementById('treeStats');
+            const expandAllBtn = document.getElementById('expandAllBtn');
+            const collapseAllBtn = document.getElementById('collapseAllBtn');
+            // ---- 模态对话框 ----
+            const entityModal = document.getElementById('entityModal');
+            const modalBody = document.getElementById('modalBody');
+            const modalTypeTag = document.getElementById('modalTypeTag');
+            const closeModalBtn = document.getElementById('closeModalBtn');
+            const closeModalFooterBtn = document.getElementById('closeModalFooterBtn');
+            // ---- 右键菜单 ----
+            const contextMenu = document.getElementById('contextMenu');
+            // ================================================================
+            // 3. 状态变量
+            // ================================================================
+            let libLoaded = false;
+            let libredwgInstance = null;
+            let currentFile = null;
+            let allEntities = [];
+            let layerMap = new Map();
+            let layerVisibility = new Map();
+            let currentDb = null;
+            let treeData = null;
+            // ---- Three.js 相关 ----
+            let scene, camera, renderer, controls;
+            let sceneObjects = []; // 存储所有图元对象 { mesh, layer, entity }
+            let isSceneReady = false;
+            // ---- 鼠标交互 ----
+            let raycaster = new THREE.Raycaster();
+            let pointer = new THREE.Vector2();
+            // ================================================================
+            // 4. 颜色工具 (沿用)
+            // ================================================================
+            function idxToRgb(idx) {
+                const map = { 1: '#FF0000', 2: '#FFFF00', 3: '#00FF00', 4: '#00FFFF', 5: '#0000FF', 6: '#FF00FF', 7: '#FFFFFF', 8: '#808080', 9: '#C0C0C0', 10: '#FF0000', 11: '#FF7F00', 12: '#FFFF00', 13: '#00FF00', 14: '#00FFFF', 15: '#0000FF', 16: '#8B00FF', 17: '#FFD700', 18: '#FF8C00', 19: '#DC143C', 20: '#00CED1', 21: '#2F4F4F', 22: '#008080', 23: '#2E8B57', 24: '#556B2F', 25: '#8B8B00', 26: '#8B008B', 27: '#8B0000', 28: '#6A5ACD', 29: '#A9A9A9', 30: '#FF4500', 31: '#FFA500', 32: '#DAA520', 33: '#ADFF2F', 34: '#7FFF00', 35: '#32CD32', 36: '#00FA9A', 37: '#00BFFF', 38: '#1E90FF', 39: '#9370DB', 40: '#FF69B4', 41: '#FFB6C1', 42: '#F0E68C', 43: '#98FB98', 44: '#AFEEEE', 45: '#ADD8E6', 46: '#B0C4DE', 47: '#D3D3D3', 48: '#FFDAB9', 49: '#FFE4E1', 50: '#F5F5DC', 51: '#F5DEB3', 52: '#FDF5E6', 53: '#FAF0E6', 54: '#FFF8DC', 55: '#FFFFE0', 56: '#FFFFF0', 57: '#F0F0F0', 58: '#FAFAD2', 59: '#FFE4B5', 60: '#FFEBCD', 61: '#FFEFD5', 62: '#FFE4E1', 63: '#FFDAB9', 64: '#FFC0CB', 65: '#FFB6C1', 66: '#FFA07A', 67: '#FF7F50', 68: '#FF6347', 69: '#FF4500', 70: '#FF0000', 71: '#DC143C', 72: '#CD5C5C', 73: '#8B0000', 74: '#A52A2A', 75: '#800000', 76: '#D2691E', 77: '#F4A460', 78: '#FF8C00', 79: '#FFA500', 80: '#FFD700', 81: '#FFFF00', 82: '#BDB76B', 83: '#ADFF2F', 84: '#7FFF00', 85: '#00FF00', 86: '#32CD32', 87: '#228B22', 88: '#006400', 89: '#00FA9A', 90: '#00FF7F', 91: '#3CB371', 92: '#2E8B57', 93: '#008000', 94: '#00CED1', 95: '#00FFFF', 96: '#40E0D0', 97: '#48D1CC', 98: '#20B2AA', 99: '#008B8B', 100: '#008080', 101: '#00BFFF', 102: '#87CEEB', 103: '#87CEFA', 104: '#4682B4', 105: '#6495ED', 106: '#1E90FF', 107: '#4169E1', 108: '#0000FF', 109: '#0000CD', 110: '#00008B', 111: '#000080', 112: '#191970', 113: '#6A5ACD', 114: '#7B68EE', 115: '#9370DB', 116: '#8A2BE2', 117: '#9400D3', 118: '#9932CC', 119: '#8B008B', 120: '#800080', 121: '#4B0082', 122: '#FF00FF', 123: '#EE82EE', 124: '#DA70D6', 125: '#DDA0DD', 126: '#C71585', 127: '#DB7093', 128: '#FF1493', 129: '#FF69B4', 130: '#FFB6C1', 131: '#FFC0CB', 132: '#FFDAB9', 133: '#FFE4B5', 134: '#FFF8DC', 135: '#FFFFE0', 136: '#FFFFF0', 137: '#F0F0F0', 138: '#FAFAD2', 139: '#FFEBCD', 140: '#FFEFD5', 141: '#FFE4E1', 142: '#FDF5E6', 143: '#FAF0E6', 144: '#F5DEB3', 145: '#F5F5DC', 146: '#D3D3D3', 147: '#A9A9A9', 148: '#808080', 149: '#696969', 150: '#505050', 151: '#383838', 152: '#282828', 153: '#181818', 154: '#000000', 155: '#000000' };
+                return map[idx] || '#888888';
+            }
+            function intToRgb(colorInt) { return '#' + colorInt.toString(16).padStart(6, '0'); }
+            function resolveColor(entity, layerColor) {
+                if (entity.colorIndex !== undefined && entity.colorIndex !== null) { if (entity.colorIndex === 256) return layerColor; return idxToRgb(entity.colorIndex); }
+                let color = entity.color !== undefined ? entity.color : entity.colour;
+                if (color === undefined || color === null) return layerColor;
+                if (typeof color === 'number') { if (color <= 255) return idxToRgb(color); return intToRgb(color); }
+                if (typeof color === 'string') {
+                    if (color.startsWith('#')) return color;
+                    const num = parseInt(color, 10);
+                    if (!isNaN(num)) { if (num <= 255) return idxToRgb(num); return intToRgb(num); }
+                    const named = { red: '#FF0000', green: '#00FF00', blue: '#0000FF', white: '#FFFFFF', black: '#000000', yellow: '#FFFF00', cyan: '#00FFFF', magenta: '#FF00FF' };
+                    if (named[color.toLowerCase()]) return named[color.toLowerCase()];
+                }
+                return layerColor;
+            }
+            // ================================================================
+            // 5. 提取点 (用于视图适配)
+            // ================================================================
+            function extractPoints(entity) {
+                const pts = [];
+                if (entity.fitPoints && Array.isArray(entity.fitPoints)) entity.fitPoints.forEach(p => pts.push(p));
+                if (entity.controlPoints && Array.isArray(entity.controlPoints)) entity.controlPoints.forEach(p => pts.push(p));
+                if (entity.position) pts.push(entity.position);
+                if (entity.start) pts.push(entity.start);
+                if (entity.end) pts.push(entity.end);
+                if (entity.center) pts.push(entity.center);
+                if (entity.insertionPoint) pts.push(entity.insertionPoint);
+                if (entity.startPoint) pts.push(entity.startPoint);
+                if (entity.vertices && Array.isArray(entity.vertices)) entity.vertices.forEach(v => pts.push(v));
+                if (entity.corner1) pts.push(entity.corner1);
+                if (entity.corner2) pts.push(entity.corner2);
+                if (entity.corner3) pts.push(entity.corner3);
+                if (entity.corner4) pts.push(entity.corner4);
+                return pts;
+            }
+            // ================================================================
+            // 6. 辅助函数
+            // ================================================================
+            function showStatus(msg, isError = false) {
+                statusBar.textContent = msg;
+                statusBar.style.background = isError ? 'rgba(200,50,50,0.8)' : 'rgba(0,0,0,0.7)';
+                statusBar.classList.add('show');
+                clearTimeout(statusBar._hideTimer);
+                statusBar._hideTimer = setTimeout(() => statusBar.classList.remove('show'), 3000);
+            }
+            // ================================================================
+            // 7. Three.js 初始化 (Z轴向上)
+            // ================================================================
+            function initThree() {
+                scene = new THREE.Scene();
+                scene.background = new THREE.Color(0x1a1a1a);
+                // 相机
+                const rect = wrapper.getBoundingClientRect();
+                const aspect = rect.width / rect.height || 1;
+                camera = new THREE.PerspectiveCamera(45, aspect, 0.1, 10000);
+                // 设置向上方向为Z轴
+                camera.up.set(0, 0, 1);
+                camera.position.set(200, 250, 300); // 斜上方观察
+                camera.lookAt(0, 0, 0);
+                // 渲染器
+                renderer = new THREE.WebGLRenderer({ antialias: true });
+                renderer.setSize(rect.width, rect.height);
+                renderer.setPixelRatio(window.devicePixelRatio);
+                renderer.domElement.style.display = 'block';
+                renderer.domElement.style.width = '100%';
+                renderer.domElement.style.height = '100%';
+                // 替换原有canvas
+                const oldCanvas = document.getElementById('dwgCanvas');
+                oldCanvas.style.display = 'none';
+                wrapper.appendChild(renderer.domElement);
+                // 控制器
+                controls = new OrbitControls(camera, renderer.domElement);
+                controls.enableDamping = true;
+                controls.dampingFactor = 0.1;
+                controls.screenSpacePanning = true;
+                controls.maxDistance = 10000;
+                controls.target.set(0, 0, 0);
+                controls.update(); // 更新up方向
+                // 灯光
+                const ambientLight = new THREE.AmbientLight(0x404060);
+                scene.add(ambientLight);
+                const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+                dirLight.position.set(1, 2, 3);
+                scene.add(dirLight);
+                const backLight = new THREE.DirectionalLight(0x88aaff, 0.5);
+                backLight.position.set(-1, -0.5, -1);
+                scene.add(backLight);
+                // ---- 网格：绘制在 XY 平面 (Z=0) ----
+                const gridHelper = new THREE.GridHelper(500, 20, 0x4a6a6a, 0x2a4a4a);
+                gridHelper.rotation.x = Math.PI / 2;
+                scene.add(gridHelper);
+                // ---- 自定义坐标轴 (Z轴向上) ----
+                function createAxes() {
+                    const axesGroup = new THREE.Group();
+                    const length = 100;
+                    const headLength = 10;
+                    const headWidth = 5;
+                    const makeArrow = (dir, color) => { const arrow = new THREE.ArrowHelper(dir, new THREE.Vector3(0, 0, 0), length, color, headLength, headWidth); axesGroup.add(arrow); };
+                    makeArrow(new THREE.Vector3(1, 0, 0), 0xff0000);
+                    makeArrow(new THREE.Vector3(0, 1, 0), 0x00ff00);
+                    makeArrow(new THREE.Vector3(0, 0, 1), 0x0000ff);
+                    // 标签 Sprite (始终在最前)
+                    const makeLabel = (text, pos, color) => {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = 128;
+                        canvas.height = 128;
+                        const ctx = canvas.getContext('2d');
+                        // 透明背景，但添加一个半透明矩形增强可读性
+                        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+                        ctx.roundRect(20, 20, 88, 88, 12);
+                        ctx.fill();
+                        ctx.font = 'Bold 72px Arial';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillStyle = color;
+                        ctx.fillText(text, 64, 68);
+                        const texture = new THREE.CanvasTexture(canvas);
+                        texture.needsUpdate = true;
+                        const material = new THREE.SpriteMaterial({ map: texture, depthTest: false, depthWrite: false, transparent: true });
+                        const sprite = new THREE.Sprite(material);
+                        sprite.position.copy(pos);
+                        sprite.scale.set(40, 40, 1);
+                        // 确保永远在最前面
+                        sprite.renderOrder = 999;
+                        axesGroup.add(sprite);
+                    };
+                    // 注意 roundRect 可能在某些浏览器不支持，但 Canvas 标准支持，为了安全使用 arc 替代或直接使用 fillRect
+                    // 改为更兼容的方式
+                    const makeLabelSimple = (text, pos, color) => {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = 128;
+                        canvas.height = 128;
+                        const ctx = canvas.getContext('2d');
+                        // 半透明背景圆角矩形
+                        ctx.shadowColor = 'rgba(0,0,0,0.5)';
+                        ctx.shadowBlur = 10;
+                        ctx.fillStyle = 'rgba(20,20,30,0.7)';
+                        ctx.beginPath();
+                        ctx.roundRect(20, 20, 88, 88, 12);
+                        ctx.fill();
+                        ctx.shadowBlur = 0;
+                        ctx.font = 'Bold 72px Arial';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillStyle = color;
+                        ctx.fillText(text, 64, 68);
+                        const texture = new THREE.CanvasTexture(canvas);
+                        texture.needsUpdate = true;
+                        const material = new THREE.SpriteMaterial({ map: texture, depthTest: false, depthWrite: false, transparent: true });
+                        const sprite = new THREE.Sprite(material);
+                        sprite.position.copy(pos);
+                        sprite.scale.set(42, 42, 1);
+                        sprite.renderOrder = 999;
+                        axesGroup.add(sprite);
+                    };
+                    // 位置在轴端点外延伸
+                    const offset = 30;
+                    makeLabelSimple('X', new THREE.Vector3(length + offset, 0, 0), '#ff4444');
+                    makeLabelSimple('Y', new THREE.Vector3(0, length + offset, 0), '#44ff44');
+                    makeLabelSimple('Z', new THREE.Vector3(0, 0, length + offset), '#4444ff');
+                    scene.add(axesGroup);
+                }
+                createAxes();
+                // 事件监听
+                renderer.domElement.addEventListener('dblclick', onDoubleClick);
+                renderer.domElement.addEventListener('mousemove', onMouseMove);
+                renderer.domElement.addEventListener('contextmenu', onContextMenu);
+                // 窗口大小变化
+                window.addEventListener('resize', onResize);
+                // 启动动画循环
+                animate();
+                isSceneReady = true;
+            }
+            function animate() { requestAnimationFrame(animate); controls.update(); renderer.render(scene, camera); }
+            function onResize() {
+                const rect = wrapper.getBoundingClientRect();
+                const w = rect.width, h = rect.height;
+                camera.aspect = w / h;
+                camera.updateProjectionMatrix();
+                renderer.setSize(w, h);
+            }
+            // ================================================================
+            // 8. 构建场景：将 allEntities 转换为 Three 对象
+            // ================================================================
+            function buildScene() {
+                // 清除旧对象
+                sceneObjects.forEach(item => {
+                    scene.remove(item.mesh);
+                    if (item.mesh.geometry) item.mesh.geometry.dispose();
+                    if (item.mesh.material) { if (Array.isArray(item.mesh.material)) item.mesh.material.forEach(m => m.dispose()); else item.mesh.material.dispose(); }
+                });
+                sceneObjects = [];
+                if (!allEntities || allEntities.length === 0) { updateInfo(); return; }
+                for (const entity of allEntities) {
+                    const layer = entity.layer || '0';
+                    const layerInfo = layerMap.get(layer);
+                    const layerColor = layerInfo ? layerInfo.color : '#888';
+                    const colorStr = resolveColor(entity, layerColor);
+                    const color = new THREE.Color(colorStr);
+                    const type = (entity.type || entity.entityType || '').toLowerCase();
+                    let mesh = null;
+                    try {
+                        switch (type) {
+                            case 'line': {
+                                const s = entity.start || entity.startPoint;
+                                const e = entity.end || entity.endPoint;
+                                if (s && e) {
+                                    const points = [new THREE.Vector3(s.x, s.y, s.z || 0), new THREE.Vector3(e.x, e.y, e.z || 0)];
+                                    const geom = new THREE.BufferGeometry().setFromPoints(points);
+                                    const mat = new THREE.LineBasicMaterial({ color });
+                                    mesh = new THREE.Line(geom, mat);
+                                }
+                                break;
+                            }
+                            case 'circle': {
+                                if (entity.center && entity.radius !== undefined) {
+                                    const c = entity.center;
+                                    const r = entity.radius;
+                                    const segments = 64;
+                                    const points = [];
+                                    for (let i = 0; i <= segments; i++) {
+                                        const theta = (i / segments) * Math.PI * 2;
+                                        const x = c.x + r * Math.cos(theta);
+                                        const y = c.y + r * Math.sin(theta);
+                                        points.push(new THREE.Vector3(x, y, c.z || 0));
+                                    }
+                                    const geom = new THREE.BufferGeometry().setFromPoints(points);
+                                    const mat = new THREE.LineBasicMaterial({ color });
+                                    mesh = new THREE.Line(geom, mat);
+                                }
+                                break;
+                            }
+                            case 'arc': {
+                                if (entity.center && entity.radius !== undefined) {
+                                    const c = entity.center;
+                                    const r = entity.radius;
+                                    let startA = -(entity.startAngle || 0);
+                                    let endA = -(entity.endAngle || 0);
+                                    if (endA < startA) endA += 2 * Math.PI;
+                                    const segments = 32;
+                                    const points = [];
+                                    for (let i = 0; i <= segments; i++) {
+                                        const t = startA + (endA - startA) * (i / segments);
+                                        const x = c.x + r * Math.cos(t);
+                                        const y = c.y + r * Math.sin(t);
+                                        points.push(new THREE.Vector3(x, y, c.z || 0));
+                                    }
+                                    const geom = new THREE.BufferGeometry().setFromPoints(points);
+                                    const mat = new THREE.LineBasicMaterial({ color });
+                                    mesh = new THREE.Line(geom, mat);
+                                }
+                                break;
+                            }
+                            case 'lwpolyline':
+                            case 'polyline': {
+                                if (entity.vertices && entity.vertices.length) {
+                                    const pts = entity.vertices;
+                                    const points = pts.map(p => new THREE.Vector3(p.x, p.y, p.z || 0));
+                                    const geom = new THREE.BufferGeometry().setFromPoints(points);
+                                    const mat = new THREE.LineBasicMaterial({ color });
+                                    if (entity.closed) { const line = new THREE.LineLoop(geom, mat); mesh = line; } else { mesh = new THREE.Line(geom, mat); }
+                                }
+                                break;
+                            }
+                            case 'text':
+                            case 'mtext': {
+                                const pos = entity.insertionPoint || entity.position || entity.startPoint;
+                                if (pos) {
+                                    let rawText = entity.text || entity.value || entity.contents || '';
+                                    const displayText = extractPlainText(rawText);
+                                    if (displayText) {
+                                        const canvas = document.createElement('canvas');
+                                        const ctx2d = canvas.getContext('2d');
+                                        const fontSize = Math.max(16, (entity.textHeight || entity.height || 10) * 2);
+                                        canvas.width = displayText.length * fontSize * 0.8 + 20;
+                                        canvas.height = fontSize * 1.5;
+                                        ctx2d.fillStyle = 'rgba(0,0,0,0.6)';
+                                        ctx2d.fillRect(0, 0, canvas.width, canvas.height);
+                                        ctx2d.font = `${fontSize}px sans-serif`;
+                                        ctx2d.textAlign = 'left';
+                                        ctx2d.textBaseline = 'bottom';
+                                        ctx2d.fillStyle = colorStr;
+                                        ctx2d.fillText(displayText, 10, canvas.height - 8);
+                                        const texture = new THREE.CanvasTexture(canvas);
+                                        texture.needsUpdate = true;
+                                        const material = new THREE.SpriteMaterial({ map: texture, depthTest: false, depthWrite: false });
+                                        const sprite = new THREE.Sprite(material);
+                                        sprite.position.set(pos.x, pos.y, pos.z || 0);
+                                        const scale = fontSize / 20;
+                                        sprite.scale.set(canvas.width / 20 * scale, canvas.height / 20 * scale, 1);
+                                        mesh = sprite;
+                                    }
+                                }
+                                break;
+                            }
+                            case 'insert': {
+                                if (entity.position) {
+                                    const p = entity.position;
+                                    const size = 10;
+                                    const boxGeom = new THREE.BoxGeometry(size, size, size);
+                                    const boxMat = new THREE.MeshBasicMaterial({ color, wireframe: true });
+                                    const box = new THREE.Mesh(boxGeom, boxMat);
+                                    box.position.set(p.x, p.y, p.z || 0);
+                                    mesh = box;
+                                }
+                                break;
+                            }
+                            case 'spline': {
+                                let pts = [];
+                                if (entity.fitPoints && Array.isArray(entity.fitPoints) && entity.fitPoints.length > 1) pts = entity
+                                    .fitPoints;
+                                else if (entity.controlPoints && Array.isArray(entity.controlPoints) && entity.controlPoints
+                                    .length > 1) pts = entity.controlPoints;
+                                if (pts.length > 1) {
+                                    const points = pts.map(p => new THREE.Vector3(p.x, p.y, p.z || 0));
+                                    const geom = new THREE.BufferGeometry().setFromPoints(points);
+                                    const mat = new THREE.LineBasicMaterial({ color });
+                                    mesh = new THREE.Line(geom, mat);
+                                } else if (pts.length === 1) {
+                                    const p = pts[0];
+                                    const sphereGeom = new THREE.SphereGeometry(3, 8, 8);
+                                    const sphereMat = new THREE.MeshBasicMaterial({ color });
+                                    mesh = new THREE.Mesh(sphereGeom, sphereMat);
+                                    mesh.position.set(p.x, p.y, p.z || 0);
+                                }
+                                break;
+                            }
+                            case 'point': {
+                                if (entity.position) {
+                                    const p = entity.position;
+                                    const sphereGeom = new THREE.SphereGeometry(3, 8, 8);
+                                    const sphereMat = new THREE.MeshBasicMaterial({ color });
+                                    mesh = new THREE.Mesh(sphereGeom, sphereMat);
+                                    mesh.position.set(p.x, p.y, p.z || 0);
+                                }
+                                break;
+                            }
+                            case '3dface': {
+                                const corners = [];
+                                if (entity.corner1 && entity.corner1.x !== undefined) corners.push(entity.corner1);
+                                if (entity.corner2 && entity.corner2.x !== undefined) corners.push(entity.corner2);
+                                if (entity.corner3 && entity.corner3.x !== undefined) corners.push(entity.corner3);
+                                if (entity.corner4 && entity.corner4.x !== undefined) corners.push(entity.corner4);
+                                if (corners.length >= 3) {
+                                    const verts = corners.map(p => new THREE.Vector3(p.x, p.y, p.z || 0));
+                                    const geom = new THREE.BufferGeometry();
+                                    const positions = [];
+                                    for (let i = 1; i < verts.length - 1; i++) {
+                                        positions.push(verts[0].x, verts[0].y, verts[0].z);
+                                        positions.push(verts[i].x, verts[i].y, verts[i].z);
+                                        positions.push(verts[i + 1].x, verts[i + 1].y, verts[i + 1].z);
+                                    }
+                                    geom.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+                                    geom.computeVertexNormals();
+                                    const mat = new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide });
+                                    mesh = new THREE.Mesh(geom, mat);
+                                }
+                                break;
+                            }
+                            default: {
+                                let pts = [];
+                                if (entity.start) pts.push(entity.start);
+                                if (entity.center) pts.push(entity.center);
+                                if (entity.position) pts.push(entity.position);
+                                if (entity.insertionPoint) pts.push(entity.insertionPoint);
+                                if (entity.startPoint) pts.push(entity.startPoint);
+                                if (entity.endPoint) pts.push(entity.endPoint);
+                                if (pts.length) {
+                                    const p = pts[0];
+                                    const sphereGeom = new THREE.SphereGeometry(2, 6, 6);
+                                    const sphereMat = new THREE.MeshBasicMaterial({ color });
+                                    mesh = new THREE.Mesh(sphereGeom, sphereMat);
+                                    mesh.position.set(p.x, p.y, p.z || 0);
+                                }
+                                break;
+                            }
+                        }
+                    } catch (err) { console.warn('构建图元失败:', entity, err); }
+                    if (mesh) {
+                        mesh.userData.layer = layer;
+                        mesh.userData.entity = entity;
+                        scene.add(mesh);
+                        sceneObjects.push({ mesh, layer, entity });
+                    }
+                }
+                updateVisibility();
+                updateInfo();
+                fitAll();
+            }
+            function extractPlainText(raw) {
+                if (!raw) return '';
+                const match = raw.match(/\{([^}]*);([^}]*)\}/);
+                return match ? match[2] : raw;
+            }
+            // ================================================================
+            // 9. 图层可见性控制
+            // ================================================================
+            function updateVisibility() {
+                for (const item of sceneObjects) {
+                    const layer = item.layer;
+                    const visible = layerVisibility.get(layer) !== false;
+                    item.mesh.visible = visible;
+                }
+            }
+            function refreshLayerVisibility() {
+                updateVisibility();
+            }
+            // ================================================================
+            // 10. 信息更新
+            // ================================================================
+            function updateInfo() {
+                entityInfo.textContent = `图元: ${allEntities.length}`;
+                layerInfo.textContent = `图层: ${layerMap.size}`;
+                if (camera) {
+                    const dist = camera.position.distanceTo(controls.target);
+                    const zoomPercent = Math.max(10, Math.min(500, Math.round(10000 / dist)));
+                    zoomInfo.textContent = `缩放: ${zoomPercent}%`;
+                }
+            }
+            // ================================================================
+            // 11. 适配视图 (fitAll)
+            // ================================================================
+            function fitAll() {
+                if (!allEntities.length) return;
+                const box = new THREE.Box3();
+                let hasPoint = false;
+                for (const item of sceneObjects) {
+                    if (item.mesh.visible === false) continue;
+                    const bbox = new THREE.Box3().setFromObject(item.mesh);
+                    if (bbox.isEmpty()) continue;
+                    box.expandByObject(item.mesh);
+                    hasPoint = true;
+                }
+                if (!hasPoint) return;
+                const size = box.getSize(new THREE.Vector3());
+                const center = box.getCenter(new THREE.Vector3());
+                const maxDim = Math.max(size.x, size.y, size.z);
+                const distance = maxDim / (2 * Math.tan(camera.fov / 2 * Math.PI / 180));
+                const dist = Math.max(distance * 1.2, 50);
+                controls.target.copy(center);
+                const dir = new THREE.Vector3(1, 1, 0.5).normalize();
+                camera.position.copy(center.clone().add(dir.multiplyScalar(dist)));
+                controls.update();
+                updateInfo();
+            }
+            // ================================================================
+            // 12. 鼠标交互
+            // ================================================================
+            function onMouseMove(event) {
+                const rect = renderer.domElement.getBoundingClientRect();
+                const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+                const y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+                pointer.set(x, y);
+                raycaster.setFromCamera(pointer, camera);
+                const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+                const intersect = new THREE.Vector3();
+                const ray = raycaster.ray;
+                const hit = ray.intersectPlane(plane, intersect);
+                if (hit) { coordsDisplay.textContent = `🖱️ X: ${intersect.x.toFixed(3)}, Y: ${intersect.y.toFixed(3)}, Z: ${intersect.z.toFixed(3)}`; }
+                else { coordsDisplay.textContent = `🖱️ X: --, Y: --, Z: --`; }
+            }
+            function onDoubleClick(event) {
+                const rect = renderer.domElement.getBoundingClientRect();
+                const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+                const y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+                pointer.set(x, y);
+                raycaster.setFromCamera(pointer, camera);
+                const meshes = sceneObjects.map(item => item.mesh);
+                const intersects = raycaster.intersectObjects(meshes, false);
+                if (intersects.length > 0) {
+                    const hit = intersects[0].object;
+                    const entity = hit.userData.entity;
+                    if (entity) { showEntityDetailDialog(entity); showStatus(`📍 选中图元: ${getEntityDisplayName(entity)}`); }
+                } else {
+                    showStatus('🔍 未找到图元', false);
+                    entityModal.classList.remove('open');
+                }
+            }
+            function onContextMenu(event) {
+                event.preventDefault();
+                event.stopPropagation();
+                if (contextMenu.classList.contains('open')) { contextMenu.classList.remove('open'); }
+                let x = event.clientX;
+                let y = event.clientY;
+                const menuWidth = 220;
+                const menuHeight = 210;
+                if (x + menuWidth > window.innerWidth) { x = window.innerWidth - menuWidth - 8; }
+                if (y + menuHeight > window.innerHeight) { y = window.innerHeight - menuHeight - 8; }
+                if (x < 8) x = 8;
+                if (y < 8) y = 8;
+                contextMenu.style.left = x + 'px';
+                contextMenu.style.top = y + 'px';
+                const hasEntities = allEntities && allEntities.length > 0;
+                const menuItems = contextMenu.querySelectorAll('.menu-item');
+                menuItems.forEach(item => {
+                    const action = item.dataset.action;
+                    if (action === 'open') {
+                        item.classList.remove('disabled');
+                    } else if (action === 'db' || action === 'showall' || action === 'fullscreen') {
+                        if (!hasEntities) { item.classList.add('disabled'); } else { item.classList.remove('disabled'); }
+                    }
+                });
+                contextMenu.classList.add('open');
+            }
+            contextMenu.addEventListener('click', (e) => {
+                const item = e.target.closest('.menu-item');
+                if (!item) return;
+                if (item.classList.contains('disabled')) return;
+                const action = item.dataset.action;
+                contextMenu.classList.remove('open');
+                switch (action) {
+                    case 'open': openFile(); break;
+                    case 'db': toggleRightSidebar(); break;
+                    case 'showall': showAllLayersAndFit(); break;
+                    case 'fullscreen': toggleBrowserFullscreen(); break;
+                }
+            });
+            document.addEventListener('click', (e) => { if (!contextMenu.contains(e.target)) { contextMenu.classList.remove('open'); } });
+            document.addEventListener('wheel', () => { if (contextMenu.classList.contains('open')) { contextMenu.classList.remove('open'); } });
+            document.addEventListener('keydown', (e) => {
+                if (e.ctrlKey && e.key === 'o') { e.preventDefault(); openFile(); }
+                if (e.ctrlKey && e.key === 'd') { e.preventDefault(); toggleRightSidebar(); }
+                if (e.ctrlKey && e.key === 'a') { e.preventDefault(); showAllLayersAndFit(); }
+                if (e.ctrlKey && e.key === 'f') { e.preventDefault(); toggleBrowserFullscreen(); }
+            });
+            // ================================================================
+            // 13. 显示全部图元 + 适配视图
+            // ================================================================
+            function showAllLayersAndFit() {
+                if (!allEntities.length) { showStatus('⚠️ 没有图元可显示', true); return; }
+                for (const [layer] of layerMap) { layerVisibility.set(layer, true); layerMap.get(layer).visible = true; }
+                renderLayerList();
+                refreshLayerVisibility();
+                fitAll();
+                showStatus('👁 已显示全部图元并适配视图');
+            }
+            // ================================================================
+            // 14. 浏览器全屏
+            // ================================================================
+            function toggleBrowserFullscreen() {
+                const el = document.documentElement;
+                if (!document.fullscreenElement) { el.requestFullscreen?.().catch(() => { showStatus('❌ 全屏请求被拒绝', true); }); showStatus('⛶ 进入全屏模式'); } else { document.exitFullscreen?.(); showStatus('⛶ 退出全屏模式'); }
+            }
+            // ================================================================
+            // 15. 图元详情对话框
+            // ================================================================
+            function getEntityDisplayName(entity) {
+                const type = (entity.type || entity.entityType || '').toLowerCase();
+                const nameMap = { 'line': '直线', 'circle': '圆', 'arc': '圆弧', 'lwpolyline': '轻量多段线', 'polyline': '多段线', 'text': '文字', 'mtext': '多行文字', 'insert': '块参照', 'spline': '样条曲线', 'point': '点', 'ellipse': '椭圆', 'hatch': '填充', 'dimension': '标注', 'leader': '引线', 'viewport': '视口', 'image': '图像', '3dface': '三维面' };
+                return nameMap[type] || type || '未知图元';
+            }
+            function formatPropValue(value) {
+                if (value === null || value === undefined) return 'null';
+                if (typeof value === 'string') return value;
+                if (typeof value === 'number') return String(value);
+                if (typeof value === 'boolean') return value ? 'true' : 'false';
+                if (Array.isArray(value)) {
+                    if (value.length === 0) return '[]';
+                    if (value.length <= 4) { return '[' + value.map(v => formatPropValue(v)).join(', ') + ']'; }
+                    return `[${value.length} 项]`;
+                }
+                if (typeof value === 'object') {
+                    const keys = Object.keys(value);
+                    if (keys.length === 0) return '{}';
+                    if (keys.length <= 4) { return '{ ' + keys.map(k => `${k}: ${formatPropValue(value[k])}`).join(', ') + ' }'; }
+                    return `{${keys.length} 个属性}`;
+                }
+                return String(value);
+            }
+            function isPointLike(obj) {
+                if (!obj || typeof obj !== 'object') return false;
+                return (obj.x !== undefined && obj.y !== undefined) || (obj.X !== undefined && obj.Y !== undefined);
+            }
+            function formatPoint(p) {
+                if (!p) return '';
+                const x = p.x !== undefined ? p.x : (p.X !== undefined ? p.X : 0);
+                const y = p.y !== undefined ? p.y : (p.Y !== undefined ? p.Y : 0);
+                const z = p.z !== undefined ? p.z : 0;
+                return `(${Number(x).toFixed(3)}, ${Number(y).toFixed(3)}, ${Number(z).toFixed(3)})`;
+            }
+            function showEntityDetailDialog(entity) {
+                if (!entity) {
+                    modalBody.innerHTML = `<div class="no-entity">⚠️ 未找到图元数据</div>`;
+                    modalTypeTag.textContent = '错误';
+                    entityModal.classList.add('open');
+                    return;
+                }
+                const displayName = getEntityDisplayName(entity);
+                modalTypeTag.textContent = displayName;
+                const skipKeys = new Set(['_', '__', 'constructor', 'prototype', 'toString', 'valueOf', 'toJSON', 'inspect', 'then', 'catch', 'finally']);
+                const nameMap = { 'type': '类型', 'entityType': '实体类型', 'layer': '图层', 'color': '颜色', 'colorIndex': '颜色索引', 'colour': '颜色', 'start': '起点', 'end': '终点', 'startPoint': '起点', 'endPoint': '终点', 'center': '圆心', 'radius': '半径', 'vertices': '顶点', 'position': '位置', 'insertionPoint': '插入点', 'text': '文本内容', 'value': '值', 'contents': '内容', 'textHeight': '文本高度', 'height': '高度', 'rotation': '旋转角度', 'closed': '闭合', 'fitPoints': '拟合点', 'controlPoints': '控制点', 'startAngle': '起始角度', 'endAngle': '终止角度', 'normal': '法向量', 'thickness': '厚度', 'lineType': '线型', 'lineWeight': '线宽', 'visible': '可见性', 'handle': '句柄', 'owner': '所有者', 'block': '块', 'name': '名称', 'fileName': '文件名', 'filePath': '文件路径', 'corner1': '角点1', 'corner2': '角点2', 'corner3': '角点3', 'corner4': '角点4', 'flag': '标志' };
+                const layer = entity.layer || '0';
+                const layerInfo = layerMap.get(layer);
+                const layerColor = layerInfo ? layerInfo.color : '#888';
+                const colorStr = resolveColor(entity, layerColor);
+                const props = [];
+                props.push({ key: '图层', value: layer, isSpecial: true });
+                props.push({ key: '颜色', value: colorStr, isSpecial: true, isColor: true });
+                const allKeys = Object.keys(entity).filter(k => !k.startsWith('_') && !skipKeys.has(k));
+                for (const k of allKeys) {
+                    const val = entity[k];
+                    if (typeof val === 'function') continue;
+                    if (val === undefined) continue;
+                    const friendlyName = nameMap[k] || k;
+                    if (friendlyName === '图层' || friendlyName === '颜色') continue;
+                    if (friendlyName === '类型' || friendlyName === '实体类型') continue;
+                    let displayVal = formatPropValue(val);
+                    let isCoord = false;
+                    if (isPointLike(val)) { displayVal = formatPoint(val); isCoord = true; }
+                    else if (Array.isArray(val) && val.length > 0 && isPointLike(val[0])) { displayVal = '[' + val.map(p => formatPoint(p)).join(', ') + ']'; isCoord = true; }
+                    else if (typeof val === 'string' && val.length > 100) { displayVal = val.slice(0, 100) + '…'; }
+                    if (friendlyName === 'object' || friendlyName === 'constructor') continue;
+                    props.push({ key: friendlyName, value: displayVal, isCoord, isColor: false, rawValue: val });
+                }
+                const priority = { '图层': 0, '颜色': 1, '角点1': 2, '角点2': 3, '角点3': 4, '角点4': 5, '起点': 6, '终点': 7, '圆心': 8, '半径': 9, '位置': 10, '插入点': 11, '文本内容': 12, '顶点': 13, '拟合点': 14, '控制点': 15, '闭合': 16, '起始角度': 17, '终止角度': 18, '文本高度': 19, '高度': 20, '旋转角度': 21, '法向量': 22, '厚度': 23, '线型': 24, '线宽': 25, '句柄': 26, '名称': 27, '标志': 28 };
+                props.sort((a, b) => {
+                    const pa = priority[a.key] !== undefined ? priority[a.key] : 99;
+                    const pb = priority[b.key] !== undefined ? priority[b.key] : 99;
+                    return pa - pb;
+                });
+                let html = '';
+                for (const prop of props) {
+                    let valueHtml = '';
+                    if (prop.isColor) {
+                        valueHtml = `<span class="color-swatch"><span class="swatch" style="background:${prop.value};"></span> ${prop.value}</span>`;
+                    } else if (prop.isCoord) {
+                        valueHtml = `<span class="coord">${prop.value}</span>`;
+                    } else if (typeof prop.rawValue === 'object' && prop.rawValue !== null && !Array.isArray(prop.rawValue)) {
+                        valueHtml = `<span class="array-preview">${prop.value}</span>`;
+                    } else { valueHtml = prop.value; }
+                    html += `<div class="prop-row"><span class="prop-key">${prop.key}</span><span class="prop-value">${valueHtml}</span></div>`;
+                }
+                if (!html) { html = `<div class="no-entity">此图元无可显示的属性</div>`; }
+                modalBody.innerHTML = html;
+                entityModal.classList.add('open');
+            }
+            function closeModal() { entityModal.classList.remove('open'); }
+            closeModalBtn.addEventListener('click', closeModal);
+            closeModalFooterBtn.addEventListener('click', closeModal);
+            entityModal.addEventListener('click', (e) => { if (e.target === entityModal) closeModal(); });
+            document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && entityModal.classList.contains('open')) { closeModal(); } });
+            // ================================================================
+            // 16. 图层列表渲染
+            // ================================================================
+            function renderLayerList() {
+                if (!layerMap.size) { layerContainer.innerHTML = `<div class="layer-empty">当前文件无图层</div>`; return; }
+                let html = '';
+                const sorted = Array.from(layerMap.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+                for (const [name, info] of sorted) {
+                    const checked = info.visible ? 'checked' : '';
+                    html += `<div class="layer-item" data-layer="${name}"><input type="checkbox" ${checked} data-layer="${name}"><span class="layer-color" style="background:${info.color};"></span><span class="layer-name">${name}</span><span class="layer-count">${info.count}</span></div>`;
+                }
+                layerContainer.innerHTML = html;
+                layerContainer.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                    cb.addEventListener('change', function () {
+                        const layer = this.dataset.layer;
+                        const visible = this.checked;
+                        layerVisibility.set(layer, visible);
+                        layerMap.get(layer).visible = visible;
+                        refreshLayerVisibility();
+                    });
+                });
+            }
+            // ================================================================
+            // 17. 加载 LibreDWG 库
+            // ================================================================
+            async function loadLib() {
+                try {
+                    showStatus('正在加载 LibreDWG 库...');
+                    const module = await import(LIB_URL);
+                    const { LibreDwg, Dwg_File_Type } = module;
+                    libredwgInstance = await LibreDwg.create(WASM_DIR);
+                    window.Dwg_File_Type = Dwg_File_Type;
+                    libLoaded = true;
+                    openBtn.disabled = false;
+                    showStatus('✅ 库加载成功');
+                } catch (err) {
+                    console.error(err);
+                    showStatus('❌ 库加载失败: ' + err.message, true);
+                    openBtn.disabled = true;
+                }
+            }
+            // ================================================================
+            // 18. 打开文件
+            // ================================================================
+            function openFile() {
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = '.dwg';
+                input.onchange = async (e) => {
+                    const file = e.target.files[0];
+                    if (!file) return;
+                    if (!file.name.toLowerCase().endsWith('.dwg')) { alert('请选择 .dwg 文件'); return; }
+                    currentFile = file;
+                    fileStatus.textContent = file.name;
+                    await parseDwgFile(file);
+                };
+                input.click();
+            }
+            openBtn.addEventListener('click', openFile);
+            // ================================================================
+            // 19. 解析 DWG
+            // ================================================================
+            async function parseDwgFile(file) {
+                if (!libLoaded || !libredwgInstance) { showStatus('库未就绪', true); return; }
+                showStatus('⏳ 解析中...');
+                openBtn.disabled = true;
+                try {
+                    const buffer = await file.arrayBuffer();
+                    const data = new Uint8Array(buffer);
+                    const Dwg_File_Type = window.Dwg_File_Type;
+                    const dwg = libredwgInstance.dwg_read_data(data, Dwg_File_Type.DWG);
+                    const db = libredwgInstance.convert(dwg);
+                    libredwgInstance.dwg_free(dwg);
+                    currentDb = db;
+                    let modelEntities = [];
+                    if (db.modelSpace && db.modelSpace.entities) { modelEntities = db.modelSpace.entities; } else { modelEntities = db.entities || []; }
+                    allEntities = modelEntities;
+                    let layerTable = null;
+                    if (db.tables && db.tables.LAYER && db.tables.LAYER.entries) { layerTable = db.tables.LAYER.entries; } else if (db.layerTable) { layerTable = db.layerTable; } else if (db.layers) { layerTable = db.layers; } else if (db.tables && db.tables.layer) { layerTable = db.tables.layer; }
+                    buildLayers(layerTable, modelEntities);
+                    buildScene();
+                    renderDbTree(db);
+                    showStatus(`✅ 解析完成，${allEntities.length} 个图元，${layerMap.size} 个图层`);
+                    openBtn.disabled = false;
+                } catch (err) {
+                    console.error(err);
+                    showStatus('❌ 解析失败: ' + err.message, true);
+                    openBtn.disabled = false;
+                }
+            }
+            // ================================================================
+            // 20. 构建图层
+            // ================================================================
+            function buildLayers(layerTable, entities) {
+                layerMap.clear();
+                layerVisibility.clear();
+                const countMap = new Map();
+                const colorMap = new Map();
+                const layerColors = {};
+                if (layerTable && Array.isArray(layerTable)) {
+                    for (const layer of layerTable) {
+                        const name = layer.name || layer._name || layer.layerName;
+                        if (name) {
+                            let color = null;
+                            if (layer.colorIndex !== undefined && layer.colorIndex !== null && layer.colorIndex !== 0) { color = layer.colorIndex; }
+                            else if (layer.color !== undefined && layer.color !== null) {
+                                if (typeof layer.color === 'number') color = layer.color;
+                                else if (typeof layer.color === 'string') { const num = parseInt(layer.color, 10); if (!isNaN(num)) color = num; }
+                            }
+                            let colorStr = '#888888';
+                            if (color !== null) {
+                                if (typeof color === 'number') {
+                                    colorStr = color <= 255 ? idxToRgb(color) : intToRgb(color);
+                                } else if (typeof color === 'string') {
+                                    if (color.startsWith('#')) colorStr = color;
+                                    else { const num = parseInt(color, 10); if (!isNaN(num)) { colorStr = num <= 255 ? idxToRgb(num) : intToRgb(num); } }
+                                }
+                            }
+                            layerColors[name] = colorStr;
+                        }
+                    }
+                }
+                for (const entity of entities) {
+                    const layer = entity.layer || '0';
+                    countMap.set(layer, (countMap.get(layer) || 0) + 1);
+                    if (!colorMap.has(layer)) { const color = layerColors[layer] || resolveColor(entity, '#888888'); colorMap.set(layer, color); }
+                }
+                for (const [layer, count] of countMap) {
+                    const color = colorMap.get(layer) || '#888888';
+                    layerMap.set(layer, { color, count, visible: true });
+                    layerVisibility.set(layer, true);
+                }
+                renderLayerList();
+            }
+            // ================================================================
+            // 21. DB 树形渲染 (与之前相同)
+            // ================================================================
+            function getValueType(val) {
+                if (val === null) return 'null';
+                if (val === undefined) return 'undefined';
+                const t = typeof val;
+                if (t === 'string') return 'string';
+                if (t === 'number') return 'number';
+                if (t === 'boolean') return 'boolean';
+                if (t === 'function') return 'function';
+                if (t === 'symbol') return 'symbol';
+                if (Array.isArray(val)) return 'array';
+                if (val instanceof Date) return 'date';
+                if (val instanceof RegExp) return 'regexp';
+                if (t === 'object') return 'object';
+                return 'other';
+            }
+            function getPreview(val, type) {
+                if (type === 'null') return 'null';
+                if (type === 'undefined') return 'undefined';
+                if (type === 'string') { const s = String(val); if (s.length > 60) return `"${s.slice(0, 60)}…"`; return `"${s}"`; }
+                if (type === 'number') return String(val);
+                if (type === 'boolean') return String(val);
+                if (type === 'function') return 'ƒ()';
+                if (type === 'symbol') return 'Symbol()';
+                if (type === 'date') return val.toISOString ? val.toISOString().slice(0, 19) : String(val);
+                if (type === 'regexp') return String(val);
+                if (type === 'array') return `[${val.length}项]`;
+                if (type === 'object') {
+                    const keys = Object.keys(val);
+                    if (keys.length === 0) return '{}';
+                    if (keys.length <= 3) return `{ ${keys.join(', ')} }`;
+                    return `{ ${keys.slice(0, 3).join(', ')} … }`;
+                }
+                return String(val);
+            }
+            function buildTreeData(obj, key = 'db', path = 'db', depth = 0, visited = new Set()) {
+                if (depth > 12) { return { key, type: 'other', preview: '⚠️ 深度限制', children: null, isLeaf: true }; }
+                const type = getValueType(obj);
+                if (type === 'string' || type === 'number' || type === 'boolean' ||
+                    type === 'null' || type === 'undefined' || type === 'function' ||
+                    type === 'symbol' || type === 'date' || type === 'regexp') {
+                    return { key, type, preview: getPreview(obj, type), children: null, isLeaf: true, rawValue: obj, };
+                }
+                if (visited.has(obj)) { return { key, type: 'other', preview: '🔁 循环引用', children: null, isLeaf: true, }; }
+                visited.add(obj);
+                if (type === 'array') {
+                    const children = [];
+                    const len = Math.min(obj.length, 500);
+                    for (let i = 0; i < len; i++) {
+                        const child = buildTreeData(obj[i], String(i), `${path}[${i}]`, depth + 1, new Set(visited));
+                        children.push(child);
+                    }
+                    if (obj.length > 500) { children.push({ key: '…', type: 'other', preview: `还有 ${obj.length - 500} 项未显示`, children: null, isLeaf: true, }); }
+                    return { key, type: 'array', preview: `[${obj.length}项]`, children, isLeaf: false, rawValue: obj, length: obj.length, };
+                }
+                if (type === 'object') {
+                    const keys = Object.keys(obj);
+                    const children = [];
+                    const limit = 300;
+                    const displayKeys = keys.slice(0, limit);
+                    for (const k of displayKeys) {
+                        try { const child = buildTreeData(obj[k], k, `${path}.${k}`, depth + 1, new Set(visited)); children.push(child); }
+                        catch (_) { children.push({ key: k, type: 'other', preview: '⚠️ 无法读取', children: null, isLeaf: true, }); }
+                    }
+                    if (keys.length > limit) { children.push({ key: '…', type: 'other', preview: `还有 ${keys.length - limit} 个属性未显示`, children: null, isLeaf: true, }); }
+                    return { key, type: 'object', preview: `{${keys.length}个属性}`, children, isLeaf: false, rawValue: obj, length: keys.length, };
+                }
+                return { key, type: 'other', preview: String(obj), children: null, isLeaf: true, };
+            }
+            function renderTreeDOM(node, container, isRoot = false) {
+                const wrapperDiv = document.createElement('div');
+                wrapperDiv.className = 'tree-node';
+                const header = document.createElement('div');
+                header.className = 'tree-node-header';
+                const arrow = document.createElement('span');
+                arrow.className = 'arrow';
+                if (!node.isLeaf && node.children && node.children.length) { arrow.textContent = '▶'; arrow.dataset.expanded = 'false'; } else { arrow.textContent = '▶'; arrow.classList.add('leaf'); }
+                header.appendChild(arrow);
+                const keySpan = document.createElement('span');
+                keySpan.className = 'key';
+                if (/^\d+$/.test(node.key) && node.type !== 'object') { keySpan.classList.add('array-index'); }
+                keySpan.textContent = node.key;
+                header.appendChild(keySpan);
+                const colon = document.createElement('span');
+                colon.className = 'colon';
+                colon.textContent = ': ';
+                header.appendChild(colon);
+                const badge = document.createElement('span');
+                badge.className = `type-badge ${node.type}`;
+                const typeLabels = { object: 'obj', array: 'arr', string: 'str', number: 'num', boolean: 'bool', null: 'null', undefined: 'undef', function: 'fn', symbol: 'sym', date: 'date', regexp: 'regex', other: '?' };
+                badge.textContent = typeLabels[node.type] || node.type;
+                header.appendChild(badge);
+                if (node.preview !== undefined && node.preview !== null) {
+                    const previewSpan = document.createElement('span');
+                    previewSpan.className = `preview ${node.type}-val`;
+                    previewSpan.textContent = node.preview;
+                    header.appendChild(previewSpan);
+                }
+                wrapperDiv.appendChild(header);
+                if (!node.isLeaf && node.children && node.children.length) {
+                    const childrenContainer = document.createElement('div');
+                    childrenContainer.className = 'tree-node-children';
+                    childrenContainer.style.display = 'none';
+                    for (const child of node.children) { renderTreeDOM(child, childrenContainer, false); }
+                    wrapperDiv.appendChild(childrenContainer);
+                    header.style.cursor = 'pointer';
+                    header.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const isOpen = childrenContainer.style.display !== 'none';
+                        childrenContainer.style.display = isOpen ? 'none' : 'block';
+                        arrow.textContent = isOpen ? '▶' : '▼';
+                        arrow.dataset.expanded = isOpen ? 'false' : 'true';
+                    });
+                } else { header.style.cursor = 'default'; }
+                container.appendChild(wrapperDiv);
+                return wrapperDiv;
+            }
+            function renderDbTree(db) {
+                if (!db) {
+                    dbTreeContainer.innerHTML = `<div class="empty-msg">📭 尚未加载 DWG 文件<br /><span style="font-size:0.8rem;color:#555;">打开文件后自动显示 DB 结构</span></div>`;
+                    dbSizeBadge.textContent = '0';
+                    treeStats.textContent = '节点: 0';
+                    return;
+                }
+                try {
+                    const root = buildTreeData(db, 'db', 'db', 0, new Set());
+                    treeData = root;
+                    let totalNodes = 0;
+                    function countNodes(node) { totalNodes++; if (node.children) { for (const c of node.children) countNodes(c); } }
+                    countNodes(root);
+                    dbTreeContainer.innerHTML = '';
+                    renderTreeDOM(root, dbTreeContainer, true);
+                    dbSizeBadge.textContent = totalNodes;
+                    treeStats.textContent = `节点: ${totalNodes}`;
+                    const firstLevel = dbTreeContainer.querySelector('.tree-node:first-child > .tree-node-children');
+                    if (firstLevel) {
+                        firstLevel.style.display = 'block';
+                        const arrow = dbTreeContainer.querySelector('.tree-node:first-child > .tree-node-header > .arrow');
+                        if (arrow && !arrow.classList.contains('leaf')) { arrow.textContent = '▼'; arrow.dataset.expanded = 'true'; }
+                    }
+                } catch (err) {
+                    console.error('渲染 DB 树失败:', err);
+                    dbTreeContainer.innerHTML = `<div class="empty-msg" style="color:#d88;">⚠️ 渲染失败: ${err.message}</div>`;
+                    dbSizeBadge.textContent = '!';
+                }
+            }
+            expandAllBtn.addEventListener('click', () => {
+                const allChildren = dbTreeContainer.querySelectorAll('.tree-node-children');
+                const allArrows = dbTreeContainer.querySelectorAll('.tree-node-header > .arrow:not(.leaf)');
+                for (const el of allChildren) el.style.display = 'block';
+                for (const el of allArrows) { el.textContent = '▼'; el.dataset.expanded = 'true'; }
+            });
+            collapseAllBtn.addEventListener('click', () => {
+                const allChildren = dbTreeContainer.querySelectorAll('.tree-node-children');
+                const allArrows = dbTreeContainer.querySelectorAll('.tree-node-header > .arrow:not(.leaf)');
+                for (const el of allChildren) el.style.display = 'none';
+                for (const el of allArrows) { el.textContent = '▶'; el.dataset.expanded = 'false'; }
+                const firstLevel = dbTreeContainer.querySelector('.tree-node:first-child > .tree-node-children');
+                if (firstLevel) {
+                    firstLevel.style.display = 'block';
+                    const arrow = dbTreeContainer.querySelector('.tree-node:first-child > .tree-node-header > .arrow');
+                    if (arrow && !arrow.classList.contains('leaf')) { arrow.textContent = '▼'; arrow.dataset.expanded = 'true'; }
+                }
+            });
+            // ================================================================
+            // 22. 侧边栏控制
+            // ================================================================
+            function collapseLeftSidebar() { sidebar.classList.add('collapsed'); openLeftBtn.style.display = 'flex'; }
+            function openLeftSidebar() { sidebar.classList.remove('collapsed'); openLeftBtn.style.display = 'none'; }
+            collapseLeftBtn.addEventListener('click', collapseLeftSidebar);
+            openLeftBtn.addEventListener('click', openLeftSidebar);
+            sidebar.classList.remove('collapsed');
+            openLeftBtn.style.display = 'none';
+            function toggleRightSidebar() {
+                const isOpen = rightSidebar.classList.contains('open');
+                if (isOpen) {
+                    rightSidebar.classList.remove('open');
+                    toggleRightBtn.classList.remove('active');
+                    toggleRightBtn.textContent = '📊';
+                } else {
+                    rightSidebar.classList.add('open');
+                    toggleRightBtn.classList.add('active');
+                    toggleRightBtn.textContent = '✕';
+                }
+            }
+            toggleRightBtn.addEventListener('click', toggleRightSidebar);
+            closeRightBtn.addEventListener('click', () => {
+                rightSidebar.classList.remove('open');
+                toggleRightBtn.classList.remove('active');
+                toggleRightBtn.textContent = '📊';
+            });
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && rightSidebar.classList.contains('open')) {
+                    rightSidebar.classList.remove('open');
+                    toggleRightBtn.classList.remove('active');
+                    toggleRightBtn.textContent = '📊';
+                }
+            });
+            // ================================================================
+            // 23. 拖拽支持
+            // ================================================================
+            wrapper.addEventListener('dragover', (e) => { e.preventDefault(); wrapper.style.border = '2px solid #0e639c'; });
+            wrapper.addEventListener('dragleave', () => { wrapper.style.border = 'none'; });
+            wrapper.addEventListener('drop', (e) => {
+                e.preventDefault();
+                wrapper.style.border = 'none';
+                const files = e.dataTransfer.files;
+                if (files.length && files[0].name.toLowerCase().endsWith('.dwg')) {
+                    const file = files[0];
+                    currentFile = file;
+                    fileStatus.textContent = file.name;
+                    parseDwgFile(file);
+                } else { showStatus('请拖拽 .dwg 文件', true); }
+            });
+            document.getElementById('sidebar').addEventListener('dragover', (e) => e.preventDefault());
+            document.getElementById('sidebar').addEventListener('drop', (e) => {
+                e.preventDefault();
+                const files = e.dataTransfer.files;
+                if (files.length && files[0].name.toLowerCase().endsWith('.dwg')) {
+                    const file = files[0];
+                    currentFile = file;
+                    fileStatus.textContent = file.name;
+                    parseDwgFile(file);
+                }
+            });
+            // ================================================================
+            // 24. 中键双击重置视图
+            // ================================================================
+            let lastClickTime = 0;
+            let lastClickButton = -1;
+            wrapper.addEventListener('mouseup', (e) => {
+                if (e.button !== 1) return;
+                const now = Date.now();
+                const timeDiff = now - lastClickTime;
+                if (e.button === lastClickButton && timeDiff < 300) {
+                    if (allEntities.length) { fitAll(); showStatus('✅ 视图已重置'); }
+                    lastClickTime = 0;
+                    lastClickButton = -1;
+                } else {
+                    lastClickTime = now;
+                    lastClickButton = e.button;
+                }
+            });
+            // ================================================================
+            // 25. 启动
+            // ================================================================
+            await loadLib();
+            initThree();
+            console.log('DWG 3D 查看器已启动 (Z轴向上，标签始终在最前)');
+        </script>
+    </body>
+
+</html>

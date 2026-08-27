@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html tk="title_commit_msg_git_commit_mes" lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>commit-msg — Git Commit Message Generator</title>
+<meta name="description" content="Generate well-formatted conventional commit messages from your git diff. Analyzes file types, detects change patterns, and outputs Conventional Commits spec messages.">
+<meta name="twitter:card" content="summary">
+<link rel="canonical" href="https://gokuscraper.github.io/dev-vault/commit-msg/">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebApplication","name":"commit-msg","description":"Generate well-formatted conventional commit messages from your git diff. Analyzes file types, detects change patterns, and outputs Conventional Commits spec messages.","url":"https://gokuscraper.github.io/dev-vault/commit-msg/","applicationCategory":"DeveloperApplication","operatingSystem":"Any","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"author":{"@type":"Organization","name":"gokuscraper","url":"https://github.com/gokuscraper"}}
+</script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d1117;--surface:#161b22;--surface2:#21262d;--border:#30363d;
+  --text:#e6edf3;--text-muted:#8b949e;--accent:#58a6ff;--accent-hover:#79c0ff;
+  --green:#3fb950;--red:#f85149;--orange:#d29922;--purple:#bc8cff;
+  --radius:8px;--font-mono:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;
+}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;line-height:1.6;min-height:100vh;display:flex;flex-direction:column}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline;color:var(--accent-hover)}
+h1,h2,h3{font-weight:600}
+.container{max-width:960px;margin:0 auto;padding:0 20px;width:100%}
+header{padding:24px 0;border-bottom:1px solid var(--border)}
+header h1{font-size:1.6rem;display:flex;align-items:center;gap:10px}
+header h1 .icon{font-size:1.4rem}
+header p{color:var(--text-muted);margin-top:4px;font-size:.95rem}
+main{flex:1;padding:32px 0}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:24px}
+@media(max-width:768px){.grid{grid-template-columns:1fr}}
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px}
+.panel h2{font-size:1rem;margin-bottom:12px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;font-size:.8rem}
+textarea,input[type="text"]{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:12px;font-family:var(--font-mono);font-size:.875rem;resize:vertical;transition:border-color .15s}
+textarea:focus,input:focus{outline:none;border-color:var(--accent)}
+textarea{min-height:260px}
+input[type="text"]{margin-top:12px}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;font-size:.85rem;transition:background .15s,border-color .15s}
+.btn:hover{background:var(--border);border-color:var(--text-muted)}
+.btn-primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn-primary:hover{background:var(--accent-hover);border-color:var(--accent-hover)}
+.btn-row{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+.examples{margin-top:24px}
+.examples h2{font-size:1rem;margin-bottom:10px}
+.example-chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{padding:6px 14px;border-radius:20px;background:var(--surface);border:1px solid var(--border);color:var(--text-muted);cursor:pointer;font-size:.82rem;transition:all .15s}
+.chip:hover{border-color:var(--accent);color:var(--accent)}
+.chip.active{border-color:var(--accent);color:var(--accent);background:rgba(88,166,255,.1)}
+.output-section{margin-top:16px}
+.output-block{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:14px;font-family:var(--font-mono);font-size:.85rem;white-space:pre-wrap;word-break:break-word;position:relative;margin-bottom:12px}
+.output-block .label{font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin-bottom:6px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif}
+.copy-btn{position:absolute;top:8px;right:8px;padding:4px 10px;font-size:.75rem;border-radius:4px;background:var(--surface2);border:1px solid var(--border);color:var(--text-muted);cursor:pointer}
+.copy-btn:hover{color:var(--text);border-color:var(--text-muted)}
+.copy-btn.copied{color:var(--green);border-color:var(--green)}
+.analysis{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
+@media(max-width:500px){.analysis{grid-template-columns:1fr}}
+.stat{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px 14px}
+.stat .val{font-size:1.3rem;font-weight:700}
+.stat .lbl{font-size:.75rem;color:var(--text-muted);margin-top:2px}
+.stat.green .val{color:var(--green)}
+.stat.red .val{color:var(--red)}
+.stat.accent .val{color:var(--accent)}
+.stat.orange .val{color:var(--orange)}
+.tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:.75rem;font-weight:600;margin-right:4px}
+.tag-feat{background:rgba(63,185,80,.15);color:var(--green)}
+.tag-fix{background:rgba(248,81,73,.15);color:var(--red)}
+.tag-refactor{background:rgba(188,140,255,.15);color:var(--purple)}
+.tag-docs{background:rgba(88,166,255,.15);color:var(--accent)}
+.tag-test{background:rgba(210,153,34,.15);color:var(--orange)}
+.tag-chore{background:rgba(139,148,158,.15);color:var(--text-muted)}
+.tag-style{background:rgba(188,140,255,.15);color:var(--purple)}
+.tag-perf{background:rgba(63,185,80,.15);color:var(--green)}
+.tag-breaking{background:rgba(248,81,73,.2);color:var(--red);border:1px solid rgba(248,81,73,.4)}
+.confidence-bar{height:6px;background:var(--surface2);border-radius:3px;overflow:hidden;margin-top:6px}
+.confidence-fill{height:100%;border-radius:3px;transition:width .3s}
+.file-list{font-family:var(--font-mono);font-size:.8rem;color:var(--text-muted);max-height:120px;overflow-y:auto;margin-top:8px}
+.file-list div{padding:2px 0;display:flex;gap:8px}
+.file-list .add{color:var(--green)}
+.file-list .del{color:var(--red)}
+.file-list .mod{color:var(--orange)}
+.empty-state{color:var(--text-muted);text-align:center;padding:40px 20px;font-size:.9rem}
+footer{border-top:1px solid var(--border);padding:20px 0;text-align:center;color:var(--text-muted);font-size:.82rem}
+footer .links{display:flex;justify-content:center;gap:16px;flex-wrap:wrap;margin-top:4px}
+.full-msg-btn{margin-top:8px}
+</style>
+</head>
+<body>
+
+
+
+
+
+
+
+
+<header>
+  <div class="container" style="position:relative">
+    <h1><span class="icon">&#9998;</span> commit-msg</h1>
+    <p>Generate conventional commit messages from your git diff</p>
+  </div>
+</header>
+
+<main>
+  <div class="container" style="position:relative">
+    <div class="examples">
+      <h2 ti="h2_try_an_example" ti="h2_try_an_example" ti="h2_try_an_example" ti="h2_try_an_example">Try an example</h2>
+      <div class="example-chips">
+        <button class="chip" data-example="feat" onclick="loadExample('feat')" ti="btn_new_feature" ti="btn_new_feature" ti="btn_new_feature" ti="btn_new_feature">New feature</button>
+        <button class="chip" data-example="fix" onclick="loadExample('fix')" ti="btn_bug_fix" ti="btn_bug_fix" ti="btn_bug_fix" ti="btn_bug_fix">Bug fix</button>
+        <button class="chip" data-example="refactor" onclick="loadExample('refactor')" ti="btn_refactor" ti="btn_refactor" ti="btn_refactor" ti="btn_refactor">Refactor</button>
+        <button class="chip" data-example="docs" onclick="loadExample('docs')" ti="btn_documentation" ti="btn_documentation" ti="btn_documentation" ti="btn_documentation">Documentation</button>
+        <button class="chip" data-example="breaking" onclick="loadExample('breaking')" ti="btn_breaking_change" ti="btn_breaking_change" ti="btn_breaking_change" ti="btn_breaking_change">Breaking change</button>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="panel">
+        <h2 ti="h2_input" ti="h2_input" ti="h2_input" ti="h2_input">Input</h2>
+        <textarea id="diffInput" placeholder="Paste your git diff here...&#10;&#10;Tip: run `git diff --staged` and paste the output"></textarea>
+        <input type="text" id="descInput" tp="placeholder_optional_describe_the_cha" tp="placeholder_optional_describe_the_cha" tp="placeholder_optional_describe_the_cha" tp="placeholder_optional_describe_the_cha" placeholder="Optional: describe the changes in plain English">
+        <div class="btn-row">
+          <button class="btn btn-primary" onclick="analyze()" ti="btn_generate_commit_message" ti="btn_generate_commit_message" ti="btn_generate_commit_message" ti="btn_generate_commit_message">Generate Commit Message</button>
+          <button class="btn" onclick="clearAll()" ti="btn_clear" ti="btn_clear" ti="btn_clear" ti="btn_clear">Clear</button>
+        </div>
+      </div>
+
+      <div class="panel" id="outputPanel">
+        <h2 ti="h2_diff_analysis" ti="h2_diff_analysis" ti="h2_diff_analysis" ti="h2_diff_analysis">Diff Analysis</h2>
+        <div id="analysisArea">
+          <div class="empty-state">Paste a diff and click Generate to see analysis</div>
+        </div>
+
+        <div id="outputArea" style="display:none">
+          <h2 style="margin-top:20px" ti="h2_commit_message" ti="h2_commit_message" ti="h2_commit_message" ti="h2_commit_message">Commit Message</h2>
+          <div class="output-section" id="outputSection"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div class="container" style="position:relative">
+    Built by <a href="https://github.com/gokuscraper" target="_blank">gokuscraper</a>
+    <div class="links">
+      <a href="https://gokuscraper.github.io/dev-vault/" target="_bla
+
+<script>var _LANG={'title_commit_msg_git_commit_mes':["commit-msg — Git Commit Message Generator", "commit-msg — Git 提交消息生成器"],'metadesc_generate_well_formatted_c':["Generate well-formatted conventional commit messages from your git diff. Analyzes file types, detects change patterns, and outputs Conventional Commits spec messages.", "从 git diff 生成格式良好的常规提交消息。分析文件类型，检测变更模式，并输出常规提交规范消息。"],'h2_try_an_example':["Try an example", "尝试一个例子"],'h2_input':["Input", "输入"],'h2_diff_analysis':["Diff Analysis", "差异分析"],'h2_commit_message':["Commit Message", "提交信息"],'btn_new_feature':["New feature", "新功能"],'btn_bug_fix':["Bug fix", "错误修复"],'btn_refactor':["Refactor", "重构"],'btn_documentation':["Documentation", "文档"],'btn_breaking_change':["Breaking change", "重大变化"],'btn_generate_commit_message':["Generate Commit Message", "生成提交消息"],'btn_clear':["Clear", "清除"],'btn_copy':["Copy", "复制"],'btn_copy_2':["Copy", "复制"],'btn_copy_3':["Copy", "复制"],'btn_copy_full_message':["Copy Full Message", "复制完整消息"],'placeholder_paste_your_git_diff_here':["Paste your git diff here...\n\nTip: run `git diff --staged` and paste the output", "请在此处粘贴您的 git diff 信息……提示：运行 `git diff --staged` 并粘贴输出结果"],'placeholder_optional_describe_the_cha':["Optional: describe the changes in plain English", "（可选）用通俗易懂的语言描述变化"],'jtc_copied':["Copied!", "已复制！"],'jtc_copy':["Copy", "复制"],'jtlword_additions':["Additions", "新增内容"],'jtlword_deletions':["Deletions", "删除"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>var _LANG={'title_commit_msg_git_commit_mes':["commit-msg — Git Commit Message Generator", "commit-msg — Git 提交消息生成器"],'metadesc_generate_well_formatted_c':["Generate well-formatted conventional commit messages from your git diff. Analyzes file types, detects change patterns, and outputs Conventional Commits spec messages.", "从 git diff 生成格式良好的常规提交消息。分析文件类型，检测变更模式，并输出常规提交规范消息。"],'h2_try_an_example':["Try an example", "尝试一个例子"],'h2_input':["Input", "输入"],'h2_diff_analysis':["Diff Analysis", "差异分析"],'h2_commit_message':["Commit Message", "提交信息"],'btn_new_feature':["New feature", "新功能"],'btn_bug_fix':["Bug fix", "错误修复"],'btn_refactor':["Refactor", "重构"],'btn_documentation':["Documentation", "文档"],'btn_breaking_change':["Breaking change", "重大变化"],'btn_generate_commit_message':["Generate Commit Message", "生成提交消息"],'btn_clear':["Clear", "清除"],'btn_copy':["Copy", "复制"],'btn_copy_2':["Copy", "复制"],'btn_copy_3':["Copy", "复制"],'btn_copy_full_message':["Copy Full Message", "复制完整消息"],'placeholder_paste_your_git_diff_here':["Paste your git diff here...\n\nTip: run `git diff --staged` and paste the output", "请在此处粘贴您的 git diff 信息……提示：运行 `git diff --staged` 并粘贴输出结果"],'placeholder_optional_describe_the_cha':["Optional: describe the changes in plain English", "（可选）用通俗易懂的语言描述变化"],'jtc_copied':["Copied!", "已复制！"],'jtc_copy':["Copy", "复制"],'jtlword_additions':["Additions", "新增内容"],'jtlword_deletions':["Deletions", "删除"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+nk">dev-toolkit</a>
+      <a href="https://github.com/gokuscraper/commit-msg" target="_blank">Source</a>
+    </div>
+  </div>
+</footer>
+
+
+<script>var _LANG={'title_commit_msg_git_commit_mes':["commit-msg — Git Commit Message Generator", "commit-msg — Git 提交消息生成器"],'metadesc_generate_well_formatted_c':["Generate well-formatted conventional commit messages from your git diff. Analyzes file types, detects change patterns, and outputs Conventional Commits spec messages.", "从 git diff 生成格式良好的常规提交消息。分析文件类型，检测变更模式，并输出常规提交规范消息。"],'h2_try_an_example':["Try an example", "尝试一个例子"],'h2_input':["Input", "输入"],'h2_diff_analysis':["Diff Analysis", "差异分析"],'h2_commit_message':["Commit Message", "提交信息"],'btn_new_feature':["New feature", "新功能"],'btn_bug_fix':["Bug fix", "错误修复"],'btn_refactor':["Refactor", "重构"],'btn_documentation':["Documentation", "文档"],'btn_breaking_change':["Breaking change", "重大变化"],'btn_generate_commit_message':["Generate Commit Message", "生成提交消息"],'btn_clear':["Clear", "清除"],'btn_copy':["Copy", "复制"],'btn_copy_2':["Copy", "复制"],'btn_copy_3':["Copy", "复制"],'btn_copy_full_message':["Copy Full Message", "复制完整消息"],'placeholder_paste_your_git_diff_here':["Paste your git diff here...\n\nTip: run `git diff --staged` and paste the output", "请在此处粘贴您的 git diff 信息……提示：运行 `git diff --staged` 并粘贴输出结果"],'placeholder_optional_describe_the_cha':["Optional: describe the changes in plain English", "（可选）用通俗易懂的语言描述变化"],'jtc_copied':["Copied!", "已复制！"],'jtc_copy':["Copy", "复制"],'jtlword_additions':["Additions", "新增内容"],'jtlword_deletions':["Deletions", "删除"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>
+// ── Example diffs ──
+const EXAMPLES = {
+feat: `diff --git a/src/components/UserAvatar.tsx b/src/components/UserAvatar.tsx
+new file mode 100644
+index 0000000..a3b2c1d
+--- /dev/null
++++ b/src/components/UserAvatar.tsx
+@@ -0,0 +1,42 @@
++import React from 'react';
++
++interface UserAvatarProps {
++  name: string;
++  imageUrl?: string;
++  size?: 'sm' | 'md' | 'lg';
++  status?: 'online' | 'offline' | 'away';
++}
++
++const sizeMap = { sm: 32, md: 48, lg: 64 };
++
++export function UserAvatar({ name, imageUrl, size = 'md', status }: UserAvatarProps) {
++  const dim = sizeMap[size];
++  const initials = name.split(' ').map(n => n[0]).join('').slice(0, 2);
++
++  return (
++    <div className="avatar-wrapper" style={{ width: dim, height: dim }}>
++      {imageUrl ? (
++        <img src={imageUrl} alt={name} className="avatar-img" />
++      ) : (
++        <div className="avatar-fallback">{initials}</div>
++      )}
++      {status && <span className={\`status-dot status-\${status}\`} />}
++    </div>
++  );
++}
+diff --git a/src/components/index.ts b/src/components/index.ts
+index 1234567..abcdef0 100644
+--- a/src/components/index.ts
++++ b/src/components/index.ts
+@@ -3,3 +3,4 @@ export { Button } from './Button';
+ export { Card } from './Card';
+ export { Modal } from './Modal';
++export { UserAvatar } from './UserAvatar';`,
+
+fix: `diff --git a/src/utils/parseDate.ts b/src/utils/parseDate.ts
+index 4a5b6c7..d8e9f0a 100644
+--- a/src/utils/parseDate.ts
++++ b/src/utils/parseDate.ts
+@@ -8,7 +8,11 @@ export function parseDate(input: string): Date | null {
+   }
+
+   const timestamp = Date.parse(input);
+-  return new Date(timestamp);
++  if (isNaN(timestamp)) {
++    return null;
++  }
++
++  return new Date(timestamp);
+ }
+diff --git a/tests/parseDate.test.ts b/tests/parseDate.test.ts
+index 1111111..2222222 100644
+--- a/tests/parseDate.test.ts
++++ b/tests/parseDate.test.ts
+@@ -15,4 +15,9 @@ describe('parseDate', () => {
+   it('handles ISO format', () => {
+     expect(parseDate('2024-01-15')).toEqual(new Date(2024, 0, 15));
+   });
++
++  it('returns null for invalid date strings', () => {
++    expect(parseDate('not-a-date')).toBeNull();
++    expect(parseDate('abc123')).toBeNull();
++  });
+ });`,
+
+refactor: `diff --git a/src/api/fetchUsers.ts b/src/api/fetchUsers.ts
+index aaa1111..bbb2222 100644
+--- a/src/api/fetchUsers.ts
++++ b/src/api/fetchUsers.ts
+@@ -1,25 +1,18 @@
+-import axios from 'axios';
+-
+-export async function fetchUsers(page: number, limit: number) {
+-  try {
+-    const response = await axios.get('/api/users', {
+-      params: { page, limit },
+-    });
+-    const data = response.data;
+-    const users = data.users.map((u: any) => ({
+-      id: u.id,
+-      name: u.first_name + ' ' + u.last_name,
+-      email: u.email,
+-    }));
+-    return { users, total: data.total };
+-  } catch (err) {
+-    console.error('Failed to fetch users', err);
+-    throw err;
+-  }
++import { apiClient } from './client';
++import type { User, PaginatedResponse } from '../types';
++
++export async function fetchUsers(
++  page: number,
++  limit: number
++): Promise<PaginatedResponse<User>> {
++  const { data } = await apiClient.get<PaginatedResponse<User>>('/users', {
++    params: { page, limit },
++  });
++  return data;
+ }`,
+
+docs: `diff --git a/README.md b/README.md
+index ccc3333..ddd4444 100644
+--- a/README.md
++++ b/README.md
+@@ -1,8 +1,30 @@
+ # my-project
+
+-A project.
++A modern CLI tool for managing development environments.
++
++## Installation
++
++\`\`\`bash
++npm install -g my-project
++\`\`\`
++
++## Usage
++
++\`\`\`bash
++my-project init        # Initialize a new environment
++my-project start       # Start the dev server
++my-project deploy      # Deploy to production
++\`\`\`
++
++## Configuration
++
++Create a \`.my-project.json\` file in your project root:
++
++\`\`\`json
++{
++  "port": 3000,
++  "env": "development"
++}
++\`\`\`
+
+ ## License
+
+-MIT
++MIT License - see [LICENSE](LICENSE) for details.
+diff --git a/docs/api.md b/docs/api.md
+new file mode 100644
+index 0000000..eee5555
+--- /dev/null
++++ b/docs/api.md
+@@ -0,0 +1,15 @@
++# API Reference
++
++## \`init(options)\`
++
++Initialize a new environment.
++
++| Param | Type | Default |
++|-------|------|---------|
++| port  | number | 3000 |
++| env   | string | "development" |
++
++## \`start()\`
++
++Start the development server.`,
+
+breaking: `diff --git a/src/config.ts b/src/config.ts
+index fff6666..aaa7777 100644
+--- a/src/config.ts
++++ b/src/config.ts
+@@ -1,15 +1,20 @@
+-export interface Config {
+-  apiUrl: string;
+-  timeout: number;
+-  retries: number;
+-}
+-
+-export function createConfig(url: string, timeout = 5000): Config {
+-  return {
+-    apiUrl: url,
+-    timeout,
+-    retries: 3,
+-  };
++export interface AppConfig {
++  connection: {
++    baseUrl: string;
++    timeout: number;
++    retryPolicy: {
++      maxRetries: number;
++      backoff: 'linear' | 'exponential';
++    };
++  };
++  logging: {
++    level: 'debug' | 'info' | 'warn' | 'error';
++  };
+ }
+
+-export const DEFAULT_TIMEOUT = 5000;
++export function createAppConfig(baseUrl: string, options?: Partial<AppConfig>): AppConfig {
++  return { connection: { baseUrl, timeout: 10000, retryPolicy: { maxRetries: 5, backoff: 'exponential' } }, logging: { level: 'info' }, ...options };
++}
+diff --git a/src/index.ts b/src/index.ts
+index bbb8888..ccc9999 100644
+--- a/src/index.ts
++++ b/src/index.ts
+@@ -1,5 +1,5 @@
+-export { Config, createConfig, DEFAULT_TIMEOUT } from './config';
++export { AppConfig, createAppConfig } from './config';
+ export { fetchUsers } from './api/fetchUsers';
+-export { UserService } from './services/UserService';
++export { UserManager } from './services/UserManager';
+ export type { User } from './types';`
+};
+
+// ── Analysis engine ──
+function parseDiff(text) {
+  const files = [];
+  const chunks = text.split(/^diff --git /m).filter(Boolean);
+
+  for (const chunk of chunks) {
+    const headerMatch = chunk.match(/^a\/(.+?) b\/(.+)/m);
+    if (!headerMatch) continue;
+    const pathA = headerMatch[1];
+    const pathB = headerMatch[2];
+
+    const isNew = /^new file mode/m.test(chunk);
+    const isDeleted = /^deleted file mode/m.test(chunk);
+    const isRenamed = pathA !== pathB && !isNew && !isDeleted;
+
+    let additions = 0, deletions = 0;
+    const lines = chunk.split('\n');
+    for (const line of lines) {
+      if (line.startsWith('+++') || line.startsWith('---')) continue;
+      if (line.startsWith('+')) additions++;
+      else if (line.startsWith('-')) deletions++;
+    }
+
+    files.push({
+      path: pathB,
+      pathOld: pathA,
+      isNew, isDeleted, isRenamed,
+      additions, deletions,
+      ext: pathB.split('.').pop()?.toLowerCase() || '',
+      dir: pathB.includes('/') ? pathB.split('/').slice(0, -1).join('/') : ''
+    });
+  }
+  return files;
+}
+
+function detectType(files, desc) {
+  // Score each type
+  const scores = { feat: 0, fix: 0, refactor: 0, docs: 0, test: 0, chore: 0, style: 0, perf: 0 };
+
+  const docExts = ['md', 'mdx', 'txt', 'rst', 'adoc'];
+  const testPatterns = [/test/i, /spec/i, /__tests__/i, /\.test\./, /\.spec\./];
+  const configFiles = [/package\.json$/, /tsconfig/, /eslint/, /prettier/, /\.yml$/, /\.yaml$/, /\.toml$/, /dockerfile/i, /\.env/, /\.gitignore/, /webpack/, /vite\.config/, /rollup/];
+  const styleExts = ['css', 'scss', 'sass', 'less', 'styl'];
+
+  let totalNew = 0, totalDeleted = 0;
+
+  for (const f of files) {
+    if (f.isNew) totalNew++;
+    if (f.isDeleted) totalDeleted++;
+
+    // Docs
+    if (docExts.includes(f.ext) || f.dir.startsWith('docs')) {
+      scores.docs += 3;
+    }
+    // Tests
+    if (testPatterns.some(p => p.test(f.path))) {
+      scores.test += 3;
+    }
+    // Config/chore
+    if (configFiles.some(p => p.test(f.path))) {
+      scores.chore += 3;
+    }
+    // Style
+    if (styleExts.includes(f.ext)) {
+      scores.style += 2;
+    }
+    // New non-test, non-config, non-doc files → feat
+    if (f.isNew && !docExts.includes(f.ext) && !testPatterns.some(p => p.test(f.path)) && !configFiles.some(p => p.test(f.path))) {
+      scores.feat += 4;
+    }
+    // Deleted files → chore unless part of refactor
+    if (f.isDeleted) {
+      scores.chore += 1;
+    }
+    // Modification of source files
+    if (!f.isNew && !f.isDeleted && !docExts.includes(f.ext) && !testPatterns.some(p => p.test(f.path))) {
+      // More deletions than additions → refactor
+      if (f.deletions > f.additions * 1.3) {
+        scores.refactor += 2;
+      }
+    }
+  }
+
+  // Description-based hints
+  if (desc) {
+    const d = desc.toLowerCase();
+    if (/\b(fix|bug|issue|crash|error|broken|null|undefined|NaN)\b/.test(d)) scores.fix += 5;
+    if (/\b(add|new|feature|implement|create|introduce)\b/.test(d)) scores.feat += 5;
+    if (/\b(refactor|clean|simplify|extract|reorganize|restructure|migrate)\b/.test(d)) scores.refactor += 5;
+    if (/\b(doc|readme|comment|jsdoc|api ref)\b/.test(d)) scores.docs += 5;
+    if (/\b(test|spec|coverage)\b/.test(d)) scores.test += 5;
+    if (/\b(chore|deps|dependency|config|ci|cd|build)\b/.test(d)) scores.chore += 5;
+    if (/\b(style|css|theme|layout|design|ui)\b/.test(d)) scores.style += 5;
+    if (/\b(perf|performance|optimize|speed|fast|cache)\b/.test(d)) scores.perf += 5;
+  }
+
+  // Pick the top
+  let best = 'chore', bestScore = 0;
+  for (const [type, score] of Object.entries(scores)) {
+    if (score > bestScore) { bestScore = score; best = type; }
+  }
+
+  // Confidence
+  const total = Object.values(scores).reduce((a, b) => a + b, 0) || 1;
+  const confidence = Math.min(Math.round((bestScore / total) * 100), 99);
+
+  return { type: best, confidence, scores };
+}
+
+function detectScope(files) {
+  if (files.length === 0) return '';
+  if (files.length === 1) {
+    const f = files[0];
+    // Use the deepest meaningful directory
+    const parts = f.dir.split('/').filter(Boolean);
+    if (parts.length >= 2) return parts[parts.length - 1];
+    if (parts.length === 1) return parts[0];
+    // Use filename without extension for root files
+    return f.path.split('/').pop().replace(/\.[^.]+$/, '');
+  }
+
+  // Find common directory
+  const dirs = files.map(f => f.dir).filter(Boolean);
+  if (dirs.length === 0) return '';
+
+  // Most common top-level or second-level dir
+  const counts = {};
+  for (const d of dirs) {
+    const parts = d.split('/').filter(Boolean);
+    const key = parts.length >= 2 ? parts[1] || parts[0] : parts[0];
+    if (key) counts[key] = (counts[key] || 0) + 1;
+  }
+  const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  return sorted[0]?.[0] || '';
+}
+
+function detectBreaking(files, diffText) {
+  const signals = [];
+
+  // Renamed exports
+  const removedExports = (diffText.match(/^-\s*export\s+/gm) || []).length;
+  const addedExports = (diffText.match(/^\+\s*export\s+/gm) || []).length;
+  if (removedExports > 0 && addedExports > 0) {
+    signals.push('Renamed/changed exports');
+  }
+
+  // Changed interfaces/types
+  const removedInterfaces = (diffText.match(/^-\s*(?:export\s+)?interface\s+(\w+)/gm) || []);
+  const addedInterfaces = (diffText.match(/^\+\s*(?:export\s+)?interface\s+(\w+)/gm) || []);
+  if (removedInterfaces.length > 0 && addedInterfaces.length > 0) {
+    const oldNames = removedInterfaces.map(l => l.match(/interface\s+(\w+)/)?.[1]);
+    const newNames = addedInterfaces.map(l => l.match(/interface\s+(\w+)/)?.[1]);
+    const renamed = oldNames.filter(n => n && !newNames.includes(n));
+    if (renamed.length > 0) signals.push(`Renamed interface: ${renamed.join(', ')}`);
+  }
+
+  // Large deletions in source files
+  const srcFiles = files.filter(f => !['md','txt','json','yml','yaml'].includes(f.ext));
+  const totalDel = srcFiles.reduce((s, f) => s + f.deletions, 0);
+  const totalAdd = srcFiles.reduce((s, f) => s + f.additions, 0);
+  if (totalDel > 15 && totalDel > totalAdd * 0.8) {
+    signals.push('Significant code removal');
+  }
+
+  // Deleted files
+  const deletedSrc = files.filter(f => f.isDeleted && !['md','txt'].includes(f.ext));
+  if (deletedSrc.length > 0) {
+    signals.push(`Deleted: ${deletedSrc.map(f => f.path).join(', ')}`);
+  }
+
+  // Changed function signatures
+  const removedFns = (diffText.match(/^-\s*(?:export\s+)?(?:async\s+)?function\s+(\w+)/gm) || []);
+  const addedFns = (diffText.match(/^\+\s*(?:export\s+)?(?:async\s+)?function\s+(\w+)/gm) || []);
+  if (removedFns.length > 0 && addedFns.length > 0) {
+    const oldFn = removedFns.map(l => l.match(/function\s+(\w+)/)?.[1]);
+    const newFn = addedFns.map(l => l.match(/function\s+(\w+)/)?.[1]);
+    const renamed = oldFn.filter(n => n && !newFn.includes(n));
+    if (renamed.length > 0) signals.push(`Renamed function: ${renamed.join(', ')}`);
+  }
+
+  return signals;
+}
+
+function generateDescription(files, type, desc) {
+  if (desc && desc.trim()) return desc.trim().charAt(0).toLowerCase() + desc.trim().slice(1).replace(/\.$/, '');
+
+  const newFiles = files.filter(f => f.isNew);
+  const modFiles = files.filter(f => !f.isNew && !f.isDeleted);
+  const delFiles = files.filter(f => f.isDeleted);
+
+  if (type === 'feat' && newFiles.length > 0) {
+    const name = newFiles[0].path.split('/').pop().replace(/\.[^.]+$/, '');
+    return `add ${name}` + (newFiles.length > 1 ? ` and ${newFiles.length - 1} more file${newFiles.length > 2 ? 's' : ''}` : '');
+  }
+  if (type === 'fix' && modFiles.length > 0) {
+    const name = modFiles[0].path.split('/').pop().replace(/\.[^.]+$/, '');
+    return `fix ${name}` + (modFiles.length > 1 ? ` and related files` : '');
+  }
+  if (type === 'docs') {
+    if (newFiles.length > 0) return `add documentation`;
+    return `update documentation`;
+  }
+  if (type === 'refactor') {
+    const name = (modFiles[0] || files[0])?.path.split('/').pop().replace(/\.[^.]+$/, '');
+    return `refactor ${name || 'code'}`;
+  }
+  if (type === 'test') return `update tests`;
+  if (type === 'chore') {
+    if (delFiles.length > 0) return `remove unused files`;
+    return `update configuration`;
+  }
+  return `update ${files.length} file${files.length > 1 ? 's' : ''}`;
+}
+
+function generateBody(files) {
+  const lines = [];
+  const newFiles = files.filter(f => f.isNew);
+  const modFiles = files.filter(f => !f.isNew && !f.isDeleted);
+  const delFiles = files.filter(f => f.isDeleted);
+
+  if (newFiles.length) lines.push(`- Add ${newFiles.map(f => f.path.split('/').pop()).join(', ')}`);
+  if (modFiles.length) lines.push(`- Update ${modFiles.map(f => f.path.split('/').pop()).join(', ')}`);
+  if (delFiles.length) lines.push(`- Remove ${delFiles.map(f => f.path.split('/').pop()).join(', ')}`);
+
+  const totalAdd = files.reduce((s, f) => s + f.additions, 0);
+  const totalDel = files.reduce((s, f) => s + f.deletions, 0);
+  lines.push(`- ${totalAdd} insertion${totalAdd !== 1 ? 's' : ''}(+), ${totalDel} deletion${totalDel !== 1 ? 's' : ''}(-)`);
+
+  return lines.join('\n');
+}
+
+function analyze() {
+  const diff = document.getElementById('diffInput').value.trim();
+  const desc = document.getElementById('descInput').value.trim();
+
+  if (!diff) {
+    document.getElementById('analysisArea').innerHTML = '<div class="empty-state">Please paste a git diff to analyze</div>';
+    document.getElementById('outputArea').style.display = 'none';
+    return;
+  }
+
+  const files = parseDiff(diff);
+  if (files.length === 0) {
+    document.getElementById('analysisArea').innerHTML = '<div class="empty-state">Could not parse any files from the diff. Make sure it\'s a valid git diff output.</div>';
+    document.getElementById('outputArea').style.display = 'none';
+    return;
+  }
+
+  const { type, confidence } = detectType(files, desc);
+  const scope = detectScope(files);
+  const breaking = detectBreaking(files, diff);
+  const description = generateDescription(files, type, desc);
+  const body = generateBody(files);
+
+  const totalAdd = files.reduce((s, f) => s + f.additions, 0);
+  const totalDel = files.reduce((s, f) => s + f.deletions, 0);
+
+  // Build analysis panel
+  const tagClass = `tag tag-${type}`;
+  let breakingTag = breaking.length > 0 ? ' <span class="tag tag-breaking">BREAKING</span>' : '';
+  const confColor = confidence > 70 ? 'var(--green)' : confidence > 40 ? 'var(--orange)' : 'var(--red)';
+
+  let fileListHtml = '';
+  for (const f of files) {
+    const icon = f.isNew ? '<span class="add">+</span>' : f.isDeleted ? '<span class="del">-</span>' : '<span class="mod">~</span>';
+    fileListHtml += `<div>${icon} ${f.path}</div>`;
+  }
+
+  document.getElementById('analysisArea').innerHTML = `
+    <div class="analysis">
+      <div class="stat accent"><div class="val">${files.length}</div><div class="lbl">Files changed</div></div>
+      <div class="stat green"><div class="val">+${totalAdd}</div><div class="lbl">Additions</div></div>
+      <div class="stat red"><div class="val">-${totalDel}</div><div class="lbl">Deletions</div></div>
+      <div class="stat orange"><div class="val"><span class="${tagClass}">${type}</span>${breakingTag}</div><div class="lbl">Detected type</div></div>
+    </div>
+    <div style="font-size:.82rem;color:var(--text-muted)">Confidence
+      <div class="confidence-bar"><div class="confidence-fill" style="width:${confidence}%;background:${confColor}"></div></div>
+      <span style="font-size:.75rem">${confidence}%</span>
+    </div>
+    <div class="file-list">${fileListHtml}</div>
+  `;
+
+  // Build commit message
+  const scopePart = scope ? `(${scope})` : '';
+  const subject = `${type}${scopePart}: ${description}`;
+  let fullMsg = subject;
+  if (body) fullMsg += '\n\n' + body;
+  if (breaking.length > 0) {
+    fullMsg += '\n\nBREAKING CHANGE: ' + breaking.join('. ') + '.';
+  }
+
+  let outputHtml = `
+    <div class="output-block">
+      <div class="label">Subject line</div>
+      <button class="copy-btn" onclick="copyText(this, '${escapeAttr(subject)}')" ti="btn_copy" ti="btn_copy_2" ti="btn_copy_3" ti="btn_copy" ti="btn_copy_2" ti="btn_copy_3" ti="btn_copy" ti="btn_copy_2" ti="btn_copy_3" ti="btn_copy" ti="btn_copy_2" ti="btn_copy_3">Copy</button>
+      <span style="color:var(--accent);font-weight:600">${escapeHtml(subject)}</span>
+    </div>
+  `;
+
+  if (body) {
+    outputHtml += `
+      <div class="output-block">
+        <div class="label">Body</div>
+        <button class="copy-btn" onclick="copyText(this, '${escapeAttr(body)}')">Copy</button>
+${escapeHtml(body)}
+      </div>
+    `;
+  }
+
+  if (breaking.length > 0) {
+    const breakingText = 'BREAKING CHANGE: ' + breaking.join('. ') + '.';
+    outputHtml += `
+      <div class="output-block" style="border-color:rgba(248,81,73,.4)">
+        <div class="label" style="color:var(--red)">Breaking Change Footer</div>
+        <button class="copy-btn" onclick="copyText(this, '${escapeAttr(breakingText)}')">Copy</button>
+        <span style="color:var(--red)">${escapeHtml(breakingText)}</span>
+      </div>
+    `;
+  }
+
+  outputHtml += `
+    <button class="btn btn-primary full-msg-btn" onclick="copyText(this, '${escapeAttr(fullMsg)}')" ti="btn_copy_full_message" ti="btn_copy_full_message" ti="btn_copy_full_message" ti="btn_copy_full_message">Copy Full Message</button>
+  `;
+
+  document.getElementById('outputSection').innerHTML = outputHtml;
+  document.getElementById('outputArea').style.display = 'block';
+}
+
+function escapeHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escapeAttr(s) { return s.replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\n/g,'\\n'); }
+
+function copyText(btn, text) {
+  // Unescape the text
+  const decoded = text.replace(/\\n/g, '\n').replace(/\\'/g, "'").replace(/\\\\/g, '\\');
+  navigator.clipboard.writeText(decoded).then(() => {
+    btn.textContent=T("jtc_copied");
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent=T("jtc_copy"); btn.classList.remove('copied'); }, 1500);
+  });
+}
+
+function loadExample(key) {
+  document.getElementById('diffInput').value = EXAMPLES[key] || '';
+  document.getElementById('descInput').value = '';
+  document.querySelectorAll('.chip').forEach(c => c.classList.toggle('active', c.dataset.example === key));
+  analyze();
+}
+
+function clearAll() {
+  document.getElementById('diffInput').value = '';
+  document.getElementById('descInput').value = '';
+  document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+  document.getElementById('analysisArea').innerHTML = '<div class="empty-state">Paste a diff and click Generate to see analysis</div>';
+  document.getElementById('outputArea').style.display = 'none';
+}
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+</body>
+</html>

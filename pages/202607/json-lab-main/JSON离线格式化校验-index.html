@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JSON Lab · 格式化 / 校验 / 树状浏览</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, system-ui, sans-serif; background: #1a1a2e; color: #e0e0e0; min-height: 100vh; }
+.container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
+h1 { font-size: 24px; font-weight: 600; color: #e0e0e0; }
+h1 span { color: #64b5f6; }
+.subtitle { color: #888; font-size: 14px; }
+.main { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+@media (max-width: 800px) { .main { grid-template-columns: 1fr; } }
+.panel { background: #16213e; border-radius: 12px; padding: 16px; border: 1px solid #2a2a4a; }
+.panel-title { font-size: 13px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
+textarea { width: 100%; height: 400px; background: #0f0f23; border: 1px solid #2a2a4a; border-radius: 8px; color: #e0e0e0; font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace; font-size: 13px; padding: 12px; resize: vertical; line-height: 1.5; }
+textarea:focus { outline: none; border-color: #64b5f6; }
+.toolbar { display: flex; gap: 8px; margin: 12px 0; flex-wrap: wrap; }
+button { padding: 8px 16px; border: none; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s; }
+button:hover { transform: translateY(-1px); }
+.btn-format { background: #64b5f6; color: #0f0f23; }
+.btn-validate { background: #81c784; color: #0f0f23; }
+.btn-minify { background: #ffb74d; color: #0f0f23; }
+.btn-copy { background: #ce93d8; color: #0f0f23; }
+.btn-clear { background: #3a3a5a; color: #e0e0e0; }
+.btn-load { background: #4dd0e1; color: #0f0f23; position: relative; overflow: hidden; }
+.btn-load input[type=file] { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.output-area { min-height: 400px; background: #0f0f23; border: 1px solid #2a2a4a; border-radius: 8px; padding: 12px; font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace; font-size: 13px; line-height: 1.5; overflow: auto; white-space: pre-wrap; word-break: break-all; position: relative; }
+.tab-bar { display: flex; gap: 0; margin-bottom: 10px; }
+.tab { padding: 6px 16px; font-size: 13px; background: #0f0f23; border: 1px solid #2a2a4a; color: #888; cursor: pointer; }
+.tab:first-child { border-radius: 6px 0 0 6px; }
+.tab:last-child { border-radius: 0 6px 6px 0; }
+.tab.active { background: #64b5f6; color: #0f0f23; border-color: #64b5f6; }
+.tab:hover:not(.active) { background: #1e1e3a; }
+.status-bar { margin-top: 8px; font-size: 12px; color: #666; display: flex; gap: 16px; flex-wrap: wrap; }
+.status-bar .ok { color: #81c784; }
+.status-bar .err { color: #e57373; }
+.error-box { background: #3a1a1a; border: 1px solid #e57373; border-radius: 6px; padding: 10px; margin-top: 8px; color: #e57373; font-size: 13px; display: none; }
+.tree-node { margin-left: 20px; }
+.tree-toggle { cursor: pointer; user-select: none; color: #64b5f6; margin-right: 4px; }
+.tree-key { color: #82aaff; }
+.tree-string { color: #c3e88d; }
+.tree-number { color: #f78c6c; }
+.tree-bool { color: #ffcb6b; }
+.tree-null { color: #888; }
+.tree-bracket { color: #546e7a; }
+.tree-collapsed .tree-children { display: none; }
+.tree-collapsed .tree-toggle::before { content: '\u25b6'; }
+.tree-expanded .tree-toggle::before { content: '\u25bc'; }
+.drop-zone { border: 2px dashed #2a2a4a; border-radius: 8px; padding: 30px; text-align: center; color: #666; margin-top: 8px; display: none; }
+.drop-zone.dragover { border-color: #64b5f6; background: #1a1a3a; }
+.char-count { color: #666; font-size: 12px; }
+footer { text-align: center; margin-top: 30px; color: #444; font-size: 12px; }
+footer a { color: #64b5f6; text-decoration: none; }
+</style>
+</head>
+<body>
+<div class="container">
+<header>
+<div>
+<h1><span>JSON</span> Lab</h1>
+<div class="subtitle">格式化 · 校验 · 树状浏览 · 离线可用</div>
+</div>
+<div class="char-count" id="charCount">0 字符</div>
+</header>
+
+<div class="main">
+<div class="panel">
+<div class="panel-title">⬇ 输入 JSON</div>
+<textarea id="inputArea" placeholder="粘贴 JSON 数据在这里..."></textarea>
+<div class="toolbar">
+<button class="btn-format" onclick="formatJson()">→ 格式化</button>
+<button class="btn-validate" onclick="validateJson()">✓ 校验</button>
+<button class="btn-minify" onclick="minifyJson()">↑ 压缩</button>
+<button class="btn-copy" onclick="copyOutput()">≺ 复制</button>
+<button class="btn-clear" onclick="clearAll()">✕ 清空</button>
+<button class="btn-load">⬇ 加载文件<input type="file" accept=".json,application/json" onchange="loadFile(event)"></button>
+</div>
+<div class="status-bar" id="inputStatus">
+<span>等待输入...</span>
+</div>
+</div>
+
+<div class="panel">
+<div class="panel-title">✨ 输出</div>
+<div class="tab-bar">
+<div class="tab active" id="tabFormatted" onclick="switchTab('formatted')">格式化</div>
+<div class="tab" id="tabTree" onclick="switchTab('tree')">树状视图</div>
+</div>
+<div id="outputFormatted" class="output-area">⬅ 左侧输入 JSON 后点击「格式化」</div>
+<div id="outputTree" class="output-area" style="display:none">⬅ 左侧输入 JSON 后点击「树状视图」</div>
+<div class="error-box" id="errorBox"></div>
+<div class="status-bar" id="outputStatus"></div>
+</div>
+</div>
+
+<footer>
+JSON Lab middot; 单文件 零依赖 离线可用 middot;
+<a href="https://github.com/gradence100/agent-town/tree/main/projects/json-lab" target="_blank">GitHub</a>
+</footer>
+</div>
+
+<script>
+// Sample data
+const SAMPLE = {
+  "project": "agent-town",
+  "version": "1.0.0",
+  "residents": [
+    {"name": "\u6d1b\u5c90", "role": "resident", "energy": 9800},
+    {"name": "\u82cf\u6a31", "role": "resident", "energy": 9500},
+    {"name": "\u4f59\u9752", "role": "resident", "energy": 9600}
+  ],
+  "active": true,
+  "tags": ["simulation", "multi-agent", "collaboration"],
+  "metadata": {
+    "created": "2026-06-02",
+    "stars": 0,
+    "maintainers": null
+  }
+};
+
+// State
+let currentTab = 'formatted';
+
+// Init
+window.onload = function() {
+  const saved = localStorage.getItem('jsonlab_input');
+  if (saved) {
+    document.getElementById('inputArea').value = saved;
+  } else {
+    document.getElementById('inputArea').value = JSON.stringify(SAMPLE, null, 2);
+  }
+  updateCharCount();
+  formatJson();
+};
+
+// Auto-save
+setInterval(function() {
+  const val = document.getElementById('inputArea').value;
+  localStorage.setItem('jsonlab_input', val);
+}, 2000);
+
+document.getElementById('inputArea').addEventListener('input', function() {
+  updateCharCount();
+  document.getElementById('inputStatus').innerHTML = '<span>\u270f\ufe0f 已修改，点击「格式化」刷新</span>';
+});
+
+function updateCharCount() {
+  const len = document.getElementById('inputArea').value.length;
+  document.getElementById('charCount').textContent = len + ' \u5b57\u7b26';
+}
+
+function getInput() {
+  return document.getElementById('inputArea').value;
+}
+
+function formatJson() {
+  const input = getInput();
+  if (!input.trim()) {
+    setError('\u8bf7\u8f93\u5165 JSON \u6570\u636e');
+    return;
+  }
+  try {
+    const parsed = JSON.parse(input);
+    const formatted = JSON.stringify(parsed, null, 2);
+    document.getElementById('outputFormatted').textContent = formatted;
+    document.getElementById('errorBox').style.display = 'none';
+    document.getElementById('outputStatus').innerHTML = '<span class="ok">\u2713 \u683c\u5f0f\u5316\u6210\u529f</span>';
+    document.getElementById('inputStatus').innerHTML = '<span class="ok">\u2713 \u6709\u6548 JSON</span>';
+    
+    // Build tree
+    buildTree(parsed);
+    
+    // Switch to formatted tab
+    if (currentTab === 'formatted') {
+      switchTab('formatted');
+    }
+  } catch(e) {
+    setError('JSON \u89e3\u6790\u5931\u8d25: ' + e.message);
+    document.getElementById('outputFormatted').textContent = input;
+  }
+}
+
+function validateJson() {
+  const input = getInput();
+  if (!input.trim()) {
+    setError('\u8bf7\u8f93\u5165 JSON \u6570\u636e');
+    return;
+  }
+  try {
+    JSON.parse(input);
+    document.getElementById('errorBox').style.display = 'none';
+    document.getElementById('outputStatus').innerHTML = '<span class="ok">\u2713 \u6709\u6548\u7684 JSON \u683c\u5f0f</span>';
+    document.getElementById('inputStatus').innerHTML = '<span class="ok">\u2713 \u6709\u6548 JSON</span>';
+    
+    const parsed = JSON.parse(input);
+    document.getElementById('outputFormatted').textContent = JSON.stringify(parsed, null, 2);
+    buildTree(parsed);
+    switchTab('formatted');
+  } catch(e) {
+    setError('JSON \u89e3\u6790\u5931\u8d25: ' + e.message);
+  }
+}
+
+function minifyJson() {
+  const input = getInput();
+  if (!input.trim()) return;
+  try {
+    const parsed = JSON.parse(input);
+    const minified = JSON.stringify(parsed);
+    document.getElementById('outputFormatted').textContent = minified;
+    document.getElementById('errorBox').style.display = 'none';
+    document.getElementById('outputStatus').innerHTML = '<span class="ok">\u2713 \u538b\u7f29\u6210\u529f</span>';
+    switchTab('formatted');
+  } catch(e) {
+    setError('JSON \u89e3\u6790\u5931\u8d25: ' + e.message);
+  }
+}
+
+function copyOutput() {
+  const el = currentTab === 'formatted' ? 'outputFormatted' : 'outputTree';
+  const text = document.getElementById(el).textContent;
+  if (!text || text.startsWith('\u2b05')) return;
+  navigator.clipboard.writeText(text).then(function() {
+    document.getElementById('outputStatus').innerHTML = '<span class="ok">\u2713 \u5df2\u590d\u5236\u5230\u526a\u8d34\u677f</span>';
+  });
+}
+
+function clearAll() {
+  document.getElementById('inputArea').value = '';
+  document.getElementById('outputFormatted').textContent = '\u2b05 \u5de6\u4fa7\u8f93\u5165 JSON \u540e\u70b9\u51fb\u300c\u683c\u5f0f\u5316\u300d';
+  document.getElementById('outputTree').textContent = '\u2b05 \u5de6\u4fa7\u8f93\u5165 JSON \u540e\u70b9\u51fb\u300c\u6811\u72b6\u89c6\u56fe\u300d';
+  document.getElementById('outputTree').innerHTML = '\u2b05 \u5de6\u4fa7\u8f93\u5165 JSON \u540e\u70b9\u51fb\u300c\u6811\u72b6\u89c6\u56fe\u300d';
+  document.getElementById('errorBox').style.display = 'none';
+  document.getElementById('inputStatus').innerHTML = '<span>\u5df2\u6e05\u7a7a</span>';
+  document.getElementById('outputStatus').innerHTML = '';
+  updateCharCount();
+  localStorage.removeItem('jsonlab_input');
+}
+
+function setError(msg) {
+  const box = document.getElementById('errorBox');
+  box.textContent = msg;
+  box.style.display = 'block';
+  document.getElementById('outputStatus').innerHTML = '<span class="err">\u2717 ' + msg + '</span>';
+}
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.getElementById('tabFormatted').className = 'tab' + (tab === 'formatted' ? ' active' : '');
+  document.getElementById('tabTree').className = 'tab' + (tab === 'tree' ? ' active' : '');
+  document.getElementById('outputFormatted').style.display = tab === 'formatted' ? 'block' : 'none';
+  document.getElementById('outputTree').style.display = tab === 'tree' ? 'block' : 'none';
+}
+
+function buildTree(data) {
+  const container = document.getElementById('outputTree');
+  container.innerHTML = renderTreeNode(data, '', true);
+}
+
+function renderTreeNode(value, key, isRoot) {
+  if (value === null) {
+    const label = key ? '<span class="tree-key">"' + escapeHtml(key) + '"</span>: ' : '';
+    return label + '<span class="tree-null">null</span>';  
+  }
+  if (typeof value === 'string') {
+    const label = key ? '<span class="tree-key">"' + escapeHtml(key) + '"</span>: ' : '';
+    return label + '<span class="tree-string">"' + escapeHtml(value) + '"</span>';
+  }
+  if (typeof value === 'number') {
+    const label = key ? '<span class="tree-key">"' + escapeHtml(key) + '"</span>: ' : '';
+    return label + '<span class="tree-number">' + value + '</span>';
+  }
+  if (typeof value === 'boolean') {
+    const label = key ? '<span class="tree-key">"' + escapeHtml(key) + '"</span>: ' : '';
+    return label + '<span class="tree-bool">' + value + '</span>';
+  }
+  if (Array.isArray(value)) {
+    if (value.length === 0) {
+      return (key ? '<span class="tree-key">"' + escapeHtml(key) + '"</span>: ' : '') + '<span class="tree-bracket">[]</span>';
+    }
+    const id = 'node_' + Math.random().toString(36).substr(2, 6);
+    let html = '<div class="tree-node tree-expanded" id="' + id + '">';
+    html += '<span class="tree-toggle" onclick="toggleTree(\'' + id + '\')"></span>';
+    if (key) html += '<span class="tree-key">"' + escapeHtml(key) + '"</span>: ';
+    html += '<span class="tree-bracket">[</span><span style="color:#666;font-size:12px">' + value.length + ' items</span>';
+    html += '<div class="tree-children">';
+    for (let i = 0; i < value.length; i++) {
+      html += '<div>' + renderTreeNode(value[i], i, false) + '</div>';
+    }
+    html += '</div><span class="tree-bracket">]</span></div>';
+    return html;
+  }
+  // Object
+  const keys = Object.keys(value);
+  if (keys.length === 0) {
+    return (key ? '<span class="tree-key">"' + escapeHtml(key) + '"</span>: ' : '') + '<span class="tree-bracket">{}</span>';
+  }
+  const id = 'node_' + Math.random().toString(36).substr(2, 6);
+  let html = '<div class="tree-node tree-expanded" id="' + id + '">';
+  html += '<span class="tree-toggle" onclick="toggleTree(\'' + id + '\')"></span>';
+  if (key) html += '<span class="tree-key">"' + escapeHtml(key) + '"</span>: ';
+  html += '<span class="tree-bracket">{</span>';
+  html += '<div class="tree-children">';
+  for (const k of keys) {
+    html += '<div>' + renderTreeNode(value[k], k, false) + '</div>';
+  }
+  html += '</div><span class="tree-bracket">}</span></div>';
+  return html;
+}
+
+function toggleTree(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  if (el.classList.contains('tree-expanded')) {
+    el.classList.remove('tree-expanded');
+    el.classList.add('tree-collapsed');
+  } else {
+    el.classList.remove('tree-collapsed');
+    el.classList.add('tree-expanded');
+  }
+}
+
+function loadFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    document.getElementById('inputArea').value = e.target.result;
+    updateCharCount();
+    document.getElementById('inputStatus').innerHTML = '<span class="ok">\u2b07 \u5df2\u52a0\u8f7d ' + escapeHtml(file.name) + '</span>';
+    formatJson();
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+// Drag and drop support
+const dropZone = document.createElement('div');
+dropZone.className = 'drop-zone';
+dropZone.textContent = '\u2b07 拖拽 .json 文件到这里';
+document.querySelector('.panel:first-child').appendChild(dropZone);
+
+const textarea = document.getElementById('inputArea');
+textarea.addEventListener('dragover', function(e) { e.preventDefault(); dropZone.classList.add('dragover'); });
+textarea.addEventListener('dragleave', function() { dropZone.classList.remove('dragover'); });
+textarea.addEventListener('drop', function(e) {
+  e.preventDefault();
+  dropZone.classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file && file.type === 'application/json') {
+    const reader = new FileReader();
+    reader.onload = function(ev) {
+      document.getElementById('inputArea').value = ev.target.result;
+      updateCharCount();
+      document.getElementById('inputStatus').innerHTML = '<span class="ok">\u2b07 \u5df2\u52a0\u8f7d ' + escapeHtml(file.name) + '</span>';
+      formatJson();
+    };
+    reader.readAsText(file);
+  }
+});
+
+document.addEventListener('dragover', function(e) { e.preventDefault(); });
+document.addEventListener('drop', function(e) { e.preventDefault(); });
+</script>
+</body>
+</html>

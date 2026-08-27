@@ -1,0 +1,530 @@
+<!doctype html>
+<html lang="zh">
+
+    <head>
+        <meta charset="utf-8">
+        <title>选项卡版</title>
+        <style>
+            body {
+                font-family: system-ui;
+                margin: 0;
+                background: #fafafa;
+                color: #222
+            }
+
+            .tabs {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 4px;
+                padding: 10px 12px;
+                background: #222;
+                position: sticky;
+                top: 0;
+                z-index: 5
+            }
+
+            .tab {
+                border: none;
+                background: #3a3a3a;
+                color: #ddd;
+                padding: 8px 14px;
+                border-radius: 6px 6px 0 0;
+                cursor: pointer;
+                font-size: 14px
+            }
+
+            .tab.active {
+                background: #fff;
+                color: #111;
+                font-weight: 600
+            }
+
+            .pane {
+                display: none;
+                padding: 20px
+            }
+
+            .pane.active {
+                display: block
+            }
+
+            .help {
+                max-width: 460px;
+                margin: 0 auto
+            }
+
+            /* 功能选项卡：每行最多4组，宽度不够自动减少，最少1组 */
+            .fields {
+                max-width: 1100px;
+                margin: 0 auto
+            }
+
+            .fields.active {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 10px 14px;
+                align-items: flex-end
+            }
+
+            .field {
+                flex: 1 1 23%;
+                min-width: 200px;
+                box-sizing: border-box
+            }
+
+            label {
+                display: block;
+                margin: 6px 0 3px;
+                font-size: 13px;
+                color: #555
+            }
+
+            .field label {
+                margin: 0 0 3px;
+                font-size: 12px;
+                color: #555;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis
+            }
+
+            input,
+            select,
+            textarea {
+                width: 100%;
+                padding: 7px;
+                box-sizing: border-box;
+                border: 1px solid #ccc;
+                border-radius: 5px;
+                font-family: inherit;
+                font-size: 13px
+            }
+
+            textarea {
+                resize: vertical
+            }
+
+            #genbar {
+                position: sticky;
+                bottom: 0;
+                background: #fff;
+                border-top: 1px solid #ddd;
+                padding: 12px 20px;
+                max-width: 460px;
+                margin: 0 auto
+            }
+
+            #gen {
+                width: 100%;
+                padding: 12px;
+                font-size: 15px;
+                background: #1a73e8;
+                color: #fff;
+                border: none;
+                border-radius: 6px;
+                cursor: pointer
+            }
+
+            #s {
+                margin-top: 10px;
+                padding: 8px;
+                background: #f0f0f0;
+                border-radius: 5px;
+                white-space: pre-wrap;
+                font-size: 13px
+            }
+
+            pre {
+                background: #1e1e1e;
+                color: #d4d4d4;
+                padding: 12px;
+                overflow: auto;
+                max-height: 300px;
+                border-radius: 6px;
+                font-size: 12px
+            }
+
+            .help h3 {
+                margin-top: 0
+            }
+
+            .help li {
+                margin: 6px 0
+            }
+
+            code {
+                background: #eee;
+                padding: 1px 5px;
+                border-radius: 3px
+            }
+
+            .dl {
+                margin: 14px 0
+            }
+
+            .dl button {
+                background: #34a853;
+                color: #fff;
+                border: none;
+                padding: 10px 16px;
+                border-radius: 6px;
+                cursor: pointer;
+                font-size: 14px
+            }
+        </style>
+    </head>
+
+    <body>
+        <!-- ============ 选项卡头 ============ -->
+        <div class="tabs" id="tabs"></div>
+        <!-- ============ 说明选项卡 ============ -->
+        <div class="pane help active" id="pane-help">
+            <h3>使用说明：</h3>
+            <p>1、点下方按钮下载 <code>loadwj.lsp</code>。</p>
+            <p>2、在 CAD 命令行输入 <code>APPLOAD</code>，选中该 lsp 加载（或加入<code>acaddoc.lsp</code> 自动加载）。命令行出现「Ready」即加载成功。</p>
+            <p>3、切到任意<code>html</code>功能选项卡，填参数，点底部「计算」。</p>
+            <p>4、回到 CAD，命令行输入 <code>loadwj</code> 回车 → 按提示在模型空间点选 → 出图。</p>
+            <p>5、兼容<code>AutoCAD/ZWCAD/BricsCAD/GstarCAD。</code></p>
+            <div class="dl"><button onclick="downloadLoader()">⬇ 下载 loadwj.lsp</button></div>
+            <!-- 
+            <details>
+                <summary>查看 loader 源码</summary>
+                <pre id="loaderView"></pre>
+            </details>
+            -->
+        </div>
+        <!-- ============ 功能选项卡（由 JS 动态生成）============ -->
+        <!-- 按钮区（说明页隐藏）-->
+        <div id="genbar" style="display:none">
+            <button id="gen" onclick="gen()">计算</button>
+            <div id="s">填好参数后点上方计算按钮，再回 CAD 输入 loadwj。</div>
+        </div>
+        <script type="text/plain"
+            id="loaderLsp">(defun c:loadwj (/ c getclipboardtext html x) (defun GetClipBoardText (/ html result) (setq html (vlax-create-object "htmlfile")) (setq result (vlax-invoke (vlax-get (vlax-get html 'ParentWindow) 'ClipBoardData) 'GetData "Text")) (vlax-release-object html) result) (if (and (setq c (GetClipBoardText))(setq x (read c))(= (type x) 'LIST)(= (car x) 'ZWGEN-PAYLOAD)(= (type (cadr x)) 'LIST))(eval (cadr x)))(princ))(princ "\nReady, execute: loadwj")(princ)</script>
+        <script>
+            /* ============================================================
+               通用工具
+               ============================================================ */
+            function copyText(t) {
+                if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(t);
+                return new Promise(r => { const ta = document.createElement('textarea'); ta.value = t; ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); } catch (e) { } document.body.removeChild(ta); r(); });
+            }
+            const q = s => String(s).replace(/"/g, '\\"');// LISP 字符串转义
+            const num = (v, d, n = 6) => { let x = parseFloat(v); if (!isFinite(x)) x = d; return Math.round(x * Math.pow(10, n)) / Math.pow(10, n); }; // 去脏浮点
+            /* ============================================================
+               功能模块：每个选项卡 = 一个独立 JS 对象，可单独复制/拆分文件
+                 - title : 选项卡标题
+                 - fields: 字段配置 [{id,label,type,def}]
+                 - buildLisp(v): 返回 LISP 源码字符串（v 为已读取的字段值）
+               新增功能 = 复制下面任意一个对象改一改即可。
+               ============================================================ */
+            // —— 模块：圆排 ——
+            const program_001 = {
+                title: '圆排',
+                fields: [{ id: 'size', label: '半径', type: 'number', def: 10 },
+                { id: 'count', label: '数量', type: 'number', def: 3 },
+                { id: 'layer', label: '图层', type: 'text', def: '0' }],
+                buildLisp(v) {
+                    const size = num(v.size, 10), count = num(v.count, 3), layer = q(v.layer || '0');
+                    return `(progn (setq pt (getpoint "\\n[圆排] 基点: ")) (setq i 0)(repeat ${count} (entmake (list '(0 . "CIRCLE")(cons 10 (list (+ (car pt) (* i ${size} 2.5)) (cadr pt) 0.0)) (cons 40 ${size}) (cons 8 "${layer}")))(setq i (1+ i))) (princ (strcat "\\n已生成 " (itoa ${count}) " 个圆")))`;
+                }
+            };
+            // —— 模块：直线 ——
+            const program_002 = {
+                title: '直线',
+                fields: [{ id: 'layer', label: '图层', type: 'text', def: '0' }],
+                buildLisp(v) {
+                    const layer = q(v.layer || '0');
+                    return `(progn (setq p1 (getpoint "\\n[直线] 起点: ")) (setq p2 (getpoint "\\n[直线] 终点: "))(entmake (list '(0 . "LINE") (cons 10 p1) (cons 11 p2) (cons 8 "${layer}"))) (princ "\\n已画直线"))`;
+                }
+            };
+            // —— 模块：矩形 ——
+            const program_003 = {
+                title: '矩形',
+                fields: [{ id: 'w', label: '宽度', type: 'number', def: 100 },
+                { id: 'h', label: '高度', type: 'number', def: 60 },
+                { id: 'layer', label: '图层', type: 'text', def: '0' }],
+                buildLisp(v) {
+                    const w = num(v.w, 100), h = num(v.h, 60), layer = q(v.layer || '0');
+                    return `(progn (setq p0 (getpoint "\\n[矩形] 左下角: "))(setq p1 (list (+ (car p0) ${w}) (+ (cadr p0) ${h}) 0.0))(foreach e (list (list p0 (list (car p1) (cadr p0) 0)) (list (list (car p1) (cadr p0) 0) p1)(list p1 (list (car p0) (cadr p1) 0)) (list (list (car p0) (cadr p1) 0) p0))(entmake (list '(0 . "LINE") (cons 10 (car e)) (cons 11 (cadr e)) (cons 8 "${layer}"))))(princ "\\n已画矩形"))`;
+                }
+            };
+            // —— 模块：多段线 ——
+            const program_004 = {
+                title: '多段线',
+                fields: [{ id: 'layer', label: '图层', type: 'text', def: '0' }],
+                buildLisp(v) {
+                    const layer = q(v.layer || '0');
+                    return `(progn (setq p0 (getpoint "\\n[多段线] 起点(回车结束): ")) (setq pts (list p0))(while (setq p (getpoint "\\n下一点(回车结束): ")) (setq pts (append pts (list p))))(entmake (append (list '(0 . "LWPOLYLINE") '(100 . "AcDbEntity") '(100 . "AcDbPolyline")(cons 8 "${layer}") (cons 90 (length pts)) '(70 . 0))(mapcar '(lambda (p) (cons 10 (list (car p) (cadr p)))) pts)))(princ (strcat "\\n已画多段线，顶点 " (itoa (length pts)))))`;
+                }
+            };
+            // —— 模块：文字 ——
+            const program_005 = {
+                title: '文字',
+                fields: [{ id: 'hgt', label: '字高', type: 'number', def: 5 },
+                { id: 'text', label: '文字内容', type: 'text', def: '示例文字' },
+                { id: 'layer', label: '图层', type: 'text', def: '0' }],
+                buildLisp(v) {
+                    const hgt = num(v.hgt, 5), txt = q(v.text || 'TEXT'), layer = q(v.layer || '0');
+                    return `(progn (setq pt (getpoint "\\n[文字] 插入点: "))(entmake (list '(0 . "TEXT") (cons 10 pt) (cons 11 pt) (cons 40 ${hgt}) (cons 1 "${txt}") (cons 8 "${layer}")))(princ "\\n已写文字"))`;
+                }
+            };
+            // —— 模块：插入块 ——
+            const program_006 = {
+                title: '插入块',
+                fields: [{ id: 'block', label: '块名', type: 'text', def: 'MYBLOCK' },
+                { id: 'scale', label: '比例', type: 'number', def: 1 },
+                { id: 'rot', label: '旋转°', type: 'number', def: 0 },
+                { id: 'layer', label: '图层', type: 'text', def: '0' }],
+                buildLisp(v) {
+                    const scale = num(v.scale, 1), rot = num(v.rot, 0), blk = q(v.block || ''), layer = q(v.layer || '0');
+                    return `(progn (setq pt (getpoint "\\n[块] 插入点: "))(if (tblsearch "BLOCK" "${blk}")(progn (entmake (list '(0 . "INSERT") (cons 2 "${blk}") (cons 10 pt)(cons 41 ${scale}) (cons 42 ${scale}) (cons 43 ${scale}) (cons 50 (/ (* ${rot} pi) 180.0)) (cons 8 "${layer}")))(princ (strcat "\\n已插入块 " "${blk}")))(princ "\\n块不存在，请先定义该块")))`;
+                }
+            };
+            // —— 模块：线性标注 ——
+            const program_007 = {
+                title: '线性标注',
+                fields: [{ id: 'layer', label: '图层', type: 'text', def: '0' }],
+                buildLisp(v) {
+                    const layer = q(v.layer || '0');
+                    return `(progn (setq p1 (getpoint "\\n[标注] 第一点: ")) (setq p2 (getpoint "\\n[标注] 第二点: "))(setq loc (getpoint "\\n[标注] 尺寸线位置: ")) (command "_.DIMLINEAR" p1 p2 loc) (princ "\\n已标注"))`;
+                }
+            };
+            // —— 模块：矩形阵列 ——
+            const program_008 = {
+                title: '矩形阵列',
+                fields: [{ id: 'rows', label: '行', type: 'number', def: 3 },
+                { id: 'cols', label: '列', type: 'number', def: 3 },
+                { id: 'gap', label: '间距', type: 'number', def: 30 },
+                { id: 'size', label: '半径', type: 'number', def: 10 },
+                { id: 'layer', label: '图层', type: 'text', def: '0' }],
+                buildLisp(v) {
+                    const rows = num(v.rows, 3), cols = num(v.cols, 3), gap = num(v.gap, 30), size = num(v.size, 10), layer = q(v.layer || '0');
+                    return `(progn (setq pt (getpoint "\\n[阵列] 左下基点: ")) (setq r 0)(repeat ${rows} (setq c 0) (repeat ${cols}(entmake (list '(0 . "CIRCLE") (cons 10 (list (+ (car pt) (* c ${gap})) (+ (cadr pt) (* r ${gap})) 0.0))(cons 40 ${size}) (cons 8 "${layer}"))) (setq c (1+ c))) (setq r (1+ r)))(princ (strcat "\\n已阵列 " (itoa (* ${rows} ${cols})) " 个圆")))`;
+                }
+            };
+
+            // —— 模块：LED 结构设计（由 led246 DCL 对话框转换而来）——
+            // 所有字段 key 与原 DCL 一致；buildLisp 把参数以同名全局变量写入，再调 (ZWGEN-LED-DRAW)
+            const program_009 = {
+                title: '结构设计',
+                fields: [
+                    // —— 基本参数 ——
+                    { id: 'edit_led_snhw', label: '室内户外', type: 'popup', def: '室内', options: ['室内', '户外'] },
+                    { id: 'edit_led_cpxl', label: '产品系列', type: 'popup', def: '室内固装', options: ['室内固装', '租赁'] },
+                    { id: 'edit_led_cpxh', label: '产品型号', type: 'popup', def: 'P3', options: ['P2.5', 'P3', 'P4', 'P5'] },
+                    { id: 'edit_led_pdjj', label: '屏点间距', type: 'text', def: '3' },
+                    { id: 'edit_led_dycd', label: '单元长度', type: 'text', def: '320' },
+                    { id: 'edit_led_dygd', label: '单元高度', type: 'text', def: '160' },
+                    { id: 'edit_led_bbsb', label: '包边上边', type: 'text', def: '0' },
+                    { id: 'edit_led_bbzb', label: '包边左边', type: 'text', def: '0' },
+                    { id: 'edit_led_plls', label: '排列列数', type: 'text', def: '10' },
+                    { id: 'edit_led_plhs', label: '排列行数', type: 'text', def: '6' },
+                    { id: 'edit_led_bbxb', label: '包边下边', type: 'text', def: '0' },
+                    { id: 'edit_led_bbyb', label: '包边右边', type: 'text', def: '0' },
+                    { id: 'edit_led_dyhd', label: '单元厚度', type: 'text', def: '80' },
+                    { id: 'edit_led_pthd', label: '屏体厚度', type: 'text', def: '120' },
+                    { id: 'edit_led_ldgd', label: '离地高度', type: 'text', def: '500' },
+                    { id: 'edit_led_hyxj', label: '弧圆心角', type: 'text', def: '0' },
+                    { id: 'edit_led_dbbg', label: '底部标高', type: 'text', def: '0' },
+                    { id: 'edit_led_jbfy', label: '基本风压', type: 'text', def: '0.35' },
+                    { id: 'edit_led_sfld', label: '设防烈度', type: 'text', def: '7' },
+                    { id: 'edit_led_jbcd', label: '基本长度', type: 'text', def: '0' },
+                    { id: 'edit_led_xscd', label: '显示长度', type: 'text', def: '0' },
+                    { id: 'edit_led_xsgd', label: '显示高度', type: 'text', def: '0' },
+                    { id: 'edit_led_zgdp', label: '中固定片', type: 'text', def: '0' },
+                    { id: 'edit_led_jbjj', label: '基本夹角', type: 'text', def: '0' },
+                    { id: 'edit_led_jsdz', label: '接收带载', type: 'text', def: '0' },
+                    { id: 'edit_led_dydz', label: '电源带载', type: 'text', def: '0' },
+                    { id: 'edit_led_lkjx', label: '留空间隙', type: 'text', def: '0' },
+                    { id: 'edit_led_hxbj', label: '弧形半径', type: 'text', def: '0' },
+                    // —— 组合 ——
+                    { id: 'edit_led_dycz', label: '单元长度组合(左→右)', type: 'text', def: '320*10' },
+                    { id: 'edit_led_dygz', label: '单元高度组合(下→上)', type: 'text', def: '160*6' },
+                    // —— 类型/样式 ——
+                    { id: 'edit_led_dylx', label: '单元类型', type: 'popup', def: '常规', options: ['常规', '异形'] },
+                    { id: 'edit_led_clcz', label: '材料材质', type: 'popup', def: '钢材', options: ['钢材', '铝材'] },
+                    { id: 'edit_led_xsfx', label: '显示方向', type: 'popup', def: '正向', options: ['正向', '反向'] },
+                    { id: 'edit_led_pmys', label: '屏面样式', type: 'popup', def: '平面', options: ['平面', '弧形'] },
+                    { id: 'edit_led_azys', label: '安装样式', type: 'popup', def: '立柱', options: ['壁挂', '立柱', '吊装'] },
+                    { id: 'edit_led_whfs', label: '维护方式', type: 'popup', def: '后维护', options: ['前维护', '后维护'] },
+                    { id: 'edit_led_azfs', label: '安装方式', type: 'popup', def: '固定', options: ['固定', '活动'] },
+                    { id: 'edit_led_sjht', label: '设计绘图', type: 'popup', def: '是', options: ['是', '否'] },
+                    // —— 开关项 ——
+                    { id: 'edit_led_bbxd', label: '包边相等', type: 'toggle', def: 0 },
+                    { id: 'edit_led_jxm', label: '屏检修门', type: 'toggle', def: 0 },
+                    { id: 'edit_led_jxpt', label: '检修爬梯', type: 'toggle', def: 0 },
+                    { id: 'edit_led_pdx', label: '屏配电箱', type: 'toggle', def: 0 },
+                    { id: 'edit_led_yxyx', label: '音响音箱', type: 'toggle', def: 0 },
+                    { id: 'edit_led_zmdj', label: '照明灯具', type: 'toggle', def: 0 },
+                    { id: 'edit_led_fj', label: '轴流风机', type: 'toggle', def: 0 },
+                    { id: 'edit_led_fjsl', label: '风机数量', type: 'text', def: '0' },
+                    { id: 'edit_led_zddf', label: '走道对缝', type: 'toggle', def: 0 },
+                    { id: 'edit_led_inibl', label: 'INI保留', type: 'toggle', def: 0 },
+                    { id: 'edit_led_xlb', label: '删除列表', type: 'toggle', def: 0 },
+                    { id: 'edit_led_smb', label: '删除模板', type: 'toggle', def: 0 },
+                    { id: 'edit_led_slogo', label: '删除LOGO', type: 'toggle', def: 0 },
+                    { id: 'edit_led_sczz', label: '删除作者', type: 'toggle', def: 0 },
+                    { id: 'edit_led_kt', label: '挂式空调', type: 'toggle', def: 0 },
+                    { id: 'edit_led_ktsl', label: '空调数量', type: 'text', def: '0' },
+                    { id: 'edit_led_kwjj', label: '开文件夹', type: 'toggle', def: 0 },
+                    { id: 'edit_led_cgdz', label: '长高倒装', type: 'toggle', def: 0 },
+                    { id: 'edit_led_xsmj', label: '显示面积', type: 'text', def: '0' },
+                    // —— 项目信息 ——
+                    { id: 'edit_led_xmqy', label: '项目区域', type: 'popup', def: '华东', options: ['华东', '华南', '华北', '西南', '西北'] },
+                    { id: 'edit_led_xmds', label: '项目地市', type: 'text', def: '' },
+                    { id: 'edit_led_sjxs', label: '省经销商', type: 'popup', def: 'A经销商', options: ['A经销商', 'B经销商'] },
+                    { id: 'edit_led_xjxs', label: '县经销商', type: 'text', def: '' },
+                    { id: 'edit_led_xmmc', label: '项目名称', type: 'text', def: '' },
+                    { id: 'edit_led_sjwj', label: '数据文件', type: 'text', def: '' },
+                    { id: 'edit_led_xmbh', label: '项目编号', type: 'text', def: '' },
+                    { id: 'edit_led_bbbh', label: '文本(编号)', type: 'text', def: '' },
+                    { id: 'edit_led_qynr', label: '项目区域内容', type: 'textarea', def: '' },
+                    // —— 背部/走道/地基结构 ——
+                    { id: 'edit_led_dybt', label: '第一背条', type: 'text', def: '0' },
+                    { id: 'edit_led_debt', label: '第二背条', type: 'text', def: '0' },
+                    { id: 'edit_led_bbsg', label: '背部竖杆', type: 'text', def: '0' },
+                    { id: 'edit_led_bgjj', label: '背杆间距', type: 'text', def: '0' },
+                    { id: 'edit_led_zdqg', label: '走道前杆', type: 'text', def: '0' },
+                    { id: 'edit_led_zdlg', label: '走道连杆', type: 'text', def: '0' },
+                    { id: 'edit_led_zdhg', label: '走道后杆', type: 'text', def: '0' },
+                    { id: 'edit_led_bbxg', label: '背部斜杆', type: 'text', def: '0' },
+                    { id: 'edit_led_dbqg', label: '顶部前杆', type: 'text', def: '0' },
+                    { id: 'edit_led_dblg', label: '顶部连杆', type: 'text', def: '0' },
+                    { id: 'edit_led_dbhg', label: '顶部后杆', type: 'text', def: '0' },
+                    { id: 'edit_led_zdtg', label: '走道踏杆', type: 'text', def: '0' },
+                    { id: 'edit_led_ibqg', label: '底部前杆', type: 'text', def: '0' },
+                    { id: 'edit_led_iblg', label: '底部连杆', type: 'text', def: '0' },
+                    { id: 'edit_led_ibhg', label: '底部后杆', type: 'text', def: '0' },
+                    { id: 'edit_led_zdxg', label: '走道斜杆', type: 'text', def: '0' },
+                    { id: 'edit_led_hxlg', label: '后斜拉杆', type: 'text', def: '0' },
+                    { id: 'edit_led_xllg', label: '斜拉连杆', type: 'text', def: '0' },
+                    { id: 'edit_led_sphg', label: '水平横杆', type: 'text', def: '0' },
+                    { id: 'edit_led_fljj', label: '法兰间距', type: 'text', def: '0' },
+                    { id: 'edit_led_wblz', label: '外部立柱', type: 'text', def: '0' },
+                    { id: 'edit_led_nblz', label: '内部立柱', type: 'text', def: '0' },
+                    { id: 'edit_led_lzsl', label: '立柱数量', type: 'text', def: '0' },
+                    { id: 'edit_led_flmj', label: '法兰埋件', type: 'text', def: '0' },
+                    { id: 'edit_led_djhk', label: '地基横宽', type: 'text', def: '0' },
+                    { id: 'edit_led_djzk', label: '地基纵宽', type: 'text', def: '0' },
+                    { id: 'edit_led_djsd', label: '地基深度', type: 'text', def: '0' },
+                    { id: 'edit_led_djjl', label: '地基距离', type: 'text', def: '0' },
+                    // —— 出图开关 ——
+                    { id: 'edit_led_psyt', label: '屏示意图', type: 'toggle', def: 0 },
+                    { id: 'edit_led_pggt', label: '屏钢构图', type: 'toggle', def: 0 },
+                    { id: 'edit_led_pxht', label: '屏信号图', type: 'toggle', def: 0 },
+                    { id: 'edit_led_ppdt', label: '屏配电图', type: 'toggle', def: 0 },
+                    { id: 'edit_led_pxtt', label: '屏系统图', type: 'toggle', def: 0 },
+                    { id: 'edit_led_zdtj', label: '自动推荐', type: 'toggle', def: 0 },
+                    { id: 'edit_led_zdbc', label: '自动保存', type: 'toggle', def: 0 },
+                    { id: 'edit_led_cltj', label: '材料统计', type: 'toggle', def: 0 },
+                    { id: 'edit_led_swmx', label: '三维模型', type: 'toggle', def: 0 },
+                    { id: 'edit_led_gjxt', label: '杆件相同', type: 'toggle', def: 0 },
+                    { id: 'edit_led_gzqk', label: '规则全开', type: 'toggle', def: 0 },
+                    { id: 'edit_led_szqd', label: '设自启动', type: 'toggle', def: 0 },
+                    { id: 'edit_led_sbyj', label: '鼠标右键', type: 'toggle', def: 0 },
+                    { id: 'edit_led_cslx', label: '测试列项', type: 'toggle', def: 0 },
+                    { id: 'edit_led_lsjl', label: '历史记录', type: 'popup', def: '无', options: ['无'] }
+                ],
+                buildLisp(v) {
+                    let body = '';
+                    this.fields.forEach(f => {
+                        const raw = (v[f.id] != null) ? v[f.id] : '';
+                        if (f.type === 'toggle') {
+                            body += `(setq ${f.id} ${raw ? 1 : 0})\n  `;
+                        } else if (f.type === 'textarea') {
+                            body += `(setq ${f.id} "${q(String(raw).replace(/\n/g, '\\n'))}")\n  `;
+                        } else {
+                            body += `(setq ${f.id} "${q(String(raw))}")\n  `;
+                        }
+                    });
+                    return `(progn\n  ${body}(ZWGEN-LED-DRAW)\n  (princ "\\n[LED] 参数已提交"))`;
+                }
+            };
+
+            /* 模块注册表：增删功能只动这里 */
+            const MODULES = { row: program_001, line: program_002, rect: program_003, pline: program_004, text: program_005, block: program_006, dim: program_007, array: program_008, led: program_009 };
+            /* ============================================================
+               选项卡动态生成 + 字段渲染
+               ============================================================ */
+            let activeMod = null;
+            function buildUI() {
+                const tabs = document.getElementById('tabs');
+                // 说明选项卡按钮
+                const helpBtn = document.createElement('button');
+                helpBtn.className = 'tab active'; helpBtn.textContent = '使用说明'; helpBtn.dataset.tab = 'help';
+                tabs.appendChild(helpBtn);
+                // 功能选项卡按钮 + 面板
+                for (const id in MODULES) {
+                    const m = MODULES[id];
+                    const btn = document.createElement('button');
+                    btn.className = 'tab'; btn.textContent = m.title; btn.dataset.tab = id;
+                    tabs.appendChild(btn);
+
+                    const pane = document.createElement('div');
+                    pane.className = 'pane fields'; pane.id = 'pane-' + id;
+                    m.fields.forEach(f => {
+                        const wrap = document.createElement('div'); wrap.className = 'field';
+                        const lab = document.createElement('label'); lab.textContent = f.label; lab.title = f.label;
+                        let inp;
+                        if (f.type === 'popup') {
+                            inp = document.createElement('select');
+                            (f.options || ['']).forEach(o => { const op = document.createElement('option'); op.value = o; op.textContent = o; inp.appendChild(op); });
+                            inp.value = f.def;
+                        } else if (f.type === 'textarea') {
+                            inp = document.createElement('textarea'); inp.rows = 3;
+                        } else {
+                            inp = document.createElement('input'); inp.type = f.type || 'text';
+                        }
+                        inp.id = `f_${id}_${f.id}`;
+                        if (f.def != null) inp.value = f.def;
+                        wrap.appendChild(lab); wrap.appendChild(inp);
+                        pane.appendChild(wrap);
+                    });
+                    document.body.insertBefore(pane, document.getElementById('genbar'));
+                }
+                document.getElementById('loaderView').textContent =
+                    document.getElementById('loaderLsp').textContent;
+            }
+            function getVals(id) {
+                const m = MODULES[id], v = {};
+                m.fields.forEach(f => { v[f.id] = document.getElementById(`f_${id}_${f.id}`).value; });
+                return v;
+            }
+            /* 选项卡切换 */
+            document.getElementById('tabs').addEventListener('click', e => {
+                const btn = e.target.closest('.tab'); if (!btn) return;
+                const tab = btn.dataset.tab;
+                document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b === btn));
+                document.querySelectorAll('.pane').forEach(p => p.classList.toggle('active', p.id === 'pane-' + tab));
+                activeMod = (tab === 'help') ? null : tab;
+                document.getElementById('genbar').style.display = (tab === 'help') ? 'none' : 'block';
+            });
+            /* 共用生成按钮（明文，不压缩）*/
+            function gen() {
+                if (!activeMod) return;
+                const m = MODULES[activeMod];
+                const lisp = m.buildLisp(getVals(activeMod));
+                const payload = '(ZWGEN-PAYLOAD ' + lisp + ')';
+                copyText(payload)
+                    .then(() => setStatus('请回到 CAD 输入 loadwj'))
+                    .catch(() => setStatus('失败！'));
+            }
+            function setStatus(msg, cls) {
+                const e = document.getElementById('s'); e.textContent = msg; e.className = cls || '';
+            }
+            /* 下载 loader */
+            function downloadLoader() {
+                const src = document.getElementById('loaderLsp').textContent;
+                const blob = new Blob([src], { type: 'text/plain;charset=utf-8' });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = 'loadwj.lsp';
+                a.click();
+                URL.revokeObjectURL(a.href);
+            }
+            buildUI();
+        </script>
+    </body>
+
+</html>

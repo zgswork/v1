@@ -1,0 +1,1161 @@
+<!DOCTYPE html>
+<html tk="title_streams_api_playground" lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Streams API Playground</title>
+<meta name="description" content="Interactive playground for the Streams API - ReadableStream, WritableStream, TransformStream, backpressure, teeing, and fetch pipelines.">
+<style>
+:root {
+  --bg: #0a0a0a;
+  --surface: #141414;
+  --surface2: #1e1e1e;
+  --border: #2a2a2a;
+  --text: #e0e0e0;
+  --text-dim: #888;
+  --accent: #4fc3f7;
+  --accent2: #81c784;
+  --accent3: #ffb74d;
+  --accent4: #e57373;
+  --accent5: #ce93d8;
+  --radius: 8px;
+  --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --mono: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: var(--font); background: var(--bg); color: var(--text); line-height: 1.6; min-height: 100vh; }
+header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 1.5rem 2rem; text-align: center; }
+header h1 {
+  font-size: 1.6rem; font-weight: 600;
+  background: linear-gradient(135deg, var(--accent2), var(--accent));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+header p { color: var(--text-dim); margin-top: 0.3rem; font-size: 0.9rem; }
+.tabs { display: flex; flex-wrap: wrap; gap: 0.25rem; padding: 1rem 2rem; background: var(--surface); border-bottom: 1px solid var(--border); }
+.tab { padding: 0.5rem 1rem; border: 1px solid var(--border); border-radius: var(--radius); background: transparent; color: var(--text-dim); cursor: pointer; font-size: 0.85rem; transition: all 0.2s; font-family: var(--font); }
+.tab:hover { border-color: var(--accent2); color: var(--text); }
+.tab.active { background: var(--accent2); color: #000; border-color: var(--accent2); font-weight: 600; }
+main { max-width: 1100px; margin: 0 auto; padding: 1.5rem; }
+.panel { display: none; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; margin-bottom: 1rem; }
+.panel.active { display: block; }
+.panel h2 { font-size: 1.2rem; margin-bottom: 0.5rem; color: var(--accent2); }
+.panel h3 { font-size: 1rem; margin: 1rem 0 0.5rem; color: var(--accent); }
+.desc { color: var(--text-dim); font-size: 0.9rem; margin-bottom: 1rem; }
+button { padding: 0.5rem 1.2rem; border: 1px solid var(--accent); border-radius: var(--radius); background: transparent; color: var(--accent); cursor: pointer; font-size: 0.85rem; transition: all 0.2s; font-family: var(--font); }
+button:hover { background: var(--accent); color: #000; }
+button.success { border-color: var(--accent2); color: var(--accent2); }
+button.success:hover { background: var(--accent2); color: #000; }
+button.warn { border-color: var(--accent3); color: var(--accent3); }
+button.warn:hover { background: var(--accent3); color: #000; }
+button.danger { border-color: var(--accent4); color: var(--accent4); }
+button.danger:hover { background: var(--accent4); color: #000; }
+button:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-row { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 0.75rem 0; }
+input, textarea, select { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); padding: 0.5rem 0.75rem; font-family: var(--mono); font-size: 0.85rem; width: 100%; }
+select { width: auto; cursor: pointer; }
+.log-area { background: #0d0d0d; border: 1px solid var(--border); border-radius: var(--radius); padding: 0.75rem; font-family: var(--mono); font-size: 0.8rem; max-height: 300px; overflow-y: auto; margin-top: 0.75rem; line-height: 1.5; }
+.log-area .entry { padding: 0.15rem 0; border-bottom: 1px solid #1a1a1a; }
+.log-area .entry:last-child { border-bottom: none; }
+.log-area .info { color: var(--accent); }
+.log-area .data { color: var(--accent2); }
+.log-area .warn { color: var(--accent3); }
+.log-area .error { color: var(--accent4); }
+.log-area .system { color: var(--text-dim); }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.code-block { background: #0d0d0d; border: 1px solid var(--border); border-radius: var(--radius); padding: 0.75rem; font-family: var(--mono); font-size: 0.78rem; overflow-x: auto; margin: 0.5rem 0; color: var(--text-dim); white-space: pre; }
+.pipe-viz { display: flex; align-items: center; gap: 0.3rem; padding: 1rem; margin: 0.75rem 0; background: var(--surface2); border-radius: var(--radius); flex-wrap: wrap; font-size: 0.85rem; justify-content: center; }
+.pipe-node { padding: 0.5rem 0.8rem; border-radius: var(--radius); border: 1px solid var(--border); text-align: center; min-width: 70px; transition: all 0.3s; }
+.pipe-node.active { border-color: var(--accent2); box-shadow: 0 0 10px rgba(129,199,132,0.3); }
+.pipe-arrow { color: var(--text-dim); }
+.progress-bar { height: 20px; background: var(--surface2); border-radius: var(--radius); overflow: hidden; margin: 0.5rem 0; border: 1px solid var(--border); }
+.progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent2), var(--accent)); border-radius: var(--radius); transition: width 0.3s; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; color: #000; font-weight: 600; }
+.bp-meter { display: flex; align-items: center; gap: 0.5rem; margin: 0.5rem 0; }
+.bp-bar { flex: 1; height: 12px; background: var(--surface2); border-radius: 6px; overflow: hidden; border: 1px solid var(--border); }
+.bp-fill { height: 100%; border-radius: 6px; transition: width 0.3s, background 0.3s; }
+.bp-label { font-size: 0.75rem; color: var(--text-dim); min-width: 80px; }
+.support-badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+.support-badge.yes { background: rgba(129,199,132,0.2); color: var(--accent2); }
+.support-badge.no { background: rgba(229,115,115,0.2); color: var(--accent4); }
+@media (max-width: 768px) {
+  .grid2 { grid-template-columns: 1fr; }
+  .tabs { padding: 0.75rem 1rem; }
+  main { padding: 1rem; }
+  header { padding: 1rem; }
+  .pipe-viz { flex-direction: column; }
+}
+</style>
+</head>
+<body>
+
+
+
+<header>
+  <h1 ti="title_streams_api_playground" ti="h1_streams_api_playground">Streams API Playground</h1>
+  <p>ReadableStream, WritableStream, TransformStream & pipeline demos</p>
+</header>
+
+<div class="tabs">
+  <button class="tab active" data-panel="readable" ti="btn_readablestream">ReadableStream</button>
+  <button class="tab" data-panel="writable" ti="btn_writablestream">WritableStream</button>
+  <button class="tab" data-panel="transform" ti="btn_transformstream">TransformStream</button>
+  <button class="tab" data-panel="backpressure" ti="btn_backpressure">Backpressure</button>
+  <button class="tab" data-panel="tee" ti="btn_teeing">Teeing</button>
+  <button class="tab" data-panel="custom" ti="btn_custom_source_sink">Custom Source/Sink</button>
+  <button class="tab" data-panel="fetch" ti="btn_fetch_pipeline">Fetch Pipeline</button>
+  <button class="tab" data-panel="bytestream" ti="btn_byte_streams">Byte Streams</button>
+</div>
+
+<main>
+  <!-- Panel 1: ReadableStream -->
+  <div class="panel active" id="panel-readable">
+    <h2 ti="h2_readablestream_creation_r">ReadableStream Creation & Reading</h2>
+    <p class="desc" ti="subtitle_create_readable_streams_f">Create readable streams from custom sources and consume them chunk by chunk.</p>
+
+    <span class="support-badge" id="rs-badge">Checking...</span>
+
+    <h3 ti="h3_timer_stream_pushes_data">Timer Stream (pushes data every 500ms)</h3>
+    <div class="btn-row">
+      <button class="success" onclick="startTimerStream()" ti="btn_start_timer_stream">Start Timer Stream</button>
+      <button class="danger" onclick="cancelTimerStream()" ti="btn_cancel">Cancel</button>
+    </div>
+    <div class="log-area" id="timer-log"><div class="entry system">Timer stream output...</div></div>
+
+    <h3 ti="h3_array_backed_stream">Array-backed Stream</h3>
+    <p class="desc" ti="subtitle_pull_based_data_is_enqueu">Pull-based: data is enqueued on demand when the consumer requests it.</p>
+    <div class="btn-row">
+      <button onclick="arrayStream()" ti="btn_create_read_array_stream">Create & Read Array Stream</button>
+      <button onclick="arrayStreamManual()" ti="btn_read_manually_chunk_by_ch">Read Manually (chunk by chunk)</button>
+    </div>
+    <div class="log-area" id="array-log"><div class="entry system">Array stream output...</div></div>
+
+    <h3 ti="h3_code_pattern">Code Pattern</h3>
+    <div class="code-block">const stream = new ReadableStream({
+  start(controller) {
+    controller.enqueue('chunk 1');
+    controller.enqueue('chunk 2');
+    controller.close();
+  }
+});
+
+const reader = stream.getReader();
+while (true) {
+  const { value, done } = await reader.read();
+  if (done) break;
+  console.log(value);
+}</div>
+  </div>
+
+  <!-- Panel 2: WritableStream -->
+  <div class="panel" id="panel-writable">
+    <h2 ti="h2_writablestream_creation_w">WritableStream Creation & Writing</h2>
+    <p class="desc" ti="subtitle_writablestream_receives_d">WritableStream receives data chunks and processes them through a sink.</p>
+
+    <h3 ti="h3_console_sink">Console Sink</h3>
+    <input id="ws-input" tp="placeholder_enter_text_to_write_to_st" placeholder="Enter text to write to stream..." value="Hello Streams!" />
+    <div class="btn-row">
+      <button class="success" onclick="writeToStream()" ti="btn_write_to_stream">Write to Stream</button>
+      <button onclick="writeMultiple()" ti="btn_write_5_chunks">Write 5 Chunks</button>
+      <button class="warn" onclick="abortStream()" ti="btn_abort_stream">Abort Stream</button>
+    </div>
+    <div class="log-area" id="ws-log"><div class="entry system">WritableStream output...</div></div>
+
+    <h3 ti="h3_collecting_sink_buffer_al">Collecting Sink (buffer all chunks)</h3>
+    <div class="btn-row">
+      <button onclick="collectingStream()" ti="btn_demo_collecting_sink">Demo: Collecting Sink</button>
+    </div>
+    <div class="log-area" id="collect-log"><div class="entry system">Collecting sink output...</div></div>
+  </div>
+
+  <!-- Panel 3: TransformStream -->
+  <div class="panel" id="panel-transform">
+    <h2 ti="h2_transformstream_piping">TransformStream Piping</h2>
+    <p class="desc" ti="subtitle_transformstream_sits_betw">TransformStream sits between readable and writable, transforming data as it flows through.</p>
+
+    <div class="pipe-viz">
+      <div class="pipe-node" id="t-source">Source</div>
+      <div class="pipe-arrow">&rarr;</div>
+      <div class="pipe-node" id="t-readable">Readable</div>
+      <div class="pipe-arrow">&rarr;</div>
+      <div class="pipe-node" id="t-transform">Transform</div>
+      <div class="pipe-arrow">&rarr;</div>
+      <div class="pipe-node" id="t-writable">Writable</div>
+      <div class="pipe-arrow">&rarr;</div>
+      <div class="pipe-node" id="t-sink">Sink</div>
+    </div>
+
+    <h3 ti="h3_built_in_transforms">Built-in Transforms</h3>
+    <input id="tf-input" tp="placeholder_enter_text_to_transform" placeholder="Enter text to transform..." value="Hello, World! This is a Streams demo." />
+    <div class="btn-row">
+      <button onclick="transformDemo('upper')" ti="btn_uppercase">Uppercase</button>
+      <button onclick="transformDemo('reverse')" ti="btn_reverse">Reverse</button>
+      <button onclick="transformDemo('length')" ti="btn_char_count">Char Count</button>
+      <button onclick="transformDemo('base64')" ti="btn_base64_encode">Base64 Encode</button>
+      <button onclick="transformDemo('hash')" ti="btn_simple_hash">Simple Hash</button>
+    </div>
+    <div class="log-area" id="tf-log"><div class="entry system">Transform results...</div></div>
+
+    <h3 ti="h3_chained_transforms">Chained Transforms</h3>
+    <div class="btn-row">
+      <button class="success" onclick="chainedTransform()">Chain: Split Words &rarr; Uppercase &rarr; Add Index</button>
+    </div>
+    <div class="log-area" id="chain-log"><div class="entry system">Chained transform results...</div></div>
+  </div>
+
+  <!-- Panel 4: Backpressure -->
+  <div class="panel" id="panel-backpressure">
+    <h2 ti="h2_backpressure_visualizatio">Backpressure Visualization</h2>
+    <p class="desc" ti="subtitle_backpressure_occurs_when">Backpressure occurs when the consumer is slower than the producer. The stream's internal queue fills up, signaling the producer to slow down.</p>
+
+    <h3 ti="h3_fast_producer_slow_consum">Fast Producer, Slow Consumer</h3>
+    <div class="grid2">
+      <div>
+        <label style="color:var(--text-dim);font-size:0.85rem;" ti="label_producer_speed_ms_chunk">Producer speed (ms/chunk):</label>
+        <input type="number" id="bp-prod-speed" value="50" min="10" max="1000" />
+      </div>
+      <div>
+        <label style="color:var(--text-dim);font-size:0.85rem;" ti="label_consumer_speed_ms_chunk">Consumer speed (ms/chunk):</label>
+        <input type="number" id="bp-cons-speed" value="300" min="10" max="1000" />
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="success" onclick="startBackpressure()" ti="btn_start_demo">Start Demo</button>
+      <button class="danger" onclick="stopBackpressure()" ti="btn_stop">Stop</button>
+    </div>
+
+    <div class="bp-meter">
+      <span class="bp-label" ti="label_queue_fill">Queue fill:</span>
+      <div class="bp-bar"><div class="bp-fill" id="bp-fill" style="width:0%;background:var(--accent2);"></div></div>
+      <span id="bp-val" style="font-size:0.75rem;color:var(--text-dim);min-width:40px;">0%</span>
+    </div>
+    <div class="grid2">
+      <div>
+        <div style="font-size:0.8rem;color:var(--text-dim);">Produced: <span id="bp-produced">0</span></div>
+        <div style="font-size:0.8rem;color:var(--text-dim);">Consumed: <span id="bp-consumed">0</span></div>
+      </div>
+      <div>
+        <div style="font-size:0.8rem;color:var(--text-dim);">Desired size: <span id="bp-desired">-</span></div>
+        <div style="font-size:0.8rem;color:var(--text-dim);">Status: <span id="bp-status">idle</span></div>
+      </div>
+    </div>
+    <div class="log-area" id="bp-log"><div class="entry system">Backpressure log...</div></div>
+  </div>
+
+  <!-- Panel 5: Teeing -->
+  <div class="panel" id="panel-tee">
+    <h2 ti="h2_stream_teeing_read_twice">Stream Teeing (Read Twice)</h2>
+    <p class="desc" ti="subtitle_tee_splits_a_readablestre">tee() splits a ReadableStream into two independent branches. Both receive all chunks. The original stream becomes locked.</p>
+
+    <div class="pipe-viz">
+      <div class="pipe-node" id="tee-source">Source</div>
+      <div class="pipe-arrow">&rarr;</div>
+      <div class="pipe-node" id="tee-main">stream.tee()</div>
+      <div class="pipe-arrow">&rarr;</div>
+      <div style="display:flex;flex-direction:column;gap:0.5rem;">
+        <div class="pipe-node" id="tee-branch1">Branch 1</div>
+        <div class="pipe-node" id="tee-branch2">Branch 2</div>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="success" onclick="teeDemo()" ti="btn_tee_log_transform">Tee: Log + Transform</button>
+      <button onclick="teeRace()" ti="btn_tee_race_two_consumers">Tee: Race Two Consumers</button>
+    </div>
+    <div class="grid2">
+      <div class="log-area" id="tee-log1"><div class="entry system">Branch 1...</div></div>
+      <div class="log-area" id="tee-log2"><div class="entry system">Branch 2...</div></div>
+    </div>
+  </div>
+
+  <!-- Panel 6: Custom Source/Sink -->
+  <div class="panel" id="panel-custom">
+    <h2 ti="h2_custom_source_sink_implem">Custom Source & Sink Implementation</h2>
+    <p class="desc" ti="subtitle_implement_custom_underlyi">Implement custom underlying sources and sinks with full lifecycle control.</p>
+
+    <h3 ti="h3_custom_source_with_backpr">Custom Source with Backpressure Awareness</h3>
+    <div class="btn-row">
+      <button class="success" onclick="customSource()" ti="btn_run_custom_source">Run Custom Source</button>
+    </div>
+    <div class="log-area" id="custom-src-log"><div class="entry system">Custom source log...</div></div>
+
+    <h3 ti="h3_custom_sink_with_batching">Custom Sink with Batching</h3>
+    <p class="desc" ti="subtitle_sink_that_batches_incomin">Sink that batches incoming chunks and flushes when batch is full or stream closes.</p>
+    <div class="btn-row">
+      <button onclick="customSink()" ti="btn_run_batching_sink_batch_s">Run Batching Sink (batch size: 3)</button>
+    </div>
+    <div class="log-area" id="custom-sink-log"><div class="entry system">Custom sink log...</div></div>
+
+    <h3>Full Pipeline: Source &rarr; Transform &rarr; Sink</h3>
+    <div class="btn-row">
+      <button class="warn" onclick="fullPipeline()" ti="btn_run_full_pipeline">Run Full Pipeline</button>
+    </div>
+    <div class="log-area" id="pipeline-log"><div class="entry system">Pipeline log...</div></div>
+  </div>
+
+  <!-- Panel 7: Fetch Pipeline -->
+  <div class="panel" id="panel-fetch">
+    <h2>Fetch &rarr; ReadableStream Pipeline</h2>
+    <p class="desc" ti="subtitle_process_fetch_responses_a">Process fetch responses as streams for progressive loading and real-time processing.</p>
+
+    <h3 ti="h3_simulated_fetch_stream">Simulated Fetch Stream</h3>
+    <p class="desc" ti="subtitle_since_we_can_t_fetch_arbi">Since we can't fetch arbitrary URLs from a playground, this simulates a streamed response using a ReadableStream.</p>
+    <div class="btn-row">
+      <button class="success" onclick="simulatedFetch()" ti="btn_simulate_streamed_respons">Simulate Streamed Response</button>
+      <button onclick="fetchWithProgress()" ti="btn_fetch_with_progress_bar">Fetch with Progress Bar</button>
+    </div>
+    <div class="progress-bar" id="fetch-progress" style="display:none;">
+      <div class="progress-fill" id="fetch-fill" style="width:0%;">0%</div>
+    </div>
+    <div class="log-area" id="fetch-log"><div class="entry system">Fetch pipeline log...</div></div>
+
+    <h3 ti="h3_stream_text_decoder_pipel">Stream → Text Decoder Pipeline</h3>
+    <div class="btn-row">
+      <button onclick="decoderPipeline()" ti="btn_binary_text_decode_pipeli">Binary → Text Decode Pipeline</button>
+    </div>
+    <div class="log-area" id="decoder-log"><div class="entry system">Decoder pipeline log...</div></div>
+  </div>
+
+  <!-- Panel 8: Byte Streams -->
+  <div class="panel" id="panel-bytestream">
+    <h2 ti="h2_byte_stream_mode">Byte Stream Mode</h2>
+    <p class="desc" ti="subtitle_byob_bring_your_own_buffe">BYOB (Bring Your Own Buffer) readers allow zero-copy reads into pre-allocated buffers. This is optimal for binary data processing.</p>
+
+    <h3 ti="h3_byob_reader_demo">BYOB Reader Demo</h3>
+    <div class="btn-row">
+      <button class="success" onclick="byobDemo()" ti="btn_byob_read">BYOB Read</button>
+      <button onclick="defaultVsByob()" ti="btn_default_vs_byob_compariso">Default vs BYOB Comparison</button>
+    </div>
+    <div class="log-area" id="byob-log"><div class="entry system">Byte stream log...</div></div>
+
+    <h3 ti="h3_byte_stream_with_auto_all">Byte Stream with Auto-Allocation</h3>
+    <div class="btn-row">
+      <button onclick="autoAllocDemo()" ti="btn_auto_allocation_demo">Auto-allocation Demo</button>
+    </div>
+    <div class="log-area" id="auto-log"><div class="entry system">Auto-allocation log...</div></div>
+  </div>
+</main>
+
+
+<script>var _LANG={'title_streams_api_playground':["Streams API Playground", "Streams API Playground"],'metadesc_interactive_playground_fo':["Interactive playground for the Streams API - ReadableStream, WritableStream, TransformStream, backpressure, teeing, and fetch pipelines.", "Streams API 的交互式演示平台 - ReadableStream、WritableStream、TransformStream、反压、分流和获取管道。"],'h1_streams_api_playground':["Streams API Playground", "Streams API Playground"],'h2_readablestream_creation_r':["ReadableStream Creation & Reading", "ReadableStream 创建与阅读"],'h2_writablestream_creation_w':["WritableStream Creation & Writing", "可写流创建与写作"],'h2_transformstream_piping':["TransformStream Piping", "转换流管道"],'h2_backpressure_visualizatio':["Backpressure Visualization", "背压可视化"],'h2_stream_teeing_read_twice':["Stream Teeing (Read Twice)", "溪流发球（读两遍）"],'h2_custom_source_sink_implem':["Custom Source & Sink Implementation", "自定义源和接收器实现"],'h2_fetch_readablestream_pipe':["Fetch → ReadableStream Pipeline", "获取 → 可读流管道"],'h2_byte_stream_mode':["Byte Stream Mode", "字节流模式"],'h3_timer_stream_pushes_data':["Timer Stream (pushes data every 500ms)", "定时器流（每 500 毫秒推送一次数据）"],'h3_array_backed_stream':["Array-backed Stream", "数组支持的流"],'h3_code_pattern':["Code Pattern", "代码模式"],'h3_console_sink':["Console Sink", "控制台接收器"],'h3_collecting_sink_buffer_al':["Collecting Sink (buffer all chunks)", "收集接收器（缓冲所有数据块）"],'h3_built_in_transforms':["Built-in Transforms", "内置变换"],'h3_chained_transforms':["Chained Transforms", "链式变换"],'h3_fast_producer_slow_consum':["Fast Producer, Slow Consumer", "生产速度快，消费速度慢"],'h3_custom_source_with_backpr':["Custom Source with Backpressure Awareness", "具有反压感知功能的自定义源"],'h3_custom_sink_with_batching':["Custom Sink with Batching", "带批处理功能的定制水槽"],'h3_full_pipeline_source_tran':["Full Pipeline: Source → Transform → Sink", "完整流程：源 → 转换 → 接收器"],'h3_simulated_fetch_stream':["Simulated Fetch Stream", "模拟取样流"],'h3_stream_text_decoder_pipel':["Stream → Text Decoder Pipeline", "流 → 文本解码器管道"],'h3_byob_reader_demo':["BYOB Reader Demo", "BYOB 阅读器演示"],'h3_byte_stream_with_auto_all':["Byte Stream with Auto-Allocation", "带自动分配功能的字节流"],'subtitle_create_readable_streams_f':["Create readable streams from custom sources and consume them chunk by chunk.", "从自定义源创建可读流，并逐块消费它们。"],'subtitle_pull_based_data_is_enqueu':["Pull-based: data is enqueued on demand when the consumer requests it.", "拉取式：数据在消费者请求时按需加入队列。"],'subtitle_writablestream_receives_d':["WritableStream receives data chunks and processes them through a sink.", "WritableStream 接收数据块并通过接收器进行处理。"],'subtitle_transformstream_sits_betw':["TransformStream sits between readable and writable, transforming data as it flows through.", "TransformStream 位于可读和可写之间，在数据流经时对其进行转换。"],'subtitle_backpressure_occurs_when':["Backpressure occurs when the consumer is slower than the producer. The stream's internal queue fills up, signaling the producer to slow down.", "当消费者执行速度慢于生产者时，就会发生背压。数据流的内部队列会填满，从而发出信号，要求生产者减慢执行速度。"],'subtitle_tee_splits_a_readablestre':["tee() splits a ReadableStream into two independent branches. Both receive all chunks. The original stream becomes locked.", "`tee()` 函数将一个 `ReadableStream` 分成两个独立的分支。两个分支都接收所有数据块。原始流会被锁定。"],'subtitle_implement_custom_underlyi':["Implement custom underlying sources and sinks with full lifecycle control.", "实现具有完整生命周期控制的自定义底层数据源和数据接收器。"],'subtitle_sink_that_batches_incomin':["Sink that batches incoming chunks and flushes when batch is full or stream closes.", "接收批量数据并于批次满或流关闭时进行刷新的接收器。"],'subtitle_process_fetch_responses_a':["Process fetch responses as streams for progressive loading and real-time processing.", "将处理获取的响应作为流进行渐进式加载和实时处理。"],'subtitle_since_we_can_t_fetch_arbi':["Since we can't fetch arbitrary URLs from a playground, this simulates a streamed response using a ReadableStream.", "由于我们无法从 playground 获取任意 URL，因此使用 ReadableStream 模拟流式响应。"],'subtitle_byob_bring_your_own_buffe':["BYOB (Bring Your Own Buffer) readers allow zero-copy reads into pre-allocated buffers. This is optimal for binary data processing.", "自带缓冲区 (BYOB) 读取器允许将数据零拷贝读取到预分配的缓冲区中。这对于二进制数据处理来说是最佳选择。"],'btn_readablestream':["ReadableStream", "可读流"],'btn_writablestream':["WritableStream", "可写流"],'btn_transformstream':["TransformStream", "转换流"],'btn_backpressure':["Backpressure", "反压"],'btn_teeing':["Teeing", "球"],'btn_custom_source_sink':["Custom Source/Sink", "自定义源/接收器"],'btn_fetch_pipeline':["Fetch Pipeline", "获取管道"],'btn_byte_streams':["Byte Streams", "字节流"],'btn_start_timer_stream':["Start Timer Stream", "启动定时器流"],'btn_cancel':["Cancel", "取消"],'btn_create_read_array_stream':["Create & Read Array Stream", "创建和读取数组流"],'btn_read_manually_chunk_by_ch':["Read Manually (chunk by chunk)", "手动阅读（逐段阅读）"],'btn_write_to_stream':["Write to Stream", "写入流"],'btn_write_5_chunks':["Write 5 Chunks", "写5个部分"],'btn_abort_stream':["Abort Stream", "中止流"],'btn_demo_collecting_sink':["Demo: Collecting Sink", "演示：收集水槽"],'btn_uppercase':["Uppercase", "大写字母"],'btn_reverse':["Reverse", "撤销"],'btn_char_count':["Char Count", "字符数"],'btn_base64_encode':["Base64 Encode", "Base64 编码"],'btn_simple_hash':["Simple Hash", "简单哈希"],'btn_chain_split_words_upperca':["Chain: Split Words → Uppercase → Add Index", "链式操作：拆分单词 → 转换为大写 → 添加索引"],'btn_start_demo':["Start Demo", "开始演示"],'btn_stop':["Stop", "停止"],'btn_tee_log_transform':["Tee: Log + Transform", "Tee：对数 + 变换"],'btn_tee_race_two_consumers':["Tee: Race Two Consumers", "T恤：竞相成为消费者"],'btn_run_custom_source':["Run Custom Source", "运行自定义源"],'btn_run_batching_sink_batch_s':["Run Batching Sink (batch size: 3)", "运行批量水槽（批量大小：3）"],'btn_run_full_pipeline':["Run Full Pipeline", "运行完整流程"],'btn_simulate_streamed_respons':["Simulate Streamed Response", "模拟流式响应"],'btn_fetch_with_progress_bar':["Fetch with Progress Bar", "带进度条的获取"],'btn_binary_text_decode_pipeli':["Binary → Text Decode Pipeline", "二进制→文本解码管道"],'btn_byob_read':["BYOB Read", "自带酒水（BYOB）"],'btn_default_vs_byob_compariso':["Default vs BYOB Comparison", "默认设置与自带酒水对比"],'btn_auto_allocation_demo':["Auto-allocation Demo", "自动分配演示"],'label_queue_fill':["Queue fill:", "队列填充："],'placeholder_enter_text_to_write_to_st':["Enter text to write to stream...", "输入要写入流的文本..."],'placeholder_enter_text_to_transform':["Enter text to transform...", "输入要转换的文本..."],'label_producer_speed_ms_chunk':["Producer speed (ms/chunk):", "生产者速度（毫秒/块）："],'label_consumer_speed_ms_chunk':["Consumer speed (ms/chunk):", "消费者速度（毫秒/数据块）："],'jtc_streams_api_full_support':["Streams API: Full Support", "Streams API：完全支持"],'jtc_streams_api_partial_no_su':["Streams API: Partial/No Support", "Streams API：部分支持/不支持"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>
+// Tab navigation
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('panel-' + tab.dataset.panel).classList.add('active');
+  });
+});
+
+function log(id, msg, cls='info') {
+  const area = document.getElementById(id);
+  const entry = document.createElement('div');
+  entry.className = 'entry ' + cls;
+  entry.textContent = msg;
+  area.appendChild(entry);
+  area.scrollTop = area.scrollHeight;
+}
+function clearLog(id) { document.getElementById(id).innerHTML = ''; }
+
+// Feature detection
+const badge = document.getElementById('rs-badge');
+if (typeof ReadableStream !== 'undefined' && typeof WritableStream !== 'undefined' && typeof TransformStream !== 'undefined') {
+  badge.className = 'support-badge yes';
+  badge.textContent=T("jtc_streams_api_full_support");
+} else {
+  badge.className = 'support-badge no';
+  badge.textContent=T("jtc_streams_api_partial_no_su");
+}
+
+// --- Panel 1: ReadableStream ---
+let timerReader;
+async function startTimerStream() {
+  clearLog('timer-log');
+  let count = 0;
+  const stream = new ReadableStream({
+    start(controller) {
+      const interval = setInterval(() => {
+        count++;
+        if (count > 10) {
+          clearInterval(interval);
+          controller.close();
+          return;
+        }
+        controller.enqueue({ time: Date.now(), count });
+      }, 500);
+      this._interval = interval;
+    },
+    cancel() {
+      clearInterval(this._interval);
+    }
+  });
+
+  timerReader = stream.getReader();
+  log('timer-log', 'Timer stream started (10 chunks, 500ms interval)', 'info');
+
+  try {
+    while (true) {
+      const { value, done } = await timerReader.read();
+      if (done) { log('timer-log', 'Stream closed', 'system'); break; }
+      log('timer-log', `Chunk #${value.count}: timestamp=${value.time}`, 'data');
+    }
+  } catch(e) {
+    log('timer-log', `Cancelled: ${e.message}`, 'warn');
+  }
+}
+function cancelTimerStream() {
+  if (timerReader) {
+    timerReader.cancel('User cancelled');
+    log('timer-log', 'Cancel requested', 'error');
+  }
+}
+async function arrayStream() {
+  clearLog('array-log');
+  const data = ['alpha', 'beta', 'gamma', 'delta', 'epsilon'];
+  let index = 0;
+
+  const stream = new ReadableStream({
+    pull(controller) {
+      if (index < data.length) {
+        log('array-log', `pull() called, enqueuing "${data[index]}"`, 'system');
+        controller.enqueue(data[index]);
+        index++;
+      } else {
+        controller.close();
+        log('array-log', 'pull() called, closing stream', 'system');
+      }
+    }
+  });
+
+  const reader = stream.getReader();
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) { log('array-log', 'All chunks read', 'info'); break; }
+    log('array-log', `Read: "${value}"`, 'data');
+  }
+}
+let manualReader, manualStream;
+async function arrayStreamManual() {
+  clearLog('array-log');
+  if (!manualReader) {
+    const data = ['first', 'second', 'third', 'fourth', 'fifth'];
+    let i = 0;
+    manualStream = new ReadableStream({
+      pull(controller) {
+        if (i < data.length) { controller.enqueue(data[i++]); }
+        else { controller.close(); }
+      }
+    });
+    manualReader = manualStream.getReader();
+    log('array-log', 'Stream created. Click again to read each chunk.', 'info');
+    return;
+  }
+  const { value, done } = await manualReader.read();
+  if (done) {
+    log('array-log', 'Stream exhausted', 'system');
+    manualReader = null;
+  } else {
+    log('array-log', `Read chunk: "${value}"`, 'data');
+  }
+}
+
+// --- Panel 2: WritableStream ---
+let currentWriter;
+async function writeToStream() {
+  clearLog('ws-log');
+  const input = document.getElementById('ws-input').value;
+  const ws = new WritableStream({
+    write(chunk) { log('ws-log', `Sink received: "${chunk}"`, 'data'); },
+    close() { log('ws-log', 'Sink closed', 'system'); },
+    abort(reason) { log('ws-log', `Sink aborted: ${reason}`, 'error'); }
+  });
+  const writer = ws.getWriter();
+  currentWriter = writer;
+  await writer.write(input);
+  await writer.close();
+  log('ws-log', 'Write complete', 'info');
+}
+async function writeMultiple() {
+  clearLog('ws-log');
+  const ws = new WritableStream({
+    write(chunk) { log('ws-log', `Sink received: "${chunk}"`, 'data'); },
+    close() { log('ws-log', 'Sink closed', 'system'); },
+    abort(reason) { log('ws-log', `Sink aborted: ${reason}`, 'error'); }
+  });
+  currentWriter = ws.getWriter();
+  for (let i = 1; i <= 5; i++) {
+    await currentWriter.write(`Chunk ${i} at ${Date.now()}`);
+    log('ws-log', `Written chunk ${i}`, 'info');
+  }
+  await currentWriter.close();
+}
+async function abortStream() {
+  clearLog('ws-log');
+  const ws = new WritableStream({
+    write(chunk) { log('ws-log', `Sink received: "${chunk}"`, 'data'); },
+    close() { log('ws-log', 'Sink closed', 'system'); },
+    abort(reason) { log('ws-log', `Sink aborted: ${reason}`, 'error'); }
+  });
+  const writer = ws.getWriter();
+  await writer.write('Before abort');
+  await writer.abort('User aborted the stream');
+  log('ws-log', 'Stream aborted', 'warn');
+}
+async function collectingStream() {
+  clearLog('collect-log');
+  const collected = [];
+  const ws = new WritableStream({
+    write(chunk) { collected.push(chunk); log('collect-log', `Buffered: "${chunk}"`, 'data'); },
+    close() {
+      log('collect-log', `--- Collected ${collected.length} chunks ---`, 'info');
+      log('collect-log', `Result: [${collected.join(', ')}]`, 'data');
+    }
+  });
+  const writer = ws.getWriter();
+  for (const item of ['apple', 'banana', 'cherry', 'date', 'elderberry']) {
+    await writer.write(item);
+  }
+  await writer.close();
+}
+
+// --- Panel 3: TransformStream ---
+function activateNode(id) {
+  const el = document.getElementById(id);
+  el.classList.add('active');
+  setTimeout(() => el.classList.remove('active'), 500);
+}
+async function transformDemo(type) {
+  clearLog('tf-log');
+  const input = document.getElementById('tf-input').value;
+
+  let transformFn;
+  switch(type) {
+    case 'upper': transformFn = chunk => chunk.toUpperCase(); break;
+    case 'reverse': transformFn = chunk => [...chunk].reverse().join(''); break;
+    case 'length': transformFn = chunk => `${chunk} (${chunk.length} chars)`; break;
+    case 'base64': transformFn = chunk => btoa(unescape(encodeURIComponent(chunk))); break;
+    case 'hash': transformFn = chunk => {
+      let h = 0;
+      for (let i = 0; i < chunk.length; i++) h = ((h << 5) - h + chunk.charCodeAt(i)) | 0;
+      return `0x${(h >>> 0).toString(16).padStart(8, '0')}`;
+    }; break;
+  }
+
+  const ts = new TransformStream({
+    transform(chunk, controller) {
+      activateNode('t-transform');
+      controller.enqueue(transformFn(chunk));
+    }
+  });
+
+  const rs = new ReadableStream({
+    start(controller) {
+      activateNode('t-source');
+      activateNode('t-readable');
+      controller.enqueue(input);
+      controller.close();
+    }
+  });
+
+  const chunks = [];
+  const ws = new WritableStream({
+    write(chunk) {
+      activateNode('t-writable');
+      activateNode('t-sink');
+      chunks.push(chunk);
+    }
+  });
+
+  await rs.pipeThrough(ts).pipeTo(ws);
+
+  log('tf-log', `Input: "${input}"`, 'info');
+  log('tf-log', `Transform: ${type}`, 'info');
+  log('tf-log', `Output: "${chunks[0]}"`, 'data');
+}
+async function chainedTransform() {
+  clearLog('chain-log');
+  const input = document.getElementById('tf-input').value;
+
+  const splitter = new TransformStream({
+    transform(chunk, controller) {
+      chunk.split(/\s+/).forEach(word => {
+        if (word) controller.enqueue(word);
+      });
+    }
+  });
+  const upper = new TransformStream({
+    transform(chunk, controller) { controller.enqueue(chunk.toUpperCase()); }
+  });
+  let idx = 0;
+  const indexer = new TransformStream({
+    transform(chunk, controller) { controller.enqueue(`[${idx++}] ${chunk}`); }
+  });
+
+  const rs = new ReadableStream({
+    start(controller) { controller.enqueue(input); controller.close(); }
+  });
+
+  const results = [];
+  const ws = new WritableStream({
+    write(chunk) { results.push(chunk); }
+  });
+
+  log('chain-log', `Input: "${input}"`, 'info');
+  log('chain-log', 'Pipeline: Split → Uppercase → Index', 'info');
+
+  await rs.pipeThrough(splitter).pipeThrough(upper).pipeThrough(indexer).pipeTo(ws);
+
+  results.forEach(r => log('chain-log', r, 'data'));
+}
+
+// --- Panel 4: Backpressure ---
+let bpRunning = false;
+async function startBackpressure() {
+  if (bpRunning) return;
+  bpRunning = true;
+  clearLog('bp-log');
+
+  const prodSpeed = parseInt(document.getElementById('bp-prod-speed').value);
+  const consSpeed = parseInt(document.getElementById('bp-cons-speed').value);
+  let produced = 0, consumed = 0;
+  const hwm = 5;
+
+  const strategy = new CountQueuingStrategy({ highWaterMark: hwm });
+
+  const rs = new ReadableStream({
+    async pull(controller) {
+      if (!bpRunning) { controller.close(); return; }
+      await new Promise(r => setTimeout(r, prodSpeed));
+      produced++;
+      const ds = controller.desiredSize;
+      controller.enqueue(`chunk-${produced}`);
+      document.getElementById('bp-produced').textContent = produced;
+      document.getElementById('bp-desired').textContent = ds;
+
+      const fill = Math.max(0, Math.min(100, ((hwm - ds) / hwm) * 100));
+      const fillEl = document.getElementById('bp-fill');
+      fillEl.style.width = fill + '%';
+      fillEl.style.background = fill > 80 ? 'var(--accent4)' : fill > 50 ? 'var(--accent3)' : 'var(--accent2)';
+      document.getElementById('bp-val').textContent = Math.round(fill) + '%';
+      document.getElementById('bp-status').textContent = ds <= 0 ? 'BACKPRESSURE' : 'flowing';
+      document.getElementById('bp-status').style.color = ds <= 0 ? 'var(--accent4)' : 'var(--accent2)';
+
+      if (ds <= 0) log('bp-log', `BACKPRESSURE at chunk ${produced} (desiredSize=${ds})`, 'error');
+      else if (produced % 5 === 0) log('bp-log', `Produced ${produced}, desiredSize=${ds}`, 'data');
+    }
+  }, strategy);
+
+  const ws = new WritableStream({
+    async write(chunk) {
+      await new Promise(r => setTimeout(r, consSpeed));
+      consumed++;
+      document.getElementById('bp-consumed').textContent = consumed;
+      if (consumed % 3 === 0) log('bp-log', `Consumed: ${chunk} (total: ${consumed})`, 'info');
+    }
+  });
+
+  log('bp-log', `Producer: ${prodSpeed}ms/chunk, Consumer: ${consSpeed}ms/chunk, HWM: ${hwm}`, 'info');
+
+  try {
+    await rs.pipeTo(ws);
+    log('bp-log', 'Pipeline complete', 'system');
+  } catch(e) {
+    log('bp-log', `Pipeline ended: ${e.message}`, 'warn');
+  }
+  bpRunning = false;
+}
+function stopBackpressure() {
+  bpRunning = false;
+  log('bp-log', 'Stopping...', 'warn');
+}
+
+// --- Panel 5: Teeing ---
+async function teeDemo() {
+  clearLog('tee-log1'); clearLog('tee-log2');
+
+  const data = ['Hello', 'World', 'Streams', 'Are', 'Cool'];
+  const rs = new ReadableStream({
+    start(controller) {
+      data.forEach(d => controller.enqueue(d));
+      controller.close();
+    }
+  });
+
+  const [branch1, branch2] = rs.tee();
+  document.getElementById('tee-main').classList.add('active');
+  setTimeout(() => document.getElementById('tee-main').classList.remove('active'), 1000);
+
+  // Branch 1: log as-is
+  const reader1 = branch1.getReader();
+  (async () => {
+    while (true) {
+      const { value, done } = await reader1.read();
+      if (done) { log('tee-log1', 'Branch 1 complete', 'system'); break; }
+      document.getElementById('tee-branch1').classList.add('active');
+      setTimeout(() => document.getElementById('tee-branch1').classList.remove('active'), 300);
+      log('tee-log1', `Raw: "${value}"`, 'data');
+    }
+  })();
+
+  // Branch 2: uppercase transform
+  const reader2 = branch2.getReader();
+  (async () => {
+    while (true) {
+      const { value, done } = await reader2.read();
+      if (done) { log('tee-log2', 'Branch 2 complete', 'system'); break; }
+      document.getElementById('tee-branch2').classList.add('active');
+      setTimeout(() => document.getElementById('tee-branch2').classList.remove('active'), 300);
+      log('tee-log2', `Upper: "${value.toUpperCase()}"`, 'data');
+    }
+  })();
+}
+async function teeRace() {
+  clearLog('tee-log1'); clearLog('tee-log2');
+  let i = 0;
+  const rs = new ReadableStream({
+    pull(controller) {
+      if (i >= 8) { controller.close(); return; }
+      controller.enqueue(`item-${++i}`);
+    }
+  });
+
+  const [b1, b2] = rs.tee();
+
+  // Branch 1: fast reader
+  const p1 = (async () => {
+    const r = b1.getReader();
+    const items = [];
+    while (true) {
+      const { value, done } = await r.read();
+      if (done) break;
+      items.push(value);
+      log('tee-log1', `Fast read: ${value}`, 'data');
+    }
+    log('tee-log1', `Fast reader got ${items.length} items`, 'info');
+  })();
+
+  // Branch 2: slow reader (100ms per read)
+  const p2 = (async () => {
+    const r = b2.getReader();
+    const items = [];
+    while (true) {
+      const { value, done } = await r.read();
+      if (done) break;
+      await new Promise(r => setTimeout(r, 100));
+      items.push(value);
+      log('tee-log2', `Slow read: ${value}`, 'data');
+    }
+    log('tee-log2', `Slow reader got ${items.length} items`, 'info');
+  })();
+
+  await Promise.all([p1, p2]);
+}
+
+// --- Panel 6: Custom Source/Sink ---
+async function customSource() {
+  clearLog('custom-src-log');
+
+  const rs = new ReadableStream({
+    start(controller) {
+      log('custom-src-log', 'start() called - initialize resources', 'info');
+      this._data = [10, 20, 30, 40, 50];
+      this._index = 0;
+    },
+    pull(controller) {
+      const ds = controller.desiredSize;
+      log('custom-src-log', `pull() called, desiredSize=${ds}`, 'system');
+
+      if (this._index >= this._data.length) {
+        controller.close();
+        log('custom-src-log', 'No more data, closing', 'info');
+        return;
+      }
+
+      const value = this._data[this._index++];
+      controller.enqueue(value);
+      log('custom-src-log', `Enqueued: ${value}`, 'data');
+    },
+    cancel(reason) {
+      log('custom-src-log', `cancel() called: ${reason}`, 'warn');
+    }
+  }, new CountQueuingStrategy({ highWaterMark: 2 }));
+
+  const reader = rs.getReader();
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    log('custom-src-log', `Consumer read: ${value}`, 'data');
+    await new Promise(r => setTimeout(r, 200)); // simulate slow consumer
+  }
+  log('custom-src-log', 'Done reading', 'info');
+}
+async function customSink() {
+  clearLog('custom-sink-log');
+  const batchSize = 3;
+  let batch = [];
+
+  const ws = new WritableStream({
+    start() { log('custom-sink-log', 'Sink start() - ready to receive', 'info'); },
+    write(chunk) {
+      batch.push(chunk);
+      log('custom-sink-log', `Buffered: "${chunk}" (batch: ${batch.length}/${batchSize})`, 'system');
+      if (batch.length >= batchSize) {
+        log('custom-sink-log', `FLUSH batch: [${batch.join(', ')}]`, 'data');
+        batch = [];
+      }
+    },
+    close() {
+      if (batch.length > 0) {
+        log('custom-sink-log', `FLUSH final batch: [${batch.join(', ')}]`, 'data');
+      }
+      log('custom-sink-log', 'Sink closed', 'info');
+    },
+    abort(reason) { log('custom-sink-log', `Sink aborted: ${reason}`, 'error'); }
+  });
+
+  const writer = ws.getWriter();
+  const items = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+  for (const item of items) await writer.write(item);
+  await writer.close();
+}
+async function fullPipeline() {
+  clearLog('pipeline-log');
+
+  // Source: number generator
+  let n = 0;
+  const rs = new ReadableStream({
+    pull(controller) {
+      if (n >= 10) { controller.close(); return; }
+      controller.enqueue(++n);
+    }
+  });
+
+  // Transform: square
+  const squarer = new TransformStream({
+    transform(chunk, controller) {
+      const result = chunk * chunk;
+      log('pipeline-log', `Transform: ${chunk} -> ${result}`, 'system');
+      controller.enqueue(result);
+    }
+  });
+
+  // Transform: filter even
+  const filter = new TransformStream({
+    transform(chunk, controller) {
+      if (chunk % 2 === 0) {
+        log('pipeline-log', `Filter pass: ${chunk}`, 'system');
+        controller.enqueue(chunk);
+      } else {
+        log('pipeline-log', `Filter drop: ${chunk} (odd)`, 'warn');
+      }
+    }
+  });
+
+  // Sink: collect
+  const results = [];
+  const ws = new WritableStream({
+    write(chunk) { results.push(chunk); },
+    close() {
+      log('pipeline-log', `--- Pipeline Result ---`, 'info');
+      log('pipeline-log', `Numbers 1-10 -> square -> keep even: [${results.join(', ')}]`, 'data');
+      log('pipeline-log', `Sum: ${results.reduce((a,b) => a+b, 0)}`, 'data');
+    }
+  });
+
+  log('pipeline-log', 'Pipeline: Numbers(1-10) -> Square -> FilterEven -> Collect', 'info');
+  await rs.pipeThrough(squarer).pipeThrough(filter).pipeTo(ws);
+}
+
+// --- Panel 7: Fetch Pipeline ---
+async function simulatedFetch() {
+  clearLog('fetch-log');
+  const chunks = [
+    '{"status":"ok",',
+    '"data":[1,2,3,',
+    '4,5,6,7,8],',
+    '"message":"Stre',
+    'amed response!"}'
+  ];
+
+  const rs = new ReadableStream({
+    async start(controller) {
+      for (const chunk of chunks) {
+        await new Promise(r => setTimeout(r, 300));
+        controller.enqueue(new TextEncoder().encode(chunk));
+        log('fetch-log', `Chunk received: "${chunk}" (${chunk.length} chars)`, 'data');
+      }
+      controller.close();
+    }
+  });
+
+  log('fetch-log', 'Simulating streamed fetch response...', 'info');
+  const reader = rs.getReader();
+  const decoder = new TextDecoder();
+  let fullText = '';
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    fullText += decoder.decode(value, { stream: true });
+  }
+  fullText += decoder.decode();
+
+  log('fetch-log', `Complete response: ${fullText}`, 'info');
+  try {
+    const parsed = JSON.parse(fullText);
+    log('fetch-log', `Parsed JSON: status=${parsed.status}, data=[${parsed.data}]`, 'data');
+  } catch(e) {
+    log('fetch-log', `Parse error: ${e.message}`, 'error');
+  }
+}
+async function fetchWithProgress() {
+  clearLog('fetch-log');
+  const progressBar = document.getElementById('fetch-progress');
+  const fill = document.getElementById('fetch-fill');
+  progressBar.style.display = 'block';
+
+  const totalSize = 1000;
+  let loaded = 0;
+  const chunkSizes = [150, 200, 100, 250, 300];
+
+  const rs = new ReadableStream({
+    async start(controller) {
+      for (const size of chunkSizes) {
+        await new Promise(r => setTimeout(r, 400));
+        const chunk = new Uint8Array(size).fill(65);
+        controller.enqueue(chunk);
+        loaded += size;
+        const pct = Math.min(100, (loaded / totalSize * 100));
+        fill.style.width = pct + '%';
+        fill.textContent = Math.round(pct) + '%';
+        log('fetch-log', `Downloaded: ${loaded}/${totalSize} bytes (${Math.round(pct)}%)`, 'data');
+      }
+      controller.close();
+    }
+  });
+
+  const reader = rs.getReader();
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+  }
+  log('fetch-log', 'Download complete!', 'info');
+}
+async function decoderPipeline() {
+  clearLog('decoder-log');
+
+  const text = 'Hello, Streams API! Unicode: cafe ';
+  const encoded = new TextEncoder().encode(text);
+
+  // Split into chunks of 5 bytes (will split multi-byte chars)
+  const chunks = [];
+  for (let i = 0; i < encoded.length; i += 5) {
+    chunks.push(encoded.slice(i, i + 5));
+  }
+
+  const rs = new ReadableStream({
+    start(controller) {
+      chunks.forEach(c => controller.enqueue(c));
+      controller.close();
+    }
+  });
+
+  const decoder = new TextDecoderStream();
+  const readable = rs.pipeThrough(decoder);
+
+  const reader = readable.getReader();
+  let result = '';
+  let chunkNum = 0;
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    chunkNum++;
+    result += value;
+    log('decoder-log', `Text chunk ${chunkNum}: "${value}"`, 'data');
+  }
+
+  log('decoder-log', `Complete text: "${result}"`, 'info');
+  log('decoder-log', `Match original: ${result === text}`, result === text ? 'data' : 'error');
+}
+
+// --- Panel 8: Byte Streams ---
+async function byobDemo() {
+  clearLog('byob-log');
+
+  try {
+    const data = new Uint8Array([10, 20, 30, 40, 50, 60, 70, 80]);
+    let offset = 0;
+
+    const rs = new ReadableStream({
+      type: 'bytes',
+      pull(controller) {
+        if (offset >= data.length) { controller.close(); return; }
+        const view = controller.byobRequest?.view;
+        if (view) {
+          const remaining = data.length - offset;
+          const toWrite = Math.min(remaining, view.byteLength);
+          const src = data.subarray(offset, offset + toWrite);
+          new Uint8Array(view.buffer, view.byteOffset, toWrite).set(src);
+          offset += toWrite;
+          controller.byobRequest.respond(toWrite);
+          log('byob-log', `BYOB: filled ${toWrite} bytes into caller's buffer`, 'data');
+        } else {
+          const chunk = data.slice(offset, offset + 4);
+          offset += chunk.length;
+          controller.enqueue(chunk);
+          log('byob-log', `Default: enqueued ${chunk.length} bytes`, 'data');
+        }
+      }
+    });
+
+    const reader = rs.getReader({ mode: 'byob' });
+    log('byob-log', 'Using BYOB reader (zero-copy into pre-allocated buffer)', 'info');
+
+    let buffer = new ArrayBuffer(4);
+    while (true) {
+      const { value, done } = await reader.read(new Uint8Array(buffer));
+      if (done) break;
+      log('byob-log', `Read into buffer: [${Array.from(new Uint8Array(value.buffer, value.byteOffset, value.byteLength)).join(', ')}]`, 'data');
+      buffer = value.buffer; // reuse the returned buffer
+    }
+    log('byob-log', 'BYOB read complete', 'info');
+  } catch(e) {
+    log('byob-log', `BYOB not supported: ${e.message}`, 'error');
+    log('byob-log', 'Falling back to default reader demonstration', 'warn');
+
+    const rs = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new Uint8Array([10, 20, 30, 40]));
+        controller.enqueue(new Uint8Array([50, 60, 70, 80]));
+        controller.close();
+      }
+    });
+    const reader = rs.getReader();
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      log('byob-log', `Default read: [${Array.from(value).join(', ')}]`, 'data');
+    }
+  }
+}
+async function defaultVsByob() {
+  clearLog('byob-log');
+  log('byob-log', '--- Default mode (copies data) ---', 'info');
+
+  const rs1 = new ReadableStream({
+    start(controller) {
+      for (let i = 0; i < 5; i++) controller.enqueue(new Uint8Array([i*10, i*10+1, i*10+2]));
+      controller.close();
+    }
+  });
+  const reader1 = rs1.getReader();
+  let total1 = 0;
+  while (true) {
+    const { value, done } = await reader1.read();
+    if (done) break;
+    total1 += value.length;
+    log('byob-log', `Default chunk: [${Array.from(value).join(', ')}] (new allocation)`, 'data');
+  }
+  log('byob-log', `Total bytes (default): ${total1}`, 'info');
+
+  log('byob-log', '', 'system');
+  log('byob-log', '--- BYOB mode (zero-copy into your buffer) ---', 'info');
+
+  try {
+    let off = 0;
+    const src = new Uint8Array([0,1,2,10,11,12,20,21,22,30,31,32,40,41,42]);
+    const rs2 = new ReadableStream({
+      type: 'bytes',
+      pull(controller) {
+        if (off >= src.length) { controller.close(); return; }
+        const view = controller.byobRequest?.view;
+        if (view) {
+          const n = Math.min(src.length - off, view.byteLength);
+          new Uint8Array(view.buffer, view.byteOffset, n).set(src.subarray(off, off + n));
+          off += n;
+          controller.byobRequest.respond(n);
+        } else {
+          const c = src.slice(off, off + 3);
+          off += c.length;
+          controller.enqueue(c);
+        }
+      }
+    });
+    const reader2 = rs2.getReader({ mode: 'byob' });
+    let buf = new ArrayBuffer(3);
+    let total2 = 0;
+    while (true) {
+      const { value, done } = await reader2.read(new Uint8Array(buf));
+      if (done) break;
+      total2 += value.byteLength;
+      log('byob-log', `BYOB chunk: [${Array.from(new Uint8Array(value.buffer, value.byteOffset, value.byteLength)).join(', ')}] (your buffer)`, 'data');
+      buf = value.buffer;
+    }
+    log('byob-log', `Total bytes (BYOB): ${total2}`, 'info');
+  } catch(e) {
+    log('byob-log', `BYOB not supported in this browser: ${e.message}`, 'error');
+  }
+}
+async function autoAllocDemo() {
+  clearLog('auto-log');
+  try {
+    const data = new Uint8Array([1,2,3,4,5,6,7,8,9,10]);
+    let off = 0;
+
+    const rs = new ReadableStream({
+      type: 'bytes',
+      autoAllocateChunkSize: 4,
+      pull(controller) {
+        if (off >= data.length) { controller.close(); return; }
+        const view = controller.byobRequest?.view;
+        if (view) {
+          const n = Math.min(data.length - off, view.byteLength);
+          new Uint8Array(view.buffer, view.byteOffset, n).set(data.subarray(off, off + n));
+          off += n;
+          controller.byobRequest.respond(n);
+          log('auto-log', `Auto-allocated ${view.byteLength} bytes, filled ${n}`, 'data');
+        }
+      }
+    });
+
+    const reader = rs.getReader();
+    log('auto-log', 'Reading with default reader (auto-allocation handles buffer)', 'info');
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      log('auto-log', `Read: [${Array.from(value).join(', ')}]`, 'data');
+    }
+    log('auto-log', 'Auto-allocation read complete', 'info');
+  } catch(e) {
+    log('auto-log', `Auto-allocation not supported: ${e.message}`, 'error');
+  }
+}
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+</body>
+</html>

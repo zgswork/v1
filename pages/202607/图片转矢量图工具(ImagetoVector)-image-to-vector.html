@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图片转矢量图工具 (Image to Vector)</title>
+    <style>
+        :root {
+            --primary-color: #4a90e2;
+            --bg-color: #f5f7fa;
+            --card-bg: #ffffff;
+            --text-color: #333333;
+            --border-radius: 12px;
+            --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            flex: 1;
+            width: 100%;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px 0;
+        }
+
+        h1 {
+            color: var(--primary-color);
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #666;
+            font-size: 1rem;
+        }
+
+        /* Upload Section */
+        .upload-section {
+            background: var(--card-bg);
+            border-radius: var(--border-radius);
+            padding: 40px;
+            text-align: center;
+            box-shadow: var(--shadow);
+            margin-bottom: 30px;
+            border: 2px dashed #cbd5e0;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .upload-section:hover, .upload-section.drag-over {
+            border-color: var(--primary-color);
+            background-color: #f0f7ff;
+        }
+
+        .upload-icon {
+            font-size: 48px;
+            color: var(--primary-color);
+            margin-bottom: 15px;
+        }
+
+        .upload-text {
+            font-size: 1.1rem;
+            color: #4a5568;
+            margin-bottom: 10px;
+        }
+
+        .upload-hint {
+            font-size: 0.9rem;
+            color: #718096;
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        /* Controls */
+        .controls {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            margin-bottom: 20px;
+            display: none; /* Hidden by default */
+            flex-wrap: wrap;
+            gap: 20px;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        select, input[type="number"] {
+            padding: 8px 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        button {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background-color 0.2s;
+        }
+
+        button:hover {
+            background-color: #357abd;
+        }
+
+        button:disabled {
+            background-color: #cbd5e0;
+            cursor: not-allowed;
+        }
+
+        /* Preview Area */
+        .preview-container {
+            display: none; /* Hidden by default */
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        @media (min-width: 768px) {
+            .preview-container {
+                flex-direction: row;
+            }
+        }
+
+        .preview-box {
+            flex: 1;
+            background: var(--card-bg);
+            border-radius: var(--border-radius);
+            padding: 15px;
+            box-shadow: var(--shadow);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .preview-header {
+            font-weight: bold;
+            margin-bottom: 15px;
+            color: #2d3748;
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .preview-content {
+            width: 100%;
+            min-height: 300px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #f8fafc;
+            border-radius: 8px;
+            border: 1px solid #edf2f7;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .preview-content img, .preview-content svg {
+            max-width: 100%;
+            max-height: 500px;
+            object-fit: contain;
+        }
+
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 40px 20px;
+            background-color: #2d3748;
+            color: #e2e8f0;
+            margin-top: 40px;
+        }
+
+        .footer-info {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            font-size: 0.95rem;
+        }
+
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.8);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            flex-direction: column;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid var(--primary-color);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin-bottom: 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 600px) {
+            h1 { font-size: 1.5rem; }
+            .upload-section { padding: 20px; }
+            .controls { flex-direction: column; align-items: stretch; }
+            .control-group { flex-direction: column; align-items: stretch; }
+            button { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <h1>图片转矢量图工具</h1>
+            <div class="subtitle">免费在线将 JPG/PNG 转换为 SVG 矢量图</div>
+        </header>
+
+        <div class="upload-section" id="dropZone">
+            <div class="upload-icon">📁</div>
+            <div class="upload-text">点击或拖拽图片到这里上传</div>
+            <div class="upload-hint">支持 JPG, PNG 格式 (建议图片小于 2MB 以获得最佳性能)</div>
+            <input type="file" id="fileInput" accept="image/png, image/jpeg, image/jpg">
+        </div>
+
+        <div class="controls" id="controls">
+            <div class="control-group">
+                <label>转换预设:</label>
+                <select id="presetSelect">
+                    <option value="default">默认 (多色)</option>
+                    <option value="posterized1">海报化 (简化颜色)</option>
+                    <option value="curvy">平滑曲线</option>
+                    <option value="sharp">锐利边缘</option>
+                    <option value="bw">黑白线条</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <button id="convertBtn">重新转换</button>
+            </div>
+        </div>
+
+        <div class="preview-container" id="previewContainer">
+            <div class="preview-box">
+                <div class="preview-header">原始图片</div>
+                <div class="preview-content" id="originalPreview">
+                    <!-- Image will be placed here -->
+                </div>
+            </div>
+            <div class="preview-box">
+                <div class="preview-header">
+                    矢量图预览 (SVG)
+                    <button id="downloadBtn" disabled>下载 SVG</button>
+                </div>
+                <div class="preview-content" id="svgPreview">
+                    <!-- SVG will be placed here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="spinner"></div>
+        <div>正在转换中，请稍候...</div>
+    </div>
+
+    <footer>
+        <div class="footer-info">
+            <div>本工具由杨天蛇制作</div>
+            <div>微信：84131868</div>
+            <div>QQ邮箱：<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="d9e1ede8eae8e1efe199a8a8f7bab6b4">[email&#160;protected]</a></div>
+            <div>Gmail: <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="f7939c919e9b92c7c7c6b7909a969e9bd994989a">[email&#160;protected]</a></div>
+        </div>
+    </footer>
+
+    <!-- 引入 ImageTracer.js 库 -->
+    <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script src="https://cdn.jsdelivr.net/npm/imagetracerjs@1.2.6/imagetracer_v1.2.6.min.js"></script>
+
+    <script>
+        // DOM Elements
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const controls = document.getElementById('controls');
+        const previewContainer = document.getElementById('previewContainer');
+        const originalPreview = document.getElementById('originalPreview');
+        const svgPreview = document.getElementById('svgPreview');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        const presetSelect = document.getElementById('presetSelect');
+        const convertBtn = document.getElementById('convertBtn');
+
+        let currentImageSrc = null;
+
+        // Event Listeners
+        dropZone.addEventListener('click', () => fileInput.click());
+        
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('drag-over');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('drag-over');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('drag-over');
+            if (e.dataTransfer.files.length) {
+                handleFile(e.dataTransfer.files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        convertBtn.addEventListener('click', () => {
+            if (currentImageSrc) {
+                processImage(currentImageSrc);
+            }
+        });
+
+        downloadBtn.addEventListener('click', downloadSVG);
+
+        // Functions
+        function handleFile(file) {
+            if (!file.type.match('image.*')) {
+                alert('请上传图片文件 (JPG, PNG)');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                currentImageSrc = e.target.result;
+                
+                // Show original image
+                originalPreview.innerHTML = `<img src="${currentImageSrc}" alt="Original">`;
+                
+                // Show UI
+                controls.style.display = 'flex';
+                previewContainer.style.display = 'flex';
+                
+                // Auto convert
+                processImage(currentImageSrc);
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function processImage(imageSrc) {
+            showLoading(true);
+            
+            // Allow UI to update before heavy processing
+            setTimeout(() => {
+                try {
+                    const options = getOptions(presetSelect.value);
+                    
+                    // Clear previous result
+                    svgPreview.innerHTML = '';
+                    downloadBtn.disabled = true;
+
+                    ImageTracer.imageToSVG(
+                        imageSrc,
+                        function(svgstr) {
+                            // Display SVG
+                            ImageTracer.appendSVGString(svgstr, 'svgPreview');
+                            
+                            // Enable download
+                            downloadBtn.disabled = false;
+                            
+                            // Store SVG string for download
+                            svgPreview.dataset.svg = svgstr;
+                            
+                            showLoading(false);
+                        },
+                        options
+                    );
+                } catch (error) {
+                    console.error(error);
+                    alert('转换出错，请重试');
+                    showLoading(false);
+                }
+            }, 100);
+        }
+
+        function getOptions(preset) {
+            // Base options
+            let options = {};
+
+            switch (preset) {
+                case 'posterized1':
+                    options = { colorsampling: 1, numberofcolors: 8, mincolorratio: 0.02 };
+                    break;
+                case 'curvy':
+                    options = { ltres: 1, qtres: 1, pathomit: 8 };
+                    break;
+                case 'sharp':
+                    options = { ltres: 0.1, qtres: 0.1, pathomit: 0, blurradius: 0, blurdelta: 0 };
+                    break;
+                case 'bw':
+                    options = { colorsampling: 0, numberofcolors: 2, mincolorratio: 0, colorquantcycles: 1 };
+                    break;
+                default: // default
+                    options = { numberofcolors: 16 };
+                    break;
+            }
+            
+            return options;
+        }
+
+        function downloadSVG() {
+            const svgContent = svgPreview.dataset.svg;
+            if (!svgContent) return;
+
+            const blob = new Blob([svgContent], { type: 'image/svg+xml;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `vector-image-${Date.now()}.svg`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function showLoading(show) {
+            loadingOverlay.style.display = show ? 'flex' : 'none';
+        }
+    </script>
+</body>
+</html>

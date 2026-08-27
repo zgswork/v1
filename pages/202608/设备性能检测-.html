@@ -1,0 +1,1037 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>设备性能检测</title>
+<style>
+  :root {
+    --fg: #111;
+    --bg: #fff;
+    --line: #e4e4e4;
+    --muted: #8a8a8a;
+    --mono: "SF Mono", "JetBrains Mono", Consolas, "Courier New", monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    padding: 0 20px calc(40px + env(safe-area-inset-bottom));
+    max-width: 860px;
+    margin: 0 auto;
+  }
+
+  /* ---------- header ---------- */
+  header {
+    padding: 48px 0 28px;
+    border-bottom: 1px solid var(--fg);
+  }
+  header h1 {
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: .5px;
+  }
+  header .sub {
+    color: var(--muted);
+    font-size: 12px;
+    margin-top: 6px;
+    letter-spacing: 1px;
+  }
+  .device-badge {
+    display: inline-block;
+    margin-top: 16px;
+    border: 1px solid var(--fg);
+    padding: 4px 14px;
+    font-size: 12px;
+    letter-spacing: 2px;
+    font-weight: 600;
+  }
+
+  /* ---------- sections ---------- */
+  section { border-bottom: 1px solid var(--line); }
+  .sec-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 22px 0 12px;
+  }
+  .sec-head h2 {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 3px;
+  }
+  .sec-head .idx {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    padding-bottom: 20px;
+  }
+  .item {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 8px 0;
+    border-bottom: 1px dashed var(--line);
+    margin-right: 24px;
+  }
+  .grid > .item:nth-child(2n) { margin-right: 0; }
+  .item .k { color: var(--muted); font-size: 12px; flex-shrink: 0; }
+  .item .v {
+    font-family: var(--mono);
+    font-size: 12px;
+    text-align: right;
+    word-break: break-all;
+    padding-left: 12px;
+  }
+  .item .v.na { color: var(--muted); }
+  .item .v.ok { font-weight: 600; }
+
+  /* ---------- feature chips ---------- */
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding-bottom: 20px;
+  }
+  .chip {
+    border: 1px solid var(--line);
+    padding: 5px 12px;
+    font-size: 12px;
+    font-family: var(--mono);
+    color: var(--muted);
+  }
+  .chip.yes { border-color: var(--fg); color: var(--fg); font-weight: 600; }
+
+  /* ---------- benchmark ---------- */
+  .bench-row {
+    padding: 10px 0;
+    border-bottom: 1px dashed var(--line);
+  }
+  .bench-row .top {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 6px;
+  }
+  .bench-row .name { font-size: 13px; font-weight: 600; }
+  .bench-row .name small { font-weight: 400; color: var(--muted); margin-left: 8px; font-size: 11px; }
+  .bench-row .res {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+    flex-shrink: 0;
+    padding-left: 10px;
+  }
+  .bench-row .res.done { color: var(--fg); }
+  .bar {
+    height: 3px;
+    background: var(--line);
+    position: relative;
+    overflow: hidden;
+  }
+  .bar .fill {
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 0%;
+    background: var(--fg);
+    transition: width .5s cubic-bezier(.22,1,.36,1);
+  }
+  .btn {
+    display: inline-block;
+    margin: 16px 0 22px;
+    padding: 10px 34px;
+    border: 1px solid var(--fg);
+    background: var(--fg);
+    color: var(--bg);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 3px;
+    cursor: pointer;
+    user-select: none;
+    font-family: inherit;
+    transition: background .2s, color .2s;
+  }
+  .btn:hover, .btn:active { background: var(--bg); color: var(--fg); }
+  .btn:disabled { opacity: .4; cursor: wait; background: var(--fg); color: var(--bg); }
+  .btn.ghost { background: var(--bg); color: var(--fg); }
+  .btn.ghost:hover, .btn.ghost:active { background: var(--fg); color: var(--bg); }
+  .btn + .btn { margin-left: 12px; }
+
+  /* ---------- score ---------- */
+  .score-wrap {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: 32px;
+    align-items: center;
+    padding: 10px 0 26px;
+  }
+  .score-num {
+    font-family: var(--mono);
+    font-size: 88px;
+    font-weight: 300;
+    line-height: 1;
+    letter-spacing: -4px;
+  }
+  .score-num small { font-size: 20px; letter-spacing: 0; color: var(--muted); }
+  .score-grade {
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    margin-bottom: 8px;
+  }
+  .score-desc { color: var(--muted); font-size: 12.5px; line-height: 1.8; }
+  .score-bar { height: 2px; background: var(--line); margin-top: 16px; position: relative; }
+  .score-bar .fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--fg); width: 0; transition: width 1s cubic-bezier(.22,1,.36,1); }
+  .weights { margin-top: 14px; font-family: var(--mono); font-size: 11px; color: var(--muted); line-height: 2; }
+  .weights b { color: var(--fg); font-weight: 600; }
+
+  footer {
+    padding: 24px 0 8px;
+    color: var(--muted);
+    font-size: 11px;
+    letter-spacing: 1px;
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .hint { font-size: 11px; color: var(--muted); padding: 4px 0 20px; margin-top: -14px; }
+
+  /* ============ 平板自适应（641px – 1024px）============ */
+  @media (min-width: 641px) and (max-width: 1024px) {
+    body { max-width: 720px; padding: 0 24px calc(40px + env(safe-area-inset-bottom)); }
+    header { padding: 40px 0 24px; }
+    header h1 { font-size: 23px; }
+    .score-wrap { grid-template-columns: 190px 1fr; gap: 24px; }
+    .score-num { font-size: 76px; }
+    .item { margin-right: 18px; }
+    .chip { padding: 5px 10px; font-size: 11.5px; }
+  }
+
+  /* ============ 手机自适应（≤640px，单列）============ */
+  @media (max-width: 640px) {
+    body { padding: 0 16px calc(40px + env(safe-area-inset-bottom)); font-size: 13px; }
+    header { padding: 36px 0 22px; }
+    header h1 { font-size: 21px; }
+    .sec-head h2 { font-size: 12px; letter-spacing: 2px; }
+    .grid { grid-template-columns: 1fr; }
+    .grid > .item { margin-right: 0; }
+    .score-wrap { grid-template-columns: 1fr; gap: 14px; }
+    .score-num { font-size: 68px; letter-spacing: -3px; }
+    .bench-row .name small { display: block; margin-left: 0; }
+    .btn { padding: 10px 24px; width: 100%; text-align: center; margin-left: 0; }
+    .btn + .btn { margin-left: 0; }
+    .chip { padding: 4px 10px; font-size: 11px; gap: 6px; }
+    .chips { gap: 6px; }
+    .weights { font-size: 10.5px; }
+  }
+
+  /* ============ 小屏手机（≤380px）============ */
+  @media (max-width: 380px) {
+    body { padding: 0 12px calc(40px + env(safe-area-inset-bottom)); font-size: 12.5px; }
+    header h1 { font-size: 19px; }
+    .score-num { font-size: 60px; }
+    .item .v { font-size: 11px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>设备性能检测</h1>
+  <div class="sub">DEVICE PERFORMANCE CHECK · 本地运行 · 数据不出本机</div>
+  <div class="device-badge" id="deviceBadge">识别中…</div>
+</header>
+
+<!-- 01 系统信息 -->
+<section>
+  <div class="sec-head"><h2>系统信息</h2><span class="idx">01</span></div>
+  <div class="grid">
+    <div class="item"><span class="k">操作系统</span><span class="v" id="v-os">—</span></div>
+    <div class="item"><span class="k">浏览器</span><span class="v" id="v-browser">—</span></div>
+    <div class="item"><span class="k">浏览器内核</span><span class="v" id="v-engine">—</span></div>
+    <div class="item"><span class="k">语言</span><span class="v" id="v-lang">—</span></div>
+    <div class="item"><span class="k">时区</span><span class="v" id="v-tz">—</span></div>
+    <div class="item"><span class="k">在线时长</span><span class="v" id="v-uptime">0 秒</span></div>
+    <div class="item"><span class="k">在线状态</span><span class="v" id="v-online">—</span></div>
+    <div class="item"><span class="k">Cookie</span><span class="v" id="v-cookie">—</span></div>
+    <div class="item"><span class="k">请勿追踪 DNT</span><span class="v" id="v-dnt">—</span></div>
+    <div class="item"><span class="k">触屏支持</span><span class="v" id="v-touch">—</span></div>
+  </div>
+</section>
+
+<!-- 02 硬件信息 -->
+<section>
+  <div class="sec-head"><h2>硬件信息</h2><span class="idx">02</span></div>
+  <div class="grid">
+    <div class="item"><span class="k">处理器核心</span><span class="v" id="v-cores">—</span></div>
+    <div class="item"><span class="k">设备内存</span><span class="v" id="v-mem">—</span></div>
+    <div class="item"><span class="k">JS 堆内存</span><span class="v" id="v-heap">—</span></div>
+    <div class="item"><span class="k">显卡型号</span><span class="v" id="v-gpu">—</span></div>
+    <div class="item"><span class="k">平台</span><span class="v" id="v-platform">—</span></div>
+    <div class="item"><span class="k">指针类型</span><span class="v" id="v-pointer">—</span></div>
+    <div class="item"><span class="k">悬停能力</span><span class="v" id="v-hover">—</span></div>
+    <div class="item"><span class="k">传感器</span><span class="v" id="v-sensors">—</span></div>
+  </div>
+</section>
+
+<!-- 03 屏幕信息 -->
+<section>
+  <div class="sec-head"><h2>屏幕信息</h2><span class="idx">03</span></div>
+  <div class="grid">
+    <div class="item"><span class="k">物理分辨率</span><span class="v" id="v-res">—</span></div>
+    <div class="item"><span class="k">像素密度 DPR</span><span class="v" id="v-dpr">—</span></div>
+    <div class="item"><span class="k">色彩深度</span><span class="v" id="v-depth">—</span></div>
+    <div class="item"><span class="k">可视区域</span><span class="v" id="v-viewport">—</span></div>
+    <div class="item"><span class="k">逻辑分辨率</span><span class="v" id="v-cssres">—</span></div>
+    <div class="item"><span class="k">屏幕方向</span><span class="v" id="v-orient">—</span></div>
+    <div class="item"><span class="k">屏幕长宽比</span><span class="v" id="v-ratio">—</span></div>
+    <div class="item"><span class="k">刷新率实测</span><span class="v" id="v-hz">测量中…</span></div>
+    <div class="item"><span class="k">色域 / HDR</span><span class="v" id="v-gamut">—</span></div>
+    <div class="item"><span class="k">深色模式</span><span class="v" id="v-dark">—</span></div>
+  </div>
+</section>
+
+<!-- 04 电池信息 -->
+<section>
+  <div class="sec-head"><h2>电池信息</h2><span class="idx">04</span></div>
+  <div class="grid">
+    <div class="item"><span class="k">当前电量</span><span class="v" id="v-batt-level">读取中…</span></div>
+    <div class="item"><span class="k">充电状态</span><span class="v" id="v-batt-charge">—</span></div>
+    <div class="item"><span class="k">预计充满</span><span class="v" id="v-batt-chargetime">—</span></div>
+    <div class="item"><span class="k">预计可用</span><span class="v" id="v-batt-discharge">—</span></div>
+  </div>
+</section>
+
+<!-- 05 存储信息 -->
+<section>
+  <div class="sec-head"><h2>存储信息</h2><span class="idx">05</span></div>
+  <div class="grid">
+    <div class="item"><span class="k">存储配额</span><span class="v" id="v-quota">读取中…</span></div>
+    <div class="item"><span class="k">已使用</span><span class="v" id="v-usage">—</span></div>
+    <div class="item"><span class="k">localStorage</span><span class="v" id="v-ls">—</span></div>
+    <div class="item"><span class="k">sessionStorage</span><span class="v" id="v-ss">—</span></div>
+    <div class="item"><span class="k">IndexedDB</span><span class="v" id="v-idb">—</span></div>
+    <div class="item"><span class="k">持久化存储</span><span class="v" id="v-persist">—</span></div>
+  </div>
+</section>
+
+<!-- 06 连接信息 -->
+<section>
+  <div class="sec-head"><h2>连接信息</h2><span class="idx">06</span></div>
+  <div class="grid">
+    <div class="item"><span class="k">网络类型</span><span class="v" id="v-nettype">—</span></div>
+    <div class="item"><span class="k">下行带宽估计</span><span class="v" id="v-downlink">—</span></div>
+    <div class="item"><span class="k">往返延迟 RTT</span><span class="v" id="v-rtt">—</span></div>
+    <div class="item"><span class="k">数据节省模式</span><span class="v" id="v-save">—</span></div>
+    <div class="item"><span class="k">公网 IP</span><span class="v" id="v-ip">查询中…</span></div>
+    <div class="item"><span class="k">实测下载速度</span><span class="v" id="v-speed">未测试</span></div>
+  </div>
+  <button class="btn ghost" id="speedBtn">测速</button>
+  <div class="hint">说明：IP 与测速需访问公网测试端点，其余信息均在本机读取。</div>
+</section>
+
+<!-- 07 媒体能力 -->
+<section>
+  <div class="sec-head"><h2>媒体能力</h2><span class="idx">07</span></div>
+  <div class="chips" id="mediaChips"></div>
+</section>
+
+<!-- 08 功能支持 -->
+<section>
+  <div class="sec-head"><h2>功能支持</h2><span class="idx">08</span></div>
+  <div class="chips" id="featChips"></div>
+</section>
+
+<!-- 09 基准测试 -->
+<section>
+  <div class="sec-head"><h2>基准测试</h2><span class="idx">09</span></div>
+  <div id="benchList"></div>
+  <button class="btn" id="runBtn">开始测试</button>
+  <div class="hint">共 8 项测试，在浏览器本地执行，期间页面可能短暂繁忙，请勿切换标签页。</div>
+</section>
+
+<!-- 10 综合评分 -->
+<section>
+  <div class="sec-head"><h2>综合评分</h2><span class="idx">10</span></div>
+  <div class="score-wrap">
+    <div>
+      <div class="score-num"><span id="scoreVal">--</span><small> / 100</small></div>
+    </div>
+    <div>
+      <div class="score-grade" id="scoreGrade">等待基准测试</div>
+      <div class="score-desc" id="scoreDesc">点击上方「开始测试」，将依次执行 CPU 运算、DOM 渲染、数组排序、字符串处理、JSON 解析、Canvas 绘制、SHA-256 加密、FPS 帧率共 8 项基准，完成后自动计算加权综合分。</div>
+      <div class="score-bar"><div class="fill" id="scoreFill"></div></div>
+      <div class="weights" id="weights"></div>
+    </div>
+  </div>
+  <button class="btn ghost" id="copyBtn" disabled>复制检测报告</button>
+  <div class="hint">完成测试后可一键复制纯文本报告，方便存档或发送。</div>
+</section>
+
+<footer>
+  <span>LOCAL-ONLY · NO DATA UPLOADED</span>
+  <span id="footTime"></span>
+</footer>
+
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  function setNA(id, msg) { $(id).textContent = msg; $(id).classList.add("na"); }
+  function setOK(id, msg) { $(id).textContent = msg; $(id).classList.add("ok"); }
+
+  /* ============ 设备识别 ============ */
+  var ua = navigator.userAgent;
+  function detectDevice() {
+    var isMobile = /Mobi|Android.*Mobile|iPhone|iPod/i.test(ua);
+    var isTablet = /iPad|Tablet|PlayBook|Silk/i.test(ua) ||
+      (/Android/i.test(ua) && !/Mobile/i.test(ua)) ||
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1); // iPad 伪装 Mac
+    if (isTablet) return "平板 TABLET";
+    if (isMobile) return "手机 MOBILE";
+    return "电脑 DESKTOP";
+  }
+  $("deviceBadge").textContent = detectDevice();
+
+  /* ============ 系统信息 ============ */
+  function detectOS() {
+    var p = navigator.platform || "";
+    if (/iPhone/.test(ua)) return "iOS (iPhone)";
+    if (/iPad/.test(ua) || (p === "MacIntel" && navigator.maxTouchPoints > 1)) return "iPadOS";
+    var m;
+    if ((m = ua.match(/Android ([\d.]+)/))) return "Android " + m[1];
+    if ((m = ua.match(/Windows NT ([\d.]+)/))) {
+      var map = { "10.0": "10/11", "6.3": "8.1", "6.2": "8", "6.1": "7" };
+      return "Windows " + (map[m[1]] || m[1]);
+    }
+    if (/Mac OS X ([\d_]+)/.test(ua)) return "macOS " + ua.match(/Mac OS X ([\d_]+)/)[1].replace(/_/g, ".");
+    if (/Linux/.test(p)) return "Linux";
+    return p || "未知";
+  }
+  function detectBrowser() {
+    var m;
+    if ((m = ua.match(/MicroMessenger\/([\d.]+)/))) return "微信内置浏览器 " + m[1];
+    if ((m = ua.match(/Edg(e|A|iOS)?\/([\d.]+)/))) return "Edge " + m[2];
+    if ((m = ua.match(/OPR\/([\d.]+)/))) return "Opera " + m[1];
+    if ((m = ua.match(/Chrome\/([\d.]+)/))) return "Chrome " + m[1];
+    if ((m = ua.match(/Firefox\/([\d.]+)/))) return "Firefox " + m[1];
+    if ((m = ua.match(/Version\/([\d.]+).*Safari/))) return "Safari " + m[1];
+    return "未知浏览器";
+  }
+  function detectEngine() {
+    if (/Gecko\/\d/.test(ua) && /Firefox/.test(ua)) return "Gecko";
+    if (/AppleWebKit/.test(ua)) return /Chrome|Chromium|Edg|OPR/.test(ua) ? "Blink (WebKit 分支)" : "WebKit";
+    if (/Trident/.test(ua)) return "Trident";
+    return "未知";
+  }
+  $("v-os").textContent = detectOS();
+  $("v-browser").textContent = detectBrowser();
+  $("v-engine").textContent = detectEngine();
+  $("v-lang").textContent = navigator.language + (navigator.languages && navigator.languages.length > 1 ? " (+" + (navigator.languages.length - 1) + ")" : "");
+  try { $("v-tz").textContent = Intl.DateTimeFormat().resolvedOptions().timeZone || "未知"; }
+  catch (e) { $("v-tz").textContent = "GMT" + (-new Date().getTimezoneOffset() / 60); }
+  $("v-touch").textContent = ("ontouchstart" in window || navigator.maxTouchPoints > 0)
+    ? "支持 (" + (navigator.maxTouchPoints || 1) + " 点)" : "不支持";
+  $("v-cookie").textContent = navigator.cookieEnabled ? "已启用" : "已禁用";
+  var dnt = navigator.doNotTrack || window.doNotTrack;
+  $("v-dnt").textContent = dnt === "1" || dnt === "yes" ? "已开启" : (dnt ? "未开启" : "未设置");
+
+  function updOnline() {
+    var on = navigator.onLine;
+    $("v-online").textContent = on ? "在线" : "离线";
+    $("v-online").className = "v " + (on ? "ok" : "na");
+  }
+  updOnline();
+  window.addEventListener("online", updOnline);
+  window.addEventListener("offline", updOnline);
+
+  var t0 = Date.now();
+  setInterval(function () {
+    var s = Math.floor((Date.now() - t0) / 1000);
+    var h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), ss = s % 60;
+    $("v-uptime").textContent = (h ? h + " 小时 " : "") + (m ? m + " 分 " : "") + ss + " 秒";
+  }, 1000);
+
+  /* ============ 硬件信息 ============ */
+  $("v-cores").textContent = navigator.hardwareConcurrency ? navigator.hardwareConcurrency + " 核" : "不支持读取";
+  if (navigator.deviceMemory) $("v-mem").textContent = "≥ " + navigator.deviceMemory + " GB";
+  else setNA("v-mem", "此浏览器不开放");
+  $("v-platform").textContent = navigator.platform || "未知";
+
+  // JS 堆内存（仅 Chromium 系开放）
+  (function () {
+    function upd() {
+      if (!performance.memory) { setNA("v-heap", "此浏览器不开放"); return; }
+      var used = performance.memory.usedJSHeapSize / 1048576;
+      var limit = performance.memory.jsHeapSizeLimit / 1048576;
+      $("v-heap").textContent = used.toFixed(0) + " / " + limit.toFixed(0) + " MB";
+    }
+    upd();
+    setInterval(upd, 3000);
+  })();
+
+  // 指针类型 / 悬停能力
+  (function () {
+    if (!window.matchMedia) { setNA("v-pointer", "未知"); setNA("v-hover", "未知"); return; }
+    var coarse = matchMedia("(pointer: coarse)").matches;
+    var fine = matchMedia("(pointer: fine)").matches;
+    $("v-pointer").textContent = coarse && fine ? "触控 + 鼠标" : (coarse ? "触控为主" : (fine ? "鼠标/触控板" : "未知"));
+    $("v-hover").textContent = matchMedia("(hover: hover)").matches ? "支持悬停" : "不支持悬停（触屏）";
+  })();
+
+  // 传感器
+  (function () {
+    var list = [];
+    if ("Accelerometer" in window) list.push("加速度计");
+    if ("Gyroscope" in window) list.push("陀螺仪");
+    if ("DeviceOrientationEvent" in window) list.push("方向");
+    if ("DeviceMotionEvent" in window) list.push("运动");
+    if ("AmbientLightSensor" in window) list.push("环境光");
+    if ("Magnetometer" in window) list.push("磁力计");
+    $("v-sensors").textContent = list.length ? list.join("/") : "无可用传感器";
+    if (!list.length) $("v-sensors").classList.add("na");
+  })();
+
+  // 显卡
+  (function detectGPU() {
+    try {
+      var c = document.createElement("canvas");
+      var gl = c.getContext("webgl") || c.getContext("experimental-webgl");
+      if (!gl) throw 0;
+      var ext = gl.getExtension("WEBGL_debug_renderer_info");
+      var gpu = ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
+      $("v-gpu").textContent = gpu || "未知";
+    } catch (e) {
+      setNA("v-gpu", "WebGL 不可用");
+    }
+  })();
+
+  /* ============ 屏幕信息 ============ */
+  function gcd(a, b) { return b ? gcd(b, a % b) : a; }
+  function screenInfo() {
+    $("v-res").textContent = screen.width + " × " + screen.height;
+    $("v-cssres").textContent = Math.round(screen.width / (window.devicePixelRatio || 1)) + " × " + Math.round(screen.height / (window.devicePixelRatio || 1));
+    $("v-dpr").textContent = (window.devicePixelRatio || 1) + "x";
+    $("v-depth").textContent = screen.colorDepth + "-bit";
+    $("v-viewport").textContent = window.innerWidth + " × " + window.innerHeight;
+    var o = screen.orientation && screen.orientation.type ? screen.orientation.type :
+      (window.innerWidth >= window.innerHeight ? "landscape" : "portrait");
+    $("v-orient").textContent = /landscape/.test(o) ? "横屏" : "竖屏";
+    var g = gcd(screen.width, screen.height);
+    $("v-ratio").textContent = (screen.width / g) + ":" + (screen.height / g);
+  }
+  screenInfo();
+  window.addEventListener("resize", screenInfo);
+  if (screen.orientation && screen.orientation.addEventListener) {
+    screen.orientation.addEventListener("change", screenInfo);
+  }
+
+  // 刷新率实测（rAF 采样 1 秒）
+  (function () {
+    var frames = 0, start = performance.now();
+    function tick() {
+      frames++;
+      var el = performance.now() - start;
+      if (el < 1000) requestAnimationFrame(tick);
+      else $("v-hz").textContent = "约 " + Math.round(frames / (el / 1000)) + " Hz";
+    }
+    requestAnimationFrame(tick);
+    setTimeout(function () {
+      if ($("v-hz").textContent === "测量中…") setNA("v-hz", "测量失败（标签页后台？）");
+    }, 3000);
+  })();
+
+  // 色域 / HDR
+  (function () {
+    var parts = [];
+    if (window.matchMedia) {
+      if (matchMedia("(color-gamut: rec2020)").matches) parts.push("Rec.2020");
+      else if (matchMedia("(color-gamut: p3)").matches) parts.push("P3 广色域");
+      else if (matchMedia("(color-gamut: srgb)").matches) parts.push("sRGB");
+      if (matchMedia("(dynamic-range: high)").matches) parts.push("HDR");
+    }
+    $("v-gamut").textContent = parts.length ? parts.join(" + ") : "未知";
+  })();
+  // 深色模式
+  (function () {
+    function upd() {
+      var dark = window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches;
+      $("v-dark").textContent = dark ? "系统为深色（本页保持极简白）" : "系统为浅色";
+    }
+    upd();
+    if (window.matchMedia) matchMedia("(prefers-color-scheme: dark)").addEventListener("change", upd);
+  })();
+
+  /* ============ 电池信息 ============ */
+  (function () {
+    function na(msg) {
+      ["v-batt-level", "v-batt-charge", "v-batt-chargetime", "v-batt-discharge"].forEach(function (id) { setNA(id, msg); });
+    }
+    function fmtSec(s) {
+      if (!isFinite(s) || s <= 0) return "—";
+      var h = Math.floor(s / 3600), m = Math.round((s % 3600) / 60);
+      return (h ? h + " 小时 " : "") + m + " 分";
+    }
+    if (!navigator.getBattery) { na("此浏览器不开放"); return; }
+    navigator.getBattery().then(function (b) {
+      function upd() {
+        $("v-batt-level").textContent = Math.round(b.level * 100) + "%";
+        $("v-batt-charge").textContent = b.charging ? "充电中" : "使用电池";
+        $("v-batt-chargetime").textContent = b.charging ? fmtSec(b.chargingTime) : "—";
+        $("v-batt-discharge").textContent = b.charging ? "—" : fmtSec(b.dischargingTime);
+      }
+      upd();
+      ["levelchange", "chargingchange", "chargingtimechange", "dischargingtimechange"].forEach(function (ev) {
+        b.addEventListener(ev, upd);
+      });
+    }).catch(function () { na("读取失败"); });
+  })();
+
+  /* ============ 存储信息 ============ */
+  (function () {
+    function fmtBytes(n) {
+      if (n >= 1073741824) return (n / 1073741824).toFixed(1) + " GB";
+      if (n >= 1048576) return (n / 1048576).toFixed(1) + " MB";
+      return (n / 1024).toFixed(1) + " KB";
+    }
+    if (navigator.storage && navigator.storage.estimate) {
+      navigator.storage.estimate().then(function (est) {
+        $("v-quota").textContent = est.quota ? fmtBytes(est.quota) : "未知";
+        $("v-usage").textContent = est.usage != null ? fmtBytes(est.usage) : "未知";
+      }).catch(function () { setNA("v-quota", "读取失败"); setNA("v-usage", "读取失败"); });
+      if (navigator.storage.persisted) {
+        navigator.storage.persisted().then(function (p) {
+          $("v-persist").textContent = p ? "已持久化" : "未持久化（可能被清理）";
+        }).catch(function () { setNA("v-persist", "读取失败"); });
+      } else setNA("v-persist", "此浏览器不开放");
+    } else {
+      setNA("v-quota", "此浏览器不开放");
+      setNA("v-usage", "此浏览器不开放");
+      setNA("v-persist", "此浏览器不开放");
+    }
+    try {
+      localStorage.setItem("__t", "1"); localStorage.removeItem("__t");
+      setOK("v-ls", "可用");
+    } catch (e) { setNA("v-ls", "不可用（可能为无痕模式）"); }
+    try {
+      sessionStorage.setItem("__t", "1"); sessionStorage.removeItem("__t");
+      setOK("v-ss", "可用");
+    } catch (e) { setNA("v-ss", "不可用"); }
+    if (window.indexedDB) setOK("v-idb", "可用");
+    else setNA("v-idb", "不可用");
+  })();
+
+  /* ============ 连接信息 ============ */
+  var conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+  function connInfo() {
+    if (!conn) {
+      ["v-nettype", "v-downlink", "v-rtt", "v-save"].forEach(function (id) { setNA(id, "此浏览器不开放"); });
+      return;
+    }
+    $("v-nettype").textContent = conn.effectiveType ? conn.effectiveType.toUpperCase() + (conn.type ? " / " + conn.type : "") : "未知";
+    $("v-downlink").textContent = conn.downlink != null ? conn.downlink + " Mbps" : "—";
+    $("v-rtt").textContent = conn.rtt != null ? conn.rtt + " ms" : "—";
+    $("v-save").textContent = conn.saveData ? "已开启" : "未开启";
+  }
+  connInfo();
+  if (conn && conn.addEventListener) conn.addEventListener("change", connInfo);
+
+  // 公网 IP（仅此一项需联网，失败则降级显示）
+  (function fetchIP() {
+    var done = false;
+    setTimeout(function () {
+      if (!done) setNA("v-ip", "获取失败/离线");
+    }, 6000);
+    fetch("https://api.ipify.org?format=json").then(function (r) { return r.json(); })
+      .then(function (d) { done = true; $("v-ip").textContent = d.ip; })
+      .catch(function () {
+        fetch("https://api64.ipify.org?format=json").then(function (r) { return r.json(); })
+          .then(function (d) { done = true; $("v-ip").textContent = d.ip; })
+          .catch(function () { done = true; setNA("v-ip", "获取失败/离线"); });
+      });
+  })();
+
+  // 实测下载速度
+  $("speedBtn").addEventListener("click", function () {
+    var btn = this;
+    btn.disabled = true;
+    $("v-speed").textContent = "测速中…";
+    $("v-speed").classList.remove("na");
+    var url = "https://speed.cloudflare.com/__down?bytes=8000000"; // ~8MB
+    var t = performance.now();
+    fetch(url + "&_=" + Date.now())
+      .then(function (r) {
+        var reader = r.body.getReader();
+        var received = 0;
+        function pump() {
+          return reader.read().then(function (res) {
+            if (res.done) return received;
+            received += res.value.length;
+            return pump();
+          });
+        }
+        return pump();
+      })
+      .then(function (bytes) {
+        var sec = (performance.now() - t) / 1000;
+        var mbps = (bytes * 8 / 1e6) / sec;
+        $("v-speed").textContent = mbps.toFixed(1) + " Mbps（" + (bytes / 1048576).toFixed(1) + " MB / " + sec.toFixed(1) + "s）";
+        btn.disabled = false;
+      })
+      .catch(function () {
+        setNA("v-speed", "测速失败（网络受限或端点不可达）");
+        btn.disabled = false;
+      });
+  });
+
+  /* ============ 媒体能力 ============ */
+  (function () {
+    var host = $("mediaChips");
+    function addChip(name, ok) {
+      var chip = document.createElement("span");
+      chip.className = "chip" + (ok ? " yes" : "");
+      chip.textContent = (ok ? "✓ " : "✗ ") + name;
+      host.appendChild(chip);
+    }
+    var v = document.createElement("video"), a = document.createElement("audio");
+    var tests = [
+      ["H.264", function () { return v.canPlayType('video/mp4; codecs="avc1.42E01E"'); }],
+      ["H.265 / HEVC", function () { return v.canPlayType('video/mp4; codecs="hev1.1.6.L93.B0"'); }],
+      ["VP8", function () { return v.canPlayType('video/webm; codecs="vp8"'); }],
+      ["VP9", function () { return v.canPlayType('video/webm; codecs="vp9"'); }],
+      ["AV1", function () { return v.canPlayType('video/mp4; codecs="av01.0.04M.08"'); }],
+      ["WebM", function () { return v.canPlayType('video/webm'); }],
+      ["Ogg Theora", function () { return v.canPlayType('video/ogg; codecs="theora"'); }],
+      ["MP3", function () { return a.canPlayType("audio/mpeg"); }],
+      ["AAC", function () { return a.canPlayType('audio/mp4; codecs="mp4a.40.2"'); }],
+      ["Opus", function () { return a.canPlayType('audio/ogg; codecs="opus"'); }],
+      ["Vorbis", function () { return a.canPlayType('audio/ogg; codecs="vorbis"'); }],
+      ["FLAC", function () { return a.canPlayType('audio/flac'); }],
+      ["WAV", function () { return a.canPlayType('audio/wav; codecs="1"'); }],
+      ["WebGL 2", function () {
+        try { return !!document.createElement("canvas").getContext("webgl2"); } catch (e) { return false; }
+      }]
+    ];
+    tests.forEach(function (t) {
+      var ok = false;
+      try { ok = !!t[1](); } catch (e) {}
+      addChip(t[0], ok);
+    });
+    // 图片格式（异步解码 1×1 样本）
+    var imgTests = [
+      ["WebP", "data:image/webp;base64,UklGRiIAAABXRUJQVlA4IBYAAAAwAQCdASoBAAEADsD+JaQAA3AAAAAA"],
+      ["AVIF", "data:image/avif;base64,AAAAIGZ0eXBhdmlmAAAAAGF2aWZtaWYxbWlhZk1BMUIAAADybWV0YQAAAAAAAAAoaGRscgAAAAAAAAAAcGljdAAAAAAAAAAAAAAAAGxpYmF2aWYAAAAADnBpdG0AAAAAAAEAAAAeaWxvYwAAAABEAAABAAEAAAABAAABGgAAAB0AAAAoaWluZgAAAAAAAQAAABppbmZlAgAAAAABAABhdjAxQ29sb3IAAAAAamlwcnAAAABLaXBjbwAAABRpc3BlAAAAAAAAAAIAAAACAAAAEHBpeGkAAAAAAwgICAAAAAxhdjFDgQ0MAAAAABNjb2xybmNseAACAAIAAYAAAAAXaXBtYQAAAAAAAAABAAEEAQKDBAAAACVtZGF0EgAKCBgANogQEAwgMg8f8D///8WfhwB8+ErK42A="]
+    ];
+    imgTests.forEach(function (t) {
+      var img = new Image();
+      img.onload = function () { addChip(t[0], img.width > 0); };
+      img.onerror = function () { addChip(t[0], false); };
+      img.src = t[1];
+    });
+  })();
+
+  /* ============ 功能支持 ============ */
+  (function () {
+    var host = $("featChips");
+    var tests = [
+      ["WebAssembly", function () { return typeof WebAssembly === "object"; }],
+      ["Web Worker", function () { return typeof Worker !== "undefined"; }],
+      ["Service Worker", function () { return "serviceWorker" in navigator; }],
+      ["WebRTC", function () { return !!(window.RTCPeerConnection || window.webkitRTCPeerConnection); }],
+      ["WebSocket", function () { return "WebSocket" in window; }],
+      ["WebGPU", function () { return !!navigator.gpu; }],
+      ["WebXR", function () { return !!navigator.xr; }],
+      ["摄像头/麦克风", function () { return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia); }],
+      ["屏幕唤醒锁", function () { return "wakeLock" in navigator; }],
+      ["地理定位", function () { return "geolocation" in navigator; }],
+      ["通知", function () { return "Notification" in window; }],
+      ["振动", function () { return "vibrate" in navigator; }],
+      ["剪贴板", function () { return !!(navigator.clipboard && navigator.clipboard.writeText); }],
+      ["Web Share", function () { return !!navigator.share; }],
+      ["全屏", function () { return !!(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen); }],
+      ["游戏手柄", function () { return "getGamepads" in navigator; }],
+      ["蓝牙", function () { return !!navigator.bluetooth; }],
+      ["USB", function () { return !!navigator.usb; }],
+      ["串口", function () { return !!navigator.serial; }],
+      ["NFC", function () { return "NDEFReader" in window; }],
+      ["OffscreenCanvas", function () { return "OffscreenCanvas" in window; }],
+      ["BigInt", function () { return typeof BigInt !== "undefined"; }],
+      ["离线缓存", function () { return "caches" in window; }],
+      ["Web Payment", function () { return "PaymentRequest" in window; }]
+    ];
+    tests.forEach(function (t) {
+      var ok = false;
+      try { ok = !!t[1](); } catch (e) {}
+      var chip = document.createElement("span");
+      chip.className = "chip" + (ok ? " yes" : "");
+      chip.textContent = (ok ? "✓ " : "✗ ") + t[0];
+      host.appendChild(chip);
+    });
+  })();
+
+  /* ============ 基准测试 ============ */
+  function now() { return performance.now(); }
+  function nextFrame() {
+    return new Promise(function (r) { requestAnimationFrame(function () { setTimeout(r, 0); }); });
+  }
+
+  var BENCH = [
+    {
+      key: "cpu", name: "CPU 运算", weight: 25,
+      desc: "整数累加 + 三角函数混合运算",
+      run: function () {
+        var x = 0;
+        for (var i = 0; i < 3000000; i++) {
+          x += Math.sqrt(i % 97) * Math.sin(i % 31) + (i * 2654435761 % 1000);
+        }
+        return x;
+      },
+      ref: 120
+    },
+    {
+      key: "dom", name: "DOM 渲染", weight: 15,
+      desc: "创建并插入 3000 个节点后移除",
+      run: function () {
+        var host = document.createElement("div");
+        host.style.cssText = "position:fixed;left:-9999px;top:0;width:1px;overflow:hidden";
+        document.body.appendChild(host);
+        for (var i = 0; i < 3000; i++) {
+          var d = document.createElement("div");
+          d.className = "b" + (i % 10);
+          d.textContent = "节点" + i;
+          host.appendChild(d);
+        }
+        void host.offsetHeight; // 强制重排
+        document.body.removeChild(host);
+      },
+      ref: 150
+    },
+    {
+      key: "sort", name: "数组排序", weight: 15,
+      desc: "20 万随机数生成 + 原生排序",
+      run: function () {
+        var n = 200000, a = new Array(n), seed = 42;
+        for (var i = 0; i < n; i++) { seed = (seed * 1103515245 + 12345) & 0x7fffffff; a[i] = seed; }
+        a.sort(function (x, y) { return x - y; });
+        return a[0];
+      },
+      ref: 120
+    },
+    {
+      key: "str", name: "字符串处理", weight: 10,
+      desc: "拼接 + 正则替换 + 大小写转换",
+      run: function () {
+        var s = "";
+        for (var i = 0; i < 4000; i++) s += "性能检测 Performance-Test " + i + ";";
+        return s.replace(/Performance-Test \d+/g, "X").toUpperCase().split(";").reverse().join("").length;
+      },
+      ref: 150
+    },
+    {
+      key: "json", name: "JSON 解析", weight: 10,
+      desc: "大对象序列化 + 解析往返",
+      run: function () {
+        var obj = { list: [] };
+        for (var i = 0; i < 30000; i++) obj.list.push({ id: i, name: "item_" + i, ok: i % 2 === 0, v: [i, i * 2, i * 3] });
+        var str = JSON.stringify(obj);
+        return JSON.parse(str).list.length + str.length;
+      },
+      ref: 150
+    },
+    {
+      key: "canvas", name: "Canvas 绘制", weight: 10,
+      desc: "离屏画布 6000 次图形绘制",
+      run: function () {
+        var cv = document.createElement("canvas");
+        cv.width = 512; cv.height = 512;
+        var ctx = cv.getContext("2d");
+        for (var i = 0; i < 6000; i++) {
+          ctx.fillStyle = "hsl(" + (i % 360) + ",70%,50%)";
+          ctx.beginPath();
+          ctx.arc((i * 37) % 512, (i * 53) % 512, (i % 20) + 2, 0, 6.2832);
+          ctx.fill();
+          ctx.fillRect((i * 29) % 512, (i * 41) % 512, 12, 12);
+        }
+        return cv.toDataURL().length;
+      },
+      ref: 200
+    },
+    {
+      key: "crypto", name: "SHA-256 加密", weight: 10,
+      desc: "1 MB 数据 × 20 次哈希（异步）",
+      async: true,
+      run: async function () {
+        if (!(crypto && crypto.subtle)) throw new Error("no subtle");
+        var buf = new Uint8Array(1048576);
+        for (var i = 0; i < buf.length; i += 4096) buf[i] = i & 255;
+        var h = null;
+        for (var r = 0; r < 20; r++) h = await crypto.subtle.digest("SHA-256", buf);
+        return h.byteLength;
+      },
+      ref: 250
+    },
+    {
+      key: "fps", name: "FPS 帧率", weight: 5,
+      desc: "requestAnimationFrame 实测 1 秒",
+      async: true,
+      run: function () {
+        return new Promise(function (resolve) {
+          var frames = 0, start = now();
+          function tick() {
+            frames++;
+            if (now() - start < 1000) requestAnimationFrame(tick);
+            else resolve(frames);
+          }
+          requestAnimationFrame(tick);
+        });
+      },
+      ref: null,
+      special: true
+    }
+  ];
+
+  // 渲染基准测试行
+  var benchList = $("benchList");
+  BENCH.forEach(function (b) {
+    var row = document.createElement("div");
+    row.className = "bench-row";
+    row.innerHTML =
+      '<div class="top"><span class="name">' + b.name + '<small>' + b.desc + '</small></span>' +
+      '<span class="res" id="res-' + b.key + '">待测试</span></div>' +
+      '<div class="bar"><div class="fill" id="bar-' + b.key + '"></div></div>';
+    benchList.appendChild(row);
+  });
+
+  var scores = {};
+  var benchResult = {};
+
+  $("runBtn").addEventListener("click", async function () {
+    var btn = this;
+    btn.disabled = true;
+    btn.textContent = "测试中…";
+    $("copyBtn").disabled = true;
+    scores = {};
+    benchResult = {};
+    for (var i = 0; i < BENCH.length; i++) {
+      var b = BENCH[i];
+      var resEl = $("res-" + b.key), barEl = $("bar-" + b.key);
+      resEl.textContent = "运行中…";
+      resEl.classList.remove("done");
+      barEl.style.width = "0%";
+      await nextFrame(); // 让 UI 先刷新
+      var t = now(), out, failed = false;
+      try { out = b.async ? await b.run() : b.run(); }
+      catch (e) { failed = true; }
+      var ms = now() - t;
+
+      var sc, text;
+      if (failed) {
+        sc = 5;
+        text = "不支持";
+      } else if (b.special) {
+        var fps = out;
+        sc = Math.round(Math.max(5, Math.min(100, fps / 120 * 100)));
+        text = fps + " fps · " + sc + " 分";
+      } else {
+        sc = Math.round(Math.max(5, Math.min(100, (b.ref / ms) * 60)));
+        text = ms.toFixed(1) + " ms · " + sc + " 分";
+      }
+      scores[b.key] = sc;
+      benchResult[b.key] = text;
+      resEl.textContent = text;
+      resEl.classList.add("done");
+      barEl.style.width = sc + "%";
+      await nextFrame();
+    }
+    btn.disabled = false;
+    btn.textContent = "重新测试";
+    showScore();
+    $("copyBtn").disabled = false;
+  });
+
+  /* ============ 综合评分 ============ */
+  var finalScore = null, finalGrade = "";
+  function showScore() {
+    var total = 0, wsum = 0, parts = [];
+    BENCH.forEach(function (b) {
+      if (scores[b.key] != null) {
+        total += scores[b.key] * b.weight;
+        wsum += b.weight;
+        parts.push("<b>" + b.name + "</b> " + scores[b.key] + " × " + b.weight + "%");
+      }
+    });
+    if (!wsum) return;
+    var final = Math.round(total / wsum);
+    finalScore = final;
+    $("scoreVal").textContent = final;
+    $("scoreFill").style.width = final + "%";
+    $("weights").innerHTML = parts.join(" &nbsp;·&nbsp; ");
+
+    var grade, desc;
+    if (final >= 90) { grade = "旗舰级 · S"; desc = "性能极为强悍，重度游戏、视频剪辑、大型工程开发都能轻松胜任。"; }
+    else if (final >= 75) { grade = "高端 · A"; desc = "性能优秀，日常多任务、高清影音与中重度应用流畅无压力。"; }
+    else if (final >= 55) { grade = "主流 · B"; desc = "性能均衡，网页浏览、办公与轻中度应用体验良好。"; }
+    else if (final >= 35) { grade = "入门 · C"; desc = "性能有限，适合轻量使用；多开标签页或大型网页可能略有卡顿。"; }
+    else { grade = "较弱 · D"; desc = "性能较弱，建议减少后台应用与浏览器扩展，保持系统轻快。"; }
+    finalGrade = grade;
+    $("scoreGrade").textContent = grade;
+    $("scoreDesc").textContent = desc;
+  }
+
+  /* ============ 复制检测报告 ============ */
+  $("copyBtn").addEventListener("click", function () {
+    var lines = [
+      "=== 设备性能检测报告 ===",
+      "生成时间：" + new Date().toLocaleString("zh-CN", { hour12: false }),
+      "设备类型：" + $("deviceBadge").textContent,
+      "",
+      "【系统】" + $("v-os").textContent + " / " + $("v-browser").textContent + " / " + $("v-engine").textContent,
+      "【硬件】" + $("v-cores").textContent + " / " + $("v-mem").textContent + " / " + $("v-gpu").textContent,
+      "【屏幕】" + $("v-res").textContent + " @ " + $("v-dpr").textContent + " / " + $("v-depth").textContent + " / " + $("v-hz").textContent + " / " + $("v-gamut").textContent,
+      "【电池】" + $("v-batt-level").textContent + " / " + $("v-batt-charge").textContent,
+      "【网络】" + $("v-nettype").textContent + " / " + $("v-speed").textContent,
+      "",
+      "【基准测试】"
+    ];
+    BENCH.forEach(function (b) {
+      lines.push("  " + b.name + "：" + (benchResult[b.key] || "未测试"));
+    });
+    lines.push("");
+    lines.push("【综合评分】" + (finalScore != null ? finalScore + " / 100（" + finalGrade + "）" : "未测试"));
+
+    var text = lines.join("\n");
+    var btn = this;
+    function done() {
+      var old = btn.textContent;
+      btn.textContent = "已复制 ✓";
+      setTimeout(function () { btn.textContent = old; }, 1500);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done).catch(function () { fallback(); });
+    } else fallback();
+    function fallback() {
+      var ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.cssText = "position:fixed;left:-9999px";
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand("copy"); done(); } catch (e) {}
+      document.body.removeChild(ta);
+    }
+  });
+
+  $("footTime").textContent = "PAGE LOADED " + new Date().toLocaleString("zh-CN", { hour12: false });
+})();
+</script>
+</body>
+</html>

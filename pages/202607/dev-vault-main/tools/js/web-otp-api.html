@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html tk="title_web_otp_api_playground" lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Web OTP API Playground</title>
+<meta name="description" content="Interactive playground for the Web OTP API - auto-read SMS OTP codes in the browser for seamless verification.">
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --surface: #141414;
+    --surface-2: #1e1e1e;
+    --surface-3: #282828;
+    --border: #333;
+    --text: #e0e0e0;
+    --text-dim: #888;
+    --accent: #ff7043;
+    --accent-dim: #3a201a;
+    --success: #66bb6a;
+    --warn: #ffa726;
+    --error: #ef5350;
+    --radius: 8px;
+    --font-mono: 'SF Mono', 'Cascadia Code', 'Fira Code', Consolas, monospace;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 1.5rem 2rem;
+    text-align: center;
+  }
+
+  header h1 {
+    font-size: 1.8rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--accent), #ffab91);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  header p { color: var(--text-dim); margin-top: 0.3rem; font-size: 0.95rem; }
+
+  .container { max-width: 1200px; margin: 0 auto; padding: 1.5rem; display: grid; gap: 1.5rem; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.5rem;
+  }
+
+  .card h2 {
+    font-size: 1.15rem;
+    color: var(--accent);
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .support-banner {
+    padding: 1rem 1.5rem;
+    border-radius: var(--radius);
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .support-banner.supported { background: #1b3a1b; border: 1px solid #2e7d32; color: var(--success); }
+  .support-banner.unsupported { background: #3a1b1b; border: 1px solid #c62828; color: var(--error); }
+
+  .btn {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 0.6rem 1.2rem;
+    border-radius: var(--radius);
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s;
+  }
+
+  .btn:hover { opacity: 0.85; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-secondary { background: var(--surface-3); color: var(--text); border: 1px solid var(--border); }
+  .btn-danger { background: var(--error); }
+  .btn-sm { padding: 0.35rem 0.75rem; font-size: 0.8rem; }
+
+  .form-group { margin-bottom: 1rem; }
+  .form-group label { display: block; font-size: 0.85rem; color: var(--text-dim); margin-bottom: 0.3rem; }
+
+  .form-group input, .form-group select {
+    width: 100%;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 0.5rem 0.75rem;
+    border-radius: var(--radius);
+    font-size: 0.9rem;
+  }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+
+  .code-block {
+    background: var(--surface-2);
+    border-radius: var(--radius);
+    padding: 1rem;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    overflow-x: auto;
+    white-space: pre;
+    color: var(--text-dim);
+    margin-top: 0.5rem;
+    line-height: 1.6;
+  }
+
+  .code-block .keyword { color: #c792ea; }
+  .code-block .string { color: #c3e88d; }
+  .code-block .number { color: #f78c6c; }
+  .code-block .comment { color: #546e7a; }
+
+  .log-area {
+    background: var(--surface-2);
+    border-radius: var(--radius);
+    padding: 1rem;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    max-height: 250px;
+    overflow-y: auto;
+  }
+
+  .log-entry { padding: 0.25rem 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+  .log-entry .time { color: var(--text-dim); }
+  .log-entry.info .msg { color: var(--accent); }
+  .log-entry.success .msg { color: var(--success); }
+  .log-entry.warn .msg { color: var(--warn); }
+  .log-entry.error .msg { color: var(--error); }
+
+  .empty-state { text-align: center; padding: 2rem; color: var(--text-dim); font-size: 0.9rem; }
+
+  /* OTP Input Display */
+  .otp-display {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: center;
+    margin: 1.5rem 0;
+  }
+
+  .otp-digit {
+    width: 52px;
+    height: 64px;
+    background: var(--surface-2);
+    border: 2px solid var(--border);
+    border-radius: var(--radius);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.8rem;
+    font-weight: 700;
+    font-family: var(--font-mono);
+    color: var(--accent);
+    transition: all 0.3s;
+  }
+
+  .otp-digit.filled {
+    border-color: var(--accent);
+    background: var(--accent-dim);
+  }
+
+  .otp-digit.success {
+    border-color: var(--success);
+    color: var(--success);
+    background: #1b3a1b;
+  }
+
+  /* SMS Format Visualization */
+  .sms-preview {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 1.25rem;
+    max-width: 340px;
+    margin: 1rem auto;
+  }
+
+  .sms-preview .sender {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    margin-bottom: 0.5rem;
+  }
+
+  .sms-preview .bubble {
+    background: var(--surface-3);
+    border-radius: 12px;
+    padding: 0.75rem 1rem;
+    font-size: 0.9rem;
+    line-height: 1.5;
+  }
+
+  .sms-preview .bubble .highlight {
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  .sms-preview .bubble .domain-line {
+    color: var(--success);
+    font-family: var(--font-mono);
+    font-size: 0.82rem;
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--border);
+  }
+
+  /* Flow Diagram */
+  .flow-steps {
+    display: flex;
+    gap: 0;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin: 1rem 0;
+  }
+
+  .flow-step {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.75rem 1rem;
+    text-align: center;
+    min-width: 140px;
+  }
+
+  .flow-step .step-num {
+    font-size: 0.7rem;
+    color: var(--accent);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 0.25rem;
+  }
+
+  .flow-step .step-label { font-size: 0.82rem; }
+
+  .flow-arrow {
+    font-size: 1.2rem;
+    color: var(--text-dim);
+    padding: 0 0.5rem;
+  }
+
+  .flow-step.active {
+    border-color: var(--accent);
+    background: var(--accent-dim);
+  }
+
+  /* Security Card */
+  .security-item {
+    background: var(--surface-2);
+    border-left: 3px solid var(--warn);
+    padding: 0.75rem 1rem;
+    margin-bottom: 0.75rem;
+    border-radius: 0 var(--radius) var(--radius) 0;
+  }
+
+  .security-item h4 {
+    font-size: 0.88rem;
+    color: var(--warn);
+    margin-bottom: 0.3rem;
+  }
+
+  .security-item p { font-size: 0.82rem; color: var(--text-dim); }
+
+  .security-item.danger { border-left-color: var(--error); }
+  .security-item.danger h4 { color: var(--error); }
+  .security-item.good { border-left-color: var(--success); }
+  .security-item.good h4 { color: var(--success); }
+
+  /* Autocomplete demo */
+  .autocomplete-demo {
+    background: var(--surface-2);
+    border-radius: var(--radius);
+    padding: 1.25rem;
+    text-align: center;
+  }
+
+  .autocomplete-demo input {
+    background: var(--surface-3);
+    border: 2px solid var(--border);
+    color: var(--text);
+    padding: 0.75rem 1rem;
+    border-radius: var(--radius);
+    font-size: 1.2rem;
+    font-family: var(--font-mono);
+    text-align: center;
+    letter-spacing: 0.5rem;
+    width: 220px;
+    transition: border-color 0.3s;
+  }
+
+  .autocomplete-demo input:focus {
+    border-color: var(--accent);
+    outline: none;
+  }
+
+  .autocomplete-demo .hint {
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    margin-top: 0.5rem;
+  }
+
+  table { width: 100%; border-collapse: collapse; font-size: 0.82rem; margin-top: 0.5rem; }
+  th, td { padding: 0.5rem 0.75rem; text-align: left; border-bottom: 1px solid var(--border); }
+  th { color: var(--text-dim); font-weight: 600; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.5px; }
+
+  .status-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.3rem 0.7rem;
+    border-radius: 20px;
+    font-size: 0.78rem;
+    font-weight: 600;
+  }
+
+  .status-indicator.waiting { background: var(--accent-dim); color: var(--accent); }
+  .status-indicator.received { background: #1b3a1b; color: var(--success); }
+  .status-indicator.aborted { background: #3a1b1b; color: var(--error); }
+  .status-indicator.idle { background: var(--surface-3); color: var(--text-dim); }
+
+  @media (max-width: 768px) {
+    .grid-2 { grid-template-columns: 1fr; }
+    .flow-steps { flex-direction: column; }
+    .flow-arrow { transform: rotate(90deg); }
+    .container { padding: 1rem; }
+    header h1 { font-size: 1.4rem; }
+    .otp-digit { width: 42px; height: 54px; font-size: 1.4rem; }
+  }
+</style>
+</head>
+<body>
+
+
+
+<header>
+  <h1 ti="title_web_otp_api_playground" ti="h1_web_otp_api_playground">Web OTP API Playground</h1>
+  <p>Auto-read SMS OTP codes in the browser for seamless phone number verification</p>
+</header>
+
+<div class="container" style="position:relative">
+  <!-- Support Detection -->
+  <div id="supportBanner" class="support-banner"></div>
+
+  <!-- OTP Demo -->
+  <div class="card">
+    <h2>&#x1F510; OTP Credential Demo</h2>
+    <p style="font-size:0.85rem;color:var(--text-dim);margin-bottom:0.75rem;">
+      Click "Start Listening" to begin waiting for an OTP SMS. On supported devices, the browser will auto-read incoming OTP messages.
+    </p>
+
+    <!-- Flow Diagram -->
+    <div class="flow-steps">
+      <div class="flow-step" id="flowStep1"><div class="step-num">Step 1</div><div class="step-label">User initiates verification</div></div>
+      <div class="flow-arrow">&#x2192;</div>
+      <div class="flow-step" id="flowStep2"><div class="step-num">Step 2</div><div class="step-label">Server sends SMS</div></div>
+      <div class="flow-arrow">&#x2192;</div>
+      <div class="flow-step" id="flowStep3"><div class="step-num">Step 3</div><div class="step-label">Browser reads OTP</div></div>
+      <div class="flow-arrow">&#x2192;</div>
+      <div class="flow-step" id="flowStep4"><div class="step-num">Step 4</div><div class="step-label">Auto-fill & verify</div></div>
+    </div>
+
+    <div style="text-align:center;margin:1rem 0;">
+      <span style="font-size:0.85rem;color:var(--text-dim);">Status: </span>
+      <span id="otpStatus" class="status-indicator idle">Idle</span>
+    </div>
+
+    <!-- OTP Digit Display -->
+    <div class="otp-display" id="otpDisplay">
+      <div class="otp-digit" id="d0"></div>
+      <div class="otp-digit" id="d1"></div>
+      <div class="otp-digit" id="d2"></div>
+      <div class="otp-digit" id="d3"></div>
+      <div class="otp-digit" id="d4"></div>
+      <div class="otp-digit" id="d5"></div>
+    </div>
+
+    <div style="display:flex;justify-content:center;gap:0.75rem;flex-wrap:wrap;">
+      <button class="btn" id="startListenBtn" onclick="startListening()" ti="btn_start_listening">Start Listening</button>
+      <button class="btn btn-danger btn-sm" id="abortBtn" onclick="abortListening()" disabled ti="btn_abort">Abort</button>
+      <button class="btn btn-secondary btn-sm" onclick="simulateOtp()" ti="btn_simulate_otp">Simulate OTP</button>
+      <button class="btn btn-secondary btn-sm" onclick="resetOtp()" ti="btn_reset">Reset</button>
+    </div>
+
+    <div id="otpCodePreview" class="code-block" style="margin-top:1rem;">
+<span class="comment">// Request OTP credential</span>
+<span class="keyword">const</span> ac = <span class="keyword">new</span> AbortController();
+<span class="keyword">const</span> otp = <span class="keyword">await</span> navigator.credentials.get({
+  otp: { transport: [<span class="string">'sms'</span>] },
+  signal: ac.signal
+});
+console.log(otp.code); <span class="comment">// e.g. "123456"</span></div>
+  </div>
+
+  <div class="grid-2">
+    <!-- SMS Format -->
+    <div class="card">
+      <h2>&#x1F4E9; SMS Format Requirements</h2>
+      <p style="font-size:0.85rem;color:var(--text-dim);margin-bottom:1rem;">
+        The SMS must follow a specific format for the browser to extract the OTP code.
+      </p>
+
+      <div class="form-group">
+        <label ti="label_your_domain">Your domain</label>
+        <input type="text" id="smsDomain" value="example.com" oninput="updateSmsPreview()">
+      </div>
+
+      <div class="form-group">
+        <label ti="label_otp_code">OTP code</label>
+        <input type="text" id="smsCode" value="123456" maxlength="8" oninput="updateSmsPreview()">
+      </div>
+
+      <div class="form-group">
+        <label ti="label_custom_message_optional">Custom message (optional)</label>
+        <input type="text" id="smsMessage" value="Your verification code is" oninput="updateSmsPreview()">
+      </div>
+
+      <div class="sms-preview">
+        <div class="sender">&#x1F4F1; SMS</div>
+        <div class="bubble" id="smsBubble">
+          <div>Your verification code is <span class="highlight">123456</span></div>
+          <div class="domain-line">@example.com #123456</div>
+        </div>
+      </div>
+
+      <div style="margin-top:1rem;font-size:0.82rem;color:var(--text-dim);">
+        <strong ti="strong_format_rules">Format rules:</strong>
+        <ul style="padding-left:1.5rem;margin-top:0.5rem;">
+          <li>Last line must be: <code>@domain #code</code></li>
+          <li><code>@</code> prefix identifies the domain origin</li>
+          <li><code>#</code> prefix identifies the OTP code</li>
+          <li>Domain must match the requesting page's origin</li>
+          <li>The rest of the SMS body can be any text</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- AbortController Integration -->
+    <div class="card">
+      <h2>&#x23F1;&#xFE0F; AbortController Integration</h2>
+      <p style="font-size:0.85rem;color:var(--text-dim);margin-bottom:1rem;">
+        Use AbortController to cancel the OTP listener after a timeout or user action.
+      </p>
+
+      <div class="form-group">
+        <label ti="label_timeout_seconds">Timeout (seconds)</label>
+        <input type="number" id="abortTimeout" value="60" min="5" max="300">
+      </div>
+
+      <div style="display:flex;gap:0.5rem;margin-bottom:1rem;">
+        <button class="btn btn-sm" onclick="startWithTimeout()" ti="btn_start_with_timeout">Start with Timeout</button>
+      </div>
+
+      <div id="timeoutDisplay" style="text-align:center;font-size:0.85rem;color:var(--text-dim);margin-bottom:1rem;">
+        No active timeout.
+      </div>
+
+      <div class="code-block" style="font-size:0.75rem;">
+<span class="comment">// With timeout</span>
+<span class="keyword">const</span> ac = <span class="keyword">new</span> AbortController();
+<span class="keyword">const</span> timer = setTimeout(() => {
+  ac.abort();
+}, <span class="number">60000</span>); <span class="comment">// 60 seconds</span>
+
+<span class="keyword">try</span> {
+  <span class="keyword">const</span> otp = <span class="keyword">await</span> navigator.credentials.get({
+    otp: { transport: [<span class="string">'sms'</span>] },
+    signal: ac.signal
+  });
+  clearTimeout(timer);
+  verifyCode(otp.code);
+} <span class="keyword">catch</span> (err) {
+  <span class="keyword">if</span> (err.name === <span class="string">'AbortError'</span>) {
+    console.log(<span class="string">'OTP request timed out'</span>);
+  }
+}</div>
+    </div>
+  </div>
+
+  <!-- Autocomplete Demo -->
+  <div class="card">
+    <h2>&#x1F4DD; autocomplete="one-time-code" Demo</h2>
+    <p style="font-size:0.85rem;color:var(--text-dim);margin-bottom:1rem;">
+      The <code>autocomplete="one-time-code"</code> attribute hints to the browser and autofill services
+      that this input expects an OTP code. This works even without the Web OTP API.
+    </p>
+
+    <div class="grid-2">
+      <div class="autocomplete-demo">
+        <div style="font-size:0.85rem;color:var(--text-dim);margin-bottom:0.75rem;">With autocomplete attribute</div>
+        <input type="text" inputmode="numeric" autocomplete="one-time-code" tp="placeholder_x" tp="placeholder_x_2" placeholder="------" maxlength="6" id="otpInput1">
+        <div class="hint">autocomplete="one-time-code" inputmode="numeric"</div>
+      </div>
+
+      <div class="autocomplete-demo">
+        <div style="font-size:0.85rem;color:var(--text-dim);margin-bottom:0.75rem;">Without autocomplete (comparison)</div>
+        <input type="text" placeholder="------" maxlength="6" id="otpInput2">
+        <div class="hint">No autocomplete attribute - no browser OTP suggestion</div>
+      </div>
+    </div>
+
+    <div class="code-block" style="margin-top:1rem;font-size:0.75rem;">
+<span class="comment">&lt;!-- Recommended OTP input markup --&gt;</span>
+&lt;input
+  type=<span class="string">"text"</span>
+  inputmode=<span class="string">"numeric"</span>
+  autocomplete=<span class="string">"one-time-code"</span>
+  pattern=<span class="string">"[0-9]{6}"</span>
+  maxlength=<span class="string">"6"</span>
+  placeholder=<span class="string">"Enter OTP"</span>
+/&gt;
+
+<span class="comment">&lt;!-- For cross-origin iframes --&gt;</span>
+&lt;input autocomplete=<span class="string">"one-time-code"</span> /&gt;
+<span class="comment">&lt;!-- Parent iframe needs allow="otp-credentials" --&gt;</span>
+&lt;iframe src=<span class="string">"https://auth.example.com/verify"</span>
+  allow=<span class="string">"otp-credentials"</span>&gt;&lt;/iframe&gt;</div>
+  </div>
+
+  <!-- Security Considerations -->
+  <div class="card">
+    <h2>&#x1F6E1;&#xFE0F; Security Considerations</h2>
+
+    <div class="security-item good">
+      <h4>Origin-bound verification</h4>
+      <p>The SMS must contain the requesting page's origin (<code>@domain.com</code>). The browser verifies this match, preventing phishing attacks from reading OTP codes meant for other sites.</p>
+    </div>
+
+    <div class="security-item good">
+      <h4>User consent required</h4>
+      <p>The browser shows a permission prompt before sharing the OTP code. The user must explicitly agree to share the code with the website.</p>
+    </div>
+
+    <div class="security-item">
+      <h4>SMS is not encrypted</h4>
+      <p>SMS messages are transmitted in plaintext and can be intercepted. Web OTP does not make SMS-based 2FA more secure - it only improves the UX. Consider WebAuthn/passkeys for stronger security.</p>
+    </div>
+
+    <div class="security-item">
+      <h4>SIM swapping risk</h4>
+      <p>If an attacker gains control of the phone number (SIM swap), they will receive the OTP. This is a fundamental SMS vulnerability, not specific to Web OTP.</p>
+    </div>
+
+    <div class="security-item danger">
+      <h4>Do not rely solely on SMS OTP</h4>
+      <p>Use SMS OTP as one factor in multi-factor authentication, not as the sole verification method. Combine with knowledge factors (password) or possession factors (authenticator app).</p>
+    </div>
+
+    <div class="security-item good">
+      <h4>AbortController for cleanup</h4>
+      <p>Always use AbortController to cancel pending OTP requests when the user navigates away or the timeout expires, preventing resource leaks.</p>
+    </div>
+  </div>
+
+  <!-- Browser Support & API Reference -->
+  <div class="grid-2">
+    <div class="card">
+      <h2>&#x1F30D; Browser Support</h2>
+      <table>
+        <thead><tr><th ti="th_browser">Browser</th><th ti="th_version">Version</th><th ti="th_status">Status</th></tr></thead>
+        <tbody>
+          <tr><td>Chrome (Android)</td><td>84+</td><td style="color:var(--success);">Supported</td></tr>
+          <tr><td>Edge (Android)</td><td>84+</td><td style="color:var(--success);">Supported</td></tr>
+          <tr><td>Opera (Android)</td><td>60+</td><td style="color:var(--success);">Supported</td></tr>
+          <tr><td>Samsung Internet</td><td>14+</td><td style="color:var(--success);">Supported</td></tr>
+          <tr><td>Chrome (Desktop)</td><td>--</td><td style="color:var(--error);">Not supported</td></tr>
+          <tr><td>Firefox</td><td>--</td><td style="color:var(--error);">Not supported</td></tr>
+          <tr><td>Safari</td><td>--</td><td style="color:var(--warn);">Uses input[autocomplete]</td></tr>
+        </tbody>
+      </table>
+      <div style="margin-top:0.75rem;font-size:0.82rem;color:var(--text-dim);">
+        <strong ti="strong_note">Note:</strong> Safari supports <code>autocomplete="one-time-code"</code> for auto-fill from Messages,
+        but does not implement the Web OTP API (<code>navigator.credentials.get({otp})</code>).
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>&#x1F4D6; API Quick Reference</h2>
+      <div class="code-block" style="font-size:0.75rem;">
+<span class="comment">// Feature detection</span>
+<span class="keyword">if</span> (<span class="string">'OTPCredential'</span> <span class="keyword">in</span> window) {
+  <span class="comment">// Web OTP API supported</span>
+}
+
+<span class="comment">// Request OTP (basic)</span>
+<span class="keyword">const</span> { code } = <span class="keyword">await</span> navigator.credentials.get({
+  otp: { transport: [<span class="string">'sms'</span>] }
+});
+
+<span class="comment">// With AbortController</span>
+<span class="keyword">const</span> ac = <span class="keyword">new</span> AbortController();
+<span class="keyword">try</span> {
+  <span class="keyword">const</span> { code } = <span class="keyword">await</span> navigator.credentials.get({
+    otp: { transport: [<span class="string">'sms'</span>] },
+    signal: ac.signal
+  });
+  <span class="comment">// Submit code to server</span>
+  <span class="keyword">await</span> verifyOTP(code);
+} <span class="keyword">catch</span> (e) {
+  <span class="keyword">if</span> (e.name !== <span class="string">'AbortError'</span>) <span class="keyword">throw</span> e;
+}
+
+<span class="comment">// Cancel</span>
+ac.abort();</div>
+    </div>
+  </div>
+
+  <!-- Event Log -->
+  <div class="card">
+    <h2>&#x1F4DC; Event Log</h2>
+    <button class="btn btn-sm btn-secondary" onclick="clearLog()" style="margin-bottom:0.75rem;" ti="btn_clear">Clear</button>
+    <div id="eventLog" class="log-area">
+      <div class="log-entry info"><span class="time">[--:--:--]</span> <span class="msg">Playground initialized.</span></div>
+    </div>
+  </div>
+</div>
+
+
+<script>var _LANG={'title_web_otp_api_playground':["Web OTP API Playground", "Web OTP API 演示平台"],'metadesc_interactive_playground_fo':["Interactive playground for the Web OTP API - auto-read SMS OTP codes in the browser for seamless verification.", "Web OTP API 的交互式演示平台 - 在浏览器中自动读取短信 OTP 代码，实现无缝验证。"],'h1_web_otp_api_playground':["Web OTP API Playground", "Web OTP API 演示平台"],'h2_otp_credential_demo':["🔐 OTP Credential Demo", "🔐 OTP凭证演示"],'h2_sms_format_requirements':["📩 SMS Format Requirements", "📩 短信格式要求"],'h2_abortcontroller_integrat':["⏱️ AbortController Integration", "⏱️ AbortController 集成"],'h2_autocomplete_one_time_co':["📝 autocomplete=\"one-time-code\" Demo", "📝 自动完成“一次性代码”演示"],'h2_security_considerations':["🛡️ Security Considerations", "🛡️ 安全注意事项"],'h2_browser_support':["🌍 Browser Support", "🌍 浏览器支持"],'h2_api_quick_reference':["📖 API Quick Reference", "📖 API 快速参考"],'h2_event_log':["📜 Event Log", "📜 事件日志"],'btn_start_listening':["Start Listening", "开始收听"],'btn_abort':["Abort", "中止"],'btn_simulate_otp':["Simulate OTP", "模拟一次性密码"],'btn_reset':["Reset", "重置"],'btn_start_with_timeout':["Start with Timeout", "以超时开始"],'btn_clear':["Clear", "清除"],'placeholder_x':["------", "------"],'placeholder_x_2':["------", "------"],'strong_format_rules':["Format rules:", "格式规则："],'strong_note':["Note:", "笔记："],'th_browser':["Browser", "浏览器"],'th_version':["Version", "版本"],'th_status':["Status", "地位"],'label_your_domain':["Your domain", "您的域名"],'label_otp_code':["OTP code", "一次性密码"],'label_custom_message_optional':["Custom message (optional)", "自定义消息（可选）"],'label_timeout_seconds':["Timeout (seconds)", "超时时间（秒）"],'jtc_timed_out':["Timed out.", "超时。"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>
+  /* ===== State ===== */
+  let abortController = null;
+  let timeoutTimer = null;
+  let countdownTimer = null;
+
+  /* ===== Support Detection ===== */
+  const banner = document.getElementById('supportBanner');
+  const isSupported = 'OTPCredential' in window;
+
+  if (isSupported) {
+    banner.className = 'support-banner supported';
+    banner.innerHTML = '<span>&#x2705;</span> Web OTP API (OTPCredential) is supported in this browser.';
+  } else {
+    banner.className = 'support-banner unsupported';
+    banner.innerHTML = '<span>&#x274C;</span> Web OTP API is not supported. Simulation mode active. Requires Chrome/Edge 84+ on Android.';
+  }
+
+  /* ===== Logging ===== */
+  function log(msg, level = 'info') {
+    const el = document.getElementById('eventLog');
+    const ts = new Date().toTimeString().slice(0, 8);
+    const entry = document.createElement('div');
+    entry.className = `log-entry ${level}`;
+    entry.innerHTML = `<span class="time">[${ts}]</span> <span class="msg">${msg.replace(/</g,'&lt;')}</span>`;
+    el.appendChild(entry);
+    el.scrollTop = el.scrollHeight;
+  }
+
+  function clearLog() {
+    document.getElementById('eventLog').innerHTML = '';
+    log('Log cleared.');
+  }
+
+  /* ===== Flow Steps ===== */
+  function setFlowStep(step) {
+    for (let i = 1; i <= 4; i++) {
+      document.getElementById(`flowStep${i}`).classList.toggle('active', i <= step);
+    }
+  }
+
+  function setStatus(state, text) {
+    const el = document.getElementById('otpStatus');
+    el.className = `status-indicator ${state}`;
+    el.textContent = text;
+  }
+
+  /* ===== OTP Display ===== */
+  function displayOtp(code) {
+    const digits = code.split('');
+    for (let i = 0; i < 6; i++) {
+      const el = document.getElementById(`d${i}`);
+      if (digits[i]) {
+        el.textContent = digits[i];
+        el.classList.add('filled');
+        // Staggered animation
+        setTimeout(() => {
+          el.classList.add('success');
+        }, i * 100);
+      }
+    }
+  }
+
+  function resetOtp() {
+    for (let i = 0; i < 6; i++) {
+      const el = document.getElementById(`d${i}`);
+      el.textContent = '';
+      el.classList.remove('filled', 'success');
+    }
+    setFlowStep(0);
+    setStatus('idle', 'Idle');
+    log('OTP display reset.', 'info');
+  }
+
+  /* ===== Start Listening ===== */
+  async function startListening() {
+    resetOtp();
+    abortController = new AbortController();
+    document.getElementById('abortBtn').disabled = false;
+    document.getElementById('startListenBtn').disabled = true;
+
+    setFlowStep(1);
+    setStatus('waiting', 'Waiting for SMS...');
+    log('Started listening for OTP SMS...', 'info');
+
+    if (!isSupported) {
+      log('Web OTP not supported. Use "Simulate OTP" to demo the flow.', 'warn');
+      return;
+    }
+
+    try {
+      setFlowStep(2);
+      const otp = await navigator.credentials.get({
+        otp: { transport: ['sms'] },
+        signal: abortController.signal
+      });
+
+      setFlowStep(3);
+      log(`OTP received: ${otp.code}`, 'success');
+      displayOtp(otp.code);
+
+      setTimeout(() => {
+        setFlowStep(4);
+        setStatus('received', `Code: ${otp.code}`);
+        log('OTP auto-filled successfully.', 'success');
+      }, 600);
+
+    } catch (err) {
+      if (err.name === 'AbortError') {
+        setStatus('aborted', 'Aborted');
+        log('OTP request aborted.', 'warn');
+      } else {
+        setStatus('aborted', 'Error');
+        log(`Error: ${err.message}`, 'error');
+      }
+    } finally {
+      document.getElementById('abortBtn').disabled = true;
+      document.getElementById('startListenBtn').disabled = false;
+      clearCountdown();
+    }
+  }
+
+  function abortListening() {
+    if (abortController) {
+      abortController.abort();
+      abortController = null;
+    }
+    document.getElementById('abortBtn').disabled = true;
+    document.getElementById('startListenBtn').disabled = false;
+    clearCountdown();
+    log('Manually aborted OTP listener.', 'warn');
+  }
+
+  /* ===== Timeout ===== */
+  function startWithTimeout() {
+    const seconds = parseInt(document.getElementById('abortTimeout').value) || 60;
+    startListening();
+
+    let remaining = seconds;
+    const display = document.getElementById('timeoutDisplay');
+
+    clearCountdown();
+
+    countdownTimer = window.setInterval(() => {
+      remaining--;
+      display.innerHTML = `Timeout in <span style="color:var(--accent);font-family:var(--font-mono);">${remaining}s</span>`;
+      if (remaining <= 0) {
+        clearCountdown();
+        abortListening();
+        display.textContent=T("jtc_timed_out");
+      }
+    }, 1000);
+
+    display.innerHTML = `Timeout in <span style="color:var(--accent);font-family:var(--font-mono);">${seconds}s</span>`;
+    log(`Started with ${seconds}s timeout.`, 'info');
+  }
+
+  function clearCountdown() {
+    if (countdownTimer) {
+      clearInterval(countdownTimer);
+      countdownTimer = null;
+    }
+  }
+
+  /* ===== Simulation ===== */
+  function simulateOtp() {
+    resetOtp();
+    setFlowStep(1);
+    setStatus('waiting', 'Waiting for SMS...');
+    log('Simulating OTP flow...', 'info');
+
+    setTimeout(() => {
+      setFlowStep(2);
+      log('Server sent SMS with OTP...', 'info');
+    }, 500);
+
+    setTimeout(() => {
+      setFlowStep(3);
+      const code = String(Math.floor(100000 + Math.random() * 900000));
+      log(`Simulated OTP received: ${code}`, 'success');
+      displayOtp(code);
+
+      setTimeout(() => {
+        setFlowStep(4);
+        setStatus('received', `Code: ${code}`);
+        log('OTP auto-filled and ready for verification.', 'success');
+      }, 700);
+    }, 1500);
+  }
+
+  /* ===== SMS Preview ===== */
+  function updateSmsPreview() {
+    const domain = document.getElementById('smsDomain').value.trim() || 'example.com';
+    const code = document.getElementById('smsCode').value.trim() || '123456';
+    const message = document.getElementById('smsMessage').value.trim() || 'Your verification code is';
+
+    const bubble = document.getElementById('smsBubble');
+    bubble.innerHTML = `
+      <div>${esc(message)} <span class="highlight">${esc(code)}</span></div>
+      <div class="domain-line">@${esc(domain)} #${esc(code)}</div>
+    `;
+  }
+
+  function esc(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+</body>
+</html>

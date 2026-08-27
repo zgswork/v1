@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图片拼接工具</title>
+    <!-- 引入Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入Font Awesome -->
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    
+    <!-- 配置Tailwind自定义颜色 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3b82f6',
+                        secondary: '#10b981',
+                        accent: '#f97316',
+                        dark: '#1e293b',
+                    },
+                }
+            }
+        }
+    </script>
+    
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .image-preview {
+                @apply relative rounded-lg overflow-hidden border-2 border-gray-200 hover:border-primary transition-all duration-300;
+            }
+            .btn-primary {
+                @apply bg-primary text-white px-4 py-2 rounded-lg shadow transition-all duration-300 hover:bg-primary/90 hover:shadow-md active:scale-95;
+            }
+            .btn-secondary {
+                @apply bg-gray-100 text-gray-700 px-4 py-2 rounded-lg shadow transition-all duration-300 hover:bg-gray-200 hover:shadow-md active:scale-95;
+            }
+            .input-focus {
+                @apply focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all outline-none;
+            }
+            .upload-area {
+                @apply border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-primary transition-colors duration-300 cursor-pointer bg-gray-50;
+            }
+            .stitch-option {
+                @apply border border-gray-200 rounded-lg p-3 cursor-pointer hover:border-primary transition-all duration-300;
+            }
+            .stitch-option.active {
+                @apply border-primary bg-primary/5;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 font-sans text-gray-800 min-h-screen flex flex-col">
+    <div class="max-w-6xl w-full mx-auto px-4 py-8 flex-grow">
+        <!-- 头部标题 -->
+        <header class="text-center mb-10">
+            <h1 class="text-[clamp(1.8rem,5vw,2.5rem)] font-bold text-gray-800 mb-3 flex items-center justify-center">
+                <i class="fa fa-picture-o text-primary mr-3"></i>图片拼接工具
+            </h1>
+            <p class="text-gray-600 max-w-2xl mx-auto">
+                简单高效的图片拼接工具，支持横向、纵向和九宫格拼接方式，可调整间距，无广告，完全免费
+            </p>
+        </header>
+
+        <main class="space-y-8">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <!-- 左侧：控制面板 -->
+                <section class="lg:col-span-1 space-y-6">
+                    <!-- 上传图片区域 -->
+                    <div class="bg-white rounded-xl p-6 shadow-sm">
+                        <h2 class="text-xl font-bold mb-4 flex items-center">
+                            <i class="fa fa-upload text-primary mr-2"></i>上传图片
+                        </h2>
+                        
+                        <div id="uploadArea" class="upload-area mb-4">
+                            <input type="file" id="imageUpload" accept="image/*" multiple class="hidden">
+                            <div class="space-y-2">
+                                <i class="fa fa-cloud-upload text-4xl text-gray-400"></i>
+                                <p class="text-gray-600">点击或拖拽图片到此处</p>
+                                <p class="text-xs text-gray-500">支持JPG、PNG等常见格式</p>
+                            </div>
+                        </div>
+                        
+                        <div id="imageCount" class="text-sm text-gray-500 text-center">
+                            已选择 0 张图片
+                        </div>
+                    </div>
+                    
+                    <!-- 拼接设置 -->
+                    <div class="bg-white rounded-xl p-6 shadow-sm">
+                        <h2 class="text-xl font-bold mb-4 flex items-center">
+                            <i class="fa fa-sliders text-primary mr-2"></i>拼接设置
+                        </h2>
+                        
+                        <!-- 拼接方式选择 -->
+                        <div class="mb-6">
+                            <label class="block text-gray-700 font-medium mb-3">拼接方式</label>
+                            <div class="grid grid-cols-3 gap-3">
+                                <div class="stitch-option active" data-type="horizontal">
+                                    <div class="flex flex-col items-center">
+                                        <i class="fa fa-arrows-h text-lg mb-1"></i>
+                                        <span class="text-sm">横向</span>
+                                    </div>
+                                </div>
+                                <div class="stitch-option" data-type="vertical">
+                                    <div class="flex flex-col items-center">
+                                        <i class="fa fa-arrows-v text-lg mb-1"></i>
+                                        <span class="text-sm">纵向</span>
+                                    </div>
+                                </div>
+                                <div class="stitch-option" data-type="grid">
+                                    <div class="flex flex-col items-center">
+                                        <i class="fa fa-th text-lg mb-1"></i>
+                                        <span class="text-sm">九宫格</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 间距设置 -->
+                        <div class="mb-6">
+                            <label for="spacing" class="block text-gray-700 font-medium mb-2">
+                                图片间距: <span id="spacingValue">10</span>px
+                            </label>
+                            <input 
+                                type="range" 
+                                id="spacing" 
+                                min="0" 
+                                max="50" 
+                                value="10" 
+                                class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer input-focus"
+                            >
+                        </div>
+                        
+                        <!-- 拼接按钮 -->
+                        <button id="stitchBtn" class="btn-primary w-full flex items-center justify-center mb-3" disabled>
+                            <i class="fa fa-magic mr-2"></i>开始拼接
+                        </button>
+                        
+                        <!-- 下载按钮 -->
+                        <button id="downloadBtn" class="btn-secondary w-full flex items-center justify-center" disabled>
+                            <i class="fa fa-download mr-2"></i>下载图片
+                        </button>
+                    </div>
+                    
+                    <!-- 已上传图片预览 -->
+                    <div class="bg-white rounded-xl p-6 shadow-sm">
+                        <h2 class="text-xl font-bold mb-4 flex items-center">
+                            <i class="fa fa-images text-primary mr-2"></i>已上传图片
+                        </h2>
+                        
+                        <div id="imagePreviews" class="grid grid-cols-3 gap-2 max-h-64 overflow-y-auto pr-1">
+                            <div class="col-span-3 text-center text-gray-500 py-6">
+                                <p>未上传图片</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                
+                <!-- 右侧：拼接结果 -->
+                <section class="lg:col-span-2">
+                    <div class="bg-white rounded-xl p-6 shadow-sm h-full flex flex-col">
+                        <h2 class="text-xl font-bold mb-4 flex items-center">
+                            <i class="fa fa-puzzle-piece text-primary mr-2"></i>拼接结果
+                        </h2>
+                        
+                        <div id="resultContainer" class="flex-grow flex items-center justify-center border-2 border-dashed border-gray-200 rounded-lg p-4 bg-gray-50">
+                            <div class="text-center text-gray-500">
+                                <i class="fa fa-image text-5xl mb-3 text-gray-300"></i>
+                                <p>拼接结果将显示在这里</p>
+                                <p class="text-sm mt-1">上传图片并点击"开始拼接"按钮</p>
+                            </div>
+                            <canvas id="resultCanvas" class="max-w-full max-h-full hidden"></canvas>
+                            <img id="resultImage" class="max-w-full max-h-full hidden" alt="拼接结果">
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+    
+    <!-- 底部备注 -->
+    <footer class="mt-10 py-4 border-t border-gray-200">
+        <div class="max-w-6xl mx-auto px-4 text-center text-gray-600 text-sm">
+            <p>
+                邓文涛(AI版) | <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="f4c3c4c3c1c0c3c0c0c5b48585da979b99">[email&#160;protected]</a> | VX：707547441 | 更多点击➡️
+                <a href="https://dkfile.com/Dx25214" target="_blank" rel="noopener" class="text-primary hover:underline">🌌</a>
+            </p>
+        </div>
+    </footer>
+    
+    <!-- 提示消息 -->
+    <div id="toast" class="fixed bottom-6 left-1/2 transform -translate-x-1/2 translate-y-20 opacity-0 transition-all duration-300 flex items-center px-4 py-2.5 rounded-lg shadow-lg z-50 max-w-xs">
+        <i id="toastIcon" class="fa fa-check-circle mr-2 text-green-500"></i>
+        <span id="toastMessage"></span>
+    </div>
+
+    <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+        // 全局变量
+        const uploadedImages = [];
+        let stitchingType = 'horizontal';
+        let spacing = 10;
+        
+        // DOM元素
+        const imageUpload = document.getElementById('imageUpload');
+        const uploadArea = document.getElementById('uploadArea');
+        const imageCount = document.getElementById('imageCount');
+        const imagePreviews = document.getElementById('imagePreviews');
+        const stitchOptions = document.querySelectorAll('.stitch-option');
+        const spacingInput = document.getElementById('spacing');
+        const spacingValue = document.getElementById('spacingValue');
+        const stitchBtn = document.getElementById('stitchBtn');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const resultContainer = document.getElementById('resultContainer');
+        const resultCanvas = document.getElementById('resultCanvas');
+        const resultImage = document.getElementById('resultImage');
+        const toast = document.getElementById('toast');
+        const toastIcon = document.getElementById('toastIcon');
+        const toastMessage = document.getElementById('toastMessage');
+        
+        // 初始化
+        function init() {
+            setupEventListeners();
+        }
+        
+        // 设置事件监听器
+        function setupEventListeners() {
+            // 上传区域点击触发文件选择
+            uploadArea.addEventListener('click', () => {
+                imageUpload.click();
+            });
+            
+            // 拖拽功能
+            uploadArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                uploadArea.classList.add('border-primary', 'bg-primary/5');
+            });
+            
+            uploadArea.addEventListener('dragleave', () => {
+                uploadArea.classList.remove('border-primary', 'bg-primary/5');
+            });
+            
+            uploadArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadArea.classList.remove('border-primary', 'bg-primary/5');
+                
+                if (e.dataTransfer.files.length) {
+                    handleFiles(e.dataTransfer.files);
+                }
+            });
+            
+            // 图片选择变化
+            imageUpload.addEventListener('change', (e) => {
+                handleFiles(e.target.files);
+            });
+            
+            // 拼接方式选择
+            stitchOptions.forEach(option => {
+                option.addEventListener('click', () => {
+                    stitchOptions.forEach(opt => opt.classList.remove('active'));
+                    option.classList.add('active');
+                    stitchingType = option.dataset.type;
+                });
+            });
+            
+            // 间距调整
+            spacingInput.addEventListener('input', (e) => {
+                spacing = parseInt(e.target.value);
+                spacingValue.textContent = spacing;
+            });
+            
+            // 拼接按钮
+            stitchBtn.addEventListener('click', stitchImages);
+            
+            // 下载按钮
+            downloadBtn.addEventListener('click', downloadResult);
+        }
+        
+        // 处理上传的文件
+        function handleFiles(files) {
+            // 过滤非图片文件
+            const imageFiles = Array.from(files).filter(file => file.type.startsWith('image/'));
+            
+            if (imageFiles.length === 0) {
+                showToast('请选择图片文件', 'error');
+                return;
+            }
+            
+            // 限制最多9张图片（九宫格限制）
+            if (uploadedImages.length + imageFiles.length > 9) {
+                showToast('最多只能上传9张图片', 'error');
+                return;
+            }
+            
+            // 处理每张图片
+            imageFiles.forEach(file => {
+                const reader = new FileReader();
+                
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        // 存储图片信息
+                        uploadedImages.push({
+                            src: e.target.result,
+                            width: img.width,
+                            height: img.height,
+                            image: img
+                        });
+                        
+                        // 更新UI
+                        updateImagePreviews();
+                        updateImageCount();
+                        checkStitchButton();
+                    };
+                    
+                    img.src = e.target.result;
+                };
+                
+                reader.readAsDataURL(file);
+            });
+        }
+        
+        // 更新图片预览
+        function updateImagePreviews() {
+            if (uploadedImages.length === 0) {
+                imagePreviews.innerHTML = '<div class="col-span-3 text-center text-gray-500 py-6"><p>未上传图片</p></div>';
+                return;
+            }
+            
+            imagePreviews.innerHTML = '';
+            
+            uploadedImages.forEach((imgInfo, index) => {
+                const previewContainer = document.createElement('div');
+                previewContainer.className = 'image-preview relative aspect-square overflow-hidden';
+                
+                const img = document.createElement('img');
+                img.src = imgInfo.src;
+                img.className = 'w-full h-full object-cover';
+                img.alt = `预览图 ${index + 1}`;
+                
+                const removeBtn = document.createElement('button');
+                removeBtn.className = 'absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 hover:opacity-100 transition-opacity';
+                removeBtn.innerHTML = '<i class="fa fa-times"></i>';
+                removeBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    removeImage(index);
+                };
+                
+                previewContainer.appendChild(img);
+                previewContainer.appendChild(removeBtn);
+                imagePreviews.appendChild(previewContainer);
+            });
+        }
+        
+        // 移除图片
+        function removeImage(index) {
+            uploadedImages.splice(index, 1);
+            updateImagePreviews();
+            updateImageCount();
+            checkStitchButton();
+            resetResult();
+        }
+        
+        // 更新图片计数
+        function updateImageCount() {
+            imageCount.textContent = `已选择 ${uploadedImages.length} 张图片`;
+        }
+        
+        // 检查拼接按钮状态
+        function checkStitchButton() {
+            stitchBtn.disabled = uploadedImages.length < 2;
+        }
+        
+        // 重置结果区域
+        function resetResult() {
+            resultCanvas.classList.add('hidden');
+            resultImage.classList.add('hidden');
+            resultContainer.querySelector('div.text-center').classList.remove('hidden');
+            downloadBtn.disabled = true;
+        }
+        
+        // 拼接图片
+        function stitchImages() {
+            if (uploadedImages.length < 2) {
+                showToast('请至少上传2张图片', 'error');
+                return;
+            }
+            
+            // 清空之前的结果
+            resultCanvas.width = 0;
+            resultCanvas.height = 0;
+            
+            // 根据选择的拼接方式处理
+            let canvasWidth, canvasHeight;
+            
+            switch (stitchingType) {
+                case 'horizontal':
+                    [canvasWidth, canvasHeight] = calculateHorizontalDimensions();
+                    drawHorizontalStitch(canvasWidth, canvasHeight);
+                    break;
+                case 'vertical':
+                    [canvasWidth, canvasHeight] = calculateVerticalDimensions();
+                    drawVerticalStitch(canvasWidth, canvasHeight);
+                    break;
+                case 'grid':
+                    [canvasWidth, canvasHeight] = calculateGridDimensions();
+                    drawGridStitch(canvasWidth, canvasHeight);
+                    break;
+            }
+            
+            // 显示结果
+            resultContainer.querySelector('div.text-center').classList.add('hidden');
+            resultCanvas.classList.remove('hidden');
+            resultImage.classList.add('hidden');
+            
+            // 启用下载按钮
+            downloadBtn.disabled = false;
+            
+            showToast('图片拼接成功', 'success');
+        }
+        
+        // 计算横向拼接尺寸
+        function calculateHorizontalDimensions() {
+            // 找到最高的图片高度
+            const maxHeight = Math.max(...uploadedImages.map(img => img.height));
+            // 总宽度 = 所有图片宽度之和 + 间距*(图片数量-1)
+            const totalWidth = uploadedImages.reduce((sum, img) => sum + img.width, 0) + spacing * (uploadedImages.length - 1);
+            
+            return [totalWidth, maxHeight];
+        }
+        
+        // 绘制横向拼接
+        function drawHorizontalStitch(width, height) {
+            resultCanvas.width = width;
+            resultCanvas.height = height;
+            
+            const ctx = resultCanvas.getContext('2d');
+            let currentX = 0;
+            
+            uploadedImages.forEach((imgInfo, index) => {
+                // 居中绘制图片（如果图片高度小于最大高度）
+                const y = (height - imgInfo.height) / 2;
+                ctx.drawImage(imgInfo.image, currentX, y, imgInfo.width, imgInfo.height);
+                
+                // 更新X坐标，加上间距（最后一张图片不加）
+                currentX += imgInfo.width + (index < uploadedImages.length - 1 ? spacing : 0);
+            });
+        }
+        
+        // 计算纵向拼接尺寸
+        function calculateVerticalDimensions() {
+            // 找到最宽的图片宽度
+            const maxWidth = Math.max(...uploadedImages.map(img => img.width));
+            // 总高度 = 所有图片高度之和 + 间距*(图片数量-1)
+            const totalHeight = uploadedImages.reduce((sum, img) => sum + img.height, 0) + spacing * (uploadedImages.length - 1);
+            
+            return [maxWidth, totalHeight];
+        }
+        
+        // 绘制纵向拼接
+        function drawVerticalStitch(width, height) {
+            resultCanvas.width = width;
+            resultCanvas.height = height;
+            
+            const ctx = resultCanvas.getContext('2d');
+            let currentY = 0;
+            
+            uploadedImages.forEach((imgInfo, index) => {
+                // 居中绘制图片（如果图片宽度小于最大宽度）
+                const x = (width - imgInfo.width) / 2;
+                ctx.drawImage(imgInfo.image, x, currentY, imgInfo.width, imgInfo.height);
+                
+                // 更新Y坐标，加上间距（最后一张图片不加）
+                currentY += imgInfo.height + (index < uploadedImages.length - 1 ? spacing : 0);
+            });
+        }
+        
+        // 计算九宫格拼接尺寸
+        function calculateGridDimensions() {
+            // 最多9张图片
+            const count = Math.min(uploadedImages.length, 9);
+            // 计算行数和列数（尽量接近正方形）
+            const cols = Math.ceil(Math.sqrt(count));
+            const rows = Math.ceil(count / cols);
+            
+            // 找到最宽和最高的图片
+            const maxWidth = Math.max(...uploadedImages.map(img => img.width));
+            const maxHeight = Math.max(...uploadedImages.map(img => img.height));
+            
+            // 总宽度 = 列数*最大宽度 + (列数-1)*间距
+            const totalWidth = cols * maxWidth + (cols - 1) * spacing;
+            // 总高度 = 行数*最大高度 + (行数-1)*间距
+            const totalHeight = rows * maxHeight + (rows - 1) * spacing;
+            
+            return [totalWidth, totalHeight];
+        }
+        
+        // 绘制九宫格拼接
+        function drawGridStitch(width, height) {
+            resultCanvas.width = width;
+            resultCanvas.height = height;
+            
+            const ctx = resultCanvas.getContext('2d');
+            const count = Math.min(uploadedImages.length, 9);
+            const cols = Math.ceil(Math.sqrt(count));
+            const rows = Math.ceil(count / cols);
+            
+            // 找到最宽和最高的图片
+            const maxWidth = Math.max(...uploadedImages.map(img => img.width));
+            const maxHeight = Math.max(...uploadedImages.map(img => img.height));
+            
+            uploadedImages.forEach((imgInfo, index) => {
+                if (index >= 9) return; // 只处理前9张
+                
+                // 计算位置
+                const row = Math.floor(index / cols);
+                const col = index % cols;
+                
+                const x = col * (maxWidth + spacing) + (maxWidth - imgInfo.width) / 2;
+                const y = row * (maxHeight + spacing) + (maxHeight - imgInfo.height) / 2;
+                
+                ctx.drawImage(imgInfo.image, x, y, imgInfo.width, imgInfo.height);
+            });
+        }
+        
+        // 下载结果图片
+        function downloadResult() {
+            try {
+                // 创建下载链接
+                const link = document.createElement('a');
+                link.download = '拼接图片_' + new Date().getTime() + '.png';
+                link.href = resultCanvas.toDataURL('image/png');
+                link.click();
+                
+                showToast('图片下载成功', 'success');
+            } catch (error) {
+                showToast('下载失败，请重试', 'error');
+                console.error('下载失败:', error);
+            }
+        }
+        
+        // 显示提示消息
+        function showToast(message, type = 'success') {
+            toastMessage.textContent = message;
+            
+            if (type === 'success') {
+                toast.className = 'fixed bottom-6 left-1/2 transform -translate-x-1/2 translate-y-0 opacity-100 transition-all duration-300 flex items-center px-4 py-2.5 rounded-lg shadow-lg z-50 max-w-xs bg-green-50 text-green-800';
+                toastIcon.className = 'fa fa-check-circle mr-2 text-green-500';
+            } else if (type === 'error') {
+                toast.className = 'fixed bottom-6 left-1/2 transform -translate-x-1/2 translate-y-0 opacity-100 transition-all duration-300 flex items-center px-4 py-2.5 rounded-lg shadow-lg z-50 max-w-xs bg-red-50 text-red-800';
+                toastIcon.className = 'fa fa-exclamation-circle mr-2 text-red-500';
+            }
+            
+            // 3秒后隐藏
+            setTimeout(() => {
+                toast.className = 'fixed bottom-6 left-1/2 transform -translate-x-1/2 translate-y-20 opacity-0 transition-all duration-300 flex items-center px-4 py-2.5 rounded-lg shadow-lg z-50 max-w-xs';
+            }, 3000);
+        }
+        
+        // 初始化应用
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>

@@ -1,0 +1,1603 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>神奇的早起</title>
+  <!-- 引入Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- 引入Font Awesome -->
+  <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+  
+  <!-- 配置Tailwind自定义颜色 -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#4F46E5',
+            // 定义7种背景颜色
+            bg1: '#FFFFFF',    // 白色
+            bg2: '#FFF3C7',    // 浅黄
+            bg3: '#D1FAE5',    // 浅绿
+            bg4: '#DBEAFE',    // 浅蓝
+            bg5: '#E0E7FF',    // 浅紫
+            bg6: '#FEE2E2',    // 浅红
+            bg7: '#F3E8FF',    // 浅粉
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+          },
+        },
+      }
+    }
+  </script>
+  
+  <!-- 自定义工具类 -->
+  <style type="text/tailwindcss">
+    @layer utilities {
+      .content-auto {
+        content-visibility: auto;
+      }
+      .card-shadow {
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.02);
+      }
+      .transition-all-300 {
+        transition: all 300ms ease-in-out;
+      }
+      .module-active {
+        @apply bg-primary text-white;
+      }
+      .module-inactive {
+        @apply bg-gray-100 text-gray-700 hover:bg-gray-200;
+      }
+      .file-item-hover {
+        @apply hover:bg-gray-50 transition-all duration-200;
+      }
+      .file-deleting {
+        @apply bg-red-50 border-red-200;
+        animation: pulse 0.5s ease-in-out;
+      }
+      .file-removed {
+        animation: slideOut 0.3s ease-out forwards;
+      }
+      @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.7; }
+      }
+      @keyframes slideOut {
+        from { transform: translateX(0); opacity: 1; height: auto; margin: 0.5rem 0; padding: 0.5rem; }
+        to { transform: translateX(20px); opacity: 0; height: 0; margin: 0; padding: 0; overflow: hidden; }
+      }
+    }
+  </style>
+  
+  <style>
+    /* 全局样式 */
+    body {
+      transition: background-color 0.5s ease;
+    }
+    
+    /* 平滑滚动 */
+    html {
+      scroll-behavior: smooth;
+    }
+    
+    /* 模块切换动画 */
+    .module-content {
+      transition: opacity 0.3s ease, transform 0.3s ease;
+    }
+    
+    .module-hidden {
+      opacity: 0;
+      transform: translateY(10px);
+      display: none;
+    }
+    
+    .module-visible {
+      opacity: 1;
+      transform: translateY(0);
+      display: block;
+    }
+    
+    /* 音频上传进度条 */
+    .upload-progress {
+      height: 4px;
+      background-color: #e2e8f0;
+      border-radius: 2px;
+      overflow: hidden;
+      margin-top: 8px;
+    }
+    
+    .upload-progress-bar {
+      height: 100%;
+      background-color: #4F46E5;
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+    
+    /* 文件操作按钮样式 */
+    .file-action-btn {
+      opacity: 0;
+      transition: opacity 0.2s ease;
+    }
+    
+    .file-item:hover .file-action-btn {
+      opacity: 1;
+    }
+    
+    /* 消息提示动画 */
+    .toast-message {
+      animation: slideIn 0.3s ease-out forwards, slideOut 0.3s ease-in forwards 2.7s;
+    }
+    
+    @keyframes slideIn {
+      from { transform: translateY(20px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    
+    @keyframes slideOut {
+      from { transform: translateY(0); opacity: 1; }
+      to { transform: translateY(20px); opacity: 0; }
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-bg1 transition-all duration-500">
+  <div class="container mx-auto px-4 py-8 max-w-4xl">
+    <!-- 头部信息 -->
+    <header class="text-center mb-8">
+      <h1 class="text-[clamp(2rem,5vw,3.5rem)] font-bold text-gray-800 mb-2">神奇的早起</h1>
+      
+      <!-- 日期和累计天数 -->
+      <div class="flex flex-col md:flex-row justify-center items-center gap-4 text-gray-600 mb-4">
+        <div id="current-date" class="text-lg md:text-xl"></div>
+        <div class="hidden md:block">|</div>
+        <div class="text-lg md:text-xl">
+          累计练习: <span id="practice-days" class="font-semibold">0</span> 天
+        </div>
+      </div>
+      
+      <!-- 打卡按钮 -->
+      <button id="check-in-btn" class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-all-300 mb-4">
+        <i class="fa fa-calendar-check-o mr-1"></i> 今日打卡
+      </button>
+      
+      <!-- 颜色选择器 -->
+      <div class="flex justify-center gap-2 mb-6">
+        <button class="w-8 h-8 rounded-full bg-bg1 border-2 border-gray-300 color-btn" data-color="bg1"></button>
+        <button class="w-8 h-8 rounded-full bg-bg2 border-2 border-gray-300 color-btn" data-color="bg2"></button>
+        <button class="w-8 h-8 rounded-full bg-bg3 border-2 border-gray-300 color-btn" data-color="bg3"></button>
+        <button class="w-8 h-8 rounded-full bg-bg4 border-2 border-gray-300 color-btn" data-color="bg4"></button>
+        <button class="w-8 h-8 rounded-full bg-bg5 border-2 border-gray-300 color-btn" data-color="bg5"></button>
+        <button class="w-8 h-8 rounded-full bg-bg6 border-2 border-gray-300 color-btn" data-color="bg6"></button>
+        <button class="w-8 h-8 rounded-full bg-bg7 border-2 border-gray-300 color-btn" data-color="bg7"></button>
+      </div>
+      
+      <!-- 模块导航 -->
+      <div class="flex flex-wrap justify-center gap-2 mb-8">
+        <button class="module-nav px-4 py-2 rounded-lg module-active transition-all-300 flex items-center" data-module="meditation">
+          <i class="fa fa-pagelines mr-2"></i>冥想
+        </button>
+        <button class="module-nav px-4 py-2 rounded-lg module-inactive transition-all-300 flex items-center" data-module="affirmation">
+          <i class="fa fa-thumbs-up mr-2"></i>肯定
+        </button>
+        <button class="module-nav px-4 py-2 rounded-lg module-inactive transition-all-300 flex items-center" data-module="visualization">
+          <i class="fa fa-eye mr-2"></i>具象
+        </button>
+        <button class="module-nav px-4 py-2 rounded-lg module-inactive transition-all-300 flex items-center" data-module="exercise">
+          <i class="fa fa-heartbeat mr-2"></i>锻炼
+        </button>
+        <button class="module-nav px-4 py-2 rounded-lg module-inactive transition-all-300 flex items-center" data-module="writing">
+          <i class="fa fa-pencil-square-o mr-2"></i>写作
+        </button>
+        <button class="module-nav px-4 py-2 rounded-lg module-inactive transition-all-300 flex items-center" data-module="reading">
+          <i class="fa fa-book mr-2"></i>阅读
+        </button>
+      </div>
+    </header>
+    
+    <!-- 主内容区 - 每次只显示一个模块 -->
+    <main class="mb-12">
+      <!-- 1. 冥想模块 -->
+      <section id="meditation-module" class="module-content module-visible bg-white rounded-xl p-6 card-shadow hover:shadow-lg transition-all-300">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-xl font-bold text-gray-800 flex items-center">
+            <i class="fa fa-pagelines text-green-500 mr-2"></i>冥想
+          </h2>
+          <button class="edit-btn text-gray-500 hover:text-primary transition-all-300" data-target="meditation">
+            <i class="fa fa-pencil"></i>
+          </button>
+        </div>
+        
+        <!-- 练习引导（结构化） -->
+        <div class="mb-6 p-4 bg-green-50 rounded-lg border border-green-100">
+          <h3 class="font-semibold text-green-800 mb-2 flex items-center">
+            <i class="fa fa-lightbulb-o mr-2"></i>练习引导
+          </h3>
+          <p class="text-green-700 text-sm leading-relaxed">
+            1. 找一个安静的地方，舒适地坐下或躺下<br>
+            2. 可以闭上眼睛，将注意力集中在呼吸上<br>
+            3. 感受空气的吸入和呼出的自然节奏<br>
+            4. 当思绪wandering时，温和地将注意力带回呼吸<br>
+            5. 不需要追求清空头脑，只需觉察并接纳当下的感受
+          </p>
+        </div>
+        
+        <!-- 音频上传区域 -->
+        <div class="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-100">
+          <h3 class="font-semibold text-blue-800 mb-3 flex items-center">
+            <i class="fa fa-music mr-2"></i>冥想音频
+          </h3>
+          
+          <!-- 音频上传区域 -->
+          <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-700 mb-1">上传自定义音频</label>
+            <div class="flex items-center gap-2">
+              <label class="flex-1 px-4 py-3 bg-white border-2 border-dashed border-gray-300 rounded-lg text-left hover:border-primary transition-all-300 cursor-pointer">
+                <input type="file" id="audio-upload" accept="audio/*" class="hidden" />
+                <div class="flex flex-col items-center justify-center text-center">
+                  <i class="fa fa-cloud-upload text-gray-400 text-xl mb-1"></i>
+                  <span class="text-sm text-gray-500">点击或拖放音频文件到此处</span>
+                  <span class="text-xs text-gray-400 mt-1">支持 MP3, WAV, OGG 格式</span>
+                </div>
+              </label>
+              <button id="clear-upload" class="px-3 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-all-300 hidden">
+                <i class="fa fa-trash-o"></i>
+              </button>
+            </div>
+            
+            <!-- 上传进度条 -->
+            <div id="upload-progress-container" class="upload-progress hidden">
+              <div id="upload-progress-bar" class="upload-progress-bar"></div>
+            </div>
+            
+            <!-- 上传状态提示 -->
+            <div id="upload-status" class="text-sm mt-1 hidden"></div>
+          </div>
+          
+          <!-- 已上传文件列表 -->
+          <div id="uploaded-files-list" class="mt-4">
+            <h4 class="font-medium text-gray-700 mb-2">已上传文件:</h4>
+            <div id="uploaded-files" class="space-y-2 max-h-40 overflow-y-auto">
+              <!-- 上传的文件将显示在这里 -->
+              <div class="text-gray-500 text-sm italic" id="no-files-message">暂无上传的文件</div>
+            </div>
+          </div>
+          
+          <!-- 音频播放器 (默认隐藏) -->
+          <div id="audio-player-container" class="mt-4 hidden">
+            <audio id="meditation-audio" preload="metadata">
+              <source id="audio-source" src="" type="audio/mpeg">
+            </audio>
+            <div class="flex items-center mt-2">
+              <button id="audio-play" class="px-3 py-1 bg-primary text-white rounded hover:bg-primary/90 transition-all-300 flex items-center">
+                <i class="fa fa-play mr-1"></i> 播放
+              </button>
+              <button id="audio-pause" class="px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600 transition-all-300 flex items-center hidden">
+                <i class="fa fa-pause mr-1"></i> 暂停
+              </button>
+              <span id="current-audio" class="ml-3 text-sm text-gray-600"></span>
+            </div>
+          </div>
+        </div>
+        
+        <div class="mb-4">
+          <div class="flex justify-center items-center gap-4 mb-3 flex-wrap">
+            <button class="time-btn px-3 py-1 bg-gray-100 rounded-full text-sm hover:bg-gray-200 transition-all-300" data-time="5" data-target="meditation-timer">5分钟</button>
+            <button class="time-btn px-3 py-1 bg-gray-100 rounded-full text-sm hover:bg-gray-200 transition-all-300" data-time="10" data-target="meditation-timer">10分钟</button>
+            <button class="time-btn px-3 py-1 bg-gray-100 rounded-full text-sm hover:bg-gray-200 transition-all-300" data-time="15" data-target="meditation-timer">15分钟</button>
+            <button class="time-btn px-3 py-1 bg-gray-100 rounded-full text-sm hover:bg-gray-200 transition-all-300" data-time="20" data-target="meditation-timer">20分钟</button>
+            <button class="time-btn px-3 py-1 bg-gray-100 rounded-full text-sm hover:bg-gray-200 transition-all-300" data-time="25" data-target="meditation-timer">25分钟</button>
+          </div>
+          
+          <div class="timer-display text-center py-6">
+            <div id="meditation-timer" class="text-4xl font-bold text-gray-800">05:00</div>
+            <div class="h-2 bg-gray-200 rounded-full mt-3 overflow-hidden">
+              <div id="meditation-progress" class="h-full bg-green-500 w-0 transition-all duration-1000"></div>
+            </div>
+          </div>
+          
+          <div class="flex justify-center gap-3">
+            <button id="meditation-start" class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-all-300 flex items-center">
+              <i class="fa fa-play mr-1"></i> 开始
+            </button>
+            <button id="meditation-pause" class="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-all-300 flex items-center hidden">
+              <i class="fa fa-pause mr-1"></i> 暂停
+            </button>
+            <button id="meditation-reset" class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-all-300 flex items-center">
+              <i class="fa fa-refresh mr-1"></i> 重置
+            </button>
+          </div>
+        </div>
+        
+        <!-- 编辑区域 (默认隐藏) -->
+        <div id="meditation-edit" class="hidden mt-4 pt-4 border-t border-gray-100">
+          <textarea class="w-full p-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 min-h-[100px]" id="meditation-notes" placeholder="添加冥想笔记或指导..."></textarea>
+          <div class="flex justify-end mt-2">
+            <button class="save-btn px-3 py-1 bg-primary text-white rounded hover:bg-primary/90 transition-all-300" data-target="meditation">保存</button>
+          </div>
+        </div>
+      </section>
+      
+      <!-- 其他模块保持不变 -->
+      <!-- 2. 肯定模块 -->
+      <section id="affirmation-module" class="module-content module-hidden bg-white rounded-xl p-6 card-shadow hover:shadow-lg transition-all-300">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-xl font-bold text-gray-800 flex items-center">
+            <i class="fa fa-thumbs-up text-blue-500 mr-2"></i>肯定
+          </h2>
+          <button class="edit-btn text-gray-500 hover:text-primary transition-all-300" data-target="affirmation">
+            <i class="fa fa-pencil"></i>
+          </button>
+        </div>
+        
+        <!-- 练习引导（结构化） -->
+        <div class="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-100">
+          <h3 class="font-semibold text-blue-800 mb-2 flex items-center">
+            <i class="fa fa-lightbulb-o mr-2"></i>练习引导
+          </h3>
+          <p class="text-blue-700 text-sm leading-relaxed">
+            1. 大声朗读或在心中默念肯定语句<br>
+            2. 感受话语中的力量和真实性<br>
+            3. 尝试带着情感去说，想象这些肯定已经成为现实<br>
+            4. 如果有抵触情绪，承认它的存在，但继续练习<br>
+            5. 每天坚持，这些积极信念会逐渐融入你的潜意识
+          </p>
+        </div>
+        
+        <div id="affirmation-content" class="mb-4 p-4 bg-gray-50 rounded-lg min-h-[180px] text-gray-700 leading-relaxed">
+          我相信自己的能力，我拥有实现梦想所需的全部资源。每一天，我都在变得更好，更强大，更有智慧。我值得被爱，被尊重，被认可。我释放所有的恐惧和疑虑，拥抱无限的可能性。我对生活充满感恩，珍惜每一个当下。我的思想积极向上，我的行动充满力量。我吸引美好的事物进入我的生活，创造属于自己的精彩人生。
+        </div>
+        
+        <div class="flex justify-between items-center">
+          <div class="text-sm text-gray-500">
+            语录 <span id="affirmation-index">1</span>/33
+          </div>
+          <div class="flex gap-2">
+            <button id="prev-affirmation" class="px-3 py-1 bg-gray-100 rounded hover:bg-gray-200 transition-all-300">
+              <i class="fa fa-chevron-left"></i>
+            </button>
+            <button id="next-affirmation" class="px-3 py-1 bg-gray-100 rounded hover:bg-gray-200 transition-all-300">
+              <i class="fa fa-chevron-right"></i>
+            </button>
+          </div>
+        </div>
+        
+        <!-- 编辑区域 (默认隐藏) -->
+        <div id="affirmation-edit" class="hidden mt-4 pt-4 border-t border-gray-100">
+          <textarea class="w-full p-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 min-h-[180px]" id="custom-affirmation" placeholder="输入自定义肯定语录..."></textarea>
+          <div class="flex justify-end mt-2">
+            <button class="save-btn px-3 py-1 bg-primary text-white rounded hover:bg-primary/90 transition-all-300" data-target="affirmation">保存</button>
+          </div>
+        </div>
+      </section>
+      
+      <!-- 3. 具象模块 -->
+      <section id="visualization-module" class="module-content module-hidden bg-white rounded-xl p-6 card-shadow hover:shadow-lg transition-all-300">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-xl font-bold text-gray-800 flex items-center">
+            <i class="fa fa-eye text-purple-500 mr-2"></i>具象
+          </h2>
+          <button class="edit-btn text-gray-500 hover:text-primary transition-all-300" data-target="visualization">
+            <i class="fa fa-pencil"></i>
+          </button>
+        </div>
+        
+        <!-- 练习引导（结构化） -->
+        <div class="mb-6 p-4 bg-purple-50 rounded-lg border border-purple-100">
+          <h3 class="font-semibold text-purple-800 mb-2 flex items-center">
+            <i class="fa fa-lightbulb-o mr-2"></i>练习引导
+          </h3>
+          <p class="text-purple-700 text-sm leading-relaxed">
+            1. 找一个安静的地方，闭上眼睛，放松身体<br>
+            2. 想象你已经实现了某个目标或处于理想状态<br>
+            3. 尽可能详细地描绘这个场景，包括视觉、听觉和感受<br>
+            4. 让自己完全沉浸在这个心理图像中，感受相关的情绪<br>
+            5. 每天练习将帮助你的潜意识识别实现目标的机会
+          </p>
+        </div>
+        
+        <div class="mb-4">
+          <div class="flex justify-center items-center gap-4 mb-3 flex-wrap">
+            <button class="time-btn px-3 py-1 bg-gray-100 rounded-full text-sm hover:bg-gray-200 transition-all-300" data-time="5" data-target="visualization-timer">5分钟</button>
+            <button class="time-btn px-3 py-1 bg-gray-100 rounded-full text-sm hover:bg-gray-200 transition-all-300" data-time="10" data-target="visualization-timer">10分钟</button>
+            <button class="time-btn px-3 py-1 bg-gray-100 rounded-full text-sm hover:bg-gray-200 transition-all-300" data-time="15" data-target="visualization-timer">15分钟</button>
+            <button class="time-btn px-3 py-1 bg-gray-100 rounded-full text-sm hover:bg-gray-200 transition-all-300" data-time="20" data-target="visualization-timer">20分钟</button>
+            <button class="time-btn px-3 py-1 bg-gray-100 rounded-full text-sm hover:bg-gray-200 transition-all-300" data-time="25" data-target="visualization-timer">25分钟</button>
+          </div>
+          
+          <div class="timer-display text-center py-6">
+            <div id="visualization-timer" class="text-4xl font-bold text-gray-800">05:00</div>
+            <div class="h-2 bg-gray-200 rounded-full mt-3 overflow-hidden">
+              <div id="visualization-progress" class="h-full bg-purple-500 w-0 transition-all duration-1000"></div>
+            </div>
+          </div>
+          
+          <div class="flex justify-center gap-3">
+            <button id="visualization-start" class="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-all-300 flex items-center">
+              <i class="fa fa-play mr-1"></i> 开始
+            </button>
+            <button id="visualization-pause" class="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-all-300 flex items-center hidden">
+              <i class="fa fa-pause mr-1"></i> 暂停
+            </button>
+            <button id="visualization-reset" class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-all-300 flex items-center">
+              <i class="fa fa-refresh mr-1"></i> 重置
+            </button>
+          </div>
+        </div>
+        
+        <!-- 编辑区域 (默认隐藏) -->
+        <div id="visualization-edit" class="hidden mt-4 pt-4 border-t border-gray-100">
+          <textarea class="w-full p-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 min-h-[100px]" id="visualization-notes" placeholder="添加具象化内容或目标..."></textarea>
+          <div class="flex justify-end mt-2">
+            <button class="save-btn px-3 py-1 bg-primary text-white rounded hover:bg-primary/90 transition-all-300" data-target="visualization">保存</button>
+          </div>
+        </div>
+      </section>
+      
+      <!-- 4. 锻炼模块 -->
+      <section id="exercise-module" class="module-content module-hidden bg-white rounded-xl p-6 card-shadow hover:shadow-lg transition-all-300">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-xl font-bold text-gray-800 flex items-center">
+            <i class="fa fa-heartbeat text-red-500 mr-2"></i>锻炼
+          </h2>
+          <button class="edit-btn text-gray-500 hover:text-primary transition-all-300" data-target="exercise">
+            <i class="fa fa-pencil"></i>
+          </button>
+        </div>
+        
+        <!-- 练习引导（结构化） -->
+        <div class="mb-6 p-4 bg-red-50 rounded-lg border border-red-100">
+          <h3 class="font-semibold text-red-800 mb-2 flex items-center">
+            <i class="fa fa-lightbulb-o mr-2"></i>练习引导
+          </h3>
+          <p class="text-red-700 text-sm leading-relaxed">
+            1. 选择适合自己的轻度到中度运动，如伸展、瑜伽或快走<br>
+            2. 开始前做简单的热身，避免受伤<br>
+            3. 关注身体的感受，不要过度劳累<br>
+            4. 锻炼时保持呼吸顺畅<br>
+            5. 结束后做几分钟的放松动作，即使是短时间的运动也有效
+          </p>
+        </div>
+        
+        <div class="mb-4">
+          <div class="flex justify-center items-center gap-4 mb-3 flex-wrap">
+            <button class="time-btn px-3 py-1 bg-gray-100 rounded-full text-sm hover:bg-gray-200 transition-all-300" data-time="5" data-target="exercise-timer">5分钟</button>
+            <button class="time-btn px-3 py-1 bg-gray-100 rounded-full text-sm hover:bg-gray-200 transition-all-300" data-time="10" data-target="exercise-timer">10分钟</button>
+            <button class="time-btn px-3 py-1 bg-gray-100 rounded-full text-sm hover:bg-gray-200 transition-all-300" data-time="15" data-target="exercise-timer">15分钟</button>
+            <button class="time-btn px-3 py-1 bg-gray-100 rounded-full text-sm hover:bg-gray-200 transition-all-300" data-time="20" data-target="exercise-timer">20分钟</button>
+            <button class="time-btn px-3 py-1 bg-gray-100 rounded-full text-sm hover:bg-gray-200 transition-all-300" data-time="25" data-target="exercise-timer">25分钟</button>
+          </div>
+          
+          <div class="timer-display text-center py-6">
+            <div id="exercise-timer" class="text-4xl font-bold text-gray-800">05:00</div>
+            <div class="h-2 bg-gray-200 rounded-full mt-3 overflow-hidden">
+              <div id="exercise-progress" class="h-full bg-red-500 w-0 transition-all duration-1000"></div>
+            </div>
+          </div>
+          
+          <div class="flex justify-center gap-3">
+            <button id="exercise-start" class="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-all-300 flex items-center">
+              <i class="fa fa-play mr-1"></i> 开始
+            </button>
+            <button id="exercise-pause" class="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-all-300 flex items-center hidden">
+              <i class="fa fa-pause mr-1"></i> 暂停
+            </button>
+            <button id="exercise-reset" class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-all-300 flex items-center">
+              <i class="fa fa-refresh mr-1"></i> 重置
+            </button>
+          </div>
+        </div>
+        
+        <!-- 编辑区域 (默认隐藏) -->
+        <div id="exercise-edit" class="hidden mt-4 pt-4 border-t border-gray-100">
+          <textarea class="w-full p-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 min-h-[100px]" id="exercise-notes" placeholder="添加锻炼计划或动作..."></textarea>
+          <div class="flex justify-end mt-2">
+            <button class="save-btn px-3 py-1 bg-primary text-white rounded hover:bg-primary/90 transition-all-300" data-target="exercise">保存</button>
+          </div>
+        </div>
+      </section>
+      
+      <!-- 5. 写作模块 -->
+      <section id="writing-module" class="module-content module-hidden bg-white rounded-xl p-6 card-shadow hover:shadow-lg transition-all-300">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-xl font-bold text-gray-800 flex items-center">
+            <i class="fa fa-pencil-square-o text-amber-500 mr-2"></i>写作
+          </h2>
+          <button class="edit-btn text-gray-500 hover:text-primary transition-all-300" data-target="writing">
+            <i class="fa fa-pencil"></i>
+          </button>
+        </div>
+        
+        <!-- 练习引导（结构化） -->
+        <div class="mb-6 p-4 bg-amber-50 rounded-lg border border-amber-100">
+          <h3 class="font-semibold text-amber-800 mb-2 flex items-center">
+            <i class="fa fa-lightbulb-o mr-2"></i>练习引导
+          </h3>
+          <p class="text-amber-700 text-sm leading-relaxed">
+            1. 准备好纸笔或电子设备，找一个舒适的位置<br>
+            2. 不要担心语法或内容质量，只需自由书写<br>
+            3. 可以尝试写感恩日记、目标清单或任何涌上心头的想法<br>
+            4. 让文字自然流动，不需要计划或编辑<br>
+            5. 这种练习能帮助你理清思路，为一天设定积极的基调
+          </p>
+        </div>
+        
+        <div class="mb-4">
+          <div class="flex justify-center items-center gap-4 mb-3 flex-wrap">
+            <button class="time-btn px-3 py-1 bg-gray-100 rounded-full text-sm hover:bg-gray-200 transition-all-300" data-time="5" data-target="writing-timer">5分钟</button>
+            <button class="time-btn px-3 py-1 bg-gray-100 rounded-full text-sm hover:bg-gray-200 transition-all-300" data-time="10" data-target="writing-timer">10分钟</button>
+            <button class="time-btn px-3 py-1 bg-gray-100 rounded-full text-sm hover:bg-gray-200 transition-all-300" data-time="15" data-target="writing-timer">15分钟</button>
+            <button class="time-btn px-3 py-1 bg-gray-100 rounded-full text-sm hover:bg-gray-200 transition-all-300" data-time="20" data-target="writing-timer">20分钟</button>
+            <button class="time-btn px-3 py-1 bg-gray-100 rounded-full text-sm hover:bg-gray-200 transition-all-300" data-time="25" data-target="writing-timer">25分钟</button>
+          </div>
+          
+          <div class="timer-display text-center py-6">
+            <div id="writing-timer" class="text-4xl font-bold text-gray-800">05:00</div>
+            <div class="h-2 bg-gray-200 rounded-full mt-3 overflow-hidden">
+              <div id="writing-progress" class="h-full bg-amber-500 w-0 transition-all duration-1000"></div>
+            </div>
+          </div>
+          
+          <div class="flex justify-center gap-3">
+            <button id="writing-start" class="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-all-300 flex items-center">
+              <i class="fa fa-play mr-1"></i> 开始
+            </button>
+            <button id="writing-pause" class="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-all-300 flex items-center hidden">
+              <i class="fa fa-pause mr-1"></i> 暂停
+            </button>
+            <button id="writing-reset" class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-all-300 flex items-center">
+              <i class="fa fa-refresh mr-1"></i> 重置
+            </button>
+          </div>
+        </div>
+        
+        <!-- 编辑区域 (默认隐藏) -->
+        <div id="writing-edit" class="hidden mt-4 pt-4 border-t border-gray-100">
+          <textarea class="w-full p-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 min-h-[100px]" id="writing-notes" placeholder="开始写作..."></textarea>
+          <div class="flex justify-end mt-2">
+            <button class="save-btn px-3 py-1 bg-primary text-white rounded hover:bg-primary/90 transition-all-300" data-target="writing">保存</button>
+          </div>
+        </div>
+      </section>
+      
+      <!-- 6. 阅读模块 -->
+      <section id="reading-module" class="module-content module-hidden bg-white rounded-xl p-6 card-shadow hover:shadow-lg transition-all-300">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-xl font-bold text-gray-800 flex items-center">
+            <i class="fa fa-book text-indigo-500 mr-2"></i>阅读
+          </h2>
+          <button class="edit-btn text-gray-500 hover:text-primary transition-all-300" data-target="reading">
+            <i class="fa fa-pencil"></i>
+          </button>
+        </div>
+        
+        <!-- 练习引导（结构化） -->
+        <div class="mb-6 p-4 bg-indigo-50 rounded-lg border border-indigo-100">
+          <h3 class="font-semibold text-indigo-800 mb-2 flex items-center">
+            <i class="fa fa-lightbulb-o mr-2"></i>练习引导
+          </h3>
+          <p class="text-indigo-700 text-sm leading-relaxed">
+            1. 选择能启发你、教育你或给你带来平静的书籍<br>
+            2. 阅读时保持专注，避免分心<br>
+            3. 可以做笔记记录重要观点或引发思考的内容<br>
+            4. 不要急于读完，而是吸收所读的内容<br>
+            5. 即使每天只读几页，长期坚持也会带来显著收获
+          </p>
+        </div>
+        
+        <div class="mb-4">
+          <div class="flex justify-center items-center gap-4 mb-3 flex-wrap">
+            <button class="time-btn px-3 py-1 bg-gray-100 rounded-full text-sm hover:bg-gray-200 transition-all-300" data-time="5" data-target="reading-timer">5分钟</button>
+            <button class="time-btn px-3 py-1 bg-gray-100 rounded-full text-sm hover:bg-gray-200 transition-all-300" data-time="10" data-target="reading-timer">10分钟</button>
+            <button class="time-btn px-3 py-1 bg-gray-100 rounded-full text-sm hover:bg-gray-200 transition-all-300" data-time="15" data-target="reading-timer">15分钟</button>
+            <button class="time-btn px-3 py-1 bg-gray-100 rounded-full text-sm hover:bg-gray-200 transition-all-300" data-time="20" data-target="reading-timer">20分钟</button>
+            <button class="time-btn px-3 py-1 bg-gray-100 rounded-full text-sm hover:bg-gray-200 transition-all-300" data-time="25" data-target="reading-timer">25分钟</button>
+          </div>
+          
+          <div class="timer-display text-center py-6">
+            <div id="reading-timer" class="text-4xl font-bold text-gray-800">05:00</div>
+            <div class="h-2 bg-gray-200 rounded-full mt-3 overflow-hidden">
+              <div id="reading-progress" class="h-full bg-indigo-500 w-0 transition-all duration-1000"></div>
+            </div>
+          </div>
+          
+          <div class="flex justify-center gap-3">
+            <button id="reading-start" class="px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-all-300 flex items-center">
+              <i class="fa fa-play mr-1"></i> 开始
+            </button>
+            <button id="reading-pause" class="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-all-300 flex items-center hidden">
+              <i class="fa fa-pause mr-1"></i> 暂停
+            </button>
+            <button id="reading-reset" class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-all-300 flex items-center">
+              <i class="fa fa-refresh mr-1"></i> 重置
+            </button>
+          </div>
+        </div>
+        
+        <!-- 编辑区域 (默认隐藏) -->
+        <div id="reading-edit" class="hidden mt-4 pt-4 border-t border-gray-100">
+          <textarea class="w-full p-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 min-h-[100px]" id="reading-notes" placeholder="记录阅读内容或笔记..."></textarea>
+          <div class="flex justify-end mt-2">
+            <button class="save-btn px-3 py-1 bg-primary text-white rounded hover:bg-primary/90 transition-all-300" data-target="reading">保存</button>
+          </div>
+        </div>
+      </section>
+    </main>
+    
+    <!-- 底部信息 -->
+    <footer class="mt-12 text-center text-gray-500 text-sm">
+      <p class="mb-1">本工具由 邓文涛(AI版) 制作</p>
+      <p class="mb-1">微信：707547441</p>
+      <p>QQ邮箱：<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="a7909790929390939396e7d6d689c4c8ca">[email&#160;protected]</a></p>
+    </footer>
+  </div>
+  
+  <!-- 音频提示 -->
+  <audio id="timer-end-sound" preload="auto">
+    <source src="https://assets.mixkit.co/sfx/preview/mixkit-alarm-digital-clock-beep-989.mp3" type="audio/mpeg">
+  </audio>
+  
+  <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+    // 存储所有计时器的状态
+    const timers = {
+      meditation: { element: null, progress: null, interval: null, seconds: 300, totalSeconds: 300, running: false },
+      visualization: { element: null, progress: null, interval: null, seconds: 300, totalSeconds: 300, running: false },
+      exercise: { element: null, progress: null, interval: null, seconds: 300, totalSeconds: 300, running: false },
+      writing: { element: null, progress: null, interval: null, seconds: 300, totalSeconds: 300, running: false },
+      reading: { element: null, progress: null, interval: null, seconds: 300, totalSeconds: 300, running: false }
+    };
+    
+    // 当前选中的音频
+    let currentAudio = null;
+    // 当前上传的音频文件
+    let uploadedFiles = [];
+    
+    // 33段自我肯定语录数据库
+    const affirmations = [
+      "我相信自己的能力，我拥有实现梦想所需的全部资源。每一天，我都在变得更好，更强大，更有智慧。我值得被爱，被尊重，被认可。我释放所有的恐惧和疑虑，拥抱无限的可能性。我对生活充满感恩，珍惜每一个当下。我的思想积极向上，我的行动充满力量。我吸引美好的事物进入我的生活，创造属于自己的精彩人生。我有勇气面对挑战，有智慧解决问题。我与人为善，也得到他人的善意。我健康、快乐、富足。今天将是美好的一天，我已经做好准备去迎接它。",
+      "我是独一无二的，我的存在有其特殊意义。我接纳自己的全部，包括我的缺点和不完美。我不断学习和成长，成为更好的自己。我有能力克服任何困难，走出任何困境。我用爱和善意对待自己和他人。我内心平静而强大，不为外界的评价所困扰。我专注于当下，充分体验生活的每一刻。我拥有良好的人际关系，被真诚的朋友环绕。我在工作中表现出色，实现自己的价值。我享受健康的身体和清晰的头脑。我值得拥有幸福和成功，它们正朝着我而来。",
+      "今天，我选择积极和乐观。我用微笑面对生活，生活也会对我微笑。我释放过去的遗憾和未来的担忧，活在当下。我有足够的勇气去追求我的梦想，不怕失败。我相信宇宙会给我最好的安排，同时我也会付出努力。我感恩我所拥有的一切，包括健康、家庭、朋友和机会。我每天都在进步，即使是小小的一步也是前进。我对自己有耐心和同情心，就像对待我爱的人一样。我吸引正能量和积极的人进入我的生活。我有能力创造我想要的生活，我正在这样做。我相信今天会带来美好的惊喜。",
+      "我充满自信和力量。我相信自己的判断和决定。我有能力实现我的目标，无论它们看起来多么遥远。我从错误中学习，而不是被它们打败。我对生活保持开放和好奇的态度，乐于尝试新事物。我珍惜我的时间和精力，把它们用在有意义的事情上。我与自己和平相处，接受自己的全部。我用积极的自我对话代替消极的想法。我身体健康，精力充沛，充满活力。我在个人和职业生活中都在成长和进步。我值得成功和幸福，我正在创造它们。",
+      "我是一个有价值的人，仅仅因为我的存在。我不需要向任何人证明我的价值。我接纳自己的过去，珍惜现在，期待未来。我有勇气做真实的自己，不害怕被评判。我释放所有的怨恨和负面情绪，让心灵获得自由。我每天都在学习新的东西，拓展我的视野。我对他人的成功感到高兴，知道世界上有足够的成功分给每个人。我照顾好自己的身体、心灵和情绪。我用爱和善意对待周围的人和世界。我相信一切都在朝着对我最好的方向发展。我有无限的潜力，正在逐步发掘它。",
+      "今天是新的开始，充满了无限可能。我放下过去的包袱，轻装上阵。我有能力创造美好的一天。我选择专注于积极的事物，忽略消极的影响。我对自己的能力有信心，相信我能应对任何挑战。我与他人建立真诚的连接，分享爱和快乐。我感恩生活中的每一个小确幸。我照顾好自己的健康，做出明智的选择。我在工作中富有创造力和生产力。我保持开放的心态，接受新的机会和想法。我相信自己值得最好的，并且正在吸引它们进入我的生活。",
+      "我内心平静，即使在混乱中也能保持镇定。我有能力管理自己的情绪，而不是被情绪控制。我用深呼吸和正念来应对压力和焦虑。我与自己的内心保持连接，倾听直觉的指引。我相信一切发生的事情都有其目的，即使现在我还不明白。我对生活中的挑战持积极态度，视它们为成长的机会。我每天都花时间反思和感恩。我与自然保持连接，从它那里获取力量和灵感。我原谅自己的错误和过失，向前看。我相信自己的旅程是独特而有意义的。我对未来充满希望和期待。",
+      "我是一个有创造力的人，我的想法有价值。我勇于表达自己，分享我的天赋和才能。我相信我的创造力能给世界带来积极的改变。我每天都为自己创造时间和空间来发挥创造力。我不害怕尝试新事物或犯错误，因为这是创造过程的一部分。我从周围的世界中汲取灵感，用新的视角看待事物。我相信每个人都有创造力，我正在发掘自己的那一部分。我用创造力解决问题，找到新的机会。我享受创造的过程，而不仅仅是结果。我为自己的创造力感到自豪，并继续培养它。我的创造力正在为我的生活带来丰富和满足。",
+      "我值得被爱，也有能力去爱。我爱自己，包括我的优点和缺点。我用善意和同情心对待自己。我允许自己被爱，接受他人的善意和关怀。我在关系中保持真实和真诚，不害怕展示我的脆弱。我建立健康、平等的关系，互相尊重和支持。我原谅那些伤害过我的人，释放怨恨，给自己自由。我用爱和理解来回应他人，而不是评判。我相信爱能治愈一切，创造奇迹。我每天都向世界传递爱，知道它会以各种形式回到我身边。我被爱包围，也充满了爱的能力。",
+      "我是健康和充满活力的。我照顾好我的身体，给它需要的营养、运动和休息。我倾听身体的信号，知道它何时需要关注。我选择健康的食物，滋养我的身体和心灵。我享受运动的过程，感激身体能做的一切。我保证充足的睡眠，让身体和大脑得到恢复。我用积极的想法对待我的健康，知道思想对身体有强大的影响。我释放身体的紧张和压力，保持放松和灵活。我定期进行自我检查，关注身体的变化。我相信我的身体有自我修复的能力，我支持它这样做。我庆祝我的健康，并致力于保持它。",
+      "我是富足的，生活充满了各种形式的财富。我吸引金钱和富足进入我的生活，用它们来创造更多的价值。我对金钱有健康的态度，不害怕它，也不过分追求它。我明智地管理我的财务，为未来储蓄，也享受现在。我相信有足够的资源分给每个人，我的成功不会以他人的损失为代价。我对我所拥有的心怀感恩，这让我更加富足。我用我的资源帮助他人，知道给予会带来更多回报。我开放地接受生活中的各种祝福和礼物。我相信我值得拥有财务自由和安全。我正在创造一种富足的生活方式，既满足我的需求，也能帮助他人。",
+      "我是勇敢的，有勇气面对生活的挑战。我不害怕未知，而是拥抱它带来的可能性。我有勇气表达我的真实想法和感受，即使它们不受欢迎。我敢于追求我的梦想，即使它们看起来遥不可及。我有勇气改变，离开舒适区，去成长和学习。我面对恐惧，而不是逃避它，知道勇气不是没有恐惧，而是尽管有恐惧仍然前行。我为自己的勇气感到自豪，即使是面对小挑战时的勇气。我相信自己有能力克服任何障碍。我鼓励自己和他人勇敢地生活。我的勇气正在打开新的机会和可能性。我每天都在变得更加勇敢。",
+      "我是一个终身学习者，对世界充满好奇。我渴望知识和理解，不断拓展我的视野。我从每一个经历中学习，无论是成功还是失败。我保持开放的心态，愿意接受新的想法和观点。我挑战自己的假设和偏见，寻求真相。我享受学习的过程，而不仅仅是结果。我向他人学习，尊重不同的经验和专业知识。我把知识应用到生活中，让它变得有意义。我相信学习是一个持续的过程，直到生命的尽头。我为自己的求知欲和学习能力感到自豪。我的知识和理解正在不断增长，让我成为一个更全面的人。",
+      "我与自己和平相处，内心和谐。我接受自己的全部，包括我不喜欢的部分。我原谅自己过去的错误和过失，向前看。我与自己进行积极的对话，用鼓励代替批评。我花时间独处，了解自己的想法和感受。我尊重自己的需求和边界，不害怕说不。我做让自己快乐的事情，知道照顾自己不是自私。我相信自己的直觉和内在智慧。我与自己的身体、心灵和精神保持连接。我接受生活的不确定性，与它和平共处。我正在成为自己最好的朋友和支持者。",
+      "我是有韧性的，能够从挫折中恢复过来。我把困难看作是成长和学习的机会。我相信自己有能力应对生活中的挑战。我在困难时期保持希望，知道事情会变得更好。我从过去的经历中汲取力量，知道自己已经克服了许多困难。我向他人寻求支持，不害怕示弱。我保持灵活，愿意改变计划和期望。我专注于我能控制的事情，接受我不能控制的事情。我相信逆境会让我更强大、更明智。我庆祝自己的韧性，即使是在小的挫折中恢复过来。我的韧性正在帮助我创造一个更有意义和有成就的生活。",
+      "我活在当下，充分体验每一刻。我放下对过去的遗憾和对未来的担忧。我专注于眼前的事情，全神贯注地去做。我用所有的感官体验生活，注意细节和美好。我欣赏生活中的小确幸，不等到大事发生才感到快乐。我与周围的世界保持连接，而不是活在自己的思绪中。我放慢脚步，享受生活的旅程，而不仅仅是到达目的地。我在日常生活中找到意义和目的。我相信每一刻都很宝贵，值得被珍惜。我正在培养正念的习惯，让生活更加丰富和有意义。活在当下让我感到平静和满足。",
+      "我是有目标的，清楚自己想要什么。我为自己设定有意义的目标，它们与我的价值观一致。我制定计划来实现我的目标，并采取行动。我把大目标分解成小步骤，一步一步地前进。我对自己的进步感到满意，即使它比预期的慢。我保持灵活，愿意根据情况调整我的目标。我庆祝每一个小成就，认识到它们的重要性。我相信自己有能力实现我的目标，无论它们看起来多么遥远。我从挫折中学习，不放弃我的梦想。我让我的目标激励我，而不是让我感到压力。我正在创造一个有目的和有成就的生活。",
+      "我是一个积极的贡献者，为世界带来价值。我用我的天赋和才能帮助他人，改善世界。我相信即使是小的善举也能产生大的影响。我关心他人的福祉，不仅仅是我自己的。我为我的社区和社会做出贡献，无论大小。我对环境负责，努力保护它。我用我的话语和行动激励他人变得更好。我相信每个人都有能力做出积极的改变，我正在这样做。我为自己的贡献感到自豪，无论它们看起来多么微小。我寻找新的方式来帮助他人和服务世界。我的贡献正在给我的生活带来意义和满足感。",
+      "我是独立的，能够依靠自己。我相信自己的判断和能力。我为自己的生活负责，不责怪他人或环境。我有能力照顾自己的需求和愿望。我做决定时考虑自己的价值观和优先事项。我不害怕独自一人，享受自己的陪伴。我从依赖他人的认可中解放出来，相信自己的内在价值。我有能力解决自己的问题，同时也知道何时寻求帮助是明智的。我为自己的独立感到自豪，但也珍惜与他人的连接。我正在培养真正的独立和自主。",
+      "我是一个有耐心的人，能够等待合适的时机。我理解有些事情需要时间，不能急于求成。我对自己和他人都有耐心和同情心。我享受旅程，而不仅仅是目的地。我不因为延迟或挫折而感到沮丧，而是保持平静和专注。我相信一切都会在正确的时间发生。我用耐心培养有价值的关系和技能。我理解成长是一个渐进的过程，需要时间和持续的努力。我对生活的自然节奏保持信任。我的耐心正在帮助我做出更好的决定，建立更有意义的生活。",
+      "我是一个慷慨的人，愿意分享我的资源和时间。我给予不是因为我必须，而是因为我想要。我相信给予是一种福气，它丰富了我的生活和他人的生活。我慷慨地分享我的知识、爱和善意。我不期待回报地给予，知道给予本身就是一种奖励。我对他人的需求保持敏感，并尽力提供帮助。我理解慷慨不仅仅是关于金钱，更是关于态度和 presence。我为自己的慷慨感到自豪，但不因此自夸。我相信宇宙是富足的，给予只会增加我的收获。我的慷慨正在创造一个更美好的世界和更充实的生活。",
+      "我是一个有智慧的人，能够做出明智的决定。我从过去的经验中学习，应用这些知识来改善我的现在和未来。我倾听我的直觉，它常常引导我走向正确的方向。我知道何时行动，何时等待，何时寻求建议。我能够看到大局，理解事物之间的相互联系。我用我的智慧帮助自己和他人。我明白真正的智慧包括知道自己不知道什么。我保持谦逊，认识到总有更多东西要学习。我相信智慧来自经验、反思和开放的心态。我的智慧正在帮助我创造一个有意义和平衡的生活。",
+      "我是一个平衡的人，在生活的各个方面都寻求和谐。我在工作和休息之间找到平衡，在给予和接受之间找到平衡。我照顾好我的身体、心灵和精神。我在追求目标的同时，也享受当下的时刻。我在独处和社交之间找到平衡。我理解生活是多方面的，忽略任何一个方面都会导致不平衡。我定期反思我的生活，确保我的行动与我的价值观一致。我不为了一个方面的成功而牺牲另一个方面。我相信平衡是健康、幸福和成功的关键。我正在创造一个平衡、和谐的生活。",
+      "我是一个真诚的人，对自己和他人都保持真实。我言行一致，坚守自己的价值观。我不假装成别人，也不隐藏我的真实感受。我诚实地表达我的想法和感受，同时尊重他人。我建立基于真诚和信任的关系。我对自己的错误负责，并从中学习。我不参与八卦或虚伪的行为。我相信真诚是健康关系和自我尊重的基础。我为自己的真诚感到自豪，即使这意味着有时会不受欢迎。我的真诚正在吸引同样真诚的人进入我的生活，并帮助我建立有意义的连接。",
+      "我是一个有好奇心的人，对世界充满探索的欲望。我对新的想法、文化和体验持开放态度。我不断提出问题，寻求理解。我不满足于表面的答案，而是深入探索事物的本质。我从日常生活中发现奇迹和奥秘。我的好奇心驱使我学习和成长。我相信好奇心是保持年轻和活力的关键。我鼓励自己保持孩子般的惊奇感。我用好奇心来解决问题和创造新事物。我的好奇心正在丰富我的生活，拓展我的视野。",
+      "我是一个有同情心的人，能够理解和感受他人的情感。我对他人的痛苦和快乐都保持敏感。我尽力理解他人的观点，即使我不同意他们。我用善意和理解回应他人的困难。我不评判他人，而是寻求理解。我的同情心帮助我建立深厚而有意义的关系。我相信同情心是人类最宝贵的品质之一。我用同情心对待自己，就像对待我关心的人一样。我相信同情心能够治愈伤痛，建立桥梁。我的同情心正在让我成为一个更好的人和世界的积极力量。",
+      "我是一个有组织能力的人，能够有效地管理我的时间和资源。我为我的目标制定计划，并采取行动来实现它们。我能够区分优先事项，专注于重要的事情。我保持物理和数字空间的整洁有序。我为未来做准备，但也活在当下。我相信良好的组织能力能够减少压力，增加生产力。我不断改进我的组织系统和习惯。我不被完美主义所困，而是追求足够好。我相信组织能力是可以培养的技能，我正在不断提高它。我的组织能力正在帮助我更有效地实现我的目标，创造更轻松的生活。",
+      "我是一个有幽默感的人，能够在生活中找到乐趣和笑声。我不把自己看得太严肃，能够嘲笑自己的错误。我用幽默来缓解紧张，连接他人。我理解生活既有挑战也有欢乐，幽默帮助我保持平衡的视角。我欣赏生活中的荒谬和趣事。我相信笑声是最好的良药之一。我用幽默来应对困难时期，保持希望和韧性。我不使用伤害性的幽默，而是选择能够提升和连接的幽默。我的幽默感正在让我的生活更加愉快，也让我成为他人的快乐源泉。",
+      "我是一个有决心的人，能够坚持追求我的目标。我不轻易放弃，即使面临困难和挫折。我有毅力克服障碍，找到解决问题的方法。我保持专注和动力，即使进展缓慢。我为自己设定高标准，并努力达到它们。我相信决心比天赋更重要，能够弥补许多不足。我从失败中学习，然后再次尝试。我不被他人的怀疑所动摇，相信自己的能力。我的决心正在帮助我实现看似不可能的目标。我为自己的坚持和毅力感到自豪。",
+      "我是一个开放的人，愿意接受新的想法和体验。我不固守自己的观点，而是愿意考虑不同的视角。我对变化持开放态度，视其为成长的机会。我愿意走出我的舒适区，尝试新事物。我相信开放的心态是学习和成长的关键。我不评判他人的选择，而是尊重多样性。我对生活的可能性保持开放，不限制自己的潜力。我相信开放能够带来新的机会和关系。我的开放心态正在丰富我的生活，让我成为一个更全面的人。",
+      "我是一个负责任的人，对自己的行为和选择负责。我遵守我的承诺，履行我的义务。我对自己的错误负责，并努力纠正它们。我照顾好我负责的人和事物。我理解我的行为会影响他人和环境，因此会深思熟虑。我为自己的生活方向负责，不责怪外部因素。我相信责任感是成熟和可靠的标志。我从小事做起，培养责任感的习惯。我的责任感正在赢得他人的信任和尊重，也让我对自己感到满意。",
+      "我是一个感恩的人，珍惜生活中的祝福。我每天都花时间感谢我所拥有的，而不是专注于我所缺乏的。我感谢生活中的简单事物——阳光、食物、友谊和爱。我向他人表达我的感激之情，让他们知道他们的重要性。我相信感恩是幸福的关键。我通过记感恩日记等习惯培养感恩的态度。我对挑战也心怀感激，因为它们帮助我成长。我理解感恩不是因为一切都完美，而是因为我选择关注美好的事物。我的感恩之心正在让我的生活更加丰富和满足。",
+      "我是一个有创造力的人，能够以新的方式看待事物和解决问题。我允许自己有想象力，不受常规思维的限制。我在日常生活中寻找创造的机会，无论是通过艺术、烹饪、工作还是人际关系。我不害怕尝试新事物或犯错误，因为这是创造过程的一部分。我相信每个人都有创造力，我正在培养自己的创造力。我从周围的世界中汲取灵感。我给自己时间和空间进行创造性思考。我相信创造力是人类最宝贵的能力之一，能够带来快乐和满足感。我的创造力正在帮助我创造一个独特而有意义的生活。"
+    ];
+    
+    // 当前肯定语录索引
+    let currentAffirmationIndex = 0;
+    // 当前显示的模块
+    let currentModule = 'meditation';
+    
+    // DOM 加载完成后初始化
+    document.addEventListener('DOMContentLoaded', function() {
+      try {
+        // 初始化日期显示
+        updateDateDisplay();
+        
+        // 初始化累计练习天数
+        initPracticeDays();
+        
+        // 初始化计时器
+        initTimers();
+        
+        // 初始化肯定语录
+        initAffirmations();
+        
+        // 初始化颜色选择器
+        initColorPicker();
+        
+        // 初始化编辑功能
+        initEditFunctions();
+        
+        // 初始化模块导航
+        initModuleNavigation();
+        
+        // 加载保存的笔记
+        loadSavedNotes();
+        
+        // 加载已上传的文件列表
+        loadUploadedFiles();
+        
+        // 初始化音频上传功能
+        initAudioUpload();
+      } catch (error) {
+        console.error('初始化失败:', error);
+        alert('应用加载时出现错误，请刷新页面重试。');
+      }
+    });
+    
+    // 从localStorage加载已上传的文件
+    function loadUploadedFiles() {
+      try {
+        const savedFiles = localStorage.getItem('uploadedAudioFiles');
+        if (savedFiles) {
+          uploadedFiles = JSON.parse(savedFiles);
+          renderUploadedFilesList();
+        }
+      } catch (error) {
+        console.error('加载已上传文件失败:', error);
+        // 清除损坏的数据
+        localStorage.removeItem('uploadedAudioFiles');
+        uploadedFiles = [];
+        showTemporaryMessage('检测到文件数据异常，已重置文件列表', 'error');
+      }
+    }
+    
+    // 保存已上传的文件到localStorage
+    function saveUploadedFiles() {
+      try {
+        localStorage.setItem('uploadedAudioFiles', JSON.stringify(uploadedFiles));
+      } catch (error) {
+        console.error('保存上传文件失败:', error);
+        showTemporaryMessage('保存文件信息失败，请重试', 'error');
+      }
+    }
+    
+    // 渲染已上传文件列表
+    function renderUploadedFilesList() {
+      const filesContainer = document.getElementById('uploaded-files');
+      const noFilesMessage = document.getElementById('no-files-message');
+      
+      if (!filesContainer || !noFilesMessage) return;
+      
+      // 清空容器
+      filesContainer.innerHTML = '';
+      
+      if (uploadedFiles.length === 0) {
+        // 显示无文件提示
+        filesContainer.appendChild(noFilesMessage);
+        return;
+      }
+      
+      // 隐藏无文件提示
+      if (document.contains(noFilesMessage)) {
+        noFilesMessage.remove();
+      }
+      
+      // 添加文件列表
+      uploadedFiles.forEach((file, index) => {
+        const fileEl = document.createElement('div');
+        fileEl.className = 'flex items-center justify-between p-2 bg-white rounded border border-gray-200 file-item file-item-hover';
+        fileEl.dataset.index = index;
+        fileEl.dataset.fileId = file.id; // 添加唯一标识符
+        
+        const fileInfo = document.createElement('div');
+        fileInfo.className = 'flex-1 mr-2';
+        
+        const fileName = document.createElement('div');
+        fileName.className = 'font-medium text-sm truncate';
+        fileName.textContent = file.name;
+        
+        const fileMeta = document.createElement('div');
+        fileMeta.className = 'text-xs text-gray-500';
+        fileMeta.textContent = `${file.duration} · ${formatDate(file.uploadDate)}`;
+        
+        fileInfo.appendChild(fileName);
+        fileInfo.appendChild(fileMeta);
+        
+        const fileActions = document.createElement('div');
+        fileActions.className = 'flex items-center gap-1';
+        
+        const playBtn = document.createElement('button');
+        playBtn.className = 'p-1 text-gray-600 hover:text-primary transition-all-300 file-action-btn';
+        playBtn.innerHTML = '<i class="fa fa-play"></i>';
+        playBtn.title = '播放';
+        playBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          playUploadedFile(index);
+        });
+        
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'p-1 text-gray-600 hover:text-red-500 transition-all-300 file-action-btn';
+        deleteBtn.innerHTML = '<i class="fa fa-trash-o"></i>';
+        deleteBtn.title = '删除';
+        deleteBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          deleteUploadedFile(index);
+        });
+        
+        fileActions.appendChild(playBtn);
+        fileActions.appendChild(deleteBtn);
+        
+        fileEl.appendChild(fileInfo);
+        fileEl.appendChild(fileActions);
+        
+        // 点击文件也可以播放
+        fileEl.addEventListener('click', () => playUploadedFile(index));
+        
+        filesContainer.appendChild(fileEl);
+      });
+    }
+    
+    // 播放已上传的文件
+    function playUploadedFile(index) {
+      if (index < 0 || index >= uploadedFiles.length) return;
+      
+      const file = uploadedFiles[index];
+      const audioElement = document.getElementById('meditation-audio');
+      const audioSource = document.getElementById('audio-source');
+      const audioContainer = document.getElementById('audio-player-container');
+      const currentAudioEl = document.getElementById('current-audio');
+      
+      if (!audioElement || !audioSource || !audioContainer || !currentAudioEl) return;
+      
+      // 更新当前音频
+      currentAudio = index;
+      
+      // 更新音频源
+      audioSource.src = file.url;
+      audioElement.load();
+      currentAudioEl.textContent = `${file.name} (${file.duration})`;
+      audioContainer.classList.remove('hidden');
+      
+      // 播放音频
+      audioElement.play().catch(e => {
+        console.warn('无法播放音频:', e);
+        showTemporaryMessage(`播放音频时出错: ${e.message}`, 'error');
+      });
+      
+      // 更新按钮状态
+      document.getElementById('audio-play').classList.add('hidden');
+      document.getElementById('audio-pause').classList.remove('hidden');
+    }
+    
+    // 删除已上传的文件 - 优化版本
+    function deleteUploadedFile(index) {
+      // 验证索引有效性
+      if (index === undefined || index === null || index < 0 || index >= uploadedFiles.length) {
+        console.error('无效的文件索引:', index);
+        showTemporaryMessage('删除失败：无效的文件', 'error');
+        return;
+      }
+      
+      // 获取DOM元素引用
+      const fileEl = document.querySelector(`.file-item[data-index="${index}"]`);
+      const fileName = uploadedFiles[index].name;
+      const fileId = uploadedFiles[index].id;
+      
+      // 显示更明确的确认信息
+      if (confirm(`确定要删除音频文件 "${fileName}" 吗？\n此操作无法撤销。`)) {
+        try {
+          // 防止重复删除
+          if (!uploadedFiles[index] || uploadedFiles[index].id !== fileId) {
+            showTemporaryMessage('文件已被删除或不存在', 'error');
+            renderUploadedFilesList(); // 强制刷新列表
+            return;
+          }
+          
+          // 添加删除动画效果
+          if (fileEl) {
+            // 先添加闪烁动画
+            fileEl.classList.add('file-deleting');
+            
+            // 然后添加滑出动画
+            setTimeout(() => {
+              if (document.contains(fileEl)) {
+                fileEl.classList.add('file-removed');
+              }
+            }, 300);
+          }
+          
+          // 释放对象URL，防止内存泄漏
+          URL.revokeObjectURL(uploadedFiles[index].url);
+          
+          // 如果删除的是当前正在播放的音频，停止播放
+          if (currentAudio === index) {
+            const audioElement = document.getElementById('meditation-audio');
+            if (audioElement) {
+              audioElement.pause();
+              document.getElementById('audio-player-container').classList.add('hidden');
+              currentAudio = null;
+            }
+          } else if (currentAudio !== null && currentAudio > index) {
+            // 如果删除的是当前音频之前的文件，调整当前音频索引
+            currentAudio--;
+          }
+          
+          // 从数据数组中删除文件
+          uploadedFiles.splice(index, 1);
+          
+          // 确保数据一致性 - 双重验证
+          if (uploadedFiles[index] && uploadedFiles[index].id === fileId) {
+            console.warn('文件删除可能未成功执行，正在重试...');
+            uploadedFiles.splice(index, 1);
+          }
+          
+          // 更新保存的文件列表
+          saveUploadedFiles();
+          
+          // 等待动画完成后再完全移除元素并刷新列表
+          setTimeout(() => {
+            // 确保元素已从DOM中移除
+            if (fileEl && document.contains(fileEl)) {
+              fileEl.remove();
+            }
+            
+            // 重新渲染列表确保UI与数据一致
+            renderUploadedFilesList();
+            
+            // 显示成功消息
+            showTemporaryMessage(`文件 "${fileName}" 已成功删除`);
+          }, 600); // 与动画时长匹配
+          
+        } catch (error) {
+          console.error('删除文件时出错:', error);
+          showTemporaryMessage(`删除失败: ${error.message}`, 'error');
+          // 重新渲染列表以确保UI一致性
+          renderUploadedFilesList();
+        }
+      }
+    }
+    
+    // 显示临时消息提示
+    function showTemporaryMessage(message, type = 'success') {
+      // 移除已有的消息元素
+      const existingMessage = document.getElementById('temp-message');
+      if (existingMessage) {
+        existingMessage.remove();
+      }
+      
+      // 创建消息元素
+      const messageEl = document.createElement('div');
+      messageEl.id = 'temp-message';
+      
+      // 根据类型设置样式
+      let bgColor = 'bg-green-500'; // 默认成功绿色
+      let icon = 'fa-check-circle';
+      
+      if (type === 'error') {
+        bgColor = 'bg-red-500';
+        icon = 'fa-exclamation-circle';
+      } else if (type === 'warning') {
+        bgColor = 'bg-amber-500';
+        icon = 'fa-exclamation-triangle';
+      } else if (type === 'info') {
+        bgColor = 'bg-blue-500';
+        icon = 'fa-info-circle';
+      }
+      
+      messageEl.className = `fixed bottom-4 left-1/2 transform -translate-x-1/2 ${bgColor} text-white px-4 py-2 rounded-lg shadow-lg z-50 toast-message flex items-center`;
+      messageEl.innerHTML = `<i class="fa ${icon} mr-2"></i>${message}`;
+      
+      document.body.appendChild(messageEl);
+      
+      // 3秒后自动移除
+      setTimeout(() => {
+        if (document.contains(messageEl)) {
+          messageEl.remove();
+        }
+      }, 3000);
+    }
+    
+    // 格式化日期
+    function formatDate(timestamp) {
+      const date = new Date(timestamp);
+      return date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+    }
+    
+    // 初始化音频上传功能
+    function initAudioUpload() {
+      const fileInput = document.getElementById('audio-upload');
+      const clearBtn = document.getElementById('clear-upload');
+      const progressContainer = document.getElementById('upload-progress-container');
+      const progressBar = document.getElementById('upload-progress-bar');
+      const statusDisplay = document.getElementById('upload-status');
+      
+      if (!fileInput || !clearBtn || !progressContainer || !progressBar || !statusDisplay) {
+        console.error('音频上传元素未找到');
+        return;
+      }
+      
+      // 处理文件选择
+      fileInput.addEventListener('change', handleFileUpload);
+      
+      // 支持拖放功能
+      const dropArea = fileInput.parentElement;
+      dropArea.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        this.classList.add('border-primary');
+      });
+      
+      dropArea.addEventListener('dragleave', function() {
+        this.classList.remove('border-primary');
+      });
+      
+      dropArea.addEventListener('drop', function(e) {
+        e.preventDefault();
+        this.classList.remove('border-primary');
+        
+        if (e.dataTransfer.files.length) {
+          fileInput.files = e.dataTransfer.files;
+          handleFileUpload(e);
+        }
+      });
+      
+      // 清除上传的文件
+      clearBtn.addEventListener('click', function() {
+        fileInput.value = '';
+        this.classList.add('hidden');
+        progressContainer.classList.add('hidden');
+        statusDisplay.classList.add('hidden');
+      });
+      
+      // 初始化音频播放控制
+      initAudioPlayerControls();
+    }
+    
+    // 初始化音频播放器控制
+    function initAudioPlayerControls() {
+      const audioElement = document.getElementById('meditation-audio');
+      const audioPlayBtn = document.getElementById('audio-play');
+      const audioPauseBtn = document.getElementById('audio-pause');
+      
+      if (!audioElement || !audioPlayBtn || !audioPauseBtn) return;
+      
+      // 播放按钮
+      audioPlayBtn.addEventListener('click', function() {
+        if (currentAudio !== null) {
+          audioElement.play().catch(e => {
+            console.warn('无法播放音频:', e);
+            showTemporaryMessage(`播放音频时出错: ${e.message}`, 'error');
+          });
+          this.classList.add('hidden');
+          audioPauseBtn.classList.remove('hidden');
+        }
+      });
+      
+      // 暂停按钮
+      audioPauseBtn.addEventListener('click', function() {
+        audioElement.pause();
+        this.classList.add('hidden');
+        audioPlayBtn.classList.remove('hidden');
+      });
+      
+      // 音频结束时自动切换按钮状态
+      audioElement.addEventListener('ended', function() {
+        audioPauseBtn.classList.add('hidden');
+        audioPlayBtn.classList.remove('hidden');
+      });
+      
+      // 与计时器同步
+      document.getElementById('meditation-start').addEventListener('click', function() {
+        if (currentAudio !== null && !audioElement.paused) {
+          audioElement.play().catch(e => console.warn('无法播放音频:', e));
+          audioPlayBtn.classList.add('hidden');
+          audioPauseBtn.classList.remove('hidden');
+        }
+      });
+      
+      document.getElementById('meditation-pause').addEventListener('click', function() {
+        if (currentAudio !== null) {
+          audioElement.pause();
+          audioPauseBtn.classList.add('hidden');
+          audioPlayBtn.classList.remove('hidden');
+        }
+      });
+    }
+    
+    // 处理文件上传
+    function handleFileUpload(e) {
+      const fileInput = document.getElementById('audio-upload');
+      const clearBtn = document.getElementById('clear-upload');
+      const progressContainer = document.getElementById('upload-progress-container');
+      const progressBar = document.getElementById('upload-progress-bar');
+      const statusDisplay = document.getElementById('upload-status');
+      
+      if (!fileInput.files.length) return;
+      
+      const file = fileInput.files[0];
+      
+      // 验证文件类型
+      if (!file.type.startsWith('audio/')) {
+        statusDisplay.textContent = '请上传音频文件（MP3, WAV, OGG等）';
+        statusDisplay.classList.remove('hidden', 'text-green-600');
+        statusDisplay.classList.add('text-red-600');
+        return;
+      }
+      
+      // 验证文件大小（最大10MB）
+      const maxSize = 10 * 1024 * 1024; // 10MB
+      if (file.size > maxSize) {
+        statusDisplay.textContent = '文件过大，请上传小于10MB的音频文件';
+        statusDisplay.classList.remove('hidden', 'text-green-600');
+        statusDisplay.classList.add('text-red-600');
+        return;
+      }
+      
+      // 显示上传进度
+      progressContainer.classList.remove('hidden');
+      statusDisplay.textContent = `正在处理: ${file.name}`;
+      statusDisplay.classList.remove('hidden', 'text-red-600', 'text-green-600');
+      statusDisplay.classList.add('text-blue-600');
+      clearBtn.classList.remove('hidden');
+      
+      // 检查文件是否已存在
+      const fileExists = uploadedFiles.some(f => f.name === file.name && f.size === file.size);
+      if (fileExists) {
+        statusDisplay.textContent = `文件已存在: ${file.name}`;
+        statusDisplay.classList.remove('text-blue-600');
+        statusDisplay.classList.add('text-amber-600');
+        return;
+      }
+      
+      // 创建音频对象获取时长
+      const audio = new Audio();
+      const objectUrl = URL.createObjectURL(file);
+      
+      audio.onloadedmetadata = function() {
+        // 计算文件时长
+        const duration = formatDuration(audio.duration);
+        
+        // 模拟上传进度
+        let progress = 0;
+        const interval = setInterval(() => {
+          progress += 5;
+          progressBar.style.width = `${progress}%`;
+          
+          if (progress >= 100) {
+            clearInterval(interval);
+            
+            // 创建文件信息对象
+            const fileInfo = {
+              id: Date.now(),
+              name: file.name,
+              url: objectUrl,
+              size: file.size,
+              duration: duration,
+              type: file.type,
+              uploadDate: Date.now()
+            };
+            
+            // 添加到上传文件列表
+            uploadedFiles.push(fileInfo);
+            
+            // 保存到localStorage
+            saveUploadedFiles();
+            
+            // 更新状态
+            statusDisplay.textContent = `上传成功: ${file.name}`;
+            statusDisplay.classList.remove('text-blue-600');
+            statusDisplay.classList.add('text-green-600');
+            
+            // 更新文件列表显示
+            renderUploadedFilesList();
+            
+            // 自动播放新上传的文件
+            playUploadedFile(uploadedFiles.length - 1);
+            
+            // 3秒后清除状态显示
+            setTimeout(() => {
+              statusDisplay.classList.add('hidden');
+              progressContainer.classList.add('hidden');
+              fileInput.value = '';
+              clearBtn.classList.add('hidden');
+            }, 3000);
+          }
+        }, 50);
+      };
+      
+      audio.onerror = function() {
+        statusDisplay.textContent = `处理文件时出错: 不支持的音频格式`;
+        statusDisplay.classList.remove('text-blue-600');
+        statusDisplay.classList.add('text-red-600');
+        URL.revokeObjectURL(objectUrl); // 释放资源
+      };
+      
+      audio.src = objectUrl;
+    }
+    
+    // 格式化音频时长
+    function formatDuration(seconds) {
+      if (isNaN(seconds)) return "未知时长";
+      
+      const minutes = Math.floor(seconds / 60);
+      const remainingSeconds = Math.floor(seconds % 60);
+      
+      if (minutes === 0) {
+        return `${remainingSeconds}秒`;
+      } else {
+        return `${minutes}分${remainingSeconds > 0 ? remainingSeconds + '秒' : ''}`;
+      }
+    }
+    
+    // 格式化文件大小
+    function formatFileSize(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      else if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+      else return (bytes / 1048576).toFixed(1) + ' MB';
+    }
+    
+    // 初始化模块导航
+    function initModuleNavigation() {
+      // 模块导航按钮事件
+      document.querySelectorAll('.module-nav').forEach(btn => {
+        btn.addEventListener('click', function() {
+          const module = this.getAttribute('data-module');
+          switchModule(module);
+        });
+      });
+    }
+    
+    // 切换模块
+    function switchModule(module) {
+      if (module === currentModule) return;
+      
+      // 暂停当前模块的计时器
+      pauseTimer(currentModule);
+      
+      // 如果切换到非冥想模块，暂停音频
+      if (currentModule === 'meditation' && module !== 'meditation') {
+        const audioElement = document.getElementById('meditation-audio');
+        if (audioElement) {
+          audioElement.pause();
+          document.getElementById('audio-pause').classList.add('hidden');
+          document.getElementById('audio-play').classList.remove('hidden');
+        }
+      }
+      
+      // 隐藏当前模块，显示新模块
+      document.getElementById(`${currentModule}-module`).classList.remove('module-visible');
+      document.getElementById(`${currentModule}-module`).classList.add('module-hidden');
+      
+      document.getElementById(`${module}-module`).classList.remove('hidden');
+      // 短暂延迟后添加可见类以触发动画
+      setTimeout(() => {
+        document.getElementById(`${module}-module`).classList.add('module-visible');
+      }, 50);
+      
+      // 更新导航按钮状态
+      document.querySelectorAll('.module-nav').forEach(btn => {
+        if (btn.getAttribute('data-module') === module) {
+          btn.classList.remove('module-inactive');
+          btn.classList.add('module-active');
+        } else {
+          btn.classList.remove('module-active');
+          btn.classList.add('module-inactive');
+        }
+      });
+      
+      currentModule = module;
+    }
+    
+    // 更新日期显示
+    function updateDateDisplay() {
+      const now = new Date();
+      const options = { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' };
+      document.getElementById('current-date').textContent = now.toLocaleDateString('zh-CN', options);
+    }
+    
+    // 初始化累计练习天数
+    function initPracticeDays() {
+      try {
+        const practiceDays = localStorage.getItem('practiceDays') || '0';
+        document.getElementById('practice-days').textContent = practiceDays;
+        
+        // 检查今天是否已经打卡
+        const lastCheckIn = localStorage.getItem('lastCheckIn');
+        const today = new Date().toDateString();
+        const checkInBtn = document.getElementById('check-in-btn');
+        
+        if (lastCheckIn === today) {
+          checkInBtn.disabled = true;
+          checkInBtn.textContent = '今日已打卡';
+          checkInBtn.classList.add('bg-gray-400');
+          checkInBtn.classList.remove('bg-primary', 'hover:bg-primary/90');
+        }
+        
+        // 打卡按钮事件
+        checkInBtn.addEventListener('click', function() {
+          const today = new Date().toDateString();
+          localStorage.setItem('lastCheckIn', today);
+          
+          let days = parseInt(localStorage.getItem('practiceDays') || '0');
+          days++;
+          localStorage.setItem('practiceDays', days.toString());
+          document.getElementById('practice-days').textContent = days;
+          
+          this.disabled = true;
+          this.textContent = '今日已打卡';
+          this.classList.add('bg-gray-400');
+          this.classList.remove('bg-primary', 'hover:bg-primary/90');
+          
+          // 显示成功提示
+          showTemporaryMessage('打卡成功！累计练习天数增加1天');
+        });
+      } catch (error) {
+        console.error('初始化练习天数失败:', error);
+        // 降级处理，不影响整体功能
+        document.getElementById('practice-days').textContent = '0';
+      }
+    }
+    
+    // 初始化计时器
+    function initTimers() {
+      // 为每个计时器初始化
+      Object.keys(timers).forEach(type => {
+        timers[type].element = document.getElementById(`${type}-timer`);
+        timers[type].progress = document.getElementById(`${type}-progress`);
+        
+        if (!timers[type].element || !timers[type].progress) {
+          console.error(`计时器元素未找到: ${type}`);
+          return;
+        }
+        
+        // 开始按钮
+        document.getElementById(`${type}-start`).addEventListener('click', function() {
+          startTimer(type);
+        });
+        
+        // 暂停按钮
+        document.getElementById(`${type}-pause`).addEventListener('click', function() {
+          pauseTimer(type);
+        });
+        
+        // 重置按钮
+        document.getElementById(`${type}-reset`).addEventListener('click', function() {
+          resetTimer(type);
+        });
+      });
+      
+      // 时间选择按钮
+      document.querySelectorAll('.time-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+          try {
+            const minutes = parseInt(this.getAttribute('data-time'));
+            const target = this.getAttribute('data-target');
+            const type = target.replace('-timer', '');
+            
+            // 重置计时器并设置新时间
+            resetTimer(type);
+            timers[type].totalSeconds = minutes * 60;
+            timers[type].seconds = minutes * 60;
+            updateTimerDisplay(type);
+            
+            // 高亮选中的时间按钮
+            document.querySelectorAll(`.time-btn[data-target="${target}"]`).forEach(b => {
+              b.classList.remove('bg-primary', 'text-white');
+              b.classList.add('bg-gray-100');
+            });
+            this.classList.remove('bg-gray-100');
+            this.classList.add('bg-primary', 'text-white');
+          } catch (error) {
+            console.error('时间选择错误:', error);
+          }
+        });
+      });
+    }
+    
+    // 开始计时器
+    function startTimer(type) {
+      if (timers[type].running) return;
+      
+      timers[type].running = true;
+      document.getElementById(`${type}-start`).classList.add('hidden');
+      document.getElementById(`${type}-pause`).classList.remove('hidden');
+      
+      timers[type].interval = setInterval(function() {
+        if (timers[type].seconds <= 0) {
+          clearInterval(timers[type].interval);
+          timers[type].running = false;
+          document.getElementById(`${type}-start`).classList.remove('hidden');
+          document.getElementById(`${type}-pause`).classList.add('hidden');
+          
+          // 播放提示音 - 增加错误处理
+          try {
+            const audio = document.getElementById('timer-end-sound');
+            if (audio) {
+              audio.play().catch(e => console.warn('无法播放提示音:', e));
+            }
+          } catch (e) {
+            console.error('播放提示音错误:', e);
+          }
+          
+          return;
+        }
+        
+        timers[type].seconds--;
+        updateTimerDisplay(type);
+      }, 1000);
+    }
+    
+    // 暂停计时器
+    function pauseTimer(type) {
+      if (!timers[type].running) return;
+      
+      clearInterval(timers[type].interval);
+      timers[type].running = false;
+      document.getElementById(`${type}-start`).classList.remove('hidden');
+      document.getElementById(`${type}-pause`).classList.add('hidden');
+    }
+    
+    // 重置计时器
+    function resetTimer(type) {
+      clearInterval(timers[type].interval);
+      timers[type].running = false;
+      timers[type].seconds = timers[type].totalSeconds;
+      updateTimerDisplay(type);
+      document.getElementById(`${type}-start`).classList.remove('hidden');
+      document.getElementById(`${type}-pause`).classList.add('hidden');
+    }
+    
+    // 更新计时器显示
+    function updateTimerDisplay(type) {
+      const minutes = Math.floor(timers[type].seconds / 60);
+      const seconds = timers[type].seconds % 60;
+      timers[type].element.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+      
+      // 更新进度条
+      const progress = 100 - (timers[type].seconds / timers[type].totalSeconds * 100);
+      timers[type].progress.style.width = `${progress}%`;
+    }
+    
+    // 初始化肯定语录
+    function initAffirmations() {
+      // 显示第一条语录
+      updateAffirmationDisplay();
+      
+      // 上一条按钮
+      document.getElementById('prev-affirmation').addEventListener('click', function() {
+        currentAffirmationIndex = (currentAffirmationIndex - 1 + affirmations.length) % affirmations.length;
+        updateAffirmationDisplay();
+      });
+      
+      // 下一条按钮
+      document.getElementById('next-affirmation').addEventListener('click', function() {
+        currentAffirmationIndex = (currentAffirmationIndex + 1) % affirmations.length;
+        updateAffirmationDisplay();
+      });
+    }
+    
+    // 更新肯定语录显示
+    function updateAffirmationDisplay() {
+      document.getElementById('affirmation-content').textContent = affirmations[currentAffirmationIndex];
+      document.getElementById('affirmation-index').textContent = currentAffirmationIndex + 1;
+    }
+    
+    // 初始化颜色选择器
+    function initColorPicker() {
+      try {
+        // 从本地存储加载最后选择的颜色
+        const savedColor = localStorage.getItem('selectedColor') || 'bg1';
+        // 移除所有背景色类
+        document.body.classList.remove('bg-bg1', 'bg-bg2', 'bg-bg3', 'bg-bg4', 'bg-bg5', 'bg-bg6', 'bg-bg7');
+        // 添加选中的背景色类
+        document.body.classList.add(`bg-${savedColor}`);
+        
+        // 更新颜色按钮状态
+        updateColorButtons(savedColor);
+        
+        // 颜色按钮事件
+        document.querySelectorAll('.color-btn').forEach(btn => {
+          btn.addEventListener('click', function() {
+            const color = this.getAttribute('data-color');
+            // 移除所有背景色类
+            document.body.classList.remove('bg-bg1', 'bg-bg2', 'bg-bg3', 'bg-bg4', 'bg-bg5', 'bg-bg6', 'bg-bg7');
+            // 添加选中的背景色类
+            document.body.classList.add(`bg-${color}`);
+            
+            // 保存选择的颜色
+            localStorage.setItem('selectedColor', color);
+            
+            // 更新按钮状态
+            updateColorButtons(color);
+          });
+        });
+      } catch (error) {
+        console.error('颜色选择器初始化失败:', error);
+      }
+    }
+    
+    // 更新颜色按钮状态
+    function updateColorButtons(selectedColor) {
+      document.querySelectorAll('.color-btn').forEach(btn => {
+        if (btn.getAttribute('data-color') === selectedColor) {
+          btn.classList.add('ring-2', 'ring-primary', 'ring-offset-2');
+        } else {
+          btn.classList.remove('ring-2', 'ring-primary', 'ring-offset-2');
+        }
+      });
+    }
+    
+    // 初始化编辑功能
+    function initEditFunctions() {
+      // 编辑按钮事件
+      document.querySelectorAll('.edit-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+          const target = this.getAttribute('data-target');
+          const editArea = document.getElementById(`${target}-edit`);
+          
+          if (!editArea) {
+            console.error(`编辑区域未找到: ${target}`);
+            return;
+          }
+          
+          // 如果是肯定模块，将当前内容放入编辑框
+          if (target === 'affirmation') {
+            document.getElementById('custom-affirmation').value = document.getElementById('affirmation-content').textContent;
+          }
+          
+          // 显示编辑区域
+          editArea.classList.toggle('hidden');
+        });
+      });
+      
+      // 保存按钮事件
+      document.querySelectorAll('.save-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+          try {
+            const target = this.getAttribute('data-target');
+            const editArea = document.getElementById(`${target}-edit`);
+            
+            // 处理不同模块的保存
+            if (target === 'affirmation') {
+              const customText = document.getElementById('custom-affirmation').value.trim();
+              if (customText) {
+                // 替换当前语录为自定义内容
+                affirmations[currentAffirmationIndex] = customText;
+                updateAffirmationDisplay();
+                showTemporaryMessage('肯定语录已更新');
+              }
+            } else {
+              // 保存其他模块的笔记
+              const notes = document.getElementById(`${target}-notes`).value;
+              localStorage.setItem(`${target}-notes`, notes);
+              showTemporaryMessage('笔记已保存');
+            }
+            
+            // 隐藏编辑区域
+            editArea.classList.add('hidden');
+          } catch (error) {
+            console.error('保存内容失败:', error);
+            showTemporaryMessage(`保存失败: ${error.message}`, 'error');
+          }
+        });
+      });
+    }
+    
+    // 加载保存的笔记
+    function loadSavedNotes() {
+      try {
+        ['meditation', 'visualization', 'exercise', 'writing', 'reading'].forEach(type => {
+          const notes = localStorage.getItem(`${type}-notes`);
+          if (notes) {
+            const notesElement = document.getElementById(`${type}-notes`);
+            if (notesElement) {
+              notesElement.value = notes;
+            }
+          }
+        });
+      } catch (error) {
+        console.error('加载保存的笔记失败:', error);
+        // 不影响整体功能，忽略错误
+      }
+    }
+  </script>
+</body>
+</html>

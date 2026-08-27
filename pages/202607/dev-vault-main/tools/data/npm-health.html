@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html tk="title_npm_health_package_health" lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>npm Health — Package Health Check</title>
+<meta name="description" content="Check the health of any npm package. Downloads, maintenance, dependencies, update frequency. Free, instant, no signup.">
+<meta property="og:title" content="npm Health — Package Health Check">
+<meta property="og:description" content="Enter a package name. See its health score in seconds.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://gokuscraper.github.io/dev-vault/npm-health/">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="canonical" href="https://gokuscraper.github.io/dev-vault/npm-health/">
+<script type="application/ld+json">
+{"@context": "https://schema.org", "@type": "WebApplication", "name": "npm Health", "description": "Check the health of any npm package. Downloads, maintenance, dependencies, update frequency. Free, instant, no signup.", "url": "https://gokuscraper.github.io/dev-vault/npm-health/", "applicationCategory": "DeveloperApplication", "operatingSystem": "Any", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"}, "author": {"@type": "Organization", "name": "gokuscraper", "url": "https://github.com/gokuscraper"}}
+</script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0a0a;color:#e6e6e6;min-height:100vh}
+.container{max-width:900px;margin:0 auto;padding:24px 16px}
+h1{font-size:1.8rem;text-align:center;margin:32px 0 8px;color:#fff}
+.subtitle{text-align:center;color:#888;margin-bottom:32px;font-size:0.95rem}
+.input-row{display:flex;gap:10px;max-width:520px;margin:0 auto 40px}
+.input-row input{flex:1;padding:12px 16px;border-radius:10px;border:1px solid #333;background:#161616;color:#fff;font-size:1rem;outline:none}
+.input-row input:focus{border-color:#3b82f6}
+.input-row button{padding:12px 24px;border-radius:10px;border:none;background:#3b82f6;color:#fff;font-weight:700;cursor:pointer;font-size:0.95rem;white-space:nowrap}
+.input-row button:hover{background:#2563eb}
+.input-row button:disabled{opacity:0.5;cursor:not-allowed}
+#error{color:#ef4444;text-align:center;margin-bottom:16px;display:none}
+#results{display:none}
+.pkg-header{display:flex;align-items:center;gap:20px;margin-bottom:28px;padding:20px;background:#161616;border:1px solid #222;border-radius:12px}
+.pkg-icon{width:60px;height:60px;border-radius:12px;background:#1a1a2e;display:flex;align-items:center;justify-content:center;font-size:1.6rem;flex-shrink:0}
+.pkg-info h2{font-size:1.3rem;color:#fff;margin-bottom:4px}
+.pkg-info .desc{font-size:0.85rem;color:#888;margin-bottom:6px}
+.pkg-info .meta{font-size:0.78rem;color:#666}
+.pkg-info .meta span{margin-right:14px}
+.pkg-info .meta a{color:#3b82f6;text-decoration:none}
+
+.score-section{display:flex;gap:20px;margin-bottom:28px;align-items:center;justify-content:center;flex-wrap:wrap}
+.score-ring{width:140px;height:140px;position:relative;flex-shrink:0}
+.score-ring svg{width:100%;height:100%;transform:rotate(-90deg)}
+.score-ring circle{fill:none;stroke-width:10}
+.score-ring .bg{stroke:#1a1a1a}
+.score-ring .fg{stroke-linecap:round;transition:stroke-dashoffset 1s ease}
+.score-num{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:2.4rem;font-weight:900;color:#fff}
+.score-label{font-size:1.1rem;font-weight:700}
+.grade-A{color:#10b981}.grade-B{color:#3b82f6}.grade-C{color:#f59e0b}.grade-D{color:#ef4444}.grade-F{color:#dc2626}
+
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:32px}
+.stat-card{background:#161616;border:1px solid #222;border-radius:12px;padding:20px;text-align:center}
+.stat-card .num{font-size:1.6rem;font-weight:800;color:#fff;margin-bottom:4px}
+.stat-card .label{font-size:0.78rem;color:#888;text-transform:uppercase;letter-spacing:0.5px}
+.section{margin-bottom:32px}
+.section h2{font-size:1.15rem;color:#ccc;margin-bottom:14px;border-bottom:1px solid #222;padding-bottom:8px}
+
+.checks{display:flex;flex-direction:column;gap:6px;margin-bottom:24px}
+.check{display:flex;align-items:flex-start;gap:10px;padding:10px 14px;border-radius:8px;background:#161616;border:1px solid #1a1a1a}
+.check.pass{border-left:3px solid #10b981}
+.check.warn{border-left:3px solid #f59e0b}
+.check.fail{border-left:3px solid #ef4444}
+.check-icon{font-size:0.9rem;flex-shrink:0;margin-top:2px}
+.check-body{flex:1}
+.check-name{font-size:0.88rem;font-weight:600;color:#ddd}
+.check-desc{font-size:0.76rem;color:#888;margin-top:2px}
+.check-weight{font-size:0.72rem;color:#555;flex-shrink:0}
+
+.dl-chart{display:flex;flex-direction:column;gap:6px}
+.dl-row{display:flex;align-items:center;gap:10px}
+.dl-label{width:80px;text-align:right;font-size:0.78rem;color:#888;flex-shrink:0}
+.dl-track{flex:1;height:24px;background:#1a1a1a;border-radius:6px;overflow:hidden;position:relative}
+.dl-fill{height:100%;border-radius:6px;transition:width 0.6s ease}
+.dl-val{position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:0.72rem;color:#888}
+
+.insights{background:#0d1b2a;border:1px solid #1b3a5c;border-radius:12px;padding:20px}
+.insights h3{color:#4da6ff;margin-bottom:10px;font-size:0.95rem}
+.insights ul{list-style:none;padding:0}
+.insights li{padding:6px 0;color:#a0c4e8;font-size:0.85rem;border-bottom:1px solid #132a42}
+.insights li:last-child{border:none}
+.insights li::before{content:'>';margin-right:8px;color:#4da6ff}
+
+.share-btn{display:inline-block;margin-top:16px;padding:10px 20px;background:#1a1a1a;border:1px solid #333;border-radius:8px;color:#888;font-size:0.82rem;cursor:pointer;text-decoration:none}
+.share-btn:hover{border-color:#555;color:#ccc}
+footer{text-align:center;padding:32px 0;color:#555;font-size:0.78rem;border-top:1px solid #1a1a1a;margin-top:40px}
+footer a{color:#666;text-decoration:none}
+footer a:hover{color:#999}
+@media(max-width:600px){.stats-grid{grid-template-columns:repeat(2,1fr)}.pkg-header{flex-direction:column;text-align:center}}
+</style>
+</head>
+<body>
+
+
+
+
+
+
+
+
+
+
+<div class="container" style="position:relative">
+<h1 ti="h1_npm_health" ti="h1_npm_health" ti="h1_npm_health" ti="h1_npm_health" ti="h1_npm_health">npm Health</h1>
+<p class="subtitle" ti="subtitle_check_any_npm_package_s_h" ti="subtitle_check_any_npm_package_s_h" ti="subtitle_check_any_npm_package_s_h" ti="subtitle_check_any_npm_package_s_h" ti="subtitle_check_any_npm_package_s_h">Check any npm package's health. Maintenance, popularity, freshness.</p>
+
+<div class="input-row">
+  <input type="text" id="pkgName" tp="placeholder_package_name_e_g_express" tp="placeholder_package_name_e_g_express" tp="placeholder_package_name_e_g_express" tp="placeholder_package_name_e_g_express" tp="placeholder_package_name_e_g_express" placeholder="package name (e.g. express)" autocomplete="off">
+  <button id="checkBtn" onclick="check()" ti="btn_check" ti="btn_check" ti="btn_check" ti="btn_check" ti="btn_check">Check</button>
+</div>
+<div id="error"></div>
+
+<div id="results">
+  <div class="pkg-header" id="pkgHeader"></div>
+  <div class="score-section" id="scoreSection"></div>
+  <div class="stats-grid" id="statsGrid"></div>
+
+  <div class="section">
+    <h2 ti="h2_health_checks" ti="h2_health_checks" ti="h2_health_checks" ti="h2_health_checks" ti="h2_health_checks">Health Checks</h2>
+    <div class="checks" id="checkList"></div>
+  </div>
+
+  <div class="section">
+    <h2 ti="h2_weekly_downloads_last_6_m" ti="h2_weekly_downloads_last_6_m" ti="h2_weekly_downloads_last_6_m" ti="h2_weekly_downloads_last_6_m" ti="h2_weekly_downloads_last_6_m">Weekly Downloads (Last 6 Months)</h2>
+    <div class="dl-chart" id="dlChart"></div>
+  </div>
+
+  <div class="section" id="insightsSection">
+    <div class="insights" id="insights"></div>
+  </div>
+
+  <div style="text-align:center">
+    <a class="share-btn" id="shareBtn" target="_blank">Share on X</a>
+  </div>
+</div>
+</div>
+
+<footer>
+  <a href="https://github.com/gokuscraper/npm-health" ti="link_github" ti="link_github" ti="link_github" ti="link_github" ti="link_github">GitHub</a> ·
+  Also: <a href="https://gokuscraper.github.io/dev-vault/gh-stats/" ti="link_gh_stats" ti="link_gh_stats" ti="link_gh_stats" ti="link_gh_stats" ti="link_gh_stats">gh-stats</a> ·
+  <a href="https://gokuscraper.github.io/dev-vault/readme-score/" ti="link_readme_score" ti="link_readme_score" ti="link_readme_score" ti="link_readme_score" ti="link_readme_score">README Score</a> ·
+</footer>
+
+
+
+
+
+<script>var _LANG={'title_npm_health_package_health':["npm Health — Package Health Check", "npm 健康 — 包健康检查"],'metadesc_check_the_health_of_any_n':["Check the health of any npm package. Downloads, maintenance, dependencies, update frequency. Free, instant, no signup.", "检查任何 npm 包的健康状况。包括下载量、维护情况、依赖项和更新频率。免费、即时、无需注册。"],'h1_npm_health':["npm Health", "npm 健康"],'h2_health_checks':["Health Checks", "健康检查"],'h2_weekly_downloads_last_6_m':["Weekly Downloads (Last 6 Months)", "每周下载量（过去 6 个月）"],'h2_esc_pkgname_esc_latest':["${esc(pkgName)}@${esc(latest)}", "${esc(pkgName)}@${esc(latest)}"],'h3_insights_for_esc_pkgname':["Insights for ${esc(pkgName)}", "关于 ${esc(pkgName)} 的见解"],'subtitle_check_any_npm_package_s_h':["Check any npm package's health. Maintenance, popularity, freshness.", "检查任何 npm 包的健康状况。包括维护情况、受欢迎程度和更新频率。"],'btn_check':["Check", "查看"],'placeholder_package_name_e_g_express':["package name (e.g. express)", "软件包名称（例如 express）"],'strong_related_tools':["Related Tools", "相关工具"],'footer_dev_vault_101_free_tools':["Dev Vault — 101 free tools", "开发者宝库——101 个免费工具"],'footer_dev_vault_101_free_tools_2':["Dev Vault — 101 free tools", "开发者宝库——101 个免费工具"],'link_github':["GitHub", "GitHub"],'link_gh_stats':["gh-stats", "gh-stats"],'link_readme_score':["README Score", "自述文件评分"],'jtc_checking':["Checking...", "检查..."],'jtc_check':["Check", "查看"],'jtlword_versions':["Versions", "版本"],'jtlword_dependencies':["Dependencies", "依赖关系"],'jtlword_age':["Age", "年龄"],'jtlword_grade':["Grade", "年级"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>var _LANG={'title_npm_health_package_health':["npm Health — Package Health Check", "npm 健康 — 包健康检查"],'metadesc_check_the_health_of_any_n':["Check the health of any npm package. Downloads, maintenance, dependencies, update frequency. Free, instant, no signup.", "检查任何 npm 包的健康状况。包括下载量、维护情况、依赖项和更新频率。免费、即时、无需注册。"],'h1_npm_health':["npm Health", "npm 健康"],'h2_health_checks':["Health Checks", "健康检查"],'h2_weekly_downloads_last_6_m':["Weekly Downloads (Last 6 Months)", "每周下载量（过去 6 个月）"],'h2_esc_pkgname_esc_latest':["${esc(pkgName)}@${esc(latest)}", "${esc(pkgName)}@${esc(latest)}"],'h3_insights_for_esc_pkgname':["Insights for ${esc(pkgName)}", "关于 ${esc(pkgName)} 的见解"],'subtitle_check_any_npm_package_s_h':["Check any npm package's health. Maintenance, popularity, freshness.", "检查任何 npm 包的健康状况。包括维护情况、受欢迎程度和更新频率。"],'btn_check':["Check", "查看"],'placeholder_package_name_e_g_express':["package name (e.g. express)", "软件包名称（例如 express）"],'strong_related_tools':["Related Tools", "相关工具"],'footer_dev_vault_101_free_tools':["Dev Vault — 101 free tools", "开发者宝库——101 个免费工具"],'footer_dev_vault_101_free_tools_2':["Dev Vault — 101 free tools", "开发者宝库——101 个免费工具"],'link_github':["GitHub", "GitHub"],'link_gh_stats':["gh-stats", "gh-stats"],'link_readme_score':["README Score", "自述文件评分"],'jtc_checking':["Checking...", "检查..."],'jtc_check':["Check", "查看"],'jtlword_versions':["Versions", "版本"],'jtlword_dependencies':["Dependencies", "依赖关系"],'jtlword_age':["Age", "年龄"],'jtlword_grade':["Grade", "年级"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>var _LANG={'title_npm_health_package_health':["npm Health — Package Health Check", "npm 健康 — 包健康检查"],'metadesc_check_the_health_of_any_n':["Check the health of any npm package. Downloads, maintenance, dependencies, update frequency. Free, instant, no signup.", "检查任何 npm 包的健康状况。包括下载量、维护情况、依赖项和更新频率。免费、即时、无需注册。"],'h1_npm_health':["npm Health", "npm 健康"],'h2_health_checks':["Health Checks", "健康检查"],'h2_weekly_downloads_last_6_m':["Weekly Downloads (Last 6 Months)", "每周下载量（过去 6 个月）"],'h2_esc_pkgname_esc_latest':["${esc(pkgName)}@${esc(latest)}", "${esc(pkgName)}@${esc(latest)}"],'h3_insights_for_esc_pkgname':["Insights for ${esc(pkgName)}", "关于 ${esc(pkgName)} 的见解"],'subtitle_check_any_npm_package_s_h':["Check any npm package's health. Maintenance, popularity, freshness.", "检查任何 npm 包的健康状况。包括维护情况、受欢迎程度和更新频率。"],'btn_check':["Check", "查看"],'placeholder_package_name_e_g_express':["package name (e.g. express)", "软件包名称（例如 express）"],'strong_related_tools':["Related Tools", "相关工具"],'footer_dev_vault_101_free_tools':["Dev Vault — 101 free tools", "开发者宝库——101 个免费工具"],'footer_dev_vault_101_free_tools_2':["Dev Vault — 101 free tools", "开发者宝库——101 个免费工具"],'link_github':["GitHub", "GitHub"],'link_gh_stats':["gh-stats", "gh-stats"],'link_readme_score':["README Score", "自述文件评分"],'jtc_checking':["Checking...", "检查..."],'jtc_check':["Check", "查看"],'jtlword_versions':["Versions", "版本"],'jtlword_dependencies':["Dependencies", "依赖关系"],'jtlword_age':["Age", "年龄"],'jtlword_grade':["Grade", "年级"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>var _LANG={'title_npm_health_package_health':["npm Health — Package Health Check", "npm 健康 — 包健康检查"],'metadesc_check_the_health_of_any_n':["Check the health of any npm package. Downloads, maintenance, dependencies, update frequency. Free, instant, no signup.", "检查任何 npm 包的健康状况。包括下载量、维护情况、依赖项和更新频率。免费、即时、无需注册。"],'h1_npm_health':["npm Health", "npm 健康"],'h2_health_checks':["Health Checks", "健康检查"],'h2_weekly_downloads_last_6_m':["Weekly Downloads (Last 6 Months)", "每周下载量（过去 6 个月）"],'h2_esc_pkgname_esc_latest':["${esc(pkgName)}@${esc(latest)}", "${esc(pkgName)}@${esc(latest)}"],'h3_insights_for_esc_pkgname':["Insights for ${esc(pkgName)}", "关于 ${esc(pkgName)} 的见解"],'subtitle_check_any_npm_package_s_h':["Check any npm package's health. Maintenance, popularity, freshness.", "检查任何 npm 包的健康状况。包括维护情况、受欢迎程度和更新频率。"],'btn_check':["Check", "查看"],'placeholder_package_name_e_g_express':["package name (e.g. express)", "软件包名称（例如 express）"],'strong_related_tools':["Related Tools", "相关工具"],'footer_dev_vault_101_free_tools':["Dev Vault — 101 free tools", "开发者宝库——101 个免费工具"],'footer_dev_vault_101_free_tools_2':["Dev Vault — 101 free tools", "开发者宝库——101 个免费工具"],'link_github':["GitHub", "GitHub"],'link_gh_stats':["gh-stats", "gh-stats"],'link_readme_score':["README Score", "自述文件评分"],'jtc_checking':["Checking...", "检查..."],'jtc_check':["Check", "查看"],'jtlword_versions':["Versions", "版本"],'jtlword_dependencies':["Dependencies", "依赖关系"],'jtlword_age':["Age", "年龄"],'jtlword_grade':["Grade", "年级"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>
+const $=id=>document.getElementById(id);
+const REG='https://registry.npmjs.org';
+const DL='https://api.npmjs.org/downloads';
+
+$('pkgName').addEventListener('keydown',e=>{if(e.key==='Enter')check()});
+
+async function check(){
+  const pkg=$('pkgName').value.trim();
+  if(!pkg)return;
+  $('checkBtn').disabled=true;
+  $('checkBtn').textContent=T("jtc_checking");
+  $('error').style.display='none';
+  $('results').style.display='none';
+
+  try{
+    // Fetch package info and download stats in parallel
+    const sixMonthsAgo=new Date(Date.now()-180*24*60*60*1000).toISOString().slice(0,10);
+    const today=new Date().toISOString().slice(0,10);
+
+    const [meta,dlRange,dlPoint]=await Promise.all([
+      fetchJSON(`${REG}/${encodeURIComponent(pkg)}`),
+      fetchJSON(`${DL}/range/${sixMonthsAgo}:${today}/${encodeURIComponent(pkg)}`),
+      fetchJSON(`${DL}/point/last-week/${encodeURIComponent(pkg)}`)
+    ]);
+
+    render(pkg,meta,dlRange,dlPoint);
+    $('results').style.display='block';
+  }catch(e){
+    $('error').textContent=e.message;
+    $('error').style.display='block';
+  }finally{
+    $('checkBtn').disabled=false;
+    $('checkBtn').textContent=T("jtc_check");
+  }
+}
+
+async function fetchJSON(url){
+  const r=await fetch(url);
+  if(r.status===404)throw new Error('Package not found');
+  if(!r.ok)throw new Error('API error ('+r.status+')');
+  return r.json();
+}
+
+function render(pkgName,meta,dlRange,dlPoint){
+  const latest=meta['dist-tags']?.latest||'';
+  const latestData=meta.versions?.[latest]||{};
+  const time=meta.time||{};
+  const lastPublish=time[latest]?new Date(time[latest]):null;
+  const created=time.created?new Date(time.created):null;
+  const versions=Object.keys(meta.versions||{});
+  const weeklyDL=dlPoint.downloads||0;
+  const desc=meta.description||'';
+  const license=latestData.license||meta.license||'Unknown';
+  const deps=Object.keys(latestData.dependencies||{}).length;
+  const devDeps=Object.keys(latestData.devDependencies||{}).length;
+  const hasTypes=!!(latestData.types||latestData.typings||latestData.exports?.['.']?.types);
+  const repo=meta.repository?.url||'';
+  const homepage=meta.homepage||'';
+
+  // Days since last publish
+  const daysSinceUpdate=lastPublish?Math.floor((Date.now()-lastPublish)/(1000*60*60*24)):999;
+  const ageInYears=created?((Date.now()-created)/(365.25*24*60*60*1000)).toFixed(1):'?';
+
+  // Package header
+  $('pkgHeader').innerHTML=`
+    <div class="pkg-icon">${pkgName.startsWith('@')?'@':'📦'}</div>
+    <div class="pkg-info">
+      <h2 ti="h2_esc_pkgname_esc_latest" ti="h2_esc_pkgname_esc_latest" ti="h2_esc_pkgname_esc_latest" ti="h2_esc_pkgname_esc_latest" ti="h2_esc_pkgname_esc_latest">${esc(pkgName)}@${esc(latest)}</h2>
+      ${desc?`<div class="desc">${esc(desc)}</div>`:''}
+      <div class="meta">
+        <span>${esc(typeof license==='object'?license.type:license)}</span>
+        ${lastPublish?`<span>Updated ${timeAgo(lastPublish)}</span>`:''}
+        <span>${versions.length} versions</span>
+        ${homepage?`<a href="${esc(homepage)}" target="_blank">Homepage</a>`:repo?`<a href="${esc(repo.replace('git+','').replace('.git',''))}" target="_blank">Repo</a>`:''}
+      </div>
+    </div>
+  `;
+
+  // Health checks
+  const checks=[
+    {name:'Recent Updates',desc:`Last published ${daysSinceUpdate} days ago`,weight:20,
+     status:daysSinceUpdate<=90?'pass':daysSinceUpdate<=365?'warn':'fail',
+     score:daysSinceUpdate<=90?20:daysSinceUpdate<=180?15:daysSinceUpdate<=365?8:0},
+    {name:'Popularity',desc:`${fmt(weeklyDL)} weekly downloads`,weight:15,
+     status:weeklyDL>=10000?'pass':weeklyDL>=1000?'warn':'fail',
+     score:weeklyDL>=100000?15:weeklyDL>=10000?12:weeklyDL>=1000?8:weeklyDL>=100?4:0},
+    {name:'Version Maturity',desc:`${versions.length} versions released`,weight:10,
+     status:versions.length>=10?'pass':versions.length>=3?'warn':'fail',
+     score:versions.length>=20?10:versions.length>=10?8:versions.length>=3?5:2},
+    {name:'Minimal Dependencies',desc:`${deps} runtime dependencies`,weight:15,
+     status:deps<=5?'pass':deps<=15?'warn':'fail',
+     score:deps===0?15:deps<=3?13:deps<=5?10:deps<=10?6:deps<=15?3:0},
+    {name:'License',desc:typeof license==='object'?license.type:license,weight:10,
+     status:license&&license!=='Unknown'?'pass':'fail',
+     score:license&&license!=='Unknown'?10:0},
+    {name:'TypeScript Support',desc:hasTypes?'Has type definitions':'No type definitions found',weight:10,
+     status:hasTypes?'pass':'warn',
+     score:hasTypes?10:3},
+    {name:'Description',desc:desc?`${desc.length} chars`:'No description',weight:5,
+     status:desc&&desc.length>20?'pass':desc?'warn':'fail',
+     score:desc&&desc.length>20?5:desc?3:0},
+    {name:'Project Age',desc:`${ageInYears} years old`,weight:10,
+     status:parseFloat(ageInYears)>=1?'pass':parseFloat(ageInYears)>=0.25?'warn':'fail',
+     score:parseFloat(ageInYears)>=3?10:parseFloat(ageInYears)>=1?8:parseFloat(ageInYears)>=0.25?4:1},
+    {name:'Semantic Versioning',desc:latest.match(/^\d+\.\d+\.\d+/)?'Follows semver':'Non-standard versioning',weight:5,
+     status:latest.match(/^\d+\.\d+\.\d+/)?'pass':'warn',
+     score:latest.match(/^\d+\.\d+\.\d+/)?5:2},
+  ];
+
+  const totalWeight=checks.reduce((s,c)=>s+c.weight,0);
+  const earned=checks.reduce((s,c)=>s+c.score,0);
+  const pct=Math.round(earned/totalWeight*100);
+  const grade=pct>=85?'A':pct>=70?'B':pct>=50?'C':pct>=30?'D':'F';
+  const gradeColor={A:'#10b981',B:'#3b82f6',C:'#f59e0b',D:'#ef4444',F:'#dc2626'}[grade];
+
+  // Score ring
+  const circ=2*Math.PI*55;
+  const offset=circ-(pct/100*circ);
+  $('scoreSection').innerHTML=`
+    <div class="score-ring">
+      <svg viewBox="0 0 130 130">
+        <circle class="bg" cx="65" cy="65" r="55"/>
+        <circle class="fg" cx="65" cy="65" r="55" stroke="${gradeColor}"
+          stroke-dasharray="${circ}" stroke-dashoffset="${offset}"/>
+      </svg>
+      <div class="score-num">${pct}</div>
+    </div>
+    <div class="score-label grade-${grade}">${{A:'Healthy',B:'Good',C:'Fair',D:'Aging',F:'Risky'}[grade]} Package</div>
+  `;
+
+  // Stats grid
+  $('statsGrid').innerHTML=`
+    <div class="stat-card"><div class="num">${fmt(weeklyDL)}</div><div class="label">Weekly DL</div></div>
+    <div class="stat-card"><div class="num">${versions.length}</div><div class="label">Versions</div></div>
+    <div class="stat-card"><div class="num">${deps}</div><div class="label">Dependencies</div></div>
+    <div class="stat-card"><div class="num">${daysSinceUpdate}d</div><div class="label">Since Update</div></div>
+    <div class="stat-card"><div class="num">${ageInYears}y</div><div class="label">Age</div></div>
+    <div class="stat-card"><div class="num">${grade}</div><div class="label">Grade</div></div>
+  `;
+
+  // Check list
+  $('checkList').innerHTML=checks.map(c=>`
+    <div class="check ${c.status}">
+      <div class="check-icon">${c.status==='pass'?'<span style="color:#10b981">&#10003;</span>':c.status==='warn'?'<span style="color:#f59e0b">&#9888;</span>':'<span style="color:#ef4444">&#10007;</span>'}</div>
+      <div class="check-body">
+        <div class="check-name">${c.name}</div>
+        <div class="check-desc">${c.desc}</div>
+      </div>
+      <div class="check-weight">${c.score}/${c.weight}</div>
+    </div>
+  `).join('');
+
+  // Download chart (aggregate to weekly)
+  const downloads=dlRange.downloads||[];
+  const weeks=[];
+  for(let i=0;i<downloads.length;i+=7){
+    const chunk=downloads.slice(i,i+7);
+    const sum=chunk.reduce((s,d)=>s+d.downloads,0);
+    const label=chunk[0].day.slice(5);
+    weeks.push({label,sum});
+  }
+  const maxW=Math.max(...weeks.map(w=>w.sum),1);
+  // Show last 26 weeks (approx 6 months)
+  const recentWeeks=weeks.slice(-26);
+  $('dlChart').innerHTML=recentWeeks.map(w=>`
+    <div class="dl-row">
+      <div class="dl-label">${w.label}</div>
+      <div class="dl-track">
+        <div class="dl-fill" style="width:${(w.sum/maxW*100)}%;background:#3b82f6"></div>
+        <div class="dl-val">${fmt(w.sum)}</div>
+      </div>
+    </div>
+  `).join('');
+
+  // Insights
+  const ins=[];
+  ins.push(`${esc(pkgName)} v${latest} — ${pct}/100 health score (${grade})`);
+  if(weeklyDL>=100000)ins.push(`High popularity: ${fmt(weeklyDL)} weekly downloads`);
+  else if(weeklyDL>=10000)ins.push(`Moderate popularity: ${fmt(weeklyDL)} weekly downloads`);
+  else if(weeklyDL<100)ins.push(`Low adoption: only ${weeklyDL} weekly downloads`);
+
+  if(daysSinceUpdate>365)ins.push(`Not updated in over a year — may be abandoned`);
+  else if(daysSinceUpdate>180)ins.push(`Last update was ${daysSinceUpdate} days ago — could use attention`);
+  else if(daysSinceUpdate<=30)ins.push(`Actively maintained — updated ${daysSinceUpdate} days ago`);
+
+  if(deps===0)ins.push(`Zero runtime dependencies — minimal supply chain risk`);
+  else if(deps>15)ins.push(`${deps} dependencies — elevated supply chain risk`);
+
+  if(!hasTypes)ins.push(`No TypeScript types — consider @types/${pkgName} or DefinitelyTyped`);
+
+  // Download trend
+  if(recentWeeks.length>=4){
+    const recent4=recentWeeks.slice(-4).reduce((s,w)=>s+w.sum,0);
+    const prev4=recentWeeks.slice(-8,-4).reduce((s,w)=>s+w.sum,0);
+    if(prev4>0){
+      const trend=((recent4-prev4)/prev4*100).toFixed(0);
+      if(parseInt(trend)>10)ins.push(`Downloads trending up: +${trend}% vs previous month`);
+      else if(parseInt(trend)<-10)ins.push(`Downloads trending down: ${trend}% vs previous month`);
+      else ins.push(`Downloads stable over the last month`);
+    }
+  }
+
+  $('insights').innerHTML=`<h3 ti="h3_insights_for_esc_pkgname" ti="h3_insights_for_esc_pkgname" ti="h3_insights_for_esc_pkgname" ti="h3_insights_for_esc_pkgname" ti="h3_insights_for_esc_pkgname">Insights for ${esc(pkgName)}</h3><ul>${ins.map(i=>`<li>${i}</li>`).join('')}</ul>`;
+
+  // Share
+  const shareText=`${pkgName} scored ${pct}/100 (${grade}) on npm Health Check!`;
+  $('shareBtn').href=`https://x.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent('https://gokuscraper.github.io/dev-vault/npm-health/')}`;
+}
+
+function fmt(n){if(n>=1000000)return(n/1000000).toFixed(1)+'M';if(n>=1000)return(n/1000).toFixed(1)+'K';return n.toString()}
+function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
+function timeAgo(date){const d=Math.floor((Date.now()-date)/(1000*60*60*24));if(d===0)return'today';if(d===1)return'yesterday';if(d<30)return d+' days ago';if(d<365)return Math.floor(d/30)+' months ago';return(d/365).toFixed(1)+' years ago'}
+
+// Auto-check if URL has ?pkg=xxx
+const params=new URLSearchParams(location.search);
+if(params.get('pkg')){$('pkgName').value=params.get('pkg');check()}
+</script>
+<footer style="text-align:center;padding:32px 16px;border-top:1px solid #1a1a1a;margin-top:40px;color:#555;font-size:0.78rem">
+<div style="margin-bottom:12px"><strong style="color:#888" ti="strong_related_tools" ti="strong_related_tools" ti="strong_related_tools" ti="strong_related_tools" ti="strong_related_tools">Related Tools</strong></div>
+<a href="https://gokuscraper.github.io/dev-vault/npm-compare/" style="color:#4da6ff;text-decoration:none;margin:0 8px">npm Compare</a>
+<a href="https://gokuscraper.github.io/dev-vault/dep-tree/" style="color:#4da6ff;text-decoration:none;margin:0 8px">Dep Tree</a>
+<a href="https://gokuscraper.github.io/dev-vault/dep-changelog/" style="color:#4da6ff;text-decoration:none;margin:0 8px">Dep Changelog</a>
+<a href="https://gokuscraper.github.io/dev-vault/gh-stats/" style="color:#4da6ff;text-decoration:none;margin:0 8px">Gh Stats</a>
+<div style="margin-top:12px"><a href="https://gokuscraper.github.io/dev-vault/" style="color:#666;text-decoration:none" ti="footer_dev_vault_101_free_tools" ti="footer_dev_vault_101_free_tools_2" ti="footer_dev_vault_101_free_tools" ti="footer_dev_vault_101_free_tools_2" ti="footer_dev_vault_101_free_tools" ti="footer_dev_vault_101_free_tools_2" ti="footer_dev_vault_101_free_tools" ti="footer_dev_vault_101_free_tools_2" ti="footer_dev_vault_101_free_tools" ti="footer_dev_vault_101_free_tools_2">Dev Vault — 101 free tools</a></div>
+</footer>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+</body>
+</html>

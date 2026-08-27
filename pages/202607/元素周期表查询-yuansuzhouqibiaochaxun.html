@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>元素周期表查询</title>
+  <style>
+    :root {
+      --bg: #ffffff;
+      --text: #1f2328;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+      --card: #f8fafc;
+      --accent: #2563eb;
+      --accent-contrast: #ffffff;
+      --chip-bg: #eef2ff;
+      --chip-text: #1e3a8a;
+      --kbd-bg: #111827;
+      --kbd-text: #f9fafb;
+      --shadow: 0 10px 20px rgba(0,0,0,0.06);
+    }
+    body.dark {
+      --bg: #0b0f14;
+      --text: #e6edf3;
+      --muted: #9aa4b2;
+      --border: #1f2937;
+      --card: #111827;
+      --accent: #60a5fa;
+      --accent-contrast: #0b0f14;
+      --chip-bg: #1f2937;
+      --chip-text: #c7d2fe;
+      --kbd-bg: #374151;
+      --kbd-text: #e5e7eb;
+      --shadow: 0 12px 24px rgba(0,0,0,0.35);
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0; background: var(--bg); color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, "PingFang SC", "Microsoft YaHei", "Noto Sans", sans-serif;
+      line-height: 1.5;
+    }
+
+    header {
+      position: sticky; top: 0; z-index: 20;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      backdrop-filter: saturate(150%) blur(6px);
+    }
+    .container {
+      max-width: 1200px; margin: 0 auto; padding: 16px;
+    }
+    .topbar {
+      display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap;
+    }
+    .brand {
+      display: flex; align-items: center; gap: 10px;
+    }
+    .brand h1 { font-size: 20px; margin: 0; }
+    .theme-btn {
+      appearance: none; border: 1px solid var(--border); background: var(--card);
+      color: var(--text); padding: 8px 12px; border-radius: 10px; cursor: pointer;
+      box-shadow: var(--shadow); display: inline-flex; align-items: center; gap: 8px;
+    }
+    .theme-btn:hover { border-color: var(--accent); }
+
+    .search {
+      display: flex; gap: 8px; flex: 1; min-width: 240px;
+    }
+    .search input {
+      width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border);
+      background: var(--card); color: var(--text);
+    }
+    .search input::placeholder { color: var(--muted); }
+    .search .clear-btn {
+      border: 1px solid var(--border); background: transparent; color: var(--muted);
+      padding: 10px 12px; border-radius: 10px; cursor: pointer;
+    }
+
+    main { padding: 16px 0; }
+    .layout { display: grid; grid-template-columns: 320px 1fr; gap: 16px; }
+    @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+
+    .panel {
+      background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+      box-shadow: var(--shadow); padding: 14px;
+    }
+    .panel h2 { margin: 0 0 8px 0; font-size: 16px; }
+    .details {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 14px;
+    }
+    .details .big-symbol {
+      grid-column: 1 / -1; text-align: center; font-size: 40px; font-weight: 700;
+    }
+    .chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 999px; background: var(--chip-bg); color: var(--chip-text); font-size: 12px; }
+    .legend { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    .chip.active { outline: 2px solid var(--accent); }
+
+    .table-wrapper { overflow-x: auto; padding-bottom: 8px; }
+    .axis-grid { display: grid; grid-template-columns: repeat(18, 64px); gap: 8px; padding: 8px; color: var(--muted); font-size: 12px; }
+    @media (max-width: 480px) { .axis-grid { grid-template-columns: repeat(18, 48px); } }
+    .axis-cell { text-align: center; }
+    .periodic-grid {
+      display: grid;
+      grid-template-columns: repeat(18, 64px);
+      grid-auto-rows: 64px;
+      gap: 8px; padding: 8px;
+      min-width: calc(18 * 64px + 17 * 8px + 16px);
+    }
+    @media (max-width: 480px) {
+      .periodic-grid { grid-template-columns: repeat(18, 48px); grid-auto-rows: 48px; min-width: calc(18 * 48px + 17 * 8px + 16px); }
+    }
+
+    .tile {
+      border: 1px solid var(--border); border-radius: 10px; background: var(--bg);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 6px; cursor: pointer; box-shadow: var(--shadow);
+      transition: transform .08s ease, border-color .12s ease, background-color .12s ease;
+    }
+    .tile:hover { transform: translateY(-2px); border-color: var(--accent); }
+    .tile.selected { outline: 2px solid var(--accent); }
+    .num { font-size: 11px; color: var(--muted); align-self: flex-start; }
+    .sym { font-size: 18px; font-weight: 700; }
+    .nm { font-size: 11px; color: var(--muted); }
+
+    /* 分类颜色（边框/背景轻微增强） */
+    .c-稀有气体 { background: rgba(99, 102, 241, 0.08); }
+    .c-卤素 { background: rgba(34,197,94,0.08); }
+    .c-碱金属 { background: rgba(245,158,11,0.10); }
+    .c-碱土金属 { background: rgba(234,179,8,0.10); }
+    .c-过渡金属 { background: rgba(59,130,246,0.08); }
+    .c-金属 { background: rgba(148,163,184,0.12); }
+    .c-类金属 { background: rgba(16,185,129,0.10); }
+    .c-非金属 { background: rgba(236,72,153,0.08); }
+    .c-镧系 { background: rgba(168,85,247,0.10); }
+    .c-锕系 { background: rgba(147,51,234,0.10); }
+
+    footer { color: var(--muted); font-size: 12px; text-align: center; padding: 16px; }
+    .kbd { background: var(--kbd-bg); color: var(--kbd-text); padding: 2px 6px; border-radius: 6px; }
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.35); display: none; align-items: center; justify-content: center; }
+    .modal { background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); max-width: 520px; width: calc(100% - 32px); padding: 16px; }
+    .modal h3 { margin: 0 0 10px 0; font-size: 16px; }
+    .modal ul { margin: 0; padding-left: 18px; }
+    .modal .actions { display: flex; justify-content: flex-end; margin-top: 12px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container">
+      <div class="topbar">
+        <div class="brand">
+          <h1>元素周期表查询</h1>
+          <button class="theme-btn" id="themeToggle" aria-label="切换主题"><span>浅/深主题</span></button>
+        </div>
+        <div class="search">
+          <input id="searchInput" type="text" placeholder="按名称/符号/原子序数搜索（例如：H、氢、1）" />
+          <button id="clearSearch" class="clear-btn">清空</button>
+          <button id="helpBtn" class="clear-btn">帮助</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="layout">
+      <aside class="panel" id="infoPanel">
+        <h2>元素详情</h2>
+        <div class="details" id="details">
+          <div class="big-symbol">选择一个元素</div>
+          <div>名称：<span class="d-name">-</span></div>
+          <div>符号：<span class="d-symbol">-</span></div>
+          <div>原子序数：<span class="d-number">-</span></div>
+          <div>族（列）：<span class="d-group">-</span></div>
+          <div>周期（行）：<span class="d-period">-</span></div>
+          <div style="grid-column: 1 / -1">分类：<span class="chip d-category">-</span></div>
+        </div>
+        <div class="toolbar" style="display:flex; gap:8px; margin-top:10px;">
+          <button class="theme-btn" id="copyLinkBtn">复制链接</button>
+          <button class="theme-btn" id="exportPngBtn">导出图片</button>
+        </div>
+        <div class="legend" id="legend"></div>
+      </aside>
+
+      <section class="panel table-wrapper">
+        <div class="axis-grid" id="axisTop"></div>
+        <div class="periodic-grid" id="grid"></div>
+        <div style="display:flex; justify-content:flex-end; padding: 0 8px 8px; color: var(--muted); font-size: 12px;">
+          <span id="matchCount">匹配：118/118</span>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <footer>
+    小技巧：输入 <span class="kbd">/</span> 快速聚焦搜索；按 <span class="kbd">Esc</span> 清空搜索。
+  </footer>
+
+  <div class="modal-backdrop" id="helpModal">
+    <div class="modal">
+      <h3>使用说明与快捷键</h3>
+      <ul>
+        <li>搜索：输入名称、符号或原子序数进行过滤。</li>
+        <li>分类筛选：点击图例标签筛选，再次点击清除筛选。</li>
+        <li>选择元素：点击卡片或使用方向键移动选中。</li>
+        <li>快捷键：<span class="kbd">/</span> 聚焦搜索，<span class="kbd">Esc</span> 清空搜索。</li>
+        <li>分享：点击“复制链接”将当前元素链接复制到剪贴板。</li>
+      </ul>
+      <div class="actions">
+        <button class="theme-btn" id="closeHelp">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 元素数据（中文名以通用译名为主，部分新元素为英文名）
+    // 仅含必要字段：number, symbol, name, group(1-18), period(1-7; 8=镧系行, 9=锕系行)
+    const E = (n,s,cn,g,p) => ({ number:n, symbol:s, name:cn, group:g, period:p });
+    const elements = [
+      // Period 1
+      E(1,'H','氢',1,1), E(2,'He','氦',18,1),
+      // Period 2
+      E(3,'Li','锂',1,2), E(4,'Be','铍',2,2), E(5,'B','硼',13,2), E(6,'C','碳',14,2), E(7,'N','氮',15,2), E(8,'O','氧',16,2), E(9,'F','氟',17,2), E(10,'Ne','氖',18,2),
+      // Period 3
+      E(11,'Na','钠',1,3), E(12,'Mg','镁',2,3), E(13,'Al','铝',13,3), E(14,'Si','硅',14,3), E(15,'P','磷',15,3), E(16,'S','硫',16,3), E(17,'Cl','氯',17,3), E(18,'Ar','氩',18,3),
+      // Period 4
+      E(19,'K','钾',1,4), E(20,'Ca','钙',2,4), E(21,'Sc','钪',3,4), E(22,'Ti','钛',4,4), E(23,'V','钒',5,4), E(24,'Cr','铬',6,4), E(25,'Mn','锰',7,4), E(26,'Fe','铁',8,4), E(27,'Co','钴',9,4), E(28,'Ni','镍',10,4), E(29,'Cu','铜',11,4), E(30,'Zn','锌',12,4), E(31,'Ga','镓',13,4), E(32,'Ge','锗',14,4), E(33,'As','砷',15,4), E(34,'Se','硒',16,4), E(35,'Br','溴',17,4), E(36,'Kr','氪',18,4),
+      // Period 5
+      E(37,'Rb','铷',1,5), E(38,'Sr','锶',2,5), E(39,'Y','钇',3,5), E(40,'Zr','锆',4,5), E(41,'Nb','铌',5,5), E(42,'Mo','钼',6,5), E(43,'Tc','锝',7,5), E(44,'Ru','钌',8,5), E(45,'Rh','铑',9,5), E(46,'Pd','钯',10,5), E(47,'Ag','银',11,5), E(48,'Cd','镉',12,5), E(49,'In','铟',13,5), E(50,'Sn','锡',14,5), E(51,'Sb','锑',15,5), E(52,'Te','碲',16,5), E(53,'I','碘',17,5), E(54,'Xe','氙',18,5),
+      // Period 6
+      E(55,'Cs','铯',1,6), E(56,'Ba','钡',2,6), E(57,'La','镧',3,6), E(72,'Hf','铪',4,6), E(73,'Ta','钽',5,6), E(74,'W','钨',6,6), E(75,'Re','铼',7,6), E(76,'Os','锇',8,6), E(77,'Ir','铱',9,6), E(78,'Pt','铂',10,6), E(79,'Au','金',11,6), E(80,'Hg','汞',12,6), E(81,'Tl','铊',13,6), E(82,'Pb','铅',14,6), E(83,'Bi','铋',15,6), E(84,'Po','钋',16,6), E(85,'At','砹',17,6), E(86,'Rn','氡',18,6),
+      // Lanthanides row (Period 8, columns 4-18)
+      E(58,'Ce','铈',4,8), E(59,'Pr','镨',5,8), E(60,'Nd','钕',6,8), E(61,'Pm','钷',7,8), E(62,'Sm','钐',8,8), E(63,'Eu','铕',9,8), E(64,'Gd','钆',10,8), E(65,'Tb','铽',11,8), E(66,'Dy','镝',12,8), E(67,'Ho','钬',13,8), E(68,'Er','铒',14,8), E(69,'Tm','铥',15,8), E(70,'Yb','镱',16,8), E(71,'Lu','镥',18,8),
+      // Period 7
+      E(87,'Fr','钫',1,7), E(88,'Ra','镭',2,7), E(89,'Ac','锕',3,7), E(104,'Rf','𫟼(Rf)',4,7), E(105,'Db','𬭊(Db)',5,7), E(106,'Sg','𬭳(Sg)',6,7), E(107,'Bh','𬭛(Bh)',7,7), E(108,'Hs','𬭶(Hs)',8,7), E(109,'Mt','鿔(Mt)',9,7), E(110,'Ds','鿭(Ds)',10,7), E(111,'Rg','𫓧(Rg)',11,7), E(112,'Cn','鿬(Cn)',12,7), E(113,'Nh','鉨(Nh)',13,7), E(114,'Fl','鈇(Fl)',14,7), E(115,'Mc','镆(Mc)',15,7), E(116,'Lv','𫟷(Lv)',16,7), E(117,'Ts','𫟹(Ts)',17,7), E(118,'Og','𫟼(Og)',18,7),
+      // Actinides row (Period 9, columns 4-18)
+      E(90,'Th','钍',4,9), E(91,'Pa','镤',5,9), E(92,'U','铀',6,9), E(93,'Np','镎',7,9), E(94,'Pu','钚',8,9), E(95,'Am','镅',9,9), E(96,'Cm','锔',10,9), E(97,'Bk','锫',11,9), E(98,'Cf','锎',12,9), E(99,'Es','锿',13,9), E(100,'Fm','镄',14,9), E(101,'Md','钔',15,9), E(102,'No','锘',16,9), E(103,'Lr','𫓵(Lr)',18,9),
+    ];
+
+    // 分类计算（尽量贴近常见分类）
+    function classify(el){
+      const n = el.number, g = el.group, p = el.period;
+      if (p === 8) return '镧系';
+      if (p === 9) return '锕系';
+      if (n === 1) return '非金属';
+      if (g === 1) return '碱金属';
+      if (g === 2) return '碱土金属';
+      if (g === 17) return '卤素';
+      if (g === 18) return '稀有气体';
+      if (g >= 3 && g <= 12) return '过渡金属';
+      // p区分：粗略划分金属/类金属/非金属
+      const metalloidSet = new Set(['B','Si','Ge','As','Sb','Te']);
+      const nonmetalSet = new Set(['C','N','O','P','S','Se']);
+      if (metalloidSet.has(el.symbol)) return '类金属';
+      if (nonmetalSet.has(el.symbol)) return '非金属';
+      return '金属';
+    }
+
+    // 渲染图例
+    const categories = ['非金属','类金属','金属','过渡金属','碱金属','碱土金属','卤素','稀有气体','镧系','锕系'];
+    const legendEl = document.getElementById('legend');
+    categories.forEach(c=>{
+      const span = document.createElement('span');
+      span.className = 'chip c-'+c;
+      span.textContent = c;
+      legendEl.appendChild(span);
+    });
+    // 分类筛选状态
+    let activeCategory = '';
+    Array.from(legendEl.children).forEach(chip=>{
+      chip.addEventListener('click', ()=>{
+        const cat = chip.textContent;
+        if (activeCategory === cat) { activeCategory = ''; chip.classList.remove('active'); }
+        else {
+          activeCategory = cat;
+          Array.from(legendEl.children).forEach(c=> c.classList.remove('active'));
+          chip.classList.add('active');
+        }
+        applyFilter();
+      });
+    });
+
+    // 渲染网格（按 group 为列，period 为行；镧/锕系独立行）
+    const grid = document.getElementById('grid');
+    const axisTop = document.getElementById('axisTop');
+    // 顶部轴标签（1-18族）
+    for (let i=1;i<=18;i++) {
+      const cell = document.createElement('div');
+      cell.className = 'axis-cell';
+      cell.textContent = i;
+      axisTop.appendChild(cell);
+    }
+    const tileBySymbol = new Map();
+    elements.forEach(el=>{
+      const tile = document.createElement('button');
+      tile.className = 'tile c-' + classify(el);
+      tile.style.gridColumn = el.group;
+      tile.style.gridRow = el.period;
+      tile.setAttribute('data-number', el.number);
+      tile.setAttribute('data-symbol', el.symbol);
+      tile.setAttribute('data-name', el.name);
+      tile.setAttribute('data-group', el.group);
+      tile.setAttribute('data-period', el.period);
+      tile.setAttribute('data-category', classify(el));
+      tile.innerHTML = `
+        <div class="num">${el.number}</div>
+        <div class="sym">${el.symbol}</div>
+        <div class="nm">${el.name}</div>
+      `;
+      tile.addEventListener('click', ()=> selectElement(el));
+      grid.appendChild(tile);
+      tileBySymbol.set(el.symbol, tile);
+    });
+
+    // 选择元素并在详情面板展示
+    const details = document.getElementById('details');
+    let currentSymbol = null;
+    function selectElement(el){
+      // 高亮选中卡片
+      if (currentSymbol && tileBySymbol.has(currentSymbol)) {
+        tileBySymbol.get(currentSymbol).classList.remove('selected');
+      }
+      const tile = tileBySymbol.get(el.symbol);
+      if (tile) {
+        tile.classList.add('selected');
+        tile.scrollIntoView({behavior:'smooth', block:'nearest', inline:'nearest'});
+      }
+      details.querySelector('.big-symbol').textContent = el.symbol;
+      details.querySelector('.d-name').textContent = el.name;
+      details.querySelector('.d-symbol').textContent = el.symbol;
+      details.querySelector('.d-number').textContent = el.number;
+      details.querySelector('.d-group').textContent = el.group;
+      details.querySelector('.d-period').textContent = (el.period<=7?el.period:(el.period===8?'镧系':'锕系'));
+      const cat = classify(el);
+      const chip = details.querySelector('.d-category');
+      chip.textContent = cat;
+      categories.forEach(c=> chip.classList.remove('c-'+c));
+      chip.classList.add('c-'+cat);
+      currentSymbol = el.symbol;
+      // 更新URL哈希，便于分享与深链
+      try { location.hash = el.symbol; } catch {}
+    }
+
+    // 搜索过滤
+    const searchInput = document.getElementById('searchInput');
+    const clearSearch = document.getElementById('clearSearch');
+    const matchCountEl = document.getElementById('matchCount');
+    function applyFilter(){
+      const q = searchInput.value.trim().toLowerCase();
+      const tiles = grid.querySelectorAll('.tile');
+      let shown = 0;
+      tiles.forEach(tile=>{
+        const name = tile.getAttribute('data-name').toLowerCase();
+        const symbol = tile.getAttribute('data-symbol').toLowerCase();
+        const number = tile.getAttribute('data-number');
+        const cat = tile.getAttribute('data-category');
+        const matchSearch = !q || name.includes(q) || symbol.includes(q) || number === q;
+        const matchCat = !activeCategory || cat === activeCategory;
+        const visible = (matchSearch && matchCat);
+        tile.style.display = visible ? '' : 'none';
+        if (visible) shown++;
+      });
+      matchCountEl.textContent = `匹配：${shown}/118`;
+    }
+    searchInput.addEventListener('input', applyFilter);
+    clearSearch.addEventListener('click', ()=>{ searchInput.value=''; applyFilter(); searchInput.focus(); });
+    // 键盘快捷键与导航
+    function moveSelection(dx, dy){
+      if (!currentSymbol) return;
+      const cur = elements.find(x=> x.symbol === currentSymbol);
+      if (!cur) return;
+      let tg = cur.group + dx;
+      let tp = cur.period + dy;
+      if (tg < 1 || tg > 18 || tp < 1 || tp > 9) return;
+      const next = elements.find(x=> x.group === tg && x.period === tp);
+      if (!next) return;
+      const tile = tileBySymbol.get(next.symbol);
+      if (tile && tile.style.display !== 'none') selectElement(next);
+    }
+
+    window.addEventListener('keydown', (e)=>{
+      const activeTag = document.activeElement && document.activeElement.tagName.toLowerCase();
+      const typing = activeTag === 'input' || activeTag === 'textarea';
+      if (e.key === '/') { e.preventDefault(); searchInput.focus(); return; }
+      if (e.key === 'Escape') { searchInput.value=''; applyFilter(); return; }
+      if (typing) return;
+      if (e.key === 'ArrowLeft') { e.preventDefault(); moveSelection(-1, 0); }
+      else if (e.key === 'ArrowRight') { e.preventDefault(); moveSelection(1, 0); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); moveSelection(0, -1); }
+      else if (e.key === 'ArrowDown') { e.preventDefault(); moveSelection(0, 1); }
+    });
+
+    // 主题切换（持久化）
+    const themeToggle = document.getElementById('themeToggle');
+    function setTheme(mode){
+      if (mode === 'dark') document.body.classList.add('dark');
+      else document.body.classList.remove('dark');
+      localStorage.setItem('yzq_theme', mode);
+    }
+    const saved = localStorage.getItem('yzq_theme');
+    const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    setTheme(saved ? saved : (prefersDark ? 'dark' : 'light'));
+    themeToggle.addEventListener('click', ()=>{
+      const isDark = document.body.classList.contains('dark');
+      setTheme(isDark ? 'light' : 'dark');
+    });
+
+    // 默认选中或根据URL哈希选中
+    const initialHash = (location.hash || '').replace('#','');
+    const initEl = elements.find(x=> x.symbol === initialHash) || elements[0];
+    selectElement(initEl);
+
+    // 复制链接按钮
+    const copyLinkBtn = document.getElementById('copyLinkBtn');
+    copyLinkBtn.addEventListener('click', async ()=>{
+      const url = location.href;
+      try {
+        await navigator.clipboard.writeText(url);
+        copyLinkBtn.textContent = '已复制！';
+        setTimeout(()=> copyLinkBtn.textContent = '复制链接', 1200);
+      } catch {
+        // 兼容不支持剪贴板API的环境
+        const ta = document.createElement('textarea');
+        ta.value = url; document.body.appendChild(ta); ta.select();
+        document.execCommand('copy'); document.body.removeChild(ta);
+        copyLinkBtn.textContent = '已复制！';
+        setTimeout(()=> copyLinkBtn.textContent = '复制链接', 1200);
+      }
+    });
+
+    // 导出元素卡片为PNG
+    const exportPngBtn = document.getElementById('exportPngBtn');
+    const catColor = {
+      '非金属': '#ec4899', '类金属': '#10b981', '金属': '#94a3b8', '过渡金属': '#3b82f6',
+      '碱金属': '#f59e0b', '碱土金属': '#eab308', '卤素': '#22c55e', '稀有气体': '#6366f1',
+      '镧系': '#a855f7', '锕系': '#9333ea'
+    };
+    exportPngBtn.addEventListener('click', ()=>{
+      if (!currentSymbol) return;
+      const el = elements.find(x=> x.symbol === currentSymbol);
+      if (!el) return;
+      const cat = classify(el);
+      const canvas = document.createElement('canvas');
+      const size = 480; // 2x 高清
+      canvas.width = size; canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      // 背景
+      ctx.fillStyle = '#ffffff';
+      if (document.body.classList.contains('dark')) ctx.fillStyle = '#0b0f14';
+      ctx.fillRect(0,0,size,size);
+      // 卡片底色
+      ctx.fillStyle = catColor[cat] || '#2563eb';
+      ctx.globalAlpha = 0.12; ctx.fillRect(24,24,size-48,size-48); ctx.globalAlpha = 1;
+      // 边框
+      ctx.strokeStyle = catColor[cat] || '#2563eb';
+      ctx.lineWidth = 4; ctx.strokeRect(24,24,size-48,size-48);
+      // 原子序数
+      ctx.fillStyle = document.body.classList.contains('dark') ? '#e6edf3' : '#1f2328';
+      ctx.font = 'bold 40px Segoe UI, Arial, sans-serif';
+      ctx.fillText(String(el.number), 40, 80);
+      // 符号
+      ctx.font = 'bold 180px Segoe UI, Arial, sans-serif';
+      const sym = el.symbol;
+      const symW = ctx.measureText(sym).width;
+      ctx.fillText(sym, (size - symW)/2, 280);
+      // 名称
+      ctx.font = 'bold 40px Segoe UI, Arial, sans-serif';
+      const nameW = ctx.measureText(el.name).width;
+      ctx.fillText(el.name, (size - nameW)/2, 340);
+      // 分类与族/周期
+      ctx.font = '24px Segoe UI, Arial, sans-serif';
+      const info = `${cat} · 族 ${el.group} · 周期 ${el.period<=7?el.period:(el.period===8?'镧系':'锕系')}`;
+      const infoW = ctx.measureText(info).width;
+      ctx.fillText(info, (size - infoW)/2, 380);
+      // 水印
+      ctx.globalAlpha = 0.08; ctx.font = 'bold 120px Segoe UI, Arial, sans-serif';
+      ctx.fillText('元素周期表查询', 40, size-60); ctx.globalAlpha = 1;
+      const url = canvas.toDataURL('image/png');
+      const a = document.createElement('a');
+      a.href = url; a.download = `${el.symbol}-${el.name}.png`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    });
+
+    // 帮助弹窗
+    const helpBtn = document.getElementById('helpBtn');
+    const helpModal = document.getElementById('helpModal');
+    const closeHelp = document.getElementById('closeHelp');
+    helpBtn.addEventListener('click', ()=>{ helpModal.style.display = 'flex'; });
+    closeHelp.addEventListener('click', ()=>{ helpModal.style.display = 'none'; });
+    helpModal.addEventListener('click', (e)=>{ if (e.target === helpModal) helpModal.style.display = 'none'; });
+  </script>
+</body>
+</html>

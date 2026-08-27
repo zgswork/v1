@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>二分法猜数字游戏</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f0f8ff; /* 浅蓝色背景 */
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            color: #333;
+        }
+        
+        .container {
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+            width: 90%;
+            max-width: 500px;
+            text-align: center;
+        }
+        
+        h1 {
+            color: #4682b4;
+            margin-top: 0;
+        }
+        
+        .range-input {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        input {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        
+        button {
+            background-color: #4682b4;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+        
+        button:hover {
+            background-color: #36648b;
+        }
+        
+        .game-area {
+            margin-top: 20px;
+            display: none;
+        }
+        
+        .result {
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        
+        .hint {
+            color: #4682b4;
+            font-style: italic;
+            margin-top: 10px;
+        }
+        
+        .attempts {
+            margin-top: 15px;
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .footer {
+            margin-top: 30px;
+            font-size: 12px;
+            color: #666;
+            text-align: center;
+        }
+        
+        @media (max-width: 480px) {
+            .container {
+                padding: 20px;
+                width: 95%;
+            }
+            
+            .range-input {
+                flex-direction: column;
+                align-items: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>二分法猜数字游戏</h1>
+        
+        <div class="range-input">
+            <div>
+                <label for="min-range">最小值:</label>
+                <input type="number" id="min-range" value="1">
+            </div>
+            <div>
+                <label for="max-range">最大值:</label>
+                <input type="number" id="max-range" value="100">
+            </div>
+        </div>
+        
+        <button id="start-btn">开始游戏</button>
+        
+        <div class="game-area" id="game-area">
+            <p>我已经想好了一个 <span id="current-range"></span> 之间的数字</p>
+            <div>
+                <input type="number" id="guess-input" placeholder="输入你的猜测">
+                <button id="guess-btn">猜</button>
+            </div>
+            <div class="result" id="result"></div>
+            <div class="hint" id="hint"></div>
+            <div class="attempts" id="attempts">尝试次数: 0</div>
+        </div>
+        
+        <div class="footer">
+            本工具由兔子先生用deepseek开发<br>
+            技术支持: <a href="https://t.zsxq.com/y1934" target="_blank">https://t.zsxq.com/y1934</a>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const minRangeInput = document.getElementById('min-range');
+            const maxRangeInput = document.getElementById('max-range');
+            const startBtn = document.getElementById('start-btn');
+            const gameArea = document.getElementById('game-area');
+            const currentRangeSpan = document.getElementById('current-range');
+            const guessInput = document.getElementById('guess-input');
+            const guessBtn = document.getElementById('guess-btn');
+            const resultDiv = document.getElementById('result');
+            const hintDiv = document.getElementById('hint');
+            const attemptsDiv = document.getElementById('attempts');
+            
+            let targetNumber = 0;
+            let attempts = 0;
+            let minRange = 1;
+            let maxRange = 100;
+            
+            // 开始游戏
+            startBtn.addEventListener('click', function() {
+                minRange = parseInt(minRangeInput.value);
+                maxRange = parseInt(maxRangeInput.value);
+                
+                // 验证输入范围
+                if (minRange >= maxRange) {
+                    alert('最大值必须大于最小值');
+                    return;
+                }
+                
+                // 生成随机数
+                targetNumber = Math.floor(Math.random() * (maxRange - minRange + 1)) + minRange;
+                attempts = 0;
+                
+                // 更新UI
+                currentRangeSpan.textContent = `${minRange} - ${maxRange}`;
+                gameArea.style.display = 'block';
+                resultDiv.textContent = '';
+                hintDiv.textContent = '';
+                attemptsDiv.textContent = '尝试次数: 0';
+                guessInput.value = '';
+                guessInput.focus();
+                
+                console.log('目标数字:', targetNumber); // 用于调试
+            });
+            
+            // 猜测数字
+            guessBtn.addEventListener('click', makeGuess);
+            guessInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    makeGuess();
+                }
+            });
+            
+            function makeGuess() {
+                const guess = parseInt(guessInput.value);
+                
+                // 验证输入
+                if (isNaN(guess)) {
+                    resultDiv.textContent = '请输入有效的数字';
+                    resultDiv.style.color = 'red';
+                    return;
+                }
+                
+                if (guess < minRange || guess > maxRange) {
+                    resultDiv.textContent = `请输入 ${minRange} 到 ${maxRange} 之间的数字`;
+                    resultDiv.style.color = 'red';
+                    return;
+                }
+                
+                attempts++;
+                attemptsDiv.textContent = `尝试次数: ${attempts}`;
+                
+                // 比较猜测和答案
+                if (guess === targetNumber) {
+                    resultDiv.textContent = `恭喜你！猜对了！数字是 ${targetNumber}`;
+                    resultDiv.style.color = 'green';
+                    hintDiv.textContent = '';
+                    
+                    // 禁用输入和按钮
+                    guessInput.disabled = true;
+                    guessBtn.disabled = true;
+                } else {
+                    if (guess < targetNumber) {
+                        resultDiv.textContent = '太小了！';
+                        hintDiv.textContent = '提示：尝试更大的数字';
+                        minRangeInput.value = guess + 1; // 更新最小值
+                    } else {
+                        resultDiv.textContent = '太大了！';
+                        hintDiv.textContent = '提示：尝试更小的数字';
+                        maxRangeInput.value = guess - 1; // 更新最大值
+                    }
+                    resultDiv.style.color = '#ff8c00';
+                    
+                    // 显示二分法建议
+                    const suggestedGuess = Math.floor((parseInt(minRangeInput.value) + parseInt(maxRangeInput.value)) / 2);
+                    hintDiv.textContent += ` (建议尝试: ${suggestedGuess})`;
+                }
+                
+                guessInput.value = '';
+                guessInput.focus();
+            }
+        });
+    </script>
+</body>
+</html>

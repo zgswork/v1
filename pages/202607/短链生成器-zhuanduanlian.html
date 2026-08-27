@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>短链生成器</title>
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 Google Fonts 的 Inter 字体 -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* 自定义样式 */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* 加载动画样式 */
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-radius: 50%;
+            border-top: 4px solid #3498db;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+    <div class="w-full max-w-2xl mx-auto p-4 sm:p-6 md:p-8">
+        <div class="bg-white rounded-2xl shadow-lg p-8">
+            <h1 class="text-3xl font-bold text-center text-gray-800 mb-2">短链生成器</h1>
+            <p class="text-center text-gray-500 mb-8">快速、简单、高效地缩短您的链接</p>
+
+            <!-- URL 输入表单 -->
+            <form id="shorten-form" class="space-y-4">
+                <div class="relative">
+                    <svg class="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.72"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.72-1.72"></path></svg>
+                    <input type="url" id="url-input" placeholder="请输入或粘贴您的长链接..." class="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition duration-200" required>
+                </div>
+                <button type="submit" class="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-300 transition duration-300 ease-in-out transform hover:-translate-y-1">
+                    生成短链接
+                </button>
+            </form>
+
+            <!-- 加载动画 -->
+            <div id="loader" class="hidden flex justify-center items-center my-6">
+                <div class="loader"></div>
+            </div>
+
+            <!-- 结果显示区域 -->
+            <div id="result" class="hidden mt-8 p-4 bg-gray-50 border-2 border-dashed border-gray-200 rounded-lg">
+                <p class="text-sm text-gray-600 mb-2">🎉 生成成功！这是您的短链接：</p>
+                <div class="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-4">
+                    <a id="short-url" href="#" class="flex-grow text-blue-600 font-medium break-all hover:underline cursor-pointer"></a>
+                    <button id="copy-button" class="w-full sm:w-auto bg-green-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-green-600 focus:outline-none focus:ring-4 focus:ring-green-300 transition duration-300">
+                        复制链接
+                    </button>
+                </div>
+                <p id="copy-feedback" class="text-sm text-green-700 font-medium mt-2 text-center sm:text-left hidden">已复制到剪贴板！</p>
+                <p class="text-xs text-gray-500 mt-2">💡 点击短链接可直接跳转到原始链接</p>
+            </div>
+
+            <!-- 错误提示 -->
+            <div id="error-message" class="hidden mt-6 p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg">
+                <p id="error-text"></p>
+            </div>
+        </div>
+        <footer class="text-center mt-8 text-gray-500 text-sm">
+            <p>&copy; <span id="year"></span> 短链生成器. 模拟后端实现.</p>
+        </footer>
+    </div>
+
+    <script>
+        // --- 模拟后端和数据库 ---
+        const linkDatabase = JSON.parse(localStorage.getItem('linkDatabase')) || {};
+        const MOCK_DOMAIN = "short.ly/"; // 模拟的短域名
+        
+        /**
+         * 保存数据库状态到 localStorage
+         */
+        function saveDatabase() {
+            localStorage.setItem('linkDatabase', JSON.stringify(linkDatabase));
+        }
+
+        // --- 核心功能：短码生成 ---
+        function generateShortCode(length = 6) { // 缩短到6位
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+            let result = '';
+            for (let i = 0; i < length; i++) {
+                result += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return result;
+        }
+
+        function generateUniqueShortCode() {
+            let shortCode;
+            do {
+                shortCode = generateShortCode();
+            } while (linkDatabase[shortCode]);
+            return shortCode;
+        }
+
+        function createShortLink(originalUrl) {
+            return new Promise((resolve, reject) => {
+                setTimeout(() => {
+                    const existingEntry = Object.entries(linkDatabase).find(
+                        ([_, value]) => value.originalUrl === originalUrl
+                    );
+
+                    if (existingEntry) {
+                        resolve(existingEntry[0]);
+                        return;
+                    }
+
+                    const shortCode = generateUniqueShortCode();
+                    linkDatabase[shortCode] = {
+                        originalUrl: originalUrl,
+                        createdAt: Date.now(),
+                        clickCount: 0
+                    };
+                    
+                    saveDatabase();
+                    console.log('数据库状态已保存:', linkDatabase);
+                    resolve(shortCode);
+                }, 500);
+            });
+        }
+
+        // --- 前端交互逻辑 ---
+        document.addEventListener('DOMContentLoaded', () => {
+            const shortenForm = document.getElementById('shorten-form');
+            const urlInput = document.getElementById('url-input');
+            const loader = document.getElementById('loader');
+            const resultDiv = document.getElementById('result');
+            const errorDiv = document.getElementById('error-message');
+            const errorText = document.getElementById('error-text');
+            const shortUrlLink = document.getElementById('short-url');
+            const copyButton = document.getElementById('copy-button');
+            const copyFeedback = document.getElementById('copy-feedback');
+
+            document.getElementById('year').textContent = new Date().getFullYear();
+
+            shortenForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                resultDiv.classList.add('hidden');
+                errorDiv.classList.add('hidden');
+                copyFeedback.classList.add('hidden');
+                loader.classList.remove('hidden');
+
+                let longUrl = urlInput.value.trim();
+
+                if (!longUrl) {
+                    showError('链接不能为空！');
+                    return;
+                }
+                if (!longUrl.startsWith('http://') && !longUrl.startsWith('https://')) {
+                    showError('请输入一个有效的 URL，必须以 http:// 或 https:// 开头。');
+                    return;
+                }
+                try {
+                    new URL(longUrl);
+                } catch (_) {
+                    showError('URL 格式无效，请检查后重试。');
+                    return;
+                }
+
+                try {
+                    const shortCode = await createShortLink(longUrl);
+                    
+                    // 修复：显示简洁的短链格式
+                    const displayUrl = MOCK_DOMAIN + shortCode;
+                    const baseUrl = window.location.href.split('#')[0];
+                    const functionalUrl = `${baseUrl}#${shortCode}`;
+                    
+                    // 显示简洁的短链，但实际跳转使用完整URL
+                    shortUrlLink.textContent = displayUrl;
+                    shortUrlLink.setAttribute('data-full-url', functionalUrl);
+                    shortUrlLink.setAttribute('data-short-code', shortCode);
+                    
+                    resultDiv.classList.remove('hidden');
+
+                } catch (err) {
+                    showError('生成短链接时发生未知错误。');
+                } finally {
+                    loader.classList.add('hidden');
+                }
+            });
+
+            // 短链点击事件
+            shortUrlLink.addEventListener('click', (e) => {
+                e.preventDefault();
+                const shortCode = shortUrlLink.getAttribute('data-short-code');
+                if (shortCode && linkDatabase[shortCode]) {
+                    const entry = linkDatabase[shortCode];
+                    entry.clickCount++;
+                    saveDatabase();
+                    console.log(`短码 '${shortCode}' 被点击，总点击次数: ${entry.clickCount}`);
+                    window.open(entry.originalUrl, '_blank');
+                } else {
+                    showError('短链接无效或已过期');
+                }
+            });
+
+            copyButton.addEventListener('click', () => {
+                // 复制简洁的短链格式
+                const urlToCopy = shortUrlLink.textContent;
+                
+                navigator.clipboard.writeText(urlToCopy).then(() => {
+                    copyFeedback.classList.remove('hidden');
+                    copyButton.textContent = '已复制!';
+                    copyButton.classList.remove('bg-green-500', 'hover:bg-green-600');
+                    copyButton.classList.add('bg-indigo-500');
+
+                    setTimeout(() => {
+                        copyFeedback.classList.add('hidden');
+                        copyButton.textContent = '复制链接';
+                        copyButton.classList.remove('bg-indigo-500');
+                        copyButton.classList.add('bg-green-500', 'hover:bg-green-600');
+                    }, 2000);
+                }).catch(err => {
+                    console.error('无法复制链接: ', err);
+                    showError('复制失败，您的浏览器可能不支持该功能。');
+                });
+            });
+
+            function showError(message) {
+                errorText.textContent = message;
+                errorDiv.classList.remove('hidden');
+                loader.classList.add('hidden');
+            }
+
+            // --- 核心功能：重定向服务 ---
+            function handleRedirect() {
+                const shortCode = window.location.hash.substring(1);
+                
+                if (shortCode && linkDatabase[shortCode]) {
+                    const entry = linkDatabase[shortCode];
+                    entry.clickCount++;
+                    saveDatabase();
+                    console.log(`短码 '${shortCode}' 被点击，总点击次数: ${entry.clickCount}`);
+                    window.location.replace(entry.originalUrl);
+                } else if (shortCode) {
+                    showError(`短链接无效或已过期: ${shortCode}`);
+                }
+            }
+
+            // 页面加载时立即执行重定向检查
+            handleRedirect();
+        });
+    </script>
+</body>
+</html>

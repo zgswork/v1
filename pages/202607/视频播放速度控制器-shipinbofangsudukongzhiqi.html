@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>视频播放速度控制器</title>
+  <style>
+    :root {
+      --bg: #f7f7f9;
+      --fg: #1f2328;
+      --panel: #ffffff;
+      --border: #e4e7ec;
+      --accent: #3b82f6;
+      --accent-fg: #ffffff;
+      --muted-fg: #6b7280;
+      --shadow: 0 6px 24px rgba(16, 24, 40, 0.08);
+    }
+    :root[data-theme="dark"] {
+      --bg: #0f1115;
+      --fg: #e6edf3;
+      --panel: #12161c;
+      --border: #1f2733;
+      --accent: #60a5fa;
+      --accent-fg: #0b1220;
+      --muted-fg: #94a3b8;
+      --shadow: 0 8px 28px rgba(2, 6, 23, 0.45);
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+      line-height: 1.6;
+    }
+
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 16px;
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .title { font-size: 20px; font-weight: 600; }
+
+    .theme-toggle {
+      appearance: none;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      color: var(--fg);
+      padding: 8px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: transform .05s ease, background .2s ease, border-color .2s ease;
+    }
+    .theme-toggle:hover { border-color: var(--accent); }
+    .theme-toggle:active { transform: scale(0.98); }
+
+    .player {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: var(--shadow);
+      padding: 12px;
+    }
+
+    .video-wrap {
+      position: relative;
+      background: #000;
+      border-radius: 10px;
+      overflow: hidden;
+      aspect-ratio: 16 / 9;
+      display: grid;
+      place-items: center;
+    }
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      background: #000;
+    }
+
+    .drop-hint {
+      position: absolute;
+      inset: 8px;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      color: #e5e7eb;
+      font-size: 14px;
+      pointer-events: none;
+    }
+    #dropZone.dragging .drop-hint { color: #ffffff; }
+
+    .speed-overlay {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      padding: 6px 10px;
+      background: rgba(0,0,0,0.55);
+      color: #fff;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      pointer-events: none;
+      opacity: 0;
+      transform: translateY(-4px);
+      transition: opacity .2s ease, transform .2s ease;
+      z-index: 2;
+    }
+    .speed-overlay.show { opacity: 1; transform: translateY(0); }
+
+    .controls {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+      margin-top: 12px;
+    }
+    @media (min-width: 640px) {
+      .controls {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    .group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    input[type="file"] {
+      max-width: 100%;
+    }
+
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      height: 6px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, var(--accent) 0%, var(--accent) 0%, #cbd5e1 0%);
+      width: 220px;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      background: var(--accent);
+      border: 2px solid var(--accent-fg);
+      cursor: pointer;
+    }
+    input[type="range"]::-moz-range-thumb {
+      width: 18px; height: 18px; border-radius: 50%;
+      background: var(--accent);
+      border: 2px solid var(--accent-fg);
+      cursor: pointer;
+    }
+
+    .speed-label {
+      min-width: 56px; text-align: center; font-variant-numeric: tabular-nums;
+    }
+
+    button {
+      appearance: none;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      color: var(--fg);
+      padding: 8px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background .2s ease, border-color .2s ease, transform .05s ease;
+    }
+    button:hover { border-color: var(--accent); }
+    button:active { transform: scale(0.98); }
+
+    .btn-primary {
+      background: var(--accent);
+      color: var(--accent-fg);
+      border-color: var(--accent);
+    }
+
+    .presets { display: flex; gap: 8px; flex-wrap: wrap; }
+    .preset { min-width: 60px; }
+
+    .info { color: var(--muted-fg); font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="title">视频播放速度控制器</div>
+      <button id="themeToggle" class="theme-toggle" aria-label="切换主题">浅/深主题</button>
+    </div>
+
+    <div class="player" id="dropZone">
+      <div class="video-wrap">
+        <video id="video" controls playsinline></video>
+        <div class="drop-hint" id="dropHint">拖拽视频到此或使用下方选择文件</div>
+        <div class="speed-overlay" id="speedOverlay" aria-live="polite" aria-atomic="true"></div>
+      </div>
+
+      <div class="controls">
+        <div class="group">
+          <label for="fileInput">选择本地视频：</label>
+          <input id="fileInput" type="file" accept="video/*" />
+        </div>
+        <div class="group">
+          <label for="urlInput">视频地址：</label>
+          <input id="urlInput" type="url" placeholder="输入 mp4/webm 直链" style="flex:1; min-width: 220px;">
+          <button id="loadUrl">加载</button>
+        </div>
+
+        <div class="group">
+          <label for="speedRange">播放速度：</label>
+          <input id="speedRange" type="range" min="0.25" max="3" step="0.05" value="1" />
+          <span id="speedLabel" class="speed-label">1.00×</span>
+          <button id="resetSpeed">重置为1×</button>
+          <label for="stepSelect" style="margin-left:8px;">速度步进：</label>
+          <select id="stepSelect">
+            <option value="0.05">0.05</option>
+            <option value="0.1" selected>0.1</option>
+            <option value="0.25">0.25</option>
+            <option value="0.5">0.5</option>
+          </select>
+        </div>
+
+        <div class="group">
+          <span>倍速预设：</span>
+          <div class="presets">
+            <button class="preset" data-speed="0.5">0.5×</button>
+            <button class="preset" data-speed="0.75">0.75×</button>
+            <button class="preset" data-speed="1">1×</button>
+            <button class="preset" data-speed="1.25">1.25×</button>
+            <button class="preset" data-speed="1.5">1.5×</button>
+            <button class="preset" data-speed="2">2×</button>
+            <button class="preset" data-speed="2.5">2.5×</button>
+            <button class="preset" data-speed="3">3×</button>
+          </div>
+        </div>
+
+        <div class="group">
+          <button id="slowDown">- 降速</button>
+          <button id="speedUp">+ 加速</button>
+          <button id="togglePlay" class="btn-primary">播放</button>
+        </div>
+
+        <div class="group">
+          <label for="seekStep">跳转秒数：</label>
+          <select id="seekStep">
+            <option value="5" selected>5</option>
+            <option value="10">10</option>
+            <option value="30">30</option>
+          </select>
+          <button id="seekBack">⏪ 后退</button>
+          <button id="seekFwd">⏩ 快进</button>
+        </div>
+
+        <div class="info">
+           提示：可拖拽视频到播放器；键盘 [ / ] 调整倍速，空格播放/暂停，0 重置为 1×；←/→ 快退/快进（秒数可选）；双击左右半屏或移动端双击跳转；长按“降速/加速”连续调整倍速。
+         </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function() {
+      const doc = document.documentElement;
+      const video = document.getElementById('video');
+      const fileInput = document.getElementById('fileInput');
+      const speedRange = document.getElementById('speedRange');
+      const speedLabel = document.getElementById('speedLabel');
+      const resetSpeedBtn = document.getElementById('resetSpeed');
+      const slowDownBtn = document.getElementById('slowDown');
+      const speedUpBtn = document.getElementById('speedUp');
+      const togglePlayBtn = document.getElementById('togglePlay');
+      const themeToggle = document.getElementById('themeToggle');
+      const dropZone = document.getElementById('dropZone');
+      const dropHint = document.getElementById('dropHint');
+      const urlInput = document.getElementById('urlInput');
+      const loadUrlBtn = document.getElementById('loadUrl');
+      const stepSelect = document.getElementById('stepSelect');
+      const speedOverlay = document.getElementById('speedOverlay');
+      const seekBackBtn = document.getElementById('seekBack');
+      const seekFwdBtn = document.getElementById('seekFwd');
+      const seekStepSelect = document.getElementById('seekStep');
+      try { video.crossOrigin = 'anonymous'; } catch {}
+
+      let step = parseFloat(localStorage.getItem('speedStep'));
+      if (!isFinite(step)) step = parseFloat(stepSelect ? stepSelect.value : 0.1);
+      if (stepSelect) {
+        stepSelect.value = String(step);
+        stepSelect.addEventListener('change', () => {
+          step = parseFloat(stepSelect.value);
+          try { localStorage.setItem('speedStep', String(step)); } catch {}
+        });
+      }
+
+      let seekStep = parseFloat(localStorage.getItem('seekStep'));
+      if (!isFinite(seekStep)) seekStep = parseFloat(seekStepSelect ? seekStepSelect.value : 5);
+      if (seekStepSelect) {
+        seekStepSelect.value = String(seekStep);
+        seekStepSelect.addEventListener('change', () => {
+          seekStep = parseFloat(seekStepSelect.value);
+          try { localStorage.setItem('seekStep', String(seekStep)); } catch {}
+        });
+      }
+
+      // 初始化主题
+      const savedTheme = localStorage.getItem('theme') || 'light';
+      doc.setAttribute('data-theme', savedTheme);
+      updateThemeButtonText();
+
+      themeToggle.addEventListener('click', () => {
+        const next = doc.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+        doc.setAttribute('data-theme', next);
+        localStorage.setItem('theme', next);
+        updateThemeButtonText();
+      });
+
+      function updateThemeButtonText() {
+        const t = doc.getAttribute('data-theme');
+        themeToggle.textContent = t === 'light' ? '切换到深色' : '切换到浅色';
+      }
+
+      // 更新 range 背景显示进度
+      function paintRange() {
+        const min = parseFloat(speedRange.min), max = parseFloat(speedRange.max), val = parseFloat(speedRange.value);
+        const pct = Math.round(((val - min) / (max - min)) * 100);
+        speedRange.style.background = `linear-gradient(90deg, var(--accent) ${pct}%, #cbd5e1 ${pct}%)`;
+      }
+      let overlayTimer;
+      function showSpeedOverlay(text) {
+        if (!speedOverlay) return;
+        speedOverlay.textContent = text;
+        speedOverlay.classList.add('show');
+        clearTimeout(overlayTimer);
+        overlayTimer = setTimeout(() => {
+          speedOverlay.classList.remove('show');
+        }, 900);
+      }
+
+      function seekBy(delta) {
+        if (!isFinite(video.duration) || video.duration <= 0) return;
+        const target = Math.max(0, Math.min(video.currentTime + delta, video.duration));
+        video.currentTime = target;
+        const sign = delta >= 0 ? '+' : '-';
+        showSpeedOverlay(sign + Math.abs(delta).toFixed(0) + 's');
+      }
+
+      // 倍速设置
+      function setSpeed(v) {
+        const min = parseFloat(speedRange.min), max = parseFloat(speedRange.max);
+        const clamped = Math.min(Math.max(v, min), max);
+        video.playbackRate = clamped;
+        speedRange.value = clamped.toFixed(2);
+        speedLabel.textContent = parseFloat(speedRange.value).toFixed(2) + '×';
+        paintRange();
+        try { localStorage.setItem('lastSpeed', String(clamped)); } catch {}
+        showSpeedOverlay(parseFloat(speedRange.value).toFixed(2) + '×');
+      }
+      speedRange.addEventListener('input', () => setSpeed(parseFloat(speedRange.value)));
+      resetSpeedBtn.addEventListener('click', () => setSpeed(1));
+      slowDownBtn.addEventListener('click', () => setSpeed(video.playbackRate - step));
+      speedUpBtn.addEventListener('click', () => setSpeed(video.playbackRate + step));
+      if (seekBackBtn) seekBackBtn.addEventListener('click', () => seekBy(-seekStep));
+      if (seekFwdBtn) seekFwdBtn.addEventListener('click', () => seekBy(seekStep));
+
+      // 长按连续调整倍速
+      let holdTimer = null, holdInterval = null;
+      function scheduleHold(direction) {
+        clearTimeout(holdTimer); clearInterval(holdInterval);
+        holdTimer = setTimeout(() => {
+          holdInterval = setInterval(() => {
+            const next = direction === 'up' ? video.playbackRate + step : video.playbackRate - step;
+            setSpeed(next);
+          }, 120);
+        }, 300);
+      }
+      function stopHold() { clearTimeout(holdTimer); clearInterval(holdInterval); }
+      slowDownBtn.addEventListener('pointerdown', () => scheduleHold('down'));
+      speedUpBtn.addEventListener('pointerdown', () => scheduleHold('up'));
+      ['pointerup','pointercancel','pointerleave'].forEach(ev => {
+        slowDownBtn.addEventListener(ev, stopHold);
+        speedUpBtn.addEventListener(ev, stopHold);
+      });
+
+      togglePlayBtn.addEventListener('click', () => {
+        if (!video.src) return;
+        if (video.paused) { video.play(); } else { video.pause(); }
+      });
+
+      // 文件选择
+      fileInput.addEventListener('change', (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (file) {
+          const url = URL.createObjectURL(file);
+          video.src = url;
+          video.play().catch(() => {});
+          setSpeed(parseFloat(speedRange.value));
+          dropHint.style.display = 'none';
+        }
+      });
+
+      // 网址加载
+      if (loadUrlBtn) {
+        const loadUrl = () => {
+          const url = (urlInput && urlInput.value || '').trim();
+          if (!url) { showSpeedOverlay('请输入视频地址'); return; }
+          try {
+            video.src = url;
+            video.play().catch(() => {});
+            setSpeed(parseFloat(speedRange.value));
+            dropHint.style.display = 'none';
+          } catch (err) {
+            showSpeedOverlay('加载失败');
+          }
+        };
+        loadUrlBtn.addEventListener('click', loadUrl);
+        urlInput && urlInput.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') loadUrl();
+        });
+      }
+
+      // 拖拽加载
+      ['dragenter','dragover'].forEach(ev => dropZone.addEventListener(ev, (e) => {
+        e.preventDefault();
+        dropZone.classList.add('dragging');
+      }));
+      ['dragleave','drop'].forEach(ev => dropZone.addEventListener(ev, (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('dragging');
+      }));
+      dropZone.addEventListener('drop', (e) => {
+        const file = e.dataTransfer.files && e.dataTransfer.files[0];
+        if (file && file.type.startsWith('video/')) {
+          const dt = new DataTransfer();
+          dt.items.add(file);
+          fileInput.files = dt.files;
+          const url = URL.createObjectURL(file);
+          video.src = url;
+          video.play().catch(() => {});
+          setSpeed(parseFloat(speedRange.value));
+          dropHint.style.display = 'none';
+        }
+      });
+
+      // 键盘快捷键
+      document.addEventListener('keydown', (e) => {
+        const tag = e.target && e.target.tagName;
+        if (['INPUT','TEXTAREA','SELECT','BUTTON'].includes(tag)) return;
+        if (e.code === 'BracketLeft') {
+          setSpeed(video.playbackRate - step);
+        } else if (e.code === 'BracketRight') {
+          setSpeed(video.playbackRate + step);
+        } else if (e.code === 'ArrowLeft') {
+          seekBy(-seekStep);
+        } else if (e.code === 'ArrowRight') {
+          seekBy(seekStep);
+        } else if (e.code === 'Space') {
+          e.preventDefault();
+          if (!video.src) return;
+          if (video.paused) { video.play(); } else { video.pause(); }
+        } else if (e.code === 'Digit0') {
+          setSpeed(1);
+        }
+      });
+
+      // 元数据加载后确保显示正确倍速
+      video.addEventListener('loadedmetadata', () => setSpeed(parseFloat(speedRange.value)));
+      video.addEventListener('play', () => { togglePlayBtn.textContent = '暂停'; });
+      video.addEventListener('pause', () => { togglePlayBtn.textContent = '播放'; });
+
+      // 双击跳转与移动端双击
+      video.addEventListener('dblclick', (e) => {
+        const rect = video.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        if (x < rect.width / 2) { seekBy(-seekStep); } else { seekBy(seekStep); }
+      });
+      let lastTapTime = 0, lastTapX = 0;
+      video.addEventListener('touchend', (e) => {
+        const now = Date.now();
+        const touch = e.changedTouches && e.changedTouches[0];
+        if (!touch) return;
+        const rect = video.getBoundingClientRect();
+        const x = touch.clientX - rect.left;
+        if (now - lastTapTime < 300 && Math.abs(x - lastTapX) < 50) {
+          if (x < rect.width / 2) { seekBy(-seekStep); } else { seekBy(seekStep); }
+          lastTapTime = 0; lastTapX = 0;
+        } else {
+          lastTapTime = now; lastTapX = x;
+        }
+      });
+
+      // 初始化
+      const savedSpeed = parseFloat(localStorage.getItem('lastSpeed') || speedRange.value);
+      setSpeed(savedSpeed);
+      paintRange();
+    })();
+  </script>
+</body>
+</html>

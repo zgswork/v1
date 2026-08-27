@@ -1,0 +1,1108 @@
+<!DOCTYPE html>
+<html tk="title_selection_range_api_playg" lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Selection &amp; Range API Playground</title>
+<meta name="description" content="Interactive visual debugger for the Selection & Range API. Inspect ranges, manipulate selections, and explore DOM text nodes.">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d1117;--bg2:#161b22;--bg3:#21262d;--bg4:#30363d;
+  --fg:#e6edf3;--fg2:#8b949e;--fg3:#6e7681;
+  --accent:#58a6ff;--accent2:#3fb950;--accent3:#f78166;--accent4:#d2a8ff;--accent5:#ffa657;
+  --border:#30363d;--radius:8px;
+  --mono:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+}
+html{font-size:14px}
+body{font-family:var(--sans);background:var(--bg);color:var(--fg);line-height:1.6;min-height:100vh}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+
+/* Layout */
+.app{max-width:1400px;margin:0 auto;padding:16px}
+header{display:flex;align-items:center;gap:12px;padding:16px 0;border-bottom:1px solid var(--border);margin-bottom:16px;flex-wrap:wrap}
+header h1{font-size:1.4rem;font-weight:600;display:flex;align-items:center;gap:8px}
+header h1 .icon{font-size:1.2em}
+.badge{font-size:0.7rem;padding:2px 8px;border-radius:12px;font-weight:500;white-space:nowrap}
+.badge-green{background:#1b4332;color:#3fb950}
+.badge-yellow{background:#3d2e00;color:#ffa657}
+.badge-red{background:#3d1418;color:#f85149}
+
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:900px){.grid{grid-template-columns:1fr}}
+
+.panel{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.panel-header{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--border);background:var(--bg3);font-weight:600;font-size:0.85rem;gap:8px;flex-wrap:wrap}
+.panel-header .label{display:flex;align-items:center;gap:6px}
+.panel-body{padding:14px;overflow:auto;max-height:500px}
+
+/* Sandbox area */
+#sandbox{padding:20px;font-size:1rem;line-height:1.8;border:2px dashed var(--border);border-radius:var(--radius);margin-bottom:16px;background:var(--bg2);position:relative;min-height:80px;user-select:text}
+#sandbox .highlight-word{background:rgba(88,166,255,0.25);border-radius:3px;padding:0 2px}
+#sandbox p{margin-bottom:8px}
+#sandbox .nested{padding:8px;border:1px solid var(--border);border-radius:4px;margin:8px 0;background:var(--bg3)}
+#sandbox [contenteditable]{outline:none;border:1px solid var(--accent);border-radius:4px;padding:4px 8px;min-height:24px}
+
+/* Presets */
+.presets{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.preset-btn{padding:6px 14px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg3);color:var(--fg);cursor:pointer;font-size:0.8rem;font-family:var(--sans);transition:all 0.15s}
+.preset-btn:hover{border-color:var(--accent);background:var(--bg4)}
+.preset-btn.active{border-color:var(--accent);background:rgba(88,166,255,0.15);color:var(--accent)}
+
+/* Inspector table */
+.inspector-table{width:100%;border-collapse:collapse;font-size:0.82rem;font-family:var(--mono)}
+.inspector-table td{padding:5px 8px;border-bottom:1px solid var(--border);vertical-align:top}
+.inspector-table td:first-child{color:var(--fg2);width:40%;white-space:nowrap}
+.inspector-table td:last-child{color:var(--accent);word-break:break-all}
+.inspector-table tr.collapsed-true td:last-child{color:var(--accent3)}
+.range-index{display:inline-block;background:var(--accent4);color:var(--bg);padding:0 6px;border-radius:10px;font-size:0.7rem;font-weight:700;margin-right:6px}
+
+/* DOM Tree */
+.dom-tree{font-family:var(--mono);font-size:0.78rem;white-space:pre;line-height:1.7}
+.dom-tree .node-element{color:var(--accent3)}
+.dom-tree .node-text{color:var(--accent2)}
+.dom-tree .node-offset{color:var(--fg3);font-size:0.7rem}
+.dom-tree .node-selected{background:rgba(88,166,255,0.2);border-radius:3px;padding:1px 3px}
+.dom-tree .indent{display:inline-block}
+
+/* Event log */
+.event-log{font-family:var(--mono);font-size:0.75rem;max-height:250px;overflow-y:auto}
+.event-entry{padding:3px 8px;border-bottom:1px solid rgba(48,54,61,0.5);display:flex;gap:8px;align-items:baseline}
+.event-entry .event-time{color:var(--fg3);flex-shrink:0;width:70px}
+.event-entry .event-name{font-weight:600;flex-shrink:0;width:120px}
+.event-entry.selectionchange .event-name{color:var(--accent)}
+.event-entry.selectstart .event-name{color:var(--accent5)}
+.event-entry .event-detail{color:var(--fg2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* Code output */
+.code-output{position:relative}
+.code-block{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:12px;font-family:var(--mono);font-size:0.78rem;overflow-x:auto;white-space:pre;color:var(--fg2);max-height:300px;overflow-y:auto;line-height:1.6}
+.code-block .kw{color:var(--accent3)}
+.code-block .str{color:var(--accent2)}
+.code-block .cm{color:var(--fg3)}
+.code-block .fn{color:var(--accent4)}
+.code-block .num{color:var(--accent5)}
+.copy-btn{position:absolute;top:8px;right:8px;padding:4px 10px;border:1px solid var(--border);border-radius:4px;background:var(--bg3);color:var(--fg2);cursor:pointer;font-size:0.7rem;font-family:var(--sans);transition:all 0.15s}
+.copy-btn:hover{border-color:var(--accent);color:var(--fg)}
+.copy-btn.copied{border-color:var(--accent2);color:var(--accent2)}
+
+/* Programmatic controls */
+.control-group{margin-bottom:12px}
+.control-group label{display:block;font-size:0.75rem;color:var(--fg2);margin-bottom:4px;font-weight:500}
+.control-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.ctrl-input{background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:5px 8px;color:var(--fg);font-family:var(--mono);font-size:0.8rem;width:100px}
+.ctrl-input:focus{outline:none;border-color:var(--accent)}
+.ctrl-select{background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:5px 8px;color:var(--fg);font-family:var(--mono);font-size:0.8rem;appearance:none;cursor:pointer}
+.ctrl-select:focus{outline:none;border-color:var(--accent)}
+.ctrl-btn{padding:5px 14px;border:1px solid var(--accent);border-radius:4px;background:rgba(88,166,255,0.1);color:var(--accent);cursor:pointer;font-size:0.78rem;font-family:var(--sans);font-weight:500;transition:all 0.15s;white-space:nowrap}
+.ctrl-btn:hover{background:rgba(88,166,255,0.2)}
+.ctrl-btn.danger{border-color:var(--accent3);color:var(--accent3);background:rgba(247,129,102,0.1)}
+.ctrl-btn.danger:hover{background:rgba(247,129,102,0.2)}
+.ctrl-btn.success{border-color:var(--accent2);color:var(--accent2);background:rgba(63,185,80,0.1)}
+.ctrl-btn.success:hover{background:rgba(63,185,80,0.2)}
+
+/* Tabs */
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:12px}
+.tab{padding:8px 16px;cursor:pointer;font-size:0.8rem;color:var(--fg2);border-bottom:2px solid transparent;transition:all 0.15s;font-weight:500}
+.tab:hover{color:var(--fg)}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tab-panel{display:none}
+.tab-panel.active{display:block}
+
+/* Browser support */
+.support-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;font-size:0.75rem}
+.support-item{padding:8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;text-align:center}
+.support-item .api-name{font-weight:600;margin-bottom:4px;font-family:var(--mono);font-size:0.72rem}
+.support-status{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px}
+.support-yes{background:var(--accent2)}
+.support-partial{background:var(--accent5)}
+.support-no{background:#f85149}
+
+/* Toast */
+.toast{position:fixed;bottom:20px;right:20px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:10px 16px;font-size:0.8rem;color:var(--fg);transform:translateY(100px);opacity:0;transition:all 0.3s;z-index:1000;pointer-events:none}
+.toast.show{transform:translateY(0);opacity:1}
+
+/* Full width panels */
+.full-width{grid-column:1/-1}
+
+/* Range ops buttons */
+.ops-grid{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--bg4);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--fg3)}
+
+/* Responsive tweaks */
+@media(max-width:600px){
+  .app{padding:8px}
+  header h1{font-size:1.1rem}
+  .panel-body{padding:10px}
+  .control-row{flex-direction:column;align-items:stretch}
+  .ctrl-input{width:100%}
+}
+</style>
+</head>
+<body>
+
+
+<div class="app">
+  <header>
+    <h1><span class="icon">&#9776;</span> Selection &amp; Range API Playground</h1>
+    <span class="badge badge-green" id="browserBadge">Checking...</span>
+  </header>
+
+  <!-- Presets -->
+  <div class="presets" id="presets">
+    <button class="preset-btn active" data-preset="basic" ti="btn_basic_selection">Basic Selection</button>
+    <button class="preset-btn" data-preset="multi" ti="btn_multi_range_firefox">Multi-Range (Firefox)</button>
+    <button class="preset-btn" data-preset="editable" ti="btn_contenteditable">ContentEditable</button>
+    <button class="preset-btn" data-preset="highlight" ti="btn_highlight_word">Highlight Word</button>
+    <button class="preset-btn" data-preset="extract" ti="btn_extract_fragment">Extract Fragment</button>
+  </div>
+
+  <!-- Sandbox -->
+  <div id="sandbox">
+    <p>The <strong ti="strong_selection_api">Selection API</strong> provides access to the portion of the document selected by the user.</p>
+    <p>A <em>Range</em> object represents a fragment of the document, defined by a start and end point.</p>
+    <p class="nested">Nested content: <span>spans</span>, <a href="#" ti="link_links">links</a>, and <code>code</code> elements live here.</p>
+  </div>
+
+  <div class="grid">
+    <!-- Left column -->
+    <div>
+      <!-- Selection Inspector -->
+      <div class="panel" style="margin-bottom:16px">
+        <div class="panel-header">
+          <span class="label">&#128269; Selection Inspector</span>
+          <span style="font-size:0.72rem;color:var(--fg3)" id="rangeCount">0 ranges</span>
+        </div>
+        <div class="panel-body" id="inspectorBody">
+          <div style="color:var(--fg3);font-size:0.82rem;text-align:center;padding:20px">Select text in the sandbox above to inspect Range details</div>
+        </div>
+      </div>
+
+      <!-- DOM Tree -->
+      <div class="panel" style="margin-bottom:16px">
+        <div class="panel-header">
+          <span class="label">&#127795; DOM Tree View</span>
+          <button class="ctrl-btn" onclick="refreshTree()" style="padding:2px 8px;font-size:0.7rem" ti="btn_refresh">Refresh</button>
+        </div>
+        <div class="panel-body dom-tree" id="domTree" style="max-height:350px"></div>
+      </div>
+
+      <!-- Event Monitor -->
+      <div class="panel">
+        <div class="panel-header">
+          <span class="label">&#9889; Event Monitor</span>
+          <button class="ctrl-btn danger" onclick="clearEvents()" style="padding:2px 8px;font-size:0.7rem" ti="btn_clear">Clear</button>
+        </div>
+        <div class="panel-body event-log" id="eventLog">
+          <div style="color:var(--fg3);font-size:0.82rem;text-align:center;padding:10px">Listening for selectionchange &amp; selectstart...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right column -->
+    <div>
+      <!-- Tabs: Programmatic / Range Ops / Rich Text -->
+      <div class="panel" style="margin-bottom:16px">
+        <div class="panel-header"><span class="label">&#9881; Controls</span></div>
+        <div class="panel-body">
+          <div class="tabs">
+            <div class="tab active" data-tab="programmatic">Programmatic</div>
+            <div class="tab" data-tab="rangeops">Range Ops</div>
+            <div class="tab" data-tab="richtext">Rich Text</div>
+          </div>
+
+          <!-- Programmatic Selection -->
+          <div class="tab-panel active" id="tab-programmatic">
+            <div class="control-group">
+              <label ti="label_target_node">Target Node</label>
+              <div class="control-row">
+                <select class="ctrl-select" id="startNodeSelect"></select>
+              </div>
+            </div>
+            <div class="control-group">
+              <label ti="label_start_offset">Start Offset</label>
+              <div class="control-row">
+                <input type="number" class="ctrl-input" id="startOffset" value="0" min="0">
+              </div>
+            </div>
+            <div class="control-group">
+              <label ti="label_end_node">End Node</label>
+              <div class="control-row">
+                <select class="ctrl-select" id="endNodeSelect"></select>
+              </div>
+            </div>
+            <div class="control-group">
+              <label ti="label_end_offset">End Offset</label>
+              <div class="control-row">
+                <input type="number" class="ctrl-input" id="endOffset" value="5" min="0">
+              </div>
+            </div>
+            <div class="control-row" style="margin-top:8px">
+              <button class="ctrl-btn success" onclick="applyProgrammaticSelection()" ti="btn_apply_selection">Apply Selection</button>
+              <button class="ctrl-btn" onclick="collapseToStart()" ti="btn_collapse_to_start">Collapse to Start</button>
+              <button class="ctrl-btn" onclick="collapseToEnd()" ti="btn_collapse_to_end">Collapse to End</button>
+            </div>
+          </div>
+
+          <!-- Range Operations -->
+          <div class="tab-panel" id="tab-rangeops">
+            <div class="ops-grid">
+              <button class="ctrl-btn" onclick="doRangeOp('createRange')" ti="btn_createrange">createRange()</button>
+              <button class="ctrl-btn" onclick="doRangeOp('cloneRange')" ti="btn_clonerange">cloneRange()</button>
+              <button class="ctrl-btn" onclick="doRangeOp('selectNode')" ti="btn_selectnode">selectNode()</button>
+              <button class="ctrl-btn" onclick="doRangeOp('selectNodeContents')" ti="btn_selectnodecontents">selectNodeContents()</button>
+            </div>
+            <div class="control-group">
+              <label ti="label_multi_range_firefox_only">Multi-Range (Firefox only)</label>
+              <div class="control-row">
+                <button class="ctrl-btn" onclick="addRange()" ti="btn_addrange">addRange()</button>
+                <button class="ctrl-btn danger" onclick="removeAllRanges()" ti="btn_removeallranges">removeAllRanges()</button>
+              </div>
+            </div>
+            <div class="control-group" style="margin-top:8px">
+              <label ti="label_select_node_for_operation">Select Node for Operations</label>
+              <div class="control-row">
+                <select class="ctrl-select" id="opNodeSelect"></select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Rich Text Operations -->
+          <div class="tab-panel" id="tab-richtext">
+            <p style="font-size:0.75rem;color:var(--fg2);margin-bottom:10px">Select text in sandbox first, then apply an operation:</p>
+            <div class="ops-grid">
+              <button class="ctrl-btn" onclick="doRichText('surroundContents')" ti="btn_surroundcontents">surroundContents()</button>
+              <button class="ctrl-btn danger" onclick="doRichText('extractContents')" ti="btn_extractcontents">extractContents()</button>
+              <button class="ctrl-btn" onclick="doRichText('cloneContents')" ti="btn_clonecontents">cloneContents()</button>
+              <button class="ctrl-btn danger" onclick="doRichText('deleteContents')" ti="btn_deletecontents">deleteContents()</button>
+            </div>
+            <div class="control-group" style="margin-top:8px">
+              <label ti="label_surround_tag">Surround Tag</label>
+              <div class="control-row">
+                <select class="ctrl-select" id="surroundTag">
+                  <option value="mark">mark</option>
+                  <option value="strong">strong</option>
+                  <option value="em">em</option>
+                  <option value="span">span (with class)</option>
+                </select>
+                <button class="ctrl-btn" onclick="resetSandbox()" ti="btn_reset_sandbox">Reset Sandbox</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Code Output -->
+      <div class="panel" style="margin-bottom:16px">
+        <div class="panel-header">
+          <span class="label">&#128196; Code Output</span>
+        </div>
+        <div class="panel-body code-output">
+          <button class="copy-btn" onclick="copyCode(this)" ti="btn_copy">Copy</button>
+          <div class="code-block" id="codeOutput"><span class="cm">// Select text or use controls to generate code</span></div>
+        </div>
+      </div>
+
+      <!-- Browser Support -->
+      <div class="panel">
+        <div class="panel-header"><span class="label">&#127760; Browser Support</span></div>
+        <div class="panel-body">
+          <div class="support-grid" id="supportGrid"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+
+<script>var _LANG={'title_selection_range_api_playg':["Selection & Range API Playground", "选择与范围 API 演示区"],'metadesc_interactive_visual_debugg':["Interactive visual debugger for the Selection & Range API. Inspect ranges, manipulate selections, and explore DOM text nodes.", "用于 Selection &amp; Range API 的交互式可视化调试器。检查范围、操作选区并探索 DOM 文本节点。"],'btn_basic_selection':["Basic Selection", "基本选择"],'btn_multi_range_firefox':["Multi-Range (Firefox)", "多范围（Firefox）"],'btn_contenteditable':["ContentEditable", "内容可编辑"],'btn_highlight_word':["Highlight Word", "高亮单词"],'btn_extract_fragment':["Extract Fragment", "提取片段"],'btn_refresh':["Refresh", "刷新"],'btn_clear':["Clear", "清除"],'btn_apply_selection':["Apply Selection", "应用选择"],'btn_collapse_to_start':["Collapse to Start", "折叠至开头"],'btn_collapse_to_end':["Collapse to End", "崩溃结束"],'btn_createrange':["createRange()", "创建范围()"],'btn_clonerange':["cloneRange()", "克隆范围()"],'btn_selectnode':["selectNode()", "selectNode()"],'btn_selectnodecontents':["selectNodeContents()", "selectNodeContents()"],'btn_addrange':["addRange()", "添加范围()"],'btn_removeallranges':["removeAllRanges()", "removeAllRanges()"],'btn_surroundcontents':["surroundContents()", "环绕内容()"],'btn_extractcontents':["extractContents()", "extractContents()"],'btn_clonecontents':["cloneContents()", "cloneContents()"],'btn_deletecontents':["deleteContents()", "deleteContents()"],'btn_reset_sandbox':["Reset Sandbox", "重置沙盒"],'btn_copy':["Copy", "复制"],'label_selection_inspector':["🔍 Selection Inspector", "🔍 甄选督察"],'label_dom_tree_view':["🌳 DOM Tree View", "🌳 DOM 树状视图"],'label_event_monitor':["⚡ Event Monitor", "⚡ 事件监视器"],'label_controls':["⚙ Controls", "⚙ 控制"],'label_code_output':["📄 Code Output", "📄 代码输出"],'label_browser_support':["🌐 Browser Support", "🌐 浏览器支持"],'strong_selection_api':["Selection API", "选择 API"],'strong_editable':["editable", "可编辑"],'label_target_node':["Target Node", "目标节点"],'label_start_offset':["Start Offset", "起始偏移量"],'label_end_node':["End Node", "末端节点"],'label_end_offset':["End Offset", "末端偏移"],'label_multi_range_firefox_only':["Multi-Range (Firefox only)", "多范围（仅限 Firefox）"],'label_select_node_for_operation':["Select Node for Operations", "选择节点进行操作"],'label_surround_tag':["Surround Tag", "环绕标签"],'link_links':["links", "链接"],'jtc_0_ranges':["0 ranges", "0 个范围"],'jtc_copied':["Copied!", "已复制！"],'jtc_copy':["Copy", "复制"],'jtc_full_support':["Full Support", "全力支持"],'jtc_good_support':["Good Support", "良好支持"],'jtc_partial_support':["Partial Support", "部分支持"],'jtlword_editable':["editable", "可编辑"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>
+// ── State ──
+const sandbox = document.getElementById('sandbox');
+const inspectorBody = document.getElementById('inspectorBody');
+const rangeCountEl = document.getElementById('rangeCount');
+const domTreeEl = document.getElementById('domTree');
+const eventLogEl = document.getElementById('eventLog');
+const codeOutputEl = document.getElementById('codeOutput');
+let textNodes = [];
+let eventCount = 0;
+const MAX_EVENTS = 100;
+let originalSandboxHTML = sandbox.innerHTML;
+
+// ── Utility ──
+function escapeHTML(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function truncate(s, n) {
+  if (s.length <= n) return s;
+  return s.slice(0, n) + '...';
+}
+
+function nodePath(node) {
+  if (!node) return 'null';
+  if (node.id === 'sandbox') return '#sandbox';
+  const parts = [];
+  let cur = node;
+  while (cur && cur.id !== 'sandbox' && cur !== document.body) {
+    if (cur.nodeType === Node.TEXT_NODE) {
+      const parent = cur.parentNode;
+      const textChildren = Array.from(parent.childNodes).filter(n => n.nodeType === Node.TEXT_NODE);
+      const idx = textChildren.indexOf(cur);
+      parts.unshift(`#text[${idx}]`);
+    } else {
+      const tag = cur.tagName.toLowerCase();
+      const siblings = cur.parentNode ? Array.from(cur.parentNode.children).filter(e => e.tagName === cur.tagName) : [];
+      if (siblings.length > 1) {
+        parts.unshift(`${tag}[${siblings.indexOf(cur)}]`);
+      } else {
+        parts.unshift(tag);
+      }
+    }
+    cur = cur.parentNode;
+  }
+  return parts.join(' > ');
+}
+
+function nodeLabel(node) {
+  if (!node) return 'null';
+  if (node.nodeType === Node.TEXT_NODE) {
+    return `#text "${truncate(node.textContent, 20)}"`;
+  }
+  const tag = node.tagName.toLowerCase();
+  if (node.id) return `<${tag}#${node.id}>`;
+  if (node.className) return `<${tag}.${node.className.split(' ')[0]}>`;
+  return `<${tag}>`;
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+// ── Text Node Enumeration ──
+function collectTextNodes(root) {
+  const nodes = [];
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
+  while (walker.nextNode()) {
+    nodes.push(walker.currentNode);
+  }
+  return nodes;
+}
+
+function refreshNodeSelects() {
+  textNodes = collectTextNodes(sandbox);
+  const selects = ['startNodeSelect', 'endNodeSelect', 'opNodeSelect'];
+  selects.forEach(id => {
+    const sel = document.getElementById(id);
+    sel.innerHTML = '';
+    textNodes.forEach((tn, i) => {
+      const opt = document.createElement('option');
+      opt.value = i;
+      opt.textContent = `[${i}] ${truncate(tn.textContent.trim(), 30)} (len:${tn.length})`;
+      sel.appendChild(opt);
+    });
+    // Also add element nodes for selectNode/selectNodeContents
+    if (id === 'opNodeSelect') {
+      const elements = sandbox.querySelectorAll('*');
+      elements.forEach((el, i) => {
+        const opt = document.createElement('option');
+        opt.value = `el:${i}`;
+        opt.textContent = `<${el.tagName.toLowerCase()}> ${truncate(el.textContent.trim(), 25)}`;
+        sel.appendChild(opt);
+      });
+    }
+  });
+}
+
+// ── Selection Inspector ──
+function updateInspector() {
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0) {
+    inspectorBody.innerHTML = '<div style="color:var(--fg3);font-size:0.82rem;text-align:center;padding:20px">No selection</div>';
+    rangeCountEl.textContent=T("jtc_0_ranges");
+    return;
+  }
+
+  rangeCountEl.textContent = `${sel.rangeCount} range${sel.rangeCount !== 1 ? 's' : ''}`;
+  let html = '';
+
+  for (let i = 0; i < sel.rangeCount; i++) {
+    const range = sel.getRangeAt(i);
+    html += `<div style="margin-bottom:12px">`;
+    if (sel.rangeCount > 1) {
+      html += `<div style="margin-bottom:6px"><span class="range-index">${i}</span>Range ${i}</div>`;
+    }
+    html += `<table class="inspector-table">
+      <tr><td>startContainer</td><td>${escapeHTML(nodePath(range.startContainer))}</td></tr>
+      <tr><td>startOffset</td><td>${range.startOffset}</td></tr>
+      <tr><td>endContainer</td><td>${escapeHTML(nodePath(range.endContainer))}</td></tr>
+      <tr><td>endOffset</td><td>${range.endOffset}</td></tr>
+      <tr class="collapsed-${range.collapsed}"><td>collapsed</td><td>${range.collapsed}</td></tr>
+      <tr><td>commonAncestor</td><td>${escapeHTML(nodePath(range.commonAncestorContainer))}</td></tr>
+      <tr><td>toString()</td><td>"${escapeHTML(truncate(range.toString(), 60))}"</td></tr>
+    </table></div>`;
+  }
+  inspectorBody.innerHTML = html;
+
+  // Generate code for current selection
+  if (sel.rangeCount > 0) {
+    const r = sel.getRangeAt(0);
+    updateCodeOutput(`const selection = window.getSelection();
+const range = selection.getRangeAt(0);
+
+// Range details:
+// startContainer: ${nodePath(r.startContainer)}
+// startOffset:    ${r.startOffset}
+// endContainer:   ${nodePath(r.endContainer)}
+// endOffset:      ${r.endOffset}
+// collapsed:      ${r.collapsed}
+// text:           "${truncate(r.toString(), 40)}"
+
+// Recreate this selection:
+const newRange = document.createRange();
+newRange.setStart(startNode, ${r.startOffset});
+newRange.setEnd(endNode, ${r.endOffset});
+selection.removeAllRanges();
+selection.addRange(newRange);`);
+  }
+}
+
+// ── DOM Tree ──
+function refreshTree() {
+  const sel = window.getSelection();
+  let selectedRanges = [];
+  if (sel) {
+    for (let i = 0; i < sel.rangeCount; i++) {
+      selectedRanges.push(sel.getRangeAt(i));
+    }
+  }
+
+  let html = '';
+  function renderNode(node, depth) {
+    const indent = '  '.repeat(depth);
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      const tag = node.tagName.toLowerCase();
+      const attrs = Array.from(node.attributes).map(a => ` ${a.name}="${escapeHTML(a.value)}"`).join('');
+      html += `${indent}<span class="node-element">&lt;${tag}${attrs}&gt;</span>\n`;
+      node.childNodes.forEach(child => renderNode(child, depth + 1));
+      html += `${indent}<span class="node-element">&lt;/${tag}&gt;</span>\n`;
+    } else if (node.nodeType === Node.TEXT_NODE) {
+      const text = node.textContent;
+      if (!text.trim()) return;
+
+      // Check if this text node is part of any selection range
+      let isSelected = false;
+      let selStart = -1, selEnd = -1;
+      for (const range of selectedRanges) {
+        if (range.intersectsNode(node)) {
+          isSelected = true;
+          selStart = (range.startContainer === node) ? range.startOffset : 0;
+          selEnd = (range.endContainer === node) ? range.endOffset : text.length;
+          break;
+        }
+      }
+
+      const idx = textNodes.indexOf(node);
+      if (isSelected && selStart >= 0) {
+        const before = escapeHTML(text.slice(0, selStart));
+        const selected = escapeHTML(text.slice(selStart, selEnd));
+        const after = escapeHTML(text.slice(selEnd));
+        html += `${indent}<span class="node-text">[${idx}] "${before}<span class="node-selected">${selected}</span>${after}"</span>`;
+      } else {
+        html += `${indent}<span class="node-text">[${idx}] "${escapeHTML(truncate(text, 50))}"</span>`;
+      }
+      html += ` <span class="node-offset">(0..${text.length})</span>\n`;
+    }
+  }
+
+  renderNode(sandbox, 0);
+  domTreeEl.innerHTML = html;
+}
+
+// ── Event Monitor ──
+function logEvent(name, detail) {
+  if (eventCount === 0) {
+    eventLogEl.innerHTML = '';
+  }
+  eventCount++;
+  const now = new Date();
+  const time = now.toTimeString().slice(0, 8) + '.' + String(now.getMilliseconds()).padStart(3, '0');
+  const entry = document.createElement('div');
+  entry.className = `event-entry ${name}`;
+  entry.innerHTML = `<span class="event-time">${time}</span><span class="event-name">${name}</span><span class="event-detail">${escapeHTML(detail)}</span>`;
+  eventLogEl.prepend(entry);
+
+  // Trim old events
+  while (eventLogEl.children.length > MAX_EVENTS) {
+    eventLogEl.removeChild(eventLogEl.lastChild);
+  }
+}
+
+function clearEvents() {
+  eventCount = 0;
+  eventLogEl.innerHTML = '<div style="color:var(--fg3);font-size:0.82rem;text-align:center;padding:10px">Cleared. Listening...</div>';
+}
+
+// ── Code Output ──
+function updateCodeOutput(code) {
+  // Simple syntax highlight
+  const highlighted = escapeHTML(code)
+    .replace(/\b(const|let|var|new|function|return|if|else|for|while|true|false|null|undefined)\b/g, '<span class="kw">$1</span>')
+    .replace(/("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')/g, '<span class="str">$1</span>')
+    .replace(/\b(\d+)\b/g, '<span class="num">$1</span>')
+    .replace(/(\/\/.*)/g, '<span class="cm">$1</span>')
+    .replace(/\.(createRange|setStart|setEnd|addRange|removeAllRanges|getRangeAt|selectNode|selectNodeContents|cloneRange|surroundContents|extractContents|cloneContents|deleteContents|getSelection|createTreeWalker|collapse)\b/g, '.<span class="fn">$1</span>');
+  codeOutputEl.innerHTML = highlighted;
+}
+
+let rawCode = '';
+const origUpdateCodeOutput = updateCodeOutput;
+updateCodeOutput = function(code) {
+  rawCode = code;
+  origUpdateCodeOutput(code);
+};
+
+function copyCode(btn) {
+  navigator.clipboard.writeText(rawCode).then(() => {
+    btn.textContent=T("jtc_copied");
+    btn.classList.add('copied');
+    setTimeout(() => {
+      btn.textContent=T("jtc_copy");
+      btn.classList.remove('copied');
+    }, 1500);
+  });
+}
+
+// ── Programmatic Selection ──
+function applyProgrammaticSelection() {
+  const startIdx = parseInt(document.getElementById('startNodeSelect').value);
+  const endIdx = parseInt(document.getElementById('endNodeSelect').value);
+  const sOff = parseInt(document.getElementById('startOffset').value) || 0;
+  const eOff = parseInt(document.getElementById('endOffset').value) || 0;
+
+  if (!textNodes[startIdx] || !textNodes[endIdx]) {
+    showToast('Invalid node selection');
+    return;
+  }
+
+  const sNode = textNodes[startIdx];
+  const eNode = textNodes[endIdx];
+
+  const clampedSOff = Math.min(sOff, sNode.length);
+  const clampedEOff = Math.min(eOff, eNode.length);
+
+  try {
+    const range = document.createRange();
+    range.setStart(sNode, clampedSOff);
+    range.setEnd(eNode, clampedEOff);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    showToast('Selection applied');
+
+    updateCodeOutput(`const range = document.createRange();
+const startNode = /* ${nodePath(sNode)} */;
+const endNode = /* ${nodePath(eNode)} */;
+range.setStart(startNode, ${clampedSOff});
+range.setEnd(endNode, ${clampedEOff});
+
+const selection = window.getSelection();
+selection.removeAllRanges();
+selection.addRange(range);`);
+  } catch (e) {
+    showToast('Error: ' + e.message);
+  }
+}
+
+function collapseToStart() {
+  const sel = window.getSelection();
+  if (sel.rangeCount > 0) {
+    sel.collapseToStart();
+    showToast('Collapsed to start');
+    updateCodeOutput(`const selection = window.getSelection();
+selection.collapseToStart();`);
+  }
+}
+
+function collapseToEnd() {
+  const sel = window.getSelection();
+  if (sel.rangeCount > 0) {
+    sel.collapseToEnd();
+    showToast('Collapsed to end');
+    updateCodeOutput(`const selection = window.getSelection();
+selection.collapseToEnd();`);
+  }
+}
+
+// ── Range Operations ──
+function getOpNode() {
+  const val = document.getElementById('opNodeSelect').value;
+  if (val.startsWith('el:')) {
+    const idx = parseInt(val.slice(3));
+    return sandbox.querySelectorAll('*')[idx];
+  }
+  return textNodes[parseInt(val)];
+}
+
+function doRangeOp(op) {
+  const sel = window.getSelection();
+  const node = getOpNode();
+
+  switch(op) {
+    case 'createRange': {
+      const range = document.createRange();
+      range.selectNodeContents(sandbox);
+      sel.removeAllRanges();
+      sel.addRange(range);
+      showToast('Created range over sandbox');
+      updateCodeOutput(`const range = document.createRange();
+range.selectNodeContents(targetElement);
+
+const selection = window.getSelection();
+selection.removeAllRanges();
+selection.addRange(range);`);
+      break;
+    }
+    case 'cloneRange': {
+      if (sel.rangeCount === 0) { showToast('No range to clone'); return; }
+      const clone = sel.getRangeAt(0).cloneRange();
+      showToast(`Cloned range: "${truncate(clone.toString(), 30)}"`);
+      updateCodeOutput(`const original = selection.getRangeAt(0);
+const clone = original.cloneRange();
+// clone.toString() === "${truncate(clone.toString(), 40)}"
+// Modifying clone won't affect original`);
+      break;
+    }
+    case 'selectNode': {
+      if (!node) { showToast('Select a node first'); return; }
+      const range = document.createRange();
+      range.selectNode(node);
+      sel.removeAllRanges();
+      sel.addRange(range);
+      showToast('selectNode applied');
+      updateCodeOutput(`const range = document.createRange();
+range.selectNode(targetNode);
+// Selects the node AND its contents
+
+const selection = window.getSelection();
+selection.removeAllRanges();
+selection.addRange(range);`);
+      break;
+    }
+    case 'selectNodeContents': {
+      if (!node) { showToast('Select a node first'); return; }
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      sel.removeAllRanges();
+      sel.addRange(range);
+      showToast('selectNodeContents applied');
+      updateCodeOutput(`const range = document.createRange();
+range.selectNodeContents(targetNode);
+// Selects only the contents, not the node itself
+
+const selection = window.getSelection();
+selection.removeAllRanges();
+selection.addRange(range);`);
+      break;
+    }
+  }
+}
+
+function addRange() {
+  const sel = window.getSelection();
+  const node = getOpNode();
+  if (!node) { showToast('Select a node'); return; }
+
+  try {
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    sel.addRange(range);
+    showToast(`Added range #${sel.rangeCount - 1} (${sel.rangeCount} total)`);
+    updateCodeOutput(`// Multi-range: Firefox only!
+// Other browsers silently ignore addRange()
+// when a range already exists.
+const range = document.createRange();
+range.selectNodeContents(targetNode);
+selection.addRange(range);
+// selection.rangeCount === ${sel.rangeCount}`);
+  } catch (e) {
+    showToast('Error: ' + e.message);
+  }
+}
+
+function removeAllRanges() {
+  window.getSelection().removeAllRanges();
+  showToast('All ranges removed');
+  updateCodeOutput(`const selection = window.getSelection();
+selection.removeAllRanges();
+// selection.rangeCount === 0`);
+}
+
+// ── Rich Text Operations ──
+function doRichText(op) {
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0) {
+    showToast('Select text first');
+    return;
+  }
+  const range = sel.getRangeAt(0);
+  if (range.collapsed) {
+    showToast('Selection is collapsed (no text selected)');
+    return;
+  }
+
+  try {
+    switch(op) {
+      case 'surroundContents': {
+        const tagName = document.getElementById('surroundTag').value;
+        const wrapper = document.createElement(tagName === 'span' ? 'span' : tagName);
+        if (tagName === 'span') wrapper.className = 'highlight-word';
+        if (tagName === 'mark') wrapper.style.cssText = 'background:rgba(255,200,0,0.3);color:inherit;border-radius:2px';
+        range.surroundContents(wrapper);
+        showToast(`Wrapped in <${tagName}>`);
+        refreshNodeSelects();
+        updateCodeOutput(`const range = selection.getRangeAt(0);
+const wrapper = document.createElement('${tagName}');
+${tagName === 'mark' ? "wrapper.style.background = 'rgba(255,200,0,0.3)';" : ''}
+range.surroundContents(wrapper);
+// Wraps the selected content in a new element
+// Throws if selection crosses element boundaries`);
+        break;
+      }
+      case 'extractContents': {
+        const fragment = range.extractContents();
+        const div = document.createElement('div');
+        div.appendChild(fragment.cloneNode(true));
+        showToast(`Extracted: "${truncate(div.textContent, 30)}"`);
+        refreshNodeSelects();
+        updateCodeOutput(`const range = selection.getRangeAt(0);
+const fragment = range.extractContents();
+// Returns DocumentFragment, REMOVES from DOM
+// fragment.textContent === "${truncate(div.textContent, 40)}"
+
+// Re-insert elsewhere:
+// targetElement.appendChild(fragment);`);
+        break;
+      }
+      case 'cloneContents': {
+        const fragment = range.cloneContents();
+        const div = document.createElement('div');
+        div.appendChild(fragment);
+        showToast(`Cloned: "${truncate(div.textContent, 30)}"`);
+        updateCodeOutput(`const range = selection.getRangeAt(0);
+const fragment = range.cloneContents();
+// Returns DocumentFragment copy, original stays
+// fragment.textContent === "${truncate(div.textContent, 40)}"
+
+// Use the clone:
+// targetElement.appendChild(fragment);`);
+        break;
+      }
+      case 'deleteContents': {
+        const text = range.toString();
+        range.deleteContents();
+        showToast(`Deleted: "${truncate(text, 30)}"`);
+        refreshNodeSelects();
+        updateCodeOutput(`const range = selection.getRangeAt(0);
+range.deleteContents();
+// Removes selected content from the DOM
+// Deleted text was: "${truncate(text, 40)}"`);
+        break;
+      }
+    }
+  } catch (e) {
+    showToast('Error: ' + e.message);
+    updateCodeOutput(`// Error: ${e.message}
+// surroundContents() fails when the selection
+// partially selects a non-Text node.
+// Use extractContents() + insertNode() instead.`);
+  }
+}
+
+function resetSandbox() {
+  sandbox.innerHTML = originalSandboxHTML;
+  refreshNodeSelects();
+  refreshTree();
+  showToast('Sandbox reset');
+}
+
+// ── Presets ──
+function applyPreset(name) {
+  resetSandbox();
+  // Wait a tick for DOM to settle
+  requestAnimationFrame(() => {
+    textNodes = collectTextNodes(sandbox);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+
+    switch(name) {
+      case 'basic': {
+        if (textNodes.length < 1) return;
+        const range = document.createRange();
+        const tn = textNodes[0];
+        range.setStart(tn, 4);
+        range.setEnd(tn, 4 + Math.min(13, tn.length - 4));
+        sel.addRange(range);
+        updateCodeOutput(`// Basic Selection: select "Selection API"
+const range = document.createRange();
+const textNode = targetElement.firstChild;
+range.setStart(textNode, 4);  // start after "The "
+range.setEnd(textNode, 17);   // end after "Selection API"
+
+const selection = window.getSelection();
+selection.removeAllRanges();
+selection.addRange(range);`);
+        break;
+      }
+      case 'multi': {
+        if (textNodes.length < 3) return;
+        const r1 = document.createRange();
+        r1.setStart(textNodes[0], 0);
+        r1.setEnd(textNodes[0], Math.min(10, textNodes[0].length));
+        sel.addRange(r1);
+        try {
+          const r2 = document.createRange();
+          r2.setStart(textNodes[2], 0);
+          r2.setEnd(textNodes[2], Math.min(10, textNodes[2].length));
+          sel.addRange(r2);
+        } catch(e) { /* non-Firefox */ }
+        updateCodeOutput(`// Multi-Range (Firefox only)
+const sel = window.getSelection();
+sel.removeAllRanges();
+
+const range1 = document.createRange();
+range1.setStart(textNode1, 0);
+range1.setEnd(textNode1, 10);
+sel.addRange(range1);
+
+const range2 = document.createRange();
+range2.setStart(textNode2, 0);
+range2.setEnd(textNode2, 10);
+sel.addRange(range2);
+// Chrome/Safari silently ignore the second addRange()
+// sel.rangeCount: ${sel.rangeCount}`);
+        break;
+      }
+      case 'editable': {
+        sandbox.innerHTML = `<p>Non-editable paragraph above the editable area.</p>
+<div contenteditable="true" style="min-height:40px">This text is <strong ti="strong_editable">editable</strong>. Try selecting and modifying it.</div>
+<p>Non-editable paragraph below.</p>`;
+        originalSandboxHTML = sandbox.innerHTML;
+        refreshNodeSelects();
+        textNodes = collectTextNodes(sandbox);
+        if (textNodes.length >= 2) {
+          const range = document.createRange();
+          range.setStart(textNodes[1], 0);
+          range.setEnd(textNodes[1], Math.min(9, textNodes[1].length));
+          sel.addRange(range);
+        }
+        updateCodeOutput(`// ContentEditable selection
+// contenteditable="true" enables in-place editing
+// Selection API works the same way inside editable regions
+const editable = document.querySelector('[contenteditable]');
+const range = document.createRange();
+range.selectNodeContents(editable);
+
+// Listen for input events on editable:
+editable.addEventListener('input', (e) => {
+  console.log('Content changed:', e.inputType);
+});`);
+        break;
+      }
+      case 'highlight': {
+        textNodes = collectTextNodes(sandbox);
+        // Find a word to highlight
+        for (const tn of textNodes) {
+          const idx = tn.textContent.indexOf('Range');
+          if (idx !== -1) {
+            const range = document.createRange();
+            range.setStart(tn, idx);
+            range.setEnd(tn, idx + 5);
+            // Surround with mark
+            const mark = document.createElement('mark');
+            mark.style.cssText = 'background:rgba(255,200,0,0.3);color:inherit;border-radius:2px;padding:0 2px';
+            range.surroundContents(mark);
+            // Now select it
+            const selRange = document.createRange();
+            selRange.selectNodeContents(mark);
+            sel.addRange(selRange);
+            break;
+          }
+        }
+        refreshNodeSelects();
+        updateCodeOutput(`// Highlight Word: find and wrap "Range"
+const walker = document.createTreeWalker(
+  root, NodeFilter.SHOW_TEXT
+);
+while (walker.nextNode()) {
+  const idx = walker.currentNode.textContent.indexOf('Range');
+  if (idx !== -1) {
+    const range = document.createRange();
+    range.setStart(walker.currentNode, idx);
+    range.setEnd(walker.currentNode, idx + 5);
+    const mark = document.createElement('mark');
+    range.surroundContents(mark);
+    break;
+  }
+}`);
+        break;
+      }
+      case 'extract': {
+        textNodes = collectTextNodes(sandbox);
+        if (textNodes.length < 3) return;
+        const range = document.createRange();
+        range.setStart(textNodes[0], 0);
+        range.setEnd(textNodes[2], Math.min(5, textNodes[2].length));
+        sel.addRange(range);
+        updateCodeOutput(`// Extract Fragment: select across elements
+// This range spans from the first text node
+// into the third text node, crossing element boundaries.
+const range = document.createRange();
+range.setStart(firstTextNode, 0);
+range.setEnd(thirdTextNode, 5);
+
+// Extract (removes from DOM and returns fragment):
+// const fragment = range.extractContents();
+
+// Clone (copies without removing):
+// const fragment = range.cloneContents();
+
+// Delete (removes without returning):
+// range.deleteContents();`);
+        break;
+      }
+    }
+    refreshTree();
+  });
+}
+
+// ── Browser Support ──
+function checkBrowserSupport() {
+  const apis = [
+    { name: 'window.getSelection()', test: () => typeof window.getSelection === 'function' },
+    { name: 'document.createRange()', test: () => typeof document.createRange === 'function' },
+    { name: 'Range.setStart/End', test: () => { const r = document.createRange(); return typeof r.setStart === 'function'; } },
+    { name: 'Range.cloneRange()', test: () => { const r = document.createRange(); return typeof r.cloneRange === 'function'; } },
+    { name: 'Range.surroundContents()', test: () => { const r = document.createRange(); return typeof r.surroundContents === 'function'; } },
+    { name: 'Range.extractContents()', test: () => { const r = document.createRange(); return typeof r.extractContents === 'function'; } },
+    { name: 'Range.cloneContents()', test: () => { const r = document.createRange(); return typeof r.cloneContents === 'function'; } },
+    { name: 'Range.deleteContents()', test: () => { const r = document.createRange(); return typeof r.deleteContents === 'function'; } },
+    { name: 'Selection.addRange()', test: () => { const s = window.getSelection(); return typeof s.addRange === 'function'; } },
+    { name: 'Selection.removeAllRanges()', test: () => { const s = window.getSelection(); return typeof s.removeAllRanges === 'function'; } },
+    { name: 'Multi-Range', test: () => { try { const s = window.getSelection(); s.removeAllRanges(); const r1 = document.createRange(); r1.selectNodeContents(document.body); s.addRange(r1); const r2 = document.createRange(); r2.selectNodeContents(document.body); s.addRange(r2); const ok = s.rangeCount > 1; s.removeAllRanges(); return ok; } catch(e) { return false; } } },
+    { name: 'selectionchange event', test: () => 'onselectionchange' in document },
+    { name: 'selectstart event', test: () => 'onselectstart' in document },
+    { name: 'Selection.modify()', test: () => { const s = window.getSelection(); return typeof s.modify === 'function'; } },
+    { name: 'Selection.containsNode()', test: () => { const s = window.getSelection(); return typeof s.containsNode === 'function'; } },
+    { name: 'Range.intersectsNode()', test: () => { const r = document.createRange(); return typeof r.intersectsNode === 'function'; } },
+  ];
+
+  const grid = document.getElementById('supportGrid');
+  let allGood = true;
+  let partialCount = 0;
+
+  grid.innerHTML = apis.map(api => {
+    let supported;
+    try { supported = api.test(); } catch(e) { supported = false; }
+    if (!supported) {
+      if (api.name === 'Multi-Range') partialCount++;
+      else allGood = false;
+    }
+    const cls = supported ? 'support-yes' : (api.name === 'Multi-Range' ? 'support-partial' : 'support-no');
+    const label = supported ? 'Yes' : (api.name === 'Multi-Range' ? 'Firefox only' : 'No');
+    return `<div class="support-item"><div class="api-name">${escapeHTML(api.name)}</div><span class="support-status ${cls}"></span>${label}</div>`;
+  }).join('');
+
+  const badge = document.getElementById('browserBadge');
+  if (allGood && partialCount === 0) {
+    badge.textContent=T("jtc_full_support");
+    badge.className = 'badge badge-green';
+  } else if (allGood) {
+    badge.textContent=T("jtc_good_support");
+    badge.className = 'badge badge-green';
+  } else {
+    badge.textContent=T("jtc_partial_support");
+    badge.className = 'badge badge-yellow';
+  }
+}
+
+// ── Event Listeners ──
+document.addEventListener('selectionchange', () => {
+  const sel = window.getSelection();
+  const text = sel ? truncate(sel.toString(), 40) : '';
+  logEvent('selectionchange', text ? `"${text}"` : '(collapsed)');
+  updateInspector();
+  refreshTree();
+});
+
+document.addEventListener('selectstart', (e) => {
+  logEvent('selectstart', `target: ${nodeLabel(e.target)}`);
+});
+
+// ── Tab switching ──
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+  });
+});
+
+// ── Preset buttons ──
+document.querySelectorAll('.preset-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    applyPreset(btn.dataset.preset);
+  });
+});
+
+// ── Init ──
+refreshNodeSelects();
+refreshTree();
+checkBrowserSupport();
+
+// Apply basic preset on load
+requestAnimationFrame(() => applyPreset('basic'));
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+</body>
+</html>

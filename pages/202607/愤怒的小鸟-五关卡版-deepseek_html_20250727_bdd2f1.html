@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>愤怒的小鸟-五关卡版</title>
+    <style>
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+            font-family: Arial;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            background: #f0f0f0;
+        }
+        #gameContainer {
+            position: relative;
+            text-align: center;
+        }
+        canvas { 
+            display: block; 
+            margin: 0 auto; 
+            background: #87CEEB;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+        }
+        #ui {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            text-shadow: 1px 1px 2px black;
+        }
+        #controls {
+            margin-top: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        button {
+            padding: 8px 15px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+            min-width: 100px;
+        }
+        button:hover { background: #45a049; }
+        #levelInfo {
+            margin-top: 10px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+        #levelSelect {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            max-width: 600px;
+        }
+        #hint {
+            margin-top: 10px;
+            color: #FF5722;
+            font-weight: bold;
+            font-size: 16px;
+            height: 20px;
+        }
+        #footer {
+            margin-top: 20px;
+            font-size: 12px;
+            color: #666;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <div id="ui">
+            <button id="restart">重新开始</button>
+            <div id="levelInfo">剩余小鸟: 3 | 剩余小猪: 0 | 当前关卡: 1</div>
+            <div id="hint"></div>
+        </div>
+        <canvas id="gameCanvas" width="600" height="600"></canvas>
+    </div>
+    
+    <div id="controls">
+        <div id="levelSelect">
+            <button id="level1">关卡1</button>
+            <button id="level2">关卡2</button>
+            <button id="level3">关卡3</button>
+            <button id="level4">关卡4</button>
+            <button id="level5">关卡5</button>
+        </div>
+    </div>
+
+    <div id="footer">
+        由草根君使用DeepSeek生成，欢迎交流请+WX:caogenjun
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.18.0/matter.min.js"></script>
+    <script>
+        // 游戏状态
+        const gameState = {
+            birdCount: 3,
+            pigsRemaining: 0,
+            isDragging: false,
+            lastMousePosition: { x: 0, y: 0 },
+            rubberBand: null,
+            bird: null,
+            pigs: [],
+            structures: [],
+            boxes: [],
+            birdSpawn: { x: 150, y: 450 },
+            isWaitingForNextBird: false,
+            collisionCheckDelay: 1000,
+            currentLevel: 1,
+            nextBirdTimer: null
+        };
+
+        // 初始化引擎
+        const engine = Matter.Engine.create({ 
+            gravity: { y: 1 },
+            detector: {
+                enabled: true,
+                maxChecks: 1000
+            }
+        });
+        const world = engine.world;
+        const canvas = document.getElementById('gameCanvas');
+        const render = Matter.Render.create({
+            canvas: canvas,
+            engine: engine,
+            options: {
+                width: 600,
+                height: 600,
+                wireframes: false,
+                background: '#87CEEB'
+            }
+        });
+
+        // 创建关卡1 - 基础关卡
+        function createLevel1() {
+            resetGame();
+            gameState.currentLevel = 1;
+            
+            // 固定元素
+            createBasicEnvironment();
+            
+            // 简单结构
+            const platform1 = createPlatform(450, 450, 200, 20);
+            const support1 = createSupport(450, 500, 20, 100);
+            
+            // 添加箱子
+            createBox(400, 430, 40, 40);
+            createBox(450, 430, 40, 40);
+            createBox(500, 430, 40, 40);
+            
+            // 添加小猪
+            createPig(450, 400);
+            
+            // 完成关卡设置
+            finishLevelSetup();
+        }
+
+        // 创建关卡2 - 双层结构
+        function createLevel2() {
+            resetGame();
+            gameState.currentLevel = 2;
+            
+            // 固定元素
+            createBasicEnvironment();
+            
+            // 双层结构
+            const platform1 = createPlatform(400, 450, 150, 20);
+            const platform2 = createPlatform(500, 350, 100, 20);
+            const support1 = createSupport(400, 500, 20, 100);
+            const support2 = createSupport(500, 400, 20, 100);
+            
+            // 添加箱子
+            createBox(375, 430, 40, 40);
+            createBox(425, 430, 40, 40);
+            createBox(475, 330, 40, 40);
+            createBox(525, 330, 40, 40);
+            
+            // 添加小猪
+            createPig(400, 400);
+            createPig(500, 300);
+            
+            // 完成关卡设置
+            finishLevelSetup();
+        }
+
+        // 创建关卡3 - 塔形结构
+        function createLevel3() {
+            resetGame();
+            gameState.currentLevel = 3;
+            
+            // 固定元素
+            createBasicEnvironment();
+            
+            // 塔形结构
+            const platform1 = createPlatform(450, 500, 300, 20);
+            const platform2 = createPlatform(450, 400, 200, 20);
+            const platform3 = createPlatform(450, 300, 100, 20);
+            const support1 = createSupport(300, 550, 20, 100);
+            const support2 = createSupport(600, 550, 20, 100);
+            
+            // 添加箱子
+            createBox(400, 480, 40, 40);
+            createBox(450, 480, 40, 40);
+            createBox(500, 480, 40, 40);
+            createBox(425, 380, 40, 40);
+            createBox(475, 380, 40, 40);
+            createBox(450, 280, 40, 40);
+            
+            // 添加小猪
+            createPig(450, 450);
+            createPig(450, 350);
+            createPig(450, 250);
+            
+            // 完成关卡设置
+            finishLevelSetup();
+        }
+
+        // 创建关卡4 - 桥梁结构
+        function createLevel4() {
+            resetGame();
+            gameState.currentLevel = 4;
+            
+            // 固定元素
+            createBasicEnvironment();
+            
+            // 桥梁结构
+            const leftTower = createPlatform(350, 400, 60, 200);
+            const rightTower = createPlatform(550, 400, 60, 200);
+            const bridge1 = createPlatform(350, 300, 20, 100);
+            const bridge2 = createPlatform(450, 300, 200, 20);
+            const bridge3 = createPlatform(550, 300, 20, 100);
+            
+            // 添加箱子
+            createBox(350, 350, 40, 40);
+            createBox(550, 350, 40, 40);
+            createBox(400, 280, 40, 40);
+            createBox(450, 280, 40, 40);
+            createBox(500, 280, 40, 40);
+            
+            // 添加小猪
+            createPig(450, 250);
+            createPig(400, 250);
+            createPig(500, 250);
+            
+            // 完成关卡设置
+            finishLevelSetup();
+        }
+
+        // 创建关卡5 - 复杂迷宫
+        function createLevel5() {
+            resetGame();
+            gameState.currentLevel = 5;
+            
+            // 固定元素
+            createBasicEnvironment();
+            
+            // 迷宫结构
+            const wall1 = createPlatform(400, 450, 20, 200);
+            const wall2 = createPlatform(500, 450, 20, 200);
+            const platform1 = createPlatform(350, 350, 100, 20);
+            const platform2 = createPlatform(550, 350, 100, 20);
+            const platform3 = createPlatform(450, 250, 100, 20);
+            
+            // 添加箱子
+            createBox(350, 330, 40, 40);
+            createBox(550, 330, 40, 40);
+            createBox(450, 230, 40, 40);
+            createBox(400, 400, 40, 40);
+            createBox(500, 400, 40, 40);
+            
+            // 添加小猪
+            createPig(350, 300);
+            createPig(550, 300);
+            createPig(450, 200);
+            createPig(400, 370);
+            createPig(500, 370);
+            
+            // 完成关卡设置
+            finishLevelSetup();
+        }
+
+        // 创建基本环境
+        function createBasicEnvironment() {
+            // 地面和边界
+            const ground = Matter.Bodies.rectangle(300, 590, 600, 20, { 
+                isStatic: true, 
+                render: { fillStyle: '#8B4513' },
+                label: 'ground',
+                collisionFilter: { group: -1 }
+            });
+            const leftWall = Matter.Bodies.rectangle(0, 300, 20, 600, { 
+                isStatic: true,
+                label: 'leftWall',
+                collisionFilter: { group: -1 }
+            });
+            const rightWall = Matter.Bodies.rectangle(600, 300, 20, 600, { 
+                isStatic: true,
+                label: 'rightWall',
+                collisionFilter: { group: -1 }
+            });
+            
+            gameState.structures.push(ground, leftWall, rightWall);
+        }
+
+        // 创建平台
+        function createPlatform(x, y, width, height) {
+            const platform = Matter.Bodies.rectangle(x, y, width, height, {
+                isStatic: true,
+                render: { fillStyle: '#A0522D' },
+                label: 'platform',
+                collisionFilter: { group: -1 }
+            });
+            gameState.structures.push(platform);
+            return platform;
+        }
+
+        // 创建支撑柱
+        function createSupport(x, y, width, height) {
+            const support = Matter.Bodies.rectangle(x, y, width, height, {
+                isStatic: true,
+                render: { fillStyle: '#8B4513' },
+                label: 'support',
+                collisionFilter: { group: -1 }
+            });
+            gameState.structures.push(support);
+            return support;
+        }
+
+        // 创建箱子
+        function createBox(x, y, width, height) {
+            const box = Matter.Bodies.rectangle(x, y, width, height, {
+                restitution: 0.2,
+                render: { 
+                    fillStyle: '#DEB887',
+                    strokeStyle: '#A0522D',
+                    lineWidth: 2
+                },
+                label: 'box'
+            });
+            gameState.boxes.push(box);
+            return box;
+        }
+
+        // 创建小猪
+        function createPig(x, y) {
+            const pig = Matter.Bodies.circle(x, y, 20, {
+                restitution: 0.3,
+                density: 0.01,
+                friction: 0.1,
+                render: {
+                    fillStyle: '#4CAF50',
+                    strokeStyle: '#388E3C',
+                    lineWidth: 2
+                },
+                label: 'pig',
+                collisionFilter: {
+                    group: 0,
+                    category: 0x0002,
+                    mask: 0xFFFFFFFF
+                }
+            });
+            gameState.pigs.push(pig);
+            gameState.pigsRemaining++;
+            return pig;
+        }
+
+        // 重置游戏状态
+        function resetGame() {
+            // 清除当前关卡
+            Matter.Composite.clear(world, false);
+            clearTimeout(gameState.nextBirdTimer);
+            
+            gameState.pigs = [];
+            gameState.structures = [];
+            gameState.boxes = [];
+            gameState.birdCount = 3;
+            gameState.pigsRemaining = 0;
+            gameState.isWaitingForNextBird = false;
+            gameState.collisionCheckDelay = Date.now() + 1000;
+            
+            document.getElementById('hint').textContent = '';
+        }
+
+        // 完成关卡设置
+        function finishLevelSetup() {
+            // 添加到世界
+            Matter.Composite.add(world, [...gameState.structures]);
+            Matter.Composite.add(world, gameState.boxes);
+            Matter.Composite.add(world, gameState.pigs);
+            
+            // 创建第一只小鸟
+            createBird();
+            
+            // 更新UI
+            updateUI();
+        }
+
+        // 创建小鸟
+        function createBird() {
+            if (gameState.birdCount <= 0) return;
+            
+            gameState.bird = Matter.Bodies.circle(
+                gameState.birdSpawn.x, 
+                gameState.birdSpawn.y, 
+                18, 
+                {
+                    restitution: 0.6,
+                    friction: 0.2,
+                    density: 0.005,
+                    render: { 
+                        fillStyle: 'red',
+                        strokeStyle: '#C00000',
+                        lineWidth: 2
+                    },
+                    label: 'bird',
+                    isStatic: true,
+                    collisionFilter: { group: -1 }
+                }
+            );
+            
+            Matter.Composite.add(world, gameState.bird);
+            gameState.isWaitingForNextBird = false;
+        }
+
+        // 检查是否可以生成下一只小鸟
+        function checkForNextBird() {
+            if (gameState.birdCount > 0 && !gameState.isWaitingForNextBird) {
+                const bird = gameState.bird;
+                if (bird) {
+                    const isOutOfBounds = bird.position.x < 0 || 
+                                         bird.position.x > 600 || 
+                                         bird.position.y > 600;
+                    const isResting = Matter.Vector.magnitude(bird.velocity) < 0.5;
+                    
+                    if (isOutOfBounds || isResting) {
+                        gameState.isWaitingForNextBird = true;
+                        document.getElementById('hint').textContent = '等待三秒后可使用第二只小鸟';
+                        
+                        gameState.nextBirdTimer = setTimeout(() => {
+                            document.getElementById('hint').textContent = '';
+                            createBird();
+                        }, 3000);
+                    } else {
+                        setTimeout(checkForNextBird, 500);
+                    }
+                }
+            }
+        }
+
+        // 绘制弹弓背景
+        function drawSlingshotBackground() {
+            const ctx = render.context;
+            ctx.fillStyle = '#8B4513';
+            ctx.fillRect(135, 450, 30, 100);
+        }
+
+        // 橡皮筋渲染
+        function renderRubberBand() {
+            if (!gameState.isDragging || !gameState.bird) return;
+            
+            const ctx = render.context;
+            ctx.beginPath();
+            ctx.moveTo(gameState.birdSpawn.x, gameState.birdSpawn.y);
+            ctx.lineTo(gameState.bird.position.x, gameState.bird.position.y);
+            ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+            ctx.lineWidth = 4;
+            ctx.stroke();
+        }
+
+        // 鼠标控制
+        canvas.addEventListener('mousedown', (e) => {
+            if (gameState.birdCount <= 0 || gameState.isWaitingForNextBird) return;
+            
+            const rect = canvas.getBoundingClientRect();
+            gameState.lastMousePosition = {
+                x: e.clientX - rect.left,
+                y: e.clientY - rect.top
+            };
+            
+            if (gameState.bird && Matter.Query.point([gameState.bird], gameState.lastMousePosition).length > 0) {
+                gameState.isDragging = true;
+                Matter.Body.setStatic(gameState.bird, false);
+                
+                gameState.rubberBand = Matter.Constraint.create({
+                    pointA: { x: gameState.birdSpawn.x, y: gameState.birdSpawn.y },
+                    bodyB: gameState.bird,
+                    stiffness: 0.02,
+                    damping: 0.1,
+                    render: { visible: false }
+                });
+                
+                Matter.Composite.add(world, gameState.rubberBand);
+            }
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!gameState.isDragging || !gameState.bird) return;
+            
+            const rect = canvas.getBoundingClientRect();
+            const currentMouse = {
+                x: e.clientX - rect.left,
+                y: e.clientY - rect.top
+            };
+            
+            const smoothFactor = 0.3;
+            const targetPosition = {
+                x: gameState.lastMousePosition.x + (currentMouse.x - gameState.lastMousePosition.x) * smoothFactor,
+                y: gameState.lastMousePosition.y + (currentMouse.y - gameState.lastMousePosition.y) * smoothFactor
+            };
+            
+            const maxDrag = 120;
+            const dx = targetPosition.x - gameState.birdSpawn.x;
+            const dy = targetPosition.y - gameState.birdSpawn.y;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            
+            if (dist > maxDrag) {
+                targetPosition.x = gameState.birdSpawn.x + dx/dist * maxDrag;
+                targetPosition.y = gameState.birdSpawn.y + dy/dist * maxDrag;
+            }
+            
+            Matter.Body.setPosition(gameState.bird, targetPosition);
+            gameState.lastMousePosition = targetPosition;
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (!gameState.isDragging || !gameState.bird) return;
+            
+            gameState.isDragging = false;
+            if (gameState.rubberBand) {
+                Matter.Composite.remove(world, gameState.rubberBand);
+            }
+            
+            const power = Math.min(
+                Math.sqrt(
+                    Math.pow(gameState.birdSpawn.x - gameState.bird.position.x, 2) + 
+                    Math.pow(gameState.birdSpawn.y - gameState.bird.position.y, 2)
+                ) * 0.25,
+                30
+            );
+            
+            const angle = Math.atan2(
+                gameState.birdSpawn.y - gameState.bird.position.y,
+                gameState.birdSpawn.x - gameState.bird.position.x
+            );
+            
+            Matter.Body.setVelocity(gameState.bird, {
+                x: Math.cos(angle) * power,
+                y: Math.sin(angle) * power
+            });
+            
+            gameState.birdCount--;
+            updateUI();
+            
+            setTimeout(() => {
+                checkForNextBird();
+            }, 2000);
+            
+            setTimeout(() => {
+                if (gameState.pigsRemaining <= 0) {
+                    document.getElementById('levelInfo').textContent = `恭喜过关! 当前关卡: ${gameState.currentLevel}`;
+                    document.getElementById('hint').textContent = '请选择下一关继续游戏';
+                } else if (gameState.birdCount <= 0) {
+                    document.getElementById('levelInfo').textContent = `游戏结束! 当前关卡: ${gameState.currentLevel}`;
+                    document.getElementById('hint').textContent = '请重新开始或选择其他关卡';
+                }
+            }, 5000);
+        });
+
+        // 碰撞检测
+        Matter.Events.on(engine, 'collisionStart', (event) => {
+            if (Date.now() < gameState.collisionCheckDelay) return;
+            
+            const pairs = event.pairs;
+            
+            for (let i = 0; i < pairs.length; i++) {
+                const pair = pairs[i];
+                
+                const pigBody = pair.bodyA.label === 'pig' ? pair.bodyA : 
+                               pair.bodyB.label === 'pig' ? pair.bodyB : null;
+                
+                if (pigBody && gameState.pigs.includes(pigBody)) {
+                    const otherBody = pair.bodyA === pigBody ? pair.bodyB : pair.bodyA;
+                    if (otherBody.label === 'bird' || otherBody.label === 'box') {
+                        setTimeout(() => {
+                            if (world.bodies.includes(pigBody)) {
+                                Matter.Composite.remove(world, pigBody);
+                                gameState.pigsRemaining--;
+                                updateUI();
+                                
+                                if (gameState.pigsRemaining <= 0) {
+                                    document.getElementById('levelInfo').textContent = `恭喜过关! 当前关卡: ${gameState.currentLevel}`;
+                                    document.getElementById('hint').textContent = '请选择下一关继续游戏';
+                                }
+                            }
+                        }, 100);
+                    }
+                }
+            }
+        });
+
+        // 更新UI
+        function updateUI() {
+            document.getElementById('levelInfo').textContent = 
+                `剩余小鸟: ${gameState.birdCount} | 剩余小猪: ${gameState.pigsRemaining} | 当前关卡: ${gameState.currentLevel}`;
+        }
+
+        // 按钮事件
+        document.getElementById('restart').addEventListener('click', () => {
+            switch(gameState.currentLevel) {
+                case 1: createLevel1(); break;
+                case 2: createLevel2(); break;
+                case 3: createLevel3(); break;
+                case 4: createLevel4(); break;
+                case 5: createLevel5(); break;
+                default: createLevel1();
+            }
+        });
+
+        document.getElementById('level1').addEventListener('click', createLevel1);
+        document.getElementById('level2').addEventListener('click', createLevel2);
+        document.getElementById('level3').addEventListener('click', createLevel3);
+        document.getElementById('level4').addEventListener('click', createLevel4);
+        document.getElementById('level5').addEventListener('click', createLevel5);
+
+        // 自定义渲染
+        const customRender = {
+            controller: {
+                afterRender: () => {
+                    drawSlingshotBackground();
+                    renderRubberBand();
+                }
+            }
+        };
+
+        // 启动游戏
+        Matter.Render.run(render);
+        Matter.Engine.run(engine);
+        Object.assign(render, customRender);
+        createLevel1(); // 默认加载第一关
+    </script>
+</body>
+</html>

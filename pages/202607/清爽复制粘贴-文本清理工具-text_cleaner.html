@@ -1,0 +1,1078 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>清爽复制粘贴 - 文本清理工具</title>
+    
+    <!-- 引入Chart.js用于数据可视化 -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- 引入html2canvas用于导出图片 -->
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <!-- 引入html-docx-js用于导出Word -->
+    <!-- html-docx-js库暂时移除，避免加载错误 -->
+    
+    <style>
+        /* ========== CSS样式区域 ========== */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #fafafa;
+            color: #333;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        /* 头部样式 */
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: linear-gradient(135deg, #4ECDC4, #44A08D);
+            color: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(78, 205, 196, 0.3);
+        }
+        
+        header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 300;
+        }
+        
+        header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+        
+        /* 主要内容区域 */
+        main {
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .text-area {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .text-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        .text-controls h3 {
+            color: #495057;
+            font-size: 1.1em;
+        }
+        
+        .btn-group {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: all 0.3s ease;
+            background: #4ECDC4;
+            color: white;
+        }
+        
+        .btn:hover {
+            background: #45b7b8;
+            transform: translateY(-1px);
+        }
+        
+        .btn:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+        }
+        
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+        
+        .text-input, .text-output {
+            width: 100%;
+            height: 400px;
+            padding: 20px;
+            border: none;
+            resize: none;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            outline: none;
+        }
+        
+        .text-input {
+            background: #fff;
+        }
+        
+        .text-output {
+            background: #f8f9fa;
+            color: #495057;
+        }
+        
+        /* 侧边栏样式 */
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .panel {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .panel-header {
+            padding: 15px 20px;
+            background: #4ECDC4;
+            color: white;
+            font-weight: 500;
+        }
+        
+        .panel-content {
+            padding: 20px;
+        }
+        
+        /* 统计面板 */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-item {
+            text-align: center;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        
+        .stat-value {
+            font-size: 1.8em;
+            font-weight: bold;
+            color: #4ECDC4;
+            display: block;
+        }
+        
+        .stat-label {
+            font-size: 0.9em;
+            color: #6c757d;
+            margin-top: 5px;
+        }
+        
+        /* 历史记录 */
+        .history-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .history-item {
+            padding: 10px;
+            border-bottom: 1px solid #e9ecef;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+        
+        .history-item:hover {
+            background: #f8f9fa;
+        }
+        
+        .history-time {
+            font-size: 0.8em;
+            color: #6c757d;
+            margin-bottom: 5px;
+        }
+        
+        .history-preview {
+            font-size: 0.9em;
+            color: #495057;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        /* 图表容器 */
+        .chart-container {
+            position: relative;
+            height: 200px;
+            margin-top: 15px;
+        }
+        
+        /* 使用说明 */
+        .help-section {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-top: 20px;
+            overflow: hidden;
+        }
+        
+        .help-toggle {
+            width: 100%;
+            padding: 15px 20px;
+            background: #e9ecef;
+            border: none;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: 500;
+            color: #495057;
+            transition: background 0.3s ease;
+        }
+        
+        .help-toggle:hover {
+            background: #dee2e6;
+        }
+        
+        .help-content {
+            padding: 20px;
+            display: none;
+        }
+        
+        .help-content.show {
+            display: block;
+            animation: slideDown 0.3s ease;
+        }
+        
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        /* 提示消息 */
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #4ECDC4;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 5px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            transform: translateX(400px);
+            transition: transform 0.3s ease;
+            z-index: 1000;
+        }
+        
+        .toast.show {
+            transform: translateX(0);
+        }
+        
+        /* 控制面板样式 */
+        .control-panel {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .control-panel h3 {
+            margin: 0 0 15px 0;
+            color: #495057;
+            font-size: 1.1em;
+        }
+        
+        .control-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 12px;
+        }
+        
+        .control-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            padding: 8px 12px;
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            transition: all 0.2s ease;
+        }
+        
+        .control-item:hover {
+            background: #e9ecef;
+            border-color: #4ECDC4;
+        }
+        
+        .control-item input[type="checkbox"] {
+            margin: 0;
+            accent-color: #4ECDC4;
+        }
+        
+        .control-item span {
+            font-size: 0.9em;
+            color: #495057;
+            user-select: none;
+        }
+        
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            main {
+                grid-template-columns: 1fr;
+            }
+            
+            .text-controls {
+                flex-direction: column;
+                gap: 10px;
+                align-items: stretch;
+            }
+            
+            .btn-group {
+                justify-content: center;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            header h1 {
+                font-size: 2em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- ========== HTML结构区域 ========== -->
+    <div class="container">
+        <!-- 头部 -->
+        <header>
+            <h1>清爽复制粘贴</h1>
+            <p>智能文本清理工具 - 去除格式冗余，保留纯净内容</p>
+        </header>
+        
+        <!-- 主要内容区域 -->
+        <main>
+            <!-- 文本处理区域 -->
+            <section class="text-area">
+                <!-- 清理选项控制面板 -->
+                <div class="control-panel">
+                    <h3>清理选项</h3>
+                    <div class="control-grid">
+                        <label class="control-item">
+                            <input type="checkbox" id="enableMarkdown" checked>
+                            <span>Markdown符号</span>
+                        </label>
+                        <label class="control-item">
+                            <input type="checkbox" id="enableLatex" checked>
+                            <span>LaTeX公式</span>
+                        </label>
+                        <label class="control-item">
+                            <input type="checkbox" id="enableCodeBlocks" checked>
+                            <span>代码块</span>
+                        </label>
+                        <label class="control-item">
+                            <input type="checkbox" id="enableTables" checked>
+                            <span>表格格式</span>
+                        </label>
+                        <label class="control-item">
+                            <input type="checkbox" id="enableSpecialChars" checked>
+                            <span>特殊字符</span>
+                        </label>
+                        <label class="control-item">
+                            <input type="checkbox" id="enableEmojis" checked>
+                            <span>表情符号</span>
+                        </label>
+                    </div>
+                </div>
+                
+                <!-- 输入区域 -->
+                <div>
+                    <div class="text-controls">
+                        <h3>原始文本</h3>
+                        <div class="btn-group">
+                            <button class="btn" onclick="clearInput()">清空输入</button>
+                            <button class="btn" onclick="reprocess()">重新处理</button>
+                        </div>
+                    </div>
+                    <textarea class="text-input" id="inputText" placeholder="在此粘贴需要清理的文本..." oninput="processText()"></textarea>
+                </div>
+                
+                <!-- 输出区域 -->
+                <div style="margin-top: 20px;">
+                    <div class="text-controls">
+                        <h3>清理结果</h3>
+                        <div class="btn-group">
+                            <button class="btn" onclick="copyResult()">复制结果</button>
+                            <button class="btn btn-secondary" onclick="exportAsWord()">导出Word</button>
+                            <button class="btn btn-secondary" onclick="exportAsImage()">导出图片</button>
+                        </div>
+                    </div>
+                    <textarea class="text-output" id="outputText" readonly placeholder="清理后的文本将在此显示..."></textarea>
+                </div>
+            </section>
+            
+            <!-- 侧边栏 -->
+            <aside class="sidebar">
+                <!-- 统计面板 -->
+                <div class="panel">
+                    <div class="panel-header">实时统计</div>
+                    <div class="panel-content">
+                        <div class="stats-grid">
+                            <div class="stat-item">
+                                <span class="stat-value" id="currentChars">0</span>
+                                <div class="stat-label">当前字数</div>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-value" id="totalProcessed">0</span>
+                                <div class="stat-label">处理次数</div>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-value" id="avgTime">0ms</span>
+                                <div class="stat-label">平均耗时</div>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-value" id="cleanedItems">0</span>
+                                <div class="stat-label">清理项目</div>
+                            </div>
+                        </div>
+                        
+                        <!-- 清理类型占比图 -->
+                        <div class="chart-container">
+                            <canvas id="cleaningChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 历史记录 -->
+                <div class="panel">
+                    <div class="panel-header">历史记录</div>
+                    <div class="panel-content">
+                        <div class="btn-group" style="margin-bottom: 15px;">
+                            <button class="btn btn-secondary" onclick="clearHistory()">清空历史</button>
+                            <button class="btn btn-secondary" onclick="exportHistory()">导出CSV</button>
+                        </div>
+                        <div class="history-list" id="historyList">
+                            <div style="text-align: center; color: #6c757d; padding: 20px;">暂无历史记录</div>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+        </main>
+        
+        <!-- 使用说明 -->
+        <section class="help-section">
+            <button class="help-toggle" onclick="toggleHelp()">使用说明 ▼</button>
+            <div class="help-content" id="helpContent">
+                <h4>功能介绍</h4>
+                <ul>
+                    <li><strong>智能清理：</strong>自动识别并去除Markdown符号、LaTeX公式、代码块、表格格式、表情符号等</li>
+                    <li><strong>灵活控制：</strong>通过清理选项面板，可以自由选择需要清理的内容类型</li>
+                    <li><strong>实时预览：</strong>输入文本后立即显示清理结果</li>
+                    <li><strong>历史记录：</strong>自动保存处理历史，支持快速回溯</li>
+                    <li><strong>数据统计：</strong>实时显示处理统计和清理类型分析</li>
+                    <li><strong>多格式导出：</strong>支持导出为Word文档、图片和CSV格式</li>
+                </ul>
+                
+                <h4>清理规则</h4>
+                <ul>
+                    <li><strong>Markdown符号：</strong>去除格式符号（*、#、>、-、[]、()等），保留文本内容</li>
+                    <li><strong>LaTeX公式：</strong>清理数学公式（$包裹的内容）</li>
+                    <li><strong>代码块：</strong>移除代码块（```包裹的内容）</li>
+                    <li><strong>表格格式：</strong>清理表格格式（|分隔符和表头线）</li>
+                    <li><strong>表情符号：</strong>去除各种Unicode表情符号和emoji</li>
+                    <li><strong>特殊字符：</strong>清理零宽字符等不可见特殊字符</li>
+                    <li><strong>格式优化：</strong>去除多余空行，保持原有段落结构和语义</li>
+                </ul>
+                
+                <h4>使用技巧</h4>
+                <ul>
+                    <li>使用清理选项面板可以精确控制需要清理的内容类型</li>
+                    <li>取消勾选某项功能可以保留对应的格式内容</li>
+                    <li>建议根据文本来源和用途选择合适的清理选项</li>
+                </ul>
+            </div>
+        </section>
+    </div>
+    
+    <!-- 提示消息 -->
+    <div class="toast" id="toast"></div>
+    
+    <script>
+        // ========== JavaScript逻辑区域 ==========
+        
+        // 全局变量
+        let processingStats = {
+            totalProcessed: 0,
+            totalTime: 0,
+            cleaningTypes: {
+                markdown: 0,
+                latex: 0,
+                codeBlocks: 0,
+                tables: 0,
+                specialChars: 0,
+                emojis: 0
+            }
+        };
+        
+        let historyData = [];
+        let cleaningChart = null;
+        
+        // 初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            loadStoredData();
+            initChart();
+            updateStats();
+            loadHistory();
+            
+            // 为控制开关添加事件监听器
+            const controlCheckboxes = [
+                'enableMarkdown', 'enableLatex', 'enableCodeBlocks', 
+                'enableTables', 'enableSpecialChars', 'enableEmojis'
+            ];
+            
+            controlCheckboxes.forEach(id => {
+                const checkbox = document.getElementById(id);
+                if (checkbox) {
+                    checkbox.addEventListener('change', function() {
+                        // 当开关状态改变时，重新处理文本
+                        const inputText = document.getElementById('inputText').value;
+                        if (inputText.trim()) {
+                            processText();
+                        }
+                    });
+                }
+            });
+        });
+        
+        // 文本清理核心函数
+        function processText() {
+            const startTime = performance.now();
+            const inputText = document.getElementById('inputText').value;
+            const outputElement = document.getElementById('outputText');
+            
+            if (!inputText.trim()) {
+                outputElement.value = '';
+                updateCurrentChars(0);
+                return;
+            }
+            
+            let cleanedText = inputText;
+            let cleaningCount = {
+                markdown: 0,
+                latex: 0,
+                codeBlocks: 0,
+                tables: 0,
+                specialChars: 0,
+                emojis: 0
+            };
+            
+            // 获取控制开关状态
+            const enableMarkdown = document.getElementById('enableMarkdown').checked;
+            const enableLatex = document.getElementById('enableLatex').checked;
+            const enableCodeBlocks = document.getElementById('enableCodeBlocks').checked;
+            const enableTables = document.getElementById('enableTables').checked;
+            const enableSpecialChars = document.getElementById('enableSpecialChars').checked;
+            const enableEmojis = document.getElementById('enableEmojis').checked;
+            
+            // 1. 去除代码块
+            if (enableCodeBlocks) {
+                const codeBlockRegex = /```[\s\S]*?```/g;
+                const codeBlockMatches = cleanedText.match(codeBlockRegex);
+                if (codeBlockMatches) {
+                    cleaningCount.codeBlocks = codeBlockMatches.length;
+                    cleanedText = cleanedText.replace(codeBlockRegex, '');
+                }
+            }
+            
+            // 2. 去除LaTeX公式
+            if (enableLatex) {
+                const latexRegex = /\$\$[\s\S]*?\$\$|\$[^\$\n]*?\$/g;
+                const latexMatches = cleanedText.match(latexRegex);
+                if (latexMatches) {
+                    cleaningCount.latex = latexMatches.length;
+                    cleanedText = cleanedText.replace(latexRegex, '');
+                }
+            }
+            
+            // 3. 去除表格格式
+            if (enableTables) {
+                const tableRegex = /\|[^\n]*\|/g;
+                const tableHeaderRegex = /[-\|\s]+\n/g;
+                const tableMatches = cleanedText.match(tableRegex);
+                if (tableMatches) {
+                    cleaningCount.tables = tableMatches.length;
+                    cleanedText = cleanedText.replace(tableRegex, '');
+                    cleanedText = cleanedText.replace(tableHeaderRegex, '\n');
+                }
+            }
+            
+            // 4. 去除Markdown符号
+            if (enableMarkdown) {
+                // 处理标题符号
+                const titleMatches = cleanedText.match(/#{1,6}\s*/g);
+                if (titleMatches) {
+                    cleaningCount.markdown += titleMatches.length;
+                    cleanedText = cleanedText.replace(/#{1,6}\s*/g, '');
+                }
+                
+                // 处理粗体文本，保留内容
+                const boldMatches = cleanedText.match(/\*\*([^*]+)\*\*/g);
+                if (boldMatches) {
+                    cleaningCount.markdown += boldMatches.length;
+                    cleanedText = cleanedText.replace(/\*\*([^*]+)\*\*/g, '$1');
+                }
+                
+                // 处理斜体文本，保留内容
+                const italicMatches = cleanedText.match(/\*([^*]+)\*/g);
+                if (italicMatches) {
+                    cleaningCount.markdown += italicMatches.length;
+                    cleanedText = cleanedText.replace(/\*([^*]+)\*/g, '$1');
+                }
+                
+                // 处理删除线，保留内容
+                const strikeMatches = cleanedText.match(/~~([^~]+)~~/g);
+                if (strikeMatches) {
+                    cleaningCount.markdown += strikeMatches.length;
+                    cleanedText = cleanedText.replace(/~~([^~]+)~~/g, '$1');
+                }
+                
+                // 处理行内代码，保留内容
+                const inlineCodeMatches = cleanedText.match(/`([^`]+)`/g);
+                if (inlineCodeMatches) {
+                    cleaningCount.markdown += inlineCodeMatches.length;
+                    cleanedText = cleanedText.replace(/`([^`]+)`/g, '$1');
+                }
+                
+                // 处理引用符号
+                const quoteMatches = cleanedText.match(/^>\s*/gm);
+                if (quoteMatches) {
+                    cleaningCount.markdown += quoteMatches.length;
+                    cleanedText = cleanedText.replace(/^>\s*/gm, '');
+                }
+                
+                // 处理无序列表符号，保留内容
+                const unorderedListMatches = cleanedText.match(/^[-*+]\s*/gm);
+                if (unorderedListMatches) {
+                    cleaningCount.markdown += unorderedListMatches.length;
+                    cleanedText = cleanedText.replace(/^[-*+]\s*/gm, '');
+                }
+                
+                // 处理有序列表，去除重复序号和多余格式
+                // 处理重复序号的情况，如 "1. 1. 内容" -> "1. 内容"
+                const duplicateNumberMatches = cleanedText.match(/^(\d+)\. \d+\. /gm);
+                if (duplicateNumberMatches) {
+                    cleaningCount.markdown += duplicateNumberMatches.length;
+                    cleanedText = cleanedText.replace(/^(\d+)\. \d+\. /gm, '$1. ');
+                }
+                
+                // 标准化有序列表格式：确保序号后只有一个空格
+                const orderedListMatches = cleanedText.match(/^\d+\.\s+/gm);
+                if (orderedListMatches) {
+                    cleaningCount.markdown += orderedListMatches.length;
+                    cleanedText = cleanedText.replace(/^(\d+)\.\s+/gm, '$1. ');
+                }
+                
+                // 处理链接，保留链接文本
+                const linkMatches = cleanedText.match(/\[([^\]]+)\]\([^)]+\)/g);
+                if (linkMatches) {
+                    cleaningCount.markdown += linkMatches.length;
+                    cleanedText = cleanedText.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
+                }
+                
+                // 处理图片，保留alt文本
+                const imageMatches = cleanedText.match(/!\[([^\]]*)\]\([^)]+\)/g);
+                if (imageMatches) {
+                    cleaningCount.markdown += imageMatches.length;
+                    cleanedText = cleanedText.replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1');
+                }
+                
+                // 处理水平分隔线
+                const hrMatches = cleanedText.match(/^(-{3,}|\*{3,}|_{3,})\s*$/gm);
+                if (hrMatches) {
+                    cleaningCount.markdown += hrMatches.length;
+                    cleanedText = cleanedText.replace(/^(-{3,}|\*{3,}|_{3,})\s*$/gm, '');
+                }
+            }
+            
+            // 5. 去除表情符号
+            if (enableEmojis) {
+                // 更全面的表情符号匹配，包括组合表情符号
+                const emojiRegex = /[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{1F900}-\u{1F9FF}]|[\u{1F018}-\u{1F270}]|[\u{238C}]|[\u{2194}-\u{2199}]|[\u{21A9}-\u{21AA}]|[\u{231A}-\u{231B}]|[\u{23E9}-\u{23EC}]|[\u{23F0}]|[\u{23F3}]|[\u{25FD}-\u{25FE}]|[\u{2614}-\u{2615}]|[\u{2648}-\u{2653}]|[\u{267F}]|[\u{2693}]|[\u{26A1}]|[\u{26AA}-\u{26AB}]|[\u{26BD}-\u{26BE}]|[\u{26C4}-\u{26C5}]|[\u{26CE}]|[\u{26D4}]|[\u{26EA}]|[\u{26F2}-\u{26F3}]|[\u{26F5}]|[\u{26FA}]|[\u{26FD}]|[\u{2705}]|[\u{270A}-\u{270B}]|[\u{2728}]|[\u{274C}]|[\u{274E}]|[\u{2753}-\u{2755}]|[\u{2757}]|[\u{2795}-\u{2797}]|[\u{27B0}]|[\u{27BF}]|[\u{2B1B}-\u{2B1C}]|[\u{2B50}]|[\u{2B55}]|[\u{1FA70}-\u{1FAFF}]|[\u{1F004}]|[\u{1F0CF}]|[\u{1F170}-\u{1F251}]/gu;
+                
+                // 处理组合表情符号（如肤色修饰符、性别修饰符等）
+                const combinedEmojiRegex = /[\u{1F3FB}-\u{1F3FF}]|[\u{200D}]|[\u{FE0F}]|[\u{20E3}]/gu;
+                
+                const emojiMatches = cleanedText.match(emojiRegex);
+                const combinedMatches = cleanedText.match(combinedEmojiRegex);
+                
+                if (emojiMatches) {
+                    cleaningCount.emojis += emojiMatches.length;
+                    cleanedText = cleanedText.replace(emojiRegex, '');
+                }
+                
+                if (combinedMatches) {
+                    cleaningCount.emojis += combinedMatches.length;
+                    cleanedText = cleanedText.replace(combinedEmojiRegex, '');
+                }
+            }
+            
+            // 6. 去除特殊字符
+            if (enableSpecialChars) {
+                // 零宽字符和其他不可见字符
+                const specialCharRegex = /[\u200B-\u200D\uFEFF\u00AD\u061C\u180E\u2000-\u200F\u2028-\u202F\u205F-\u206F\uFFF9-\uFFFB]/g;
+                const specialMatches = cleanedText.match(specialCharRegex);
+                if (specialMatches) {
+                    cleaningCount.specialChars = specialMatches.length;
+                    cleanedText = cleanedText.replace(specialCharRegex, '');
+                }
+            }
+            
+            // 清理多余空行和空白字符
+            // 先统一换行符
+            cleanedText = cleanedText.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+            
+            // 清理行尾空白字符
+            cleanedText = cleanedText.replace(/[ \t]+$/gm, '');
+            
+            // 清理多余空行（连续3个或以上换行符替换为2个）
+            cleanedText = cleanedText.replace(/\n{3,}/g, '\n\n');
+            
+            // 清理开头和结尾的空白
+            cleanedText = cleanedText.trim();
+            
+            // 更新输出
+            outputElement.value = cleanedText;
+            
+            // 计算处理时间
+            const endTime = performance.now();
+            const processingTime = Math.round(endTime - startTime);
+            
+            // 更新统计
+            updateProcessingStats(processingTime, cleaningCount);
+            updateCurrentChars(cleanedText.length);
+            
+            // 保存到历史记录
+            if (inputText.trim() && cleanedText.trim()) {
+                saveToHistory(inputText, cleanedText, processingTime, cleaningCount);
+            }
+        }
+        
+        // 更新处理统计
+        function updateProcessingStats(time, cleaningCount) {
+            processingStats.totalProcessed++;
+            processingStats.totalTime += time;
+            
+            Object.keys(cleaningCount).forEach(key => {
+                processingStats.cleaningTypes[key] += cleaningCount[key];
+            });
+            
+            updateStats();
+            updateChart();
+            saveStoredData();
+        }
+        
+        // 更新统计显示
+        function updateStats() {
+            const avgTime = processingStats.totalProcessed > 0 ? 
+                Math.round(processingStats.totalTime / processingStats.totalProcessed) : 0;
+            
+            const totalCleaned = Object.values(processingStats.cleaningTypes)
+                .reduce((sum, count) => sum + count, 0);
+            
+            document.getElementById('totalProcessed').textContent = processingStats.totalProcessed;
+            document.getElementById('avgTime').textContent = avgTime + 'ms';
+            document.getElementById('cleanedItems').textContent = totalCleaned;
+        }
+        
+        // 更新当前字数
+        function updateCurrentChars(count) {
+            document.getElementById('currentChars').textContent = count;
+        }
+        
+        // 初始化图表
+        function initChart() {
+            const ctx = document.getElementById('cleaningChart').getContext('2d');
+            cleaningChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Markdown', 'LaTeX', '代码块', '表格', '特殊字符', '表情符号'],
+                    datasets: [{
+                        data: [0, 0, 0, 0, 0, 0],
+                        backgroundColor: [
+                            '#4ECDC4',
+                            '#45B7D1',
+                            '#96CEB4',
+                            '#FFEAA7',
+                            '#DDA0DD',
+                            '#FF6B6B'
+                        ],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                fontSize: 10,
+                                padding: 10
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // 更新图表
+        function updateChart() {
+            const data = [
+                processingStats.cleaningTypes.markdown,
+                processingStats.cleaningTypes.latex,
+                processingStats.cleaningTypes.codeBlocks,
+                processingStats.cleaningTypes.tables,
+                processingStats.cleaningTypes.specialChars,
+                processingStats.cleaningTypes.emojis
+            ];
+            
+            cleaningChart.data.datasets[0].data = data;
+            cleaningChart.update();
+        }
+        
+        // 保存到历史记录
+        function saveToHistory(original, cleaned, time, cleaningCount) {
+            const historyItem = {
+                timestamp: new Date().toISOString(),
+                original: original.substring(0, 100),
+                cleaned: cleaned.substring(0, 100),
+                originalLength: original.length,
+                cleanedLength: cleaned.length,
+                processingTime: time,
+                cleaningCount: cleaningCount
+            };
+            
+            historyData.unshift(historyItem);
+            
+            // 限制历史记录数量
+            if (historyData.length > 50) {
+                historyData = historyData.slice(0, 50);
+            }
+            
+            saveStoredData();
+            loadHistory();
+        }
+        
+        // 加载历史记录显示
+        function loadHistory() {
+            const historyList = document.getElementById('historyList');
+            
+            if (historyData.length === 0) {
+                historyList.innerHTML = '<div style="text-align: center; color: #6c757d; padding: 20px;">暂无历史记录</div>';
+                return;
+            }
+            
+            historyList.innerHTML = historyData.map((item, index) => `
+                <div class="history-item" onclick="loadHistoryItem(${index})">
+                    <div class="history-time">${new Date(item.timestamp).toLocaleString()}</div>
+                    <div class="history-preview">原文: ${item.original}...</div>
+                    <div class="history-preview">结果: ${item.cleaned}...</div>
+                </div>
+            `).join('');
+        }
+        
+        // 加载历史记录项
+        function loadHistoryItem(index) {
+            const item = historyData[index];
+            // 这里简化处理，实际应该保存完整文本
+            showToast('历史记录功能需要完整文本存储支持');
+        }
+        
+        // 本地存储相关函数
+        function saveStoredData() {
+            localStorage.setItem('textCleanerStats', JSON.stringify(processingStats));
+            localStorage.setItem('textCleanerHistory', JSON.stringify(historyData));
+        }
+        
+        function loadStoredData() {
+            const storedStats = localStorage.getItem('textCleanerStats');
+            if (storedStats) {
+                processingStats = JSON.parse(storedStats);
+            }
+            
+            const storedHistory = localStorage.getItem('textCleanerHistory');
+            if (storedHistory) {
+                historyData = JSON.parse(storedHistory);
+            }
+        }
+        
+        // 工具函数
+        function clearInput() {
+            document.getElementById('inputText').value = '';
+            document.getElementById('outputText').value = '';
+            updateCurrentChars(0);
+        }
+        
+        function reprocess() {
+            processText();
+            showToast('文本已重新处理');
+        }
+        
+        function copyResult() {
+            const outputText = document.getElementById('outputText').value;
+            if (!outputText.trim()) {
+                showToast('没有可复制的内容');
+                return;
+            }
+            
+            navigator.clipboard.writeText(outputText).then(() => {
+                showToast('复制成功！');
+            }).catch(() => {
+                showToast('复制失败，请手动复制');
+            });
+        }
+        
+        function exportAsWord() {
+            const outputText = document.getElementById('outputText').value;
+            if (!outputText.trim()) {
+                showToast('没有可导出的内容');
+                return;
+            }
+            
+            // 简化的文本导出功能
+            try {
+                const textContent = `清理后的文本\n\n${outputText}`;
+                const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `清理文本_${new Date().toISOString().slice(0, 10)}.txt`;
+                a.click();
+                URL.revokeObjectURL(url);
+                
+                showToast('文本文件导出成功！');
+            } catch (error) {
+                showToast('导出失败，请检查浏览器兼容性');
+            }
+        }
+        
+        function exportAsImage() {
+            const outputElement = document.getElementById('outputText');
+            
+            html2canvas(outputElement).then(canvas => {
+                const url = canvas.toDataURL('image/png');
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `清理文本_${new Date().toISOString().slice(0, 10)}.png`;
+                a.click();
+                
+                showToast('图片导出成功！');
+            }).catch(() => {
+                showToast('图片导出失败');
+            });
+        }
+        
+        function clearHistory() {
+            if (confirm('确定要清空所有历史记录吗？')) {
+                historyData = [];
+                saveStoredData();
+                loadHistory();
+                showToast('历史记录已清空');
+            }
+        }
+        
+        function exportHistory() {
+            if (historyData.length === 0) {
+                showToast('没有历史记录可导出');
+                return;
+            }
+            
+            const csvContent = [
+                ['时间', '原文长度', '清理后长度', '处理时间(ms)', 'Markdown', 'LaTeX', '代码块', '表格', '特殊字符'],
+                ...historyData.map(item => [
+                    new Date(item.timestamp).toLocaleString(),
+                    item.originalLength,
+                    item.cleanedLength,
+                    item.processingTime,
+                    item.cleaningCount.markdown,
+                    item.cleaningCount.latex,
+                    item.cleaningCount.codeBlocks,
+                    item.cleaningCount.tables,
+                    item.cleaningCount.specialChars
+                ])
+            ].map(row => row.join(',')).join('\n');
+            
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `文本清理历史_${new Date().toISOString().slice(0, 10)}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+            
+            showToast('CSV文件导出成功！');
+        }
+        
+        function toggleHelp() {
+            const helpContent = document.getElementById('helpContent');
+            const isVisible = helpContent.classList.contains('show');
+            
+            if (isVisible) {
+                helpContent.classList.remove('show');
+                helpContent.style.display = 'none';
+            } else {
+                helpContent.style.display = 'block';
+                setTimeout(() => helpContent.classList.add('show'), 10);
+            }
+        }
+        
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.classList.add('show');
+            
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+        
+        // 页面加载完成后显示使用说明
+        window.addEventListener('load', function() {
+            setTimeout(() => {
+                const helpContent = document.getElementById('helpContent');
+                helpContent.style.display = 'block';
+                helpContent.classList.add('show');
+            }, 500);
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html tk="title_js_event_loop_visualizer" lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JS Event Loop Visualizer</title>
+<meta name="description" content="Interactive JavaScript event loop visualizer. See how the call stack, task queue, microtask queue, and Web APIs work together. Step through code execution.">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0f1117;--surface:#1a1d27;--surface2:#242837;--border:#2e3347;--text:#e4e7f1;--dim:#8b90a5;--accent:#6c8cff;--accent2:#a78bfa;--green:#4ade80;--red:#f87171;--orange:#fbbf24;--cyan:#22d3ee;--pink:#f472b6;--callstack:#3b82f6;--taskq:#f59e0b;--microq:#a78bfa;--webapi:#22d3ee}
+body{font-family:'SF Mono',Monaco,'Cascadia Code',monospace;background:var(--bg);color:var(--text);min-height:100vh}
+.header{padding:14px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px}
+.header h1{font-size:15px;font-weight:600}
+.header span{color:var(--dim);font-size:12px}
+.main{display:flex;height:calc(100vh - 49px)}
+
+/* Left: Code Editor */
+.left{width:380px;border-right:1px solid var(--border);display:flex;flex-direction:column}
+.left label{padding:8px 14px;font-size:11px;color:var(--dim);background:var(--surface);border-bottom:1px solid var(--border)}
+.left textarea{flex:1;background:var(--bg);color:var(--text);border:none;padding:14px;font-family:inherit;font-size:12px;resize:none;outline:none;line-height:1.6}
+.controls{padding:10px 14px;background:var(--surface);border-top:1px solid var(--border);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.btn{padding:6px 14px;border-radius:6px;border:none;font-family:inherit;font-size:11px;cursor:pointer;transition:all .15s}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{background:#5a7aee}
+.btn-secondary{background:var(--surface2);color:var(--text);border:1px solid var(--border)}
+.btn-secondary:hover{background:var(--border)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.speed-label{font-size:10px;color:var(--dim);margin-left:auto}
+.speed-slider{width:80px;accent-color:var(--accent)}
+
+/* Right: Visualization */
+.right{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.viz-row{display:flex;flex:1;min-height:0}
+
+/* Queues */
+.queue-area{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:0;flex:1}
+.queue{border-right:1px solid var(--border);display:flex;flex-direction:column;min-width:0}
+.queue:last-child{border-right:none}
+.queue-header{padding:8px 12px;font-size:11px;font-weight:600;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:6px;background:var(--surface)}
+.queue-header .dot{width:8px;height:8px;border-radius:50%}
+.queue-items{flex:1;padding:8px;overflow-y:auto;display:flex;flex-direction:column;gap:4px}
+.queue-item{padding:6px 10px;border-radius:5px;font-size:11px;line-height:1.4;animation:fadeIn .3s;word-break:break-all}
+@keyframes fadeIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+.queue-item.callstack{background:rgba(59,130,246,.15);border:1px solid rgba(59,130,246,.3);color:#93bbff}
+.queue-item.task{background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.3);color:#fcd070}
+.queue-item.micro{background:rgba(167,139,250,.12);border:1px solid rgba(167,139,250,.3);color:#c4b5fd}
+.queue-item.webapi{background:rgba(34,211,238,.1);border:1px solid rgba(34,211,238,.3);color:#67e8f9}
+.queue-item.active{box-shadow:0 0 8px rgba(255,255,255,.15)}
+.queue-empty{color:var(--dim);font-size:10px;font-style:italic;text-align:center;padding:20px 8px}
+
+/* Console */
+.console-area{border-top:1px solid var(--border);height:180px;display:flex;flex-direction:column}
+.console-header{padding:8px 14px;font-size:11px;color:var(--dim);background:var(--surface);border-bottom:1px solid var(--border);display:flex;justify-content:space-between}
+.console-output{flex:1;padding:8px 14px;overflow-y:auto;font-size:11px;line-height:1.6}
+.console-line{display:flex;gap:8px}
+.console-line .step-num{color:var(--dim);min-width:28px;text-align:right}
+.console-line .msg{color:var(--green)}
+.console-line.explain .msg{color:var(--dim);font-style:italic}
+
+/* Presets sidebar */
+.presets-bar{border-top:1px solid var(--border);background:var(--surface);padding:8px 14px;display:flex;gap:6px;overflow-x:auto}
+.preset-chip{padding:4px 10px;border-radius:12px;font-size:10px;border:1px solid var(--border);background:var(--surface2);color:var(--dim);cursor:pointer;white-space:nowrap;transition:all .15s}
+.preset-chip:hover{border-color:var(--accent);color:var(--text)}
+.preset-chip.active{border-color:var(--accent);color:var(--accent);background:rgba(108,140,255,.1)}
+
+/* Current line highlight */
+.highlight-line{color:var(--accent);font-weight:600}
+</style>
+</head>
+<body>
+
+
+
+<div class="header">
+  <h1 ti="title_js_event_loop_visualizer" ti="h1_js_event_loop_visualizer">JS Event Loop Visualizer</h1>
+  <span>See how Call Stack, Task Queue, Microtask Queue & Web APIs work</span>
+</div>
+
+<div class="main">
+  <div class="left">
+    <label ti="label_javascript_code">JavaScript Code</label>
+    <textarea id="codeInput" spellcheck="false"></textarea>
+    <div class="presets-bar" id="presetsBar"></div>
+    <div class="controls">
+      <button class="btn btn-primary" id="btnRun" onclick="runCode()" ti="btn_run">Run</button>
+      <button class="btn btn-secondary" id="btnStep" onclick="stepCode()" disabled ti="btn_step">Step</button>
+      <button class="btn btn-secondary" id="btnAutoStep" onclick="toggleAuto()" disabled ti="btn_auto">Auto</button>
+      <button class="btn btn-secondary" onclick="resetAll()" ti="btn_reset">Reset</button>
+      <span class="speed-label" ti="label_speed">Speed</span>
+      <input type="range" class="speed-slider" id="speedSlider" min="100" max="2000" value="800" step="100">
+    </div>
+  </div>
+
+  <div class="right">
+    <div class="viz-row">
+      <div class="queue-area">
+        <div class="queue">
+          <div class="queue-header"><span class="dot" style="background:var(--callstack)"></span>Call Stack</div>
+          <div class="queue-items" id="callStack"><div class="queue-empty">Empty</div></div>
+        </div>
+        <div class="queue">
+          <div class="queue-header"><span class="dot" style="background:var(--webapi)"></span>Web APIs</div>
+          <div class="queue-items" id="webApis"><div class="queue-empty">No pending APIs</div></div>
+        </div>
+        <div class="queue">
+          <div class="queue-header"><span class="dot" style="background:var(--microq)"></span>Microtask Queue</div>
+          <div class="queue-items" id="microQueue"><div class="queue-empty">Empty</div></div>
+        </div>
+        <div class="queue">
+          <div class="queue-header"><span class="dot" style="background:var(--taskq)"></span>Task Queue</div>
+          <div class="queue-items" id="taskQueue"><div class="queue-empty">Empty</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="console-area">
+      <div class="console-header">
+        <span>Console & Explanation</span>
+        <span id="stepCounter">Step 0</span>
+      </div>
+      <div class="console-output" id="consoleOutput"></div>
+    </div>
+  </div>
+</div>
+
+
+<script>var _LANG={'title_js_event_loop_visualizer':["JS Event Loop Visualizer", "JS 事件循环可视化工具"],'metadesc_interactive_javascript_ev':["Interactive JavaScript event loop visualizer. See how the call stack, task queue, microtask queue, and Web APIs work together. Step through code execution.", "交互式 JavaScript 事件循环可视化工具。查看调用堆栈、任务队列、微任务队列和 Web API 如何协同工作。逐步执行代码。"],'h1_js_event_loop_visualizer':["JS Event Loop Visualizer", "JS 事件循环可视化工具"],'btn_run':["Run", "跑步"],'btn_step':["Step", "步"],'btn_auto':["Auto", "汽车"],'btn_reset':["Reset", "重置"],'label_speed':["Speed", "速度"],'label_javascript_code':["JavaScript Code", "JavaScript 代码"],'jtc_pause':["Pause", "暂停"],'jtc_auto':["Auto", "汽车"],'jtc_step_0':["Step 0", "步骤 0"],'jtlword_empty':["Empty", "空的"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>
+// Presets
+const PRESETS = [
+  {
+    name: 'Basic setTimeout',
+    code: `console.log('1: Start');
+
+setTimeout(() => {
+  console.log('2: Timeout callback');
+}, 0);
+
+console.log('3: End');
+
+// Output order: 1, 3, 2
+// Even with 0ms delay, setTimeout goes to Task Queue
+// and waits for the Call Stack to empty first.`
+  },
+  {
+    name: 'Promise vs setTimeout',
+    code: `console.log('1: Start');
+
+setTimeout(() => {
+  console.log('2: setTimeout');
+}, 0);
+
+Promise.resolve().then(() => {
+  console.log('3: Promise');
+});
+
+console.log('4: End');
+
+// Output: 1, 4, 3, 2
+// Microtasks (Promise) run before Tasks (setTimeout).`
+  },
+  {
+    name: 'Nested Promises',
+    code: `console.log('1: Start');
+
+Promise.resolve().then(() => {
+  console.log('2: Promise 1');
+  Promise.resolve().then(() => {
+    console.log('3: Nested Promise');
+  });
+});
+
+Promise.resolve().then(() => {
+  console.log('4: Promise 2');
+});
+
+console.log('5: End');
+
+// Output: 1, 5, 2, 4, 3
+// Microtask queue is drained completely before
+// moving to the next task — including newly added ones.`
+  },
+  {
+    name: 'Mixed Queue',
+    code: `console.log('1: Script start');
+
+setTimeout(() => {
+  console.log('2: setTimeout 1');
+  Promise.resolve().then(() => {
+    console.log('3: Promise inside timeout');
+  });
+}, 0);
+
+setTimeout(() => {
+  console.log('4: setTimeout 2');
+}, 0);
+
+Promise.resolve()
+  .then(() => {
+    console.log('5: Promise 1');
+  })
+  .then(() => {
+    console.log('6: Promise 2');
+  });
+
+console.log('7: Script end');
+
+// Output: 1, 7, 5, 6, 2, 3, 4`
+  },
+  {
+    name: 'queueMicrotask',
+    code: `console.log('1: Start');
+
+queueMicrotask(() => {
+  console.log('2: queueMicrotask');
+});
+
+setTimeout(() => {
+  console.log('3: setTimeout');
+}, 0);
+
+Promise.resolve().then(() => {
+  console.log('4: Promise.then');
+});
+
+console.log('5: End');
+
+// Output: 1, 5, 2, 4, 3
+// queueMicrotask and Promise.then are both microtasks.`
+  },
+  {
+    name: 'Multiple Timers',
+    code: `console.log('1: Start');
+
+setTimeout(() => {
+  console.log('2: Timer 0ms');
+}, 0);
+
+setTimeout(() => {
+  console.log('3: Timer 100ms');
+}, 100);
+
+setTimeout(() => {
+  console.log('4: Timer 0ms #2');
+}, 0);
+
+console.log('5: End');
+
+// Output: 1, 5, 2, 4, 3
+// Timer callbacks enter the Task Queue
+// in order of when they expire.`
+  },
+  {
+    name: 'Async/Await',
+    code: `async function fetchData() {
+  console.log('2: Inside async');
+  const result = await Promise.resolve('data');
+  console.log('4: After await:', result);
+}
+
+console.log('1: Before async');
+fetchData();
+console.log('3: After calling async');
+
+// Output: 1, 2, 3, 4
+// 'await' pauses the function and schedules
+// the rest as a microtask.`
+  },
+  {
+    name: 'Starvation',
+    code: `console.log('1: Start');
+
+setTimeout(() => {
+  console.log('4: I finally run!');
+}, 0);
+
+// This creates 3 chained microtasks
+Promise.resolve()
+  .then(() => {
+    console.log('2: Microtask 1');
+    return Promise.resolve();
+  })
+  .then(() => {
+    console.log('3: Microtask 2');
+  });
+
+// setTimeout waits until ALL microtasks
+// (including chained ones) are done.`
+  }
+];
+
+// State
+let steps = [];
+let currentStep = 0;
+let autoInterval = null;
+let isRunning = false;
+
+// Render presets
+const presetsBar = document.getElementById('presetsBar');
+PRESETS.forEach((p, i) => {
+  const chip = document.createElement('button');
+  chip.className = 'preset-chip' + (i === 0 ? ' active' : '');
+  chip.textContent = p.name;
+  chip.addEventListener('click', () => {
+    document.querySelectorAll('.preset-chip').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+    document.getElementById('codeInput').value = p.code;
+    resetAll();
+  });
+  presetsBar.appendChild(chip);
+});
+
+// Load first preset
+document.getElementById('codeInput').value = PRESETS[0].code;
+
+// Simulation engine
+function parseCode(code) {
+  // Remove comments for parsing
+  const lines = code.split('\n');
+  const cleanLines = lines.map(l => l.replace(/\/\/.*$/, '').trim()).filter(l => l);
+
+  const simulation = [];
+  let stepNum = 0;
+
+  // We simulate the event loop by tracing through the code
+  // This is a simplified but educational simulation
+  const syncOps = [];
+  const timeouts = [];
+  const promises = [];
+  const microtasks = [];
+  const asyncFns = {};
+
+  // Phase 1: Parse the code structure
+  const parsed = parseStructure(code);
+
+  // Phase 2: Generate simulation steps from parsed structure
+  return generateSteps(parsed);
+}
+
+function parseStructure(code) {
+  const structure = [];
+  const lines = code.split('\n');
+
+  // Simple state machine to extract operations
+  let i = 0;
+  let asyncContext = null;
+  let promiseChain = [];
+
+  for (let lineNum = 0; lineNum < lines.length; lineNum++) {
+    const line = lines[lineNum].trim();
+    if (!line || line.startsWith('//')) continue;
+
+    // console.log at top level
+    const consoleMatch = line.match(/console\.log\((.+)\)/);
+
+    // setTimeout
+    if (line.match(/setTimeout\s*\(/)) {
+      const block = extractBlock(lines, lineNum);
+      const delayMatch = block.full.match(/,\s*(\d+)\s*\)/);
+      const delay = delayMatch ? parseInt(delayMatch[1]) : 0;
+      const innerLogs = extractConsoleLogs(block.body);
+      const innerPromises = extractPromises(block.body);
+      structure.push({ type: 'setTimeout', delay, logs: innerLogs, promises: innerPromises, line: lineNum + 1 });
+    }
+    // Promise.resolve().then()
+    else if (line.match(/Promise\.resolve\(\)/) || line.match(/\.then\s*\(/)) {
+      if (line.match(/Promise\.resolve\(\)/)) {
+        const chain = extractPromiseChain(lines, lineNum);
+        structure.push({ type: 'promiseChain', chain, line: lineNum + 1 });
+      }
+    }
+    // queueMicrotask
+    else if (line.match(/queueMicrotask\s*\(/)) {
+      const block = extractBlock(lines, lineNum);
+      const innerLogs = extractConsoleLogs(block.body);
+      structure.push({ type: 'queueMicrotask', logs: innerLogs, line: lineNum + 1 });
+    }
+    // async function declaration
+    else if (line.match(/async\s+function\s+(\w+)/)) {
+      const name = line.match(/async\s+function\s+(\w+)/)[1];
+      const block = extractBlock(lines, lineNum);
+      structure.push({ type: 'asyncFnDecl', name, body: block.body, line: lineNum + 1 });
+    }
+    // async function call
+    else if (line.match(/^\w+\(\s*\)\s*;?\s*$/)) {
+      const name = line.match(/^(\w+)\(/)[1];
+      structure.push({ type: 'fnCall', name, line: lineNum + 1 });
+    }
+    // top-level console.log (not inside blocks)
+    else if (consoleMatch && !isInsideBlock(lines, lineNum)) {
+      structure.push({ type: 'sync', expr: 'console.log', args: consoleMatch[1], line: lineNum + 1 });
+    }
+  }
+
+  return structure;
+}
+
+function isInsideBlock(lines, lineNum) {
+  let depth = 0;
+  for (let i = 0; i < lineNum; i++) {
+    const line = lines[i];
+    depth += (line.match(/{/g) || []).length;
+    depth -= (line.match(/}/g) || []).length;
+  }
+  return depth > 0;
+}
+
+function extractBlock(lines, startLine) {
+  let depth = 0;
+  let started = false;
+  let body = [];
+  let full = '';
+
+  for (let i = startLine; i < lines.length; i++) {
+    full += lines[i] + '\n';
+    const opens = (lines[i].match(/{/g) || []).length;
+    const closes = (lines[i].match(/}/g) || []).length;
+    depth += opens - closes;
+    if (opens > 0) started = true;
+    if (started && depth > 0) body.push(lines[i]);
+    if (started && depth <= 0) break;
+  }
+
+  return { body: body.join('\n'), full };
+}
+
+function extractConsoleLogs(code) {
+  const logs = [];
+  const re = /console\.log\((.+?)\)/g;
+  let m;
+  while ((m = re.exec(code))) {
+    logs.push(m[1]);
+  }
+  return logs;
+}
+
+function extractPromises(code) {
+  const chains = [];
+  if (code.match(/Promise\.resolve/)) {
+    const logs = extractConsoleLogs(code);
+    chains.push({ logs });
+  }
+  return chains;
+}
+
+function extractPromiseChain(lines, startLine) {
+  const chain = [];
+  let depth = 0;
+  let currentThen = null;
+
+  for (let i = startLine; i < lines.length; i++) {
+    const line = lines[i].trim();
+
+    if (line.match(/\.then\s*\(/)) {
+      if (currentThen) chain.push(currentThen);
+      currentThen = { logs: [], returnsPromise: false };
+    }
+
+    if (currentThen) {
+      const logMatch = line.match(/console\.log\((.+?)\)/);
+      if (logMatch) currentThen.logs.push(logMatch[1]);
+      if (line.match(/return\s+Promise\.resolve/)) currentThen.returnsPromise = true;
+    }
+
+    depth += (line.match(/{/g) || []).length;
+    depth -= (line.match(/}/g) || []).length;
+  }
+
+  if (currentThen) chain.push(currentThen);
+
+  // If no .then found, just extract logs from the line itself
+  if (chain.length === 0) {
+    const logs = extractConsoleLogs(lines.slice(startLine).join('\n'));
+    if (logs.length) chain.push({ logs });
+  }
+
+  return chain;
+}
+
+function generateSteps(structure) {
+  const steps = [];
+  const taskQueue = [];
+  const microtaskQueue = [];
+  const webApis = [];
+  let callStack = [];
+
+  function snap(explain) {
+    steps.push({
+      callStack: [...callStack],
+      taskQueue: [...taskQueue],
+      microtaskQueue: [...microtaskQueue],
+      webApis: [...webApis],
+      explain,
+      console: null
+    });
+  }
+
+  function snapLog(msg, explain) {
+    steps.push({
+      callStack: [...callStack],
+      taskQueue: [...taskQueue],
+      microtaskQueue: [...microtaskQueue],
+      webApis: [...webApis],
+      explain,
+      console: msg
+    });
+  }
+
+  // Phase 1: Execute synchronous code
+  callStack.push('main()');
+  snap('Script starts executing. main() is pushed to the Call Stack.');
+
+  const asyncFns = {};
+  const deferredTimeouts = [];
+  const deferredPromises = [];
+  const deferredMicrotasks = [];
+
+  for (const item of structure) {
+    switch (item.type) {
+      case 'sync': {
+        callStack.push(`console.log(${item.args})`);
+        const msg = evalArgs(item.args);
+        snapLog(msg, `console.log() is pushed to Call Stack and executed synchronously.`);
+        callStack.pop();
+        snap('console.log() pops off the Call Stack.');
+        break;
+      }
+      case 'setTimeout': {
+        callStack.push(`setTimeout(cb, ${item.delay})`);
+        snap(`setTimeout() is pushed to Call Stack.`);
+        webApis.push({ label: `Timer (${item.delay}ms)`, logs: item.logs, promises: item.promises, delay: item.delay });
+        callStack.pop();
+        snap(`setTimeout() registers the callback with Web APIs and pops off. The timer starts counting.`);
+        deferredTimeouts.push({ logs: item.logs, promises: item.promises, delay: item.delay });
+        break;
+      }
+      case 'promiseChain': {
+        callStack.push('Promise.resolve()');
+        snap('Promise.resolve() is pushed to Call Stack. It resolves immediately.');
+        for (let ci = 0; ci < item.chain.length; ci++) {
+          const then = item.chain[ci];
+          const label = then.logs.length ? `then: ${evalArgs(then.logs[0])}` : `then handler ${ci + 1}`;
+          microtaskQueue.push(label);
+          snap(`.then() callback is added to the Microtask Queue. It will run after the current synchronous code finishes.`);
+        }
+        callStack.pop();
+        snap('Promise chain setup pops off the Call Stack.');
+        deferredPromises.push(item.chain);
+        break;
+      }
+      case 'queueMicrotask': {
+        callStack.push('queueMicrotask(cb)');
+        const label = item.logs.length ? `microtask: ${evalArgs(item.logs[0])}` : 'microtask callback';
+        microtaskQueue.push(label);
+        snap('queueMicrotask() adds callback directly to the Microtask Queue.');
+        callStack.pop();
+        deferredMicrotasks.push({ logs: item.logs });
+        break;
+      }
+      case 'asyncFnDecl': {
+        asyncFns[item.name] = item;
+        snap(`async function ${item.name}() is declared (not yet called).`);
+        break;
+      }
+      case 'fnCall': {
+        const fn = asyncFns[item.name];
+        if (fn) {
+          callStack.push(`${item.name}()`);
+          snap(`${item.name}() is called and pushed to Call Stack.`);
+
+          // Execute sync part of async function
+          const innerLogs = extractConsoleLogs(fn.body);
+          const hasAwait = fn.body.includes('await');
+
+          if (innerLogs.length > 0) {
+            callStack.push(`console.log(${innerLogs[0]})`);
+            const msg = evalArgs(innerLogs[0]);
+            snapLog(msg, `Inside async function: synchronous code before await runs immediately.`);
+            callStack.pop();
+          }
+
+          if (hasAwait) {
+            // Everything after await becomes a microtask
+            const afterAwaitLogs = innerLogs.slice(1);
+            if (afterAwaitLogs.length > 0) {
+              const label = `await resume: ${evalArgs(afterAwaitLogs[0])}`;
+              microtaskQueue.push(label);
+              snap(`await pauses the async function. The rest is scheduled as a microtask. Control returns to the caller.`);
+              deferredMicrotasks.push({ logs: afterAwaitLogs });
+            }
+            callStack.pop();
+            snap(`${item.name}() yields control. Call Stack frame is paused.`);
+          } else {
+            callStack.pop();
+          }
+        }
+        break;
+      }
+    }
+  }
+
+  // Script end
+  callStack.pop(); // Remove main()
+  snap('All synchronous code is done. main() pops off the Call Stack. Now the Event Loop checks the Microtask Queue.');
+
+  // Phase 2: Drain microtask queue
+  if (microtaskQueue.length > 0) {
+    snap('Event Loop: Call Stack is empty. Check Microtask Queue first (microtasks have priority over tasks).');
+
+    // Process all microtasks
+    let allMicrotaskLogs = [];
+    for (const chain of deferredPromises) {
+      for (const then of chain) {
+        allMicrotaskLogs.push(...then.logs);
+      }
+    }
+    for (const mt of deferredMicrotasks) {
+      allMicrotaskLogs.push(...mt.logs);
+    }
+
+    // Sort: queueMicrotask and Promise.then intermixed by registration order
+    // For simplicity, we process deferredMicrotasks first (queueMicrotask), then promises
+    const orderedMicrotasks = [];
+
+    // Interleave based on original structure order
+    let promiseIdx = 0;
+    let mtIdx = 0;
+    for (const item of structure) {
+      if (item.type === 'queueMicrotask' && mtIdx < deferredMicrotasks.length) {
+        orderedMicrotasks.push({ ...deferredMicrotasks[mtIdx], source: 'queueMicrotask' });
+        mtIdx++;
+      } else if (item.type === 'promiseChain' && promiseIdx < deferredPromises.length) {
+        for (const then of deferredPromises[promiseIdx]) {
+          orderedMicrotasks.push({ logs: then.logs, returnsPromise: then.returnsPromise, source: 'promise' });
+        }
+        promiseIdx++;
+      } else if (item.type === 'asyncFnDecl' || item.type === 'fnCall') {
+        // Async function await resumes are already in deferredMicrotasks
+      }
+    }
+    // Add async await resumes that weren't handled
+    while (mtIdx < deferredMicrotasks.length) {
+      orderedMicrotasks.push({ ...deferredMicrotasks[mtIdx], source: 'await' });
+      mtIdx++;
+    }
+
+    for (let mi = 0; mi < orderedMicrotasks.length; mi++) {
+      const mt = orderedMicrotasks[mi];
+      const item = microtaskQueue.shift();
+      if (!item) break;
+
+      const source = mt.source === 'promise' ? 'Promise.then' : mt.source === 'await' ? 'await resume' : 'queueMicrotask';
+      callStack.push(source + ' callback');
+      snap(`Microtask dequeued: ${source} callback runs.`);
+
+      for (const log of mt.logs) {
+        callStack.push(`console.log(${log})`);
+        const msg = evalArgs(log);
+        snapLog(msg, `Microtask executes console.log().`);
+        callStack.pop();
+      }
+
+      // Check if this creates new microtasks (nested promises)
+      if (mt.returnsPromise && mi + 1 < orderedMicrotasks.length) {
+        snap('This microtask returns a Promise, scheduling the next .then() as a new microtask.');
+      }
+
+      callStack.pop();
+      snap('Microtask callback completes and pops off the Call Stack.');
+
+      if (microtaskQueue.length > 0) {
+        snap('Microtask Queue is not empty yet. Continue draining microtasks before checking Task Queue.');
+      }
+    }
+
+    snap('Microtask Queue is now empty. Event Loop moves to the Task Queue.');
+  }
+
+  // Phase 3: Process task queue (timeouts)
+  // Sort by delay, then by registration order
+  deferredTimeouts.sort((a, b) => a.delay - b.delay);
+
+  // Move timers from Web APIs to Task Queue
+  for (let ti = 0; ti < deferredTimeouts.length; ti++) {
+    const t = deferredTimeouts[ti];
+    const apiIdx = webApis.findIndex(a => a.label.includes(`${t.delay}ms`));
+    if (apiIdx >= 0) webApis.splice(apiIdx, 1);
+    const label = t.logs.length ? `timeout: ${evalArgs(t.logs[0])}` : `setTimeout callback`;
+    taskQueue.push(label);
+    snap(`Timer (${t.delay}ms) expired. Callback moves from Web APIs to Task Queue.`);
+  }
+
+  for (let ti = 0; ti < deferredTimeouts.length; ti++) {
+    const t = deferredTimeouts[ti];
+    const item = taskQueue.shift();
+    if (!item) break;
+
+    callStack.push('setTimeout callback');
+    snap('Event Loop picks the next task from Task Queue and pushes it to Call Stack.');
+
+    for (const log of t.logs) {
+      callStack.push(`console.log(${log})`);
+      const msg = evalArgs(log);
+      snapLog(msg, 'setTimeout callback executes console.log().');
+      callStack.pop();
+    }
+
+    // Check for microtasks inside setTimeout
+    if (t.promises && t.promises.length > 0) {
+      for (const p of t.promises) {
+        for (const log of p.logs) {
+          const label = `then: ${evalArgs(log)}`;
+          microtaskQueue.push(label);
+        }
+        snap('Inside setTimeout: Promise.resolve().then() adds a new microtask.');
+      }
+
+      callStack.pop();
+      snap('setTimeout callback completes. Before picking next task, drain microtasks first!');
+
+      // Drain microtasks created inside setTimeout
+      for (const p of t.promises) {
+        for (const log of p.logs) {
+          const item = microtaskQueue.shift();
+          callStack.push('Promise.then callback');
+          snap('Microtask runs (created inside setTimeout). Microtasks always run between tasks.');
+
+          callStack.push(`console.log(${log})`);
+          const msg = evalArgs(log);
+          snapLog(msg, 'Microtask executes console.log().');
+          callStack.pop();
+          callStack.pop();
+          snap('Microtask completes.');
+        }
+      }
+    } else {
+      callStack.pop();
+      snap('setTimeout callback completes and pops off the Call Stack.');
+    }
+  }
+
+  // Done
+  snap('All queues are empty. The Event Loop is idle, waiting for new events.');
+
+  return steps;
+}
+
+function evalArgs(args) {
+  // Simple string evaluation for display
+  try {
+    // Handle template-like strings
+    let cleaned = args.replace(/'/g, "'").replace(/"/g, '"');
+    // Extract string literals
+    const parts = [];
+    const re = /(['"`])(.+?)\1/g;
+    let m;
+    while ((m = re.exec(cleaned))) {
+      parts.push(m[2]);
+    }
+    return parts.join(' ') || args;
+  } catch {
+    return args;
+  }
+}
+
+// Rendering
+function renderState(step) {
+  renderQueue('callStack', step.callStack, 'callstack');
+  renderQueue('webApis', step.webApis.map(a => a.label || a), 'webapi');
+  renderQueue('microQueue', step.microtaskQueue, 'micro');
+  renderQueue('taskQueue', step.taskQueue, 'task');
+
+  document.getElementById('stepCounter').textContent = `Step ${currentStep} / ${steps.length - 1}`;
+}
+
+function renderQueue(id, items, cls) {
+  const el = document.getElementById(id);
+  if (items.length === 0) {
+    el.innerHTML = `<div class="queue-empty">Empty</div>`;
+    return;
+  }
+  el.innerHTML = items.map((item, i) => {
+    const label = typeof item === 'object' ? item.label || JSON.stringify(item) : item;
+    const isTop = (cls === 'callstack' && i === items.length - 1);
+    return `<div class="queue-item ${cls}${isTop ? ' active' : ''}">${escHTML(label)}</div>`;
+  }).join('');
+}
+
+function appendConsole(step) {
+  const output = document.getElementById('consoleOutput');
+
+  if (step.console) {
+    const line = document.createElement('div');
+    line.className = 'console-line';
+    line.innerHTML = `<span class="step-num">${currentStep}</span><span class="msg">> ${escHTML(step.console)}</span>`;
+    output.appendChild(line);
+  }
+
+  if (step.explain) {
+    const line = document.createElement('div');
+    line.className = 'console-line explain';
+    line.innerHTML = `<span class="step-num"></span><span class="msg">${escHTML(step.explain)}</span>`;
+    output.appendChild(line);
+  }
+
+  output.scrollTop = output.scrollHeight;
+}
+
+function escHTML(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// Controls
+function runCode() {
+  const code = document.getElementById('codeInput').value;
+  steps = parseCode(code);
+  currentStep = 0;
+
+  document.getElementById('consoleOutput').innerHTML = '';
+  document.getElementById('btnStep').disabled = false;
+  document.getElementById('btnAutoStep').disabled = false;
+
+  if (steps.length > 0) {
+    renderState(steps[0]);
+    appendConsole(steps[0]);
+  }
+}
+
+function stepCode() {
+  if (currentStep >= steps.length - 1) return;
+  currentStep++;
+  renderState(steps[currentStep]);
+  appendConsole(steps[currentStep]);
+
+  if (currentStep >= steps.length - 1) {
+    document.getElementById('btnStep').disabled = true;
+    stopAuto();
+  }
+}
+
+function toggleAuto() {
+  if (autoInterval) {
+    stopAuto();
+  } else {
+    const speed = parseInt(document.getElementById('speedSlider').value);
+    document.getElementById('btnAutoStep').textContent=T("jtc_pause");
+    autoInterval = setInterval(() => {
+      if (currentStep >= steps.length - 1) {
+        stopAuto();
+        return;
+      }
+      stepCode();
+    }, speed);
+  }
+}
+
+function stopAuto() {
+  if (autoInterval) {
+    clearInterval(autoInterval);
+    autoInterval = null;
+  }
+  document.getElementById('btnAutoStep').textContent=T("jtc_auto");
+}
+
+function resetAll() {
+  stopAuto();
+  steps = [];
+  currentStep = 0;
+  document.getElementById('consoleOutput').innerHTML = '';
+  document.getElementById('btnStep').disabled = true;
+  document.getElementById('btnAutoStep').disabled = true;
+  document.getElementById('stepCounter').textContent=T("jtc_step_0");
+  renderQueue('callStack', [], 'callstack');
+  renderQueue('webApis', [], 'webapi');
+  renderQueue('microQueue', [], 'micro');
+  renderQueue('taskQueue', [], 'task');
+}
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+</body>
+</html>

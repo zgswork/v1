@@ -1,0 +1,1286 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Excel公式调试器</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+            background-attachment: fixed;
+            min-height: 100vh;
+            padding: 20px;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                radial-gradient(circle at 20% 80%, rgba(120, 119, 198, 0.3) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(255, 119, 198, 0.3) 0%, transparent 50%),
+                radial-gradient(circle at 40% 40%, rgba(120, 219, 255, 0.2) 0%, transparent 50%);
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 24px;
+            box-shadow: 
+                0 32px 64px rgba(0, 0, 0, 0.12),
+                0 0 0 1px rgba(255, 255, 255, 0.2);
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+            color: white;
+            padding: 40px 30px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: 
+                radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 70% 80%, rgba(255, 255, 255, 0.08) 0%, transparent 50%);
+            pointer-events: none;
+        }
+
+        .header h1 {
+            font-size: 2.8rem;
+            margin-bottom: 12px;
+            font-weight: 600;
+            background: linear-gradient(45deg, #ffffff, #f0f8ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            position: relative;
+            z-index: 1;
+        }
+
+        .header p {
+            font-size: 1.2rem;
+            opacity: 0.95;
+            font-weight: 400;
+            position: relative;
+            z-index: 1;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+        }
+
+        .main-content {
+            padding: 30px;
+        }
+
+        .input-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .input-group {
+            background: linear-gradient(145deg, #ffffff 0%, #f8faff 100%);
+            padding: 30px;
+            border-radius: 20px;
+            border: 2px solid rgba(102, 126, 234, 0.1);
+            box-shadow: 
+                0 8px 32px rgba(102, 126, 234, 0.08),
+                inset 0 1px 0 rgba(255, 255, 255, 0.9);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .input-group::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #667eea, #764ba2, #f093fb);
+            transform: translateX(-100%);
+            transition: transform 0.4s ease;
+        }
+
+        .input-group:hover {
+            border-color: rgba(102, 126, 234, 0.3);
+            box-shadow: 
+                0 16px 48px rgba(102, 126, 234, 0.15),
+                inset 0 1px 0 rgba(255, 255, 255, 0.9);
+            transform: translateY(-2px);
+        }
+
+        .input-group:hover::before {
+            transform: translateX(0);
+        }
+
+        .input-group h3 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 1.4rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            background: linear-gradient(135deg, #2c3e50, #667eea);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .input-group h3::before {
+            content: "📊";
+            margin-right: 10px;
+            font-size: 1.5rem;
+        }
+
+        .formula-input h3::before {
+            content: "🔧";
+        }
+
+        .formula-input {
+            position: relative;
+        }
+
+        .formula-controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            align-items: center;
+        }
+
+        .formula-controls select {
+            flex: 1;
+            padding: 10px 15px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 1rem;
+            background: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .formula-controls select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .formula-controls optgroup {
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        .formula-controls option {
+            padding: 8px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .formula-input input {
+            width: 100%;
+            padding: 15px 20px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            font-size: 1.1rem;
+            font-family: 'Courier New', monospace;
+            transition: all 0.3s ease;
+        }
+
+        .formula-description {
+            margin-top: 15px;
+            padding: 16px 20px;
+            background: linear-gradient(145deg, #e8f4fd 0%, #f0f8ff 100%);
+            border-radius: 12px;
+            border-left: 4px solid transparent;
+            background-clip: padding-box;
+            font-size: 0.95rem;
+            color: #2980b9;
+            display: none;
+            box-shadow: 
+                0 4px 16px rgba(52, 152, 219, 0.1),
+                inset 0 1px 0 rgba(255, 255, 255, 0.8);
+            position: relative;
+        }
+
+        .formula-description::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+            background: linear-gradient(135deg, #3498db, #74b9ff);
+            border-radius: 0 2px 2px 0;
+        }
+
+        .formula-description.show {
+            display: block;
+        }
+
+        .formula-input input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .grid-controls {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+
+        .grid-controls label {
+            font-size: 0.9rem;
+            color: #555;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .grid-controls input[type="number"] {
+            width: 60px;
+            padding: 5px 8px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 0.9rem;
+        }
+
+        .btn-small {
+            background: linear-gradient(135deg, #fd79a8 0%, #e84393 50%, #a29bfe 100%);
+            color: white;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 25px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 
+                0 4px 16px rgba(253, 121, 168, 0.3),
+                0 2px 8px rgba(162, 155, 254, 0.2);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-small::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            transition: width 0.3s, height 0.3s;
+        }
+
+        .btn-small:hover {
+            transform: translateY(-2px) scale(1.05);
+            box-shadow: 
+                0 8px 24px rgba(253, 121, 168, 0.4),
+                0 4px 16px rgba(162, 155, 254, 0.3);
+        }
+
+        .btn-small:hover::before {
+            width: 120%;
+            height: 120%;
+        }
+
+        .data-grid {
+            display: grid;
+            gap: 10px;
+            max-height: 400px;
+            overflow-y: auto;
+            padding: 20px;
+            background: linear-gradient(145deg, #ffffff 0%, #f8faff 100%);
+            border-radius: 16px;
+            border: 2px solid rgba(102, 126, 234, 0.1);
+            box-shadow: 
+                inset 0 2px 8px rgba(102, 126, 234, 0.05),
+                0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+
+        .cell {
+            position: relative;
+        }
+
+        .cell-label {
+            font-size: 0.8rem;
+            color: #666;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        .cell input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            text-align: center;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+        }
+
+        .cell input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
+        }
+
+        .controls {
+            text-align: center;
+            margin: 30px 0;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+            color: white;
+            border: none;
+            padding: 16px 32px;
+            border-radius: 50px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            margin: 0 12px;
+            box-shadow: 
+                0 8px 24px rgba(102, 126, 234, 0.25),
+                0 4px 12px rgba(240, 147, 251, 0.15);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s;
+        }
+
+        .btn:hover {
+            transform: translateY(-3px) scale(1.02);
+            box-shadow: 
+                0 16px 40px rgba(102, 126, 234, 0.35),
+                0 8px 24px rgba(240, 147, 251, 0.25);
+        }
+
+        .btn:hover::before {
+            left: 100%;
+        }
+
+        .btn:active {
+            transform: translateY(-1px) scale(1.01);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, #74b9ff 0%, #0984e3 50%, #6c5ce7 100%);
+            box-shadow: 
+                0 8px 24px rgba(116, 185, 255, 0.25),
+                0 4px 12px rgba(108, 92, 231, 0.15);
+        }
+
+        .btn-secondary:hover {
+            box-shadow: 
+                0 16px 40px rgba(116, 185, 255, 0.35),
+                0 8px 24px rgba(108, 92, 231, 0.25);
+        }
+
+        .debug-output {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 25px;
+            margin-top: 30px;
+            border: 2px solid #e9ecef;
+        }
+
+        .debug-output h3 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 1.3rem;
+            display: flex;
+            align-items: center;
+        }
+
+        .debug-output h3::before {
+            content: "🔍";
+            margin-right: 10px;
+            font-size: 1.5rem;
+        }
+
+        .debug-step {
+            background: linear-gradient(145deg, #ffffff 0%, #f8faff 100%);
+            padding: 24px;
+            margin-bottom: 18px;
+            border-radius: 16px;
+            border-left: 4px solid transparent;
+            background-clip: padding-box;
+            box-shadow: 
+                0 4px 20px rgba(102, 126, 234, 0.08),
+                0 1px 3px rgba(0, 0, 0, 0.05);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .debug-step::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+            background: linear-gradient(135deg, #667eea, #764ba2, #f093fb);
+        }
+
+        .debug-step:hover {
+            transform: translateX(8px) translateY(-2px);
+            box-shadow: 
+                0 12px 40px rgba(102, 126, 234, 0.15),
+                0 4px 16px rgba(0, 0, 0, 0.08);
+        }
+
+        .step-number {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+            color: white;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            margin-right: 18px;
+            font-size: 0.95rem;
+            box-shadow: 
+                0 4px 12px rgba(102, 126, 234, 0.3),
+                0 2px 6px rgba(240, 147, 251, 0.2);
+            position: relative;
+        }
+
+        .step-number::before {
+            content: '';
+            position: absolute;
+            inset: -2px;
+            padding: 2px;
+            background: linear-gradient(135deg, #667eea, #764ba2, #f093fb);
+            border-radius: 50%;
+            mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            mask-composite: exclude;
+            animation: rotate 3s linear infinite;
+        }
+
+        @keyframes rotate {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .step-content {
+            display: inline-block;
+            vertical-align: top;
+            width: calc(100% - 50px);
+        }
+
+        .step-description {
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 8px;
+        }
+
+        .step-formula {
+            font-family: 'Courier New', monospace;
+            background: #f1f3f4;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 8px 0;
+            border: 1px solid #ddd;
+        }
+
+        .step-result {
+            color: #27ae60;
+            font-weight: bold;
+            font-size: 1.1rem;
+        }
+
+        .error {
+            background: #fee;
+            border-left-color: #e74c3c;
+            color: #c0392b;
+        }
+
+        .final-result {
+            background: linear-gradient(135deg, #00b894 0%, #00cec9 50%, #74b9ff 100%);
+            color: white;
+            text-align: center;
+            padding: 24px;
+            border-radius: 16px;
+            margin-top: 24px;
+            font-size: 1.3rem;
+            font-weight: 600;
+            box-shadow: 
+                0 8px 32px rgba(0, 184, 148, 0.3),
+                0 4px 16px rgba(116, 185, 255, 0.2);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .final-result::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: 
+                radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 70% 80%, rgba(255, 255, 255, 0.08) 0%, transparent 50%);
+            pointer-events: none;
+        }
+
+        .examples {
+            background: linear-gradient(145deg, #e8f4fd 0%, #f0f8ff 100%);
+            padding: 24px;
+            border-radius: 16px;
+            margin-top: 24px;
+            border: 2px solid rgba(52, 152, 219, 0.3);
+            box-shadow: 
+                0 8px 32px rgba(52, 152, 219, 0.1),
+                inset 0 1px 0 rgba(255, 255, 255, 0.8);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .examples::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #3498db, #74b9ff, #a29bfe);
+        }
+
+        .examples h4 {
+            color: #2980b9;
+            margin-bottom: 15px;
+            font-size: 1.1rem;
+        }
+
+        .example-item {
+            background: linear-gradient(145deg, #ffffff 0%, #f8faff 100%);
+            padding: 14px 18px;
+            margin: 10px 0;
+            border-radius: 12px;
+            font-family: 'Fira Code', 'Courier New', monospace;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 1px solid rgba(52, 152, 219, 0.1);
+            box-shadow: 0 2px 8px rgba(52, 152, 219, 0.05);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .example-item::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(52, 152, 219, 0.1), transparent);
+            transition: left 0.5s;
+        }
+
+        .example-item:hover {
+            background: linear-gradient(135deg, #3498db 0%, #74b9ff 100%);
+            color: white;
+            transform: translateX(8px) translateY(-2px);
+            box-shadow: 0 8px 24px rgba(52, 152, 219, 0.3);
+        }
+
+        .example-item:hover::before {
+            left: 100%;
+        }
+
+        .cell {
+            position: relative;
+        }
+
+        .cell-label {
+            font-size: 0.8rem;
+            color: #666;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        .cell input {
+            width: 100%;
+            padding: 10px 8px;
+            border: 2px solid rgba(102, 126, 234, 0.1);
+            border-radius: 8px;
+            text-align: center;
+            font-size: 0.85rem;
+            font-weight: 500;
+            background: linear-gradient(145deg, #ffffff 0%, #f8faff 100%);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .cell input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 
+                0 0 0 3px rgba(102, 126, 234, 0.15),
+                0 2px 8px rgba(102, 126, 234, 0.1);
+            transform: translateY(-1px);
+        }
+
+        .cell input:hover {
+            border-color: rgba(102, 126, 234, 0.2);
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.08);
+        }
+
+        @media (max-width: 768px) {
+            .input-section {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .main-content {
+                padding: 20px;
+            }
+            
+            .formula-controls {
+                flex-direction: column;
+                gap: 8px;
+            }
+            
+            .formula-controls select {
+                font-size: 0.9rem;
+            }
+            
+            .grid-controls {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+            
+            .data-grid {
+                font-size: 0.8rem;
+            }
+            
+            .cell input {
+                padding: 6px;
+                font-size: 0.8rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Excel公式调试器</h1>
+            <p>输入公式和样本数据，逐步执行并显示中间结果</p>
+        </div>
+
+        <div class="main-content">
+            <div class="input-section">
+                <div class="input-group formula-input">
+                    <h3>Excel公式</h3>
+                    <div class="formula-controls">
+                        <select id="formulaSelect" onchange="selectFormula()">
+                            <option value="">选择常用公式...</option>
+                            <optgroup label="数学函数">
+                                <option value="=SUM(A1:A5)">SUM - 求和</option>
+                                <option value="=AVERAGE(A1:A5)">AVERAGE - 平均值</option>
+                                <option value="=MAX(A1:A5)">MAX - 最大值</option>
+                                <option value="=MIN(A1:A5)">MIN - 最小值</option>
+                                <option value="=COUNT(A1:A5)">COUNT - 计数</option>
+                                <option value="=SUM(A1:A3)*B1">SUM*值 - 求和乘以单值</option>
+                                <option value="=AVERAGE(A1:A5)+B1">AVERAGE+值 - 平均值加单值</option>
+                            </optgroup>
+                            <optgroup label="逻辑函数">
+                                <option value="=IF(A1>10,A1*2,A1)">IF - 条件判断</option>
+                                <option value="=IF(A1>B1,A1,B1)">IF比较 - 比较两值</option>
+                                <option value="=IF(SUM(A1:A3)>50,"高","低")">IF求和判断 - 求和条件</option>
+                            </optgroup>
+                            <optgroup label="查找函数">
+                                <option value="=VLOOKUP(A1,B1:C5,2,FALSE)">VLOOKUP - 垂直查找</option>
+                            </optgroup>
+                            <optgroup label="复合公式">
+                                <option value="=SUM(A1:A3)*B1+IF(C1>10,C1*2,C1)">复合计算1 - 求和乘法条件</option>
+                                <option value="=AVERAGE(A1:A5)*IF(B1>5,2,1)">复合计算2 - 平均值条件乘法</option>
+                                <option value="=MAX(A1:A3)+MIN(B1:B3)*C1">复合计算3 - 最值计算</option>
+                                <option value="=IF(SUM(A1:A3)>AVERAGE(B1:B3),SUM(A1:A3),AVERAGE(B1:B3))">复合计算4 - 条件比较</option>
+                            </optgroup>
+                        </select>
+                        <button class="btn-small" onclick="clearFormula()">清空</button>
+                    </div>
+                    <input type="text" id="formulaInput" placeholder="例如: =SUM(A1:A3)*B1+IF(C1>10,C1*2,C1)" value="=SUM(A1:A3)*B1+IF(C1>10,C1*2,C1)">
+                    <div class="formula-description" id="formulaDescription"></div>
+                </div>
+
+                <div class="input-group">
+                    <h3>样本数据</h3>
+                    <div class="grid-controls">
+                        <label>行数: <input type="number" id="rowCount" value="5" min="3" max="20" onchange="updateGrid()"></label>
+                        <label>列数: <input type="number" id="colCount" value="5" min="3" max="10" onchange="updateGrid()"></label>
+                        <button class="btn-small" onclick="updateGrid()">更新网格</button>
+                    </div>
+                    <div class="data-grid" id="dataGrid">
+                        <!-- 动态生成数据网格 -->
+                    </div>
+                </div>
+            </div>
+
+            <div class="controls">
+                <button class="btn" onclick="debugFormula()">🔍 开始调试</button>
+                <button class="btn btn-secondary" onclick="clearAll()">🗑️ 清空</button>
+                <button class="btn btn-secondary" onclick="loadExample()">📝 加载示例</button>
+            </div>
+
+            <div class="examples">
+                <h4>📚 示例公式 (点击使用)</h4>
+                <div class="example-item" onclick="useExample('=SUM(A1:A3)')">基础求和: =SUM(A1:A3)</div>
+                <div class="example-item" onclick="useExample('=AVERAGE(A1:A5)*B1')">平均值计算: =AVERAGE(A1:A5)*B1</div>
+                <div class="example-item" onclick="useExample('=IF(A1>B1,A1*2,B1*2)')">条件判断: =IF(A1>B1,A1*2,B1*2)</div>
+                <div class="example-item" onclick="useExample('=MAX(A1:A3)+MIN(B1:B3)')">最值计算: =MAX(A1:A3)+MIN(B1:B3)</div>
+                <div class="example-item" onclick="useExample('=VLOOKUP(A1,B1:C5,2,FALSE)')">查找函数: =VLOOKUP(A1,B1:C5,2,FALSE)</div>
+            </div>
+
+            <div class="debug-output" id="debugOutput" style="display: none;">
+                <h3>调试步骤</h3>
+                <div id="debugSteps"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 初始化数据网格
+        function initDataGrid() {
+            const rowCount = parseInt(document.getElementById('rowCount').value) || 5;
+            const colCount = parseInt(document.getElementById('colCount').value) || 5;
+            updateGridLayout(rowCount, colCount);
+        }
+
+        // 更新网格布局
+        function updateGridLayout(rows, cols) {
+            const grid = document.getElementById('dataGrid');
+            grid.innerHTML = '';
+            
+            // 设置网格列数
+            const minColWidth = Math.max(70, Math.min(100, 800 / cols));
+            grid.style.gridTemplateColumns = `repeat(${cols}, ${minColWidth}px)`;
+            
+            // 创建动态网格
+            for (let row = 1; row <= rows; row++) {
+                for (let col = 1; col <= cols; col++) {
+                    const colLetter = String.fromCharCode(64 + col); // A, B, C, D, E, F, G, H, I, J
+                    const cellRef = colLetter + row;
+                    
+                    const cellDiv = document.createElement('div');
+                    cellDiv.className = 'cell';
+                    
+                    const label = document.createElement('div');
+                    label.className = 'cell-label';
+                    label.textContent = cellRef;
+                    
+                    const input = document.createElement('input');
+                    input.type = 'text';
+                    input.id = cellRef;
+                    input.placeholder = '0';
+                    
+                    cellDiv.appendChild(label);
+                    cellDiv.appendChild(input);
+                    grid.appendChild(cellDiv);
+                }
+            }
+        }
+
+        // 更新网格
+        function updateGrid() {
+            const rowCount = parseInt(document.getElementById('rowCount').value);
+            const colCount = parseInt(document.getElementById('colCount').value);
+            
+            if (rowCount < 3 || rowCount > 20) {
+                alert('行数必须在3-20之间');
+                document.getElementById('rowCount').value = Math.max(3, Math.min(20, rowCount));
+                return;
+            }
+            
+            if (colCount < 3 || colCount > 10) {
+                alert('列数必须在3-10之间');
+                document.getElementById('colCount').value = Math.max(3, Math.min(10, colCount));
+                return;
+            }
+            
+            updateGridLayout(rowCount, colCount);
+        }
+
+        // Excel函数实现
+        class ExcelFunctions {
+            static SUM(range) {
+                return range.reduce((sum, val) => sum + (parseFloat(val) || 0), 0);
+            }
+
+            static AVERAGE(range) {
+                const validValues = range.filter(val => !isNaN(parseFloat(val)));
+                if (validValues.length === 0) return 0;
+                return this.SUM(validValues) / validValues.length;
+            }
+
+            static MAX(range) {
+                const validValues = range.filter(val => !isNaN(parseFloat(val))).map(val => parseFloat(val));
+                return validValues.length > 0 ? Math.max(...validValues) : 0;
+            }
+
+            static MIN(range) {
+                const validValues = range.filter(val => !isNaN(parseFloat(val))).map(val => parseFloat(val));
+                return validValues.length > 0 ? Math.min(...validValues) : 0;
+            }
+
+            static COUNT(range) {
+                return range.filter(val => !isNaN(parseFloat(val))).length;
+            }
+
+            static IF(condition, trueValue, falseValue) {
+                return condition ? trueValue : falseValue;
+            }
+
+            static VLOOKUP(lookupValue, tableArray, colIndex, exactMatch = false) {
+                for (let i = 0; i < tableArray.length; i++) {
+                    const row = tableArray[i];
+                    if (exactMatch) {
+                        if (row[0] === lookupValue) {
+                            return row[colIndex - 1] || '';
+                        }
+                    } else {
+                        if (row[0] <= lookupValue) {
+                            return row[colIndex - 1] || '';
+                        }
+                    }
+                }
+                return '#N/A';
+            }
+        }
+
+        // 公式解析器
+        class FormulaParser {
+            constructor() {
+                this.steps = [];
+                this.cellValues = {};
+            }
+
+            // 获取单元格值
+            getCellValue(cellRef) {
+                const element = document.getElementById(cellRef);
+                if (element) {
+                    const value = element.value.trim();
+                    return value === '' ? 0 : (isNaN(parseFloat(value)) ? value : parseFloat(value));
+                }
+                return 0;
+            }
+
+            // 解析范围 (如 A1:A3)
+            parseRange(rangeStr) {
+                const [start, end] = rangeStr.split(':');
+                const startCol = start.charCodeAt(0) - 64;
+                const startRow = parseInt(start.slice(1));
+                const endCol = end.charCodeAt(0) - 64;
+                const endRow = parseInt(end.slice(1));
+
+                const values = [];
+                for (let row = startRow; row <= endRow; row++) {
+                    for (let col = startCol; col <= endCol; col++) {
+                        const cellRef = String.fromCharCode(64 + col) + row;
+                        const value = this.getCellValue(cellRef);
+                        if (value !== undefined) {
+                            values.push(value);
+                        }
+                    }
+                }
+                return values;
+            }
+
+            // 解析并执行公式
+            parseFormula(formula) {
+                this.steps = [];
+                let currentFormula = formula.startsWith('=') ? formula.slice(1) : formula;
+                
+                this.addStep('原始公式', formula, '开始解析');
+
+                // 替换单元格引用
+                currentFormula = this.replaceCellReferences(currentFormula);
+                
+                // 处理函数调用
+                currentFormula = this.processFunctions(currentFormula);
+                
+                // 计算最终结果
+                try {
+                    const result = this.evaluateExpression(currentFormula);
+                    this.addStep('最终计算', currentFormula, result);
+                    return result;
+                } catch (error) {
+                    this.addStep('错误', currentFormula, `计算错误: ${error.message}`, true);
+                    return '#ERROR';
+                }
+            }
+
+            // 替换单元格引用
+            replaceCellReferences(formula) {
+                let result = formula;
+                
+                // 匹配单元格引用 (如 A1, B2)
+                const cellPattern = /\b[A-Z]\d+\b/g;
+                const matches = formula.match(cellPattern) || [];
+                
+                for (const cellRef of matches) {
+                    const value = this.getCellValue(cellRef);
+                    result = result.replace(new RegExp(`\\b${cellRef}\\b`, 'g'), value);
+                    this.addStep('单元格替换', `${cellRef} → ${value}`, result);
+                }
+                
+                return result;
+            }
+
+            // 处理函数调用
+            processFunctions(formula) {
+                let result = formula;
+                
+                // 处理范围函数 (SUM, AVERAGE, MAX, MIN, COUNT)
+                const rangeFunctions = ['SUM', 'AVERAGE', 'MAX', 'MIN', 'COUNT'];
+                for (const func of rangeFunctions) {
+                    const pattern = new RegExp(`${func}\\(([A-Z]\\d+:[A-Z]\\d+)\\)`, 'g');
+                    result = result.replace(pattern, (match, range) => {
+                        const values = this.parseRange(range);
+                        const funcResult = ExcelFunctions[func](values);
+                        this.addStep(`${func}函数`, `${func}(${range}) = ${func}([${values.join(', ')}])`, funcResult);
+                        return funcResult;
+                    });
+                }
+
+                // 处理IF函数
+                const ifPattern = /IF\(([^,]+),([^,]+),([^)]+)\)/g;
+                result = result.replace(ifPattern, (match, condition, trueVal, falseVal) => {
+                    try {
+                        const conditionResult = this.evaluateExpression(condition);
+                        const ifResult = ExcelFunctions.IF(conditionResult, 
+                            this.evaluateExpression(trueVal), 
+                            this.evaluateExpression(falseVal));
+                        this.addStep('IF函数', `IF(${condition}, ${trueVal}, ${falseVal}) → 条件: ${conditionResult}`, ifResult);
+                        return ifResult;
+                    } catch (error) {
+                        return '#ERROR';
+                    }
+                });
+
+                // 处理VLOOKUP函数
+                const vlookupPattern = /VLOOKUP\(([^,]+),([^,]+),(\d+),?(TRUE|FALSE)?\)/g;
+                result = result.replace(vlookupPattern, (match, lookupValue, tableRange, colIndex, exactMatch) => {
+                    try {
+                        const tableValues = this.parseRange(tableRange);
+                        // 简化处理，假设表格是2列
+                        const tableArray = [];
+                        for (let i = 0; i < tableValues.length; i += 2) {
+                            if (i + 1 < tableValues.length) {
+                                tableArray.push([tableValues[i], tableValues[i + 1]]);
+                            }
+                        }
+                        const vlookupResult = ExcelFunctions.VLOOKUP(
+                            this.evaluateExpression(lookupValue),
+                            tableArray,
+                            parseInt(colIndex),
+                            exactMatch === 'TRUE'
+                        );
+                        this.addStep('VLOOKUP函数', `VLOOKUP(${lookupValue}, ${tableRange}, ${colIndex})`, vlookupResult);
+                        return vlookupResult;
+                    } catch (error) {
+                        return '#N/A';
+                    }
+                });
+
+                return result;
+            }
+
+            // 计算表达式
+            evaluateExpression(expr) {
+                // 安全的表达式计算
+                try {
+                    // 移除空格并验证表达式安全性
+                    const cleanExpr = expr.replace(/\s/g, '');
+                    if (!/^[0-9+\-*/.()]+$/.test(cleanExpr)) {
+                        throw new Error('不安全的表达式');
+                    }
+                    return Function(`"use strict"; return (${cleanExpr})`)();
+                } catch (error) {
+                    throw new Error(`表达式计算错误: ${error.message}`);
+                }
+            }
+
+            // 添加调试步骤
+            addStep(description, formula, result, isError = false) {
+                this.steps.push({
+                    description,
+                    formula,
+                    result,
+                    isError
+                });
+            }
+
+            // 获取调试步骤
+            getSteps() {
+                return this.steps;
+            }
+        }
+
+        // 调试公式
+        function debugFormula() {
+            const formula = document.getElementById('formulaInput').value.trim();
+            if (!formula) {
+                alert('请输入公式！');
+                return;
+            }
+
+            const parser = new FormulaParser();
+            const result = parser.parseFormula(formula);
+            const steps = parser.getSteps();
+
+            displayDebugSteps(steps, result);
+        }
+
+        // 显示调试步骤
+        function displayDebugSteps(steps, finalResult) {
+            const debugOutput = document.getElementById('debugOutput');
+            const debugSteps = document.getElementById('debugSteps');
+            
+            debugSteps.innerHTML = '';
+            
+            steps.forEach((step, index) => {
+                const stepDiv = document.createElement('div');
+                stepDiv.className = `debug-step ${step.isError ? 'error' : ''}`;
+                
+                stepDiv.innerHTML = `
+                    <span class="step-number">${index + 1}</span>
+                    <div class="step-content">
+                        <div class="step-description">${step.description}</div>
+                        <div class="step-formula">${step.formula}</div>
+                        <div class="step-result">结果: ${step.result}</div>
+                    </div>
+                `;
+                
+                debugSteps.appendChild(stepDiv);
+            });
+
+            // 添加最终结果
+            if (finalResult !== '#ERROR') {
+                const finalDiv = document.createElement('div');
+                finalDiv.className = 'final-result';
+                finalDiv.innerHTML = `🎯 最终结果: ${finalResult}`;
+                debugSteps.appendChild(finalDiv);
+            }
+
+            debugOutput.style.display = 'block';
+            debugOutput.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // 清空所有内容
+        function clearAll() {
+            document.getElementById('formulaInput').value = '';
+            document.getElementById('debugOutput').style.display = 'none';
+            
+            // 清空所有单元格
+            const rowCount = parseInt(document.getElementById('rowCount').value) || 5;
+            const colCount = parseInt(document.getElementById('colCount').value) || 5;
+            
+            for (let row = 1; row <= rowCount; row++) {
+                for (let col = 1; col <= colCount; col++) {
+                    const cellRef = String.fromCharCode(64 + col) + row;
+                    const element = document.getElementById(cellRef);
+                    if (element) element.value = '';
+                }
+            }
+        }
+
+        // 加载示例数据
+        function loadExample() {
+            // 确保网格足够大
+            const currentRows = parseInt(document.getElementById('rowCount').value);
+            const currentCols = parseInt(document.getElementById('colCount').value);
+            
+            if (currentRows < 5 || currentCols < 3) {
+                document.getElementById('rowCount').value = '5';
+                document.getElementById('colCount').value = '5';
+                updateGrid();
+            }
+            
+            // 设置示例数据
+            const sampleData = {
+                'A1': '10', 'A2': '20', 'A3': '30', 'A4': '40', 'A5': '50',
+                'B1': '2', 'B2': 'Apple', 'B3': 'Banana', 'B4': '5', 'B5': '15',
+                'C1': '15', 'C2': '100', 'C3': '80', 'C4': '25', 'C5': '35',
+                'D1': '3', 'D2': '6', 'D3': '9',
+                'E1': '1', 'E2': '4', 'E3': '7'
+            };
+            
+            Object.entries(sampleData).forEach(([cellRef, value]) => {
+                const element = document.getElementById(cellRef);
+                if (element) element.value = value;
+            });
+            
+            // 设置示例公式
+            document.getElementById('formulaInput').value = '=SUM(A1:A3)*B1+IF(C1>10,C1*2,C1)';
+        }
+
+        // 公式描述信息
+        const formulaDescriptions = {
+            '=SUM(A1:A5)': '计算A1到A5单元格的数值总和',
+            '=AVERAGE(A1:A5)': '计算A1到A5单元格的平均值',
+            '=MAX(A1:A5)': '找出A1到A5单元格中的最大值',
+            '=MIN(A1:A5)': '找出A1到A5单元格中的最小值',
+            '=COUNT(A1:A5)': '计算A1到A5单元格中数字的个数',
+            '=SUM(A1:A3)*B1': '先计算A1到A3的总和，然后乘以B1的值',
+            '=AVERAGE(A1:A5)+B1': '计算A1到A5的平均值，然后加上B1的值',
+            '=IF(A1>10,A1*2,A1)': '如果A1大于10，返回A1*2，否则返回A1',
+            '=IF(A1>B1,A1,B1)': '比较A1和B1，返回较大的值',
+            '=IF(SUM(A1:A3)>50,"高","低")': '如果A1到A3的总和大于50，返回"高"，否则返回"低"',
+            '=VLOOKUP(A1,B1:C5,2,FALSE)': '在B1:C5范围内查找A1的值，返回对应行第2列的值',
+            '=SUM(A1:A3)*B1+IF(C1>10,C1*2,C1)': '复合公式：求和乘法加条件判断',
+            '=AVERAGE(A1:A5)*IF(B1>5,2,1)': '平均值乘以条件结果（B1>5时乘2，否则乘1）',
+            '=MAX(A1:A3)+MIN(B1:B3)*C1': '最大值加上最小值乘以C1',
+            '=IF(SUM(A1:A3)>AVERAGE(B1:B3),SUM(A1:A3),AVERAGE(B1:B3))': '比较A列总和与B列平均值，返回较大者'
+        };
+
+        // 选择公式
+        function selectFormula() {
+            const select = document.getElementById('formulaSelect');
+            const formula = select.value;
+            const input = document.getElementById('formulaInput');
+            const description = document.getElementById('formulaDescription');
+            
+            if (formula) {
+                input.value = formula;
+                
+                // 显示公式描述
+                if (formulaDescriptions[formula]) {
+                    description.textContent = formulaDescriptions[formula];
+                    description.classList.add('show');
+                } else {
+                    description.classList.remove('show');
+                }
+                
+                // 自动设置相应的示例数据
+                setExampleDataForFormula(formula);
+            }
+        }
+
+        // 清空公式
+        function clearFormula() {
+            document.getElementById('formulaInput').value = '';
+            document.getElementById('formulaSelect').value = '';
+            document.getElementById('formulaDescription').classList.remove('show');
+        }
+
+        // 根据公式设置示例数据
+        function setExampleDataForFormula(formula) {
+            // 确保网格足够大
+            const currentRows = parseInt(document.getElementById('rowCount').value);
+            const currentCols = parseInt(document.getElementById('colCount').value);
+            
+            if (currentRows < 5 || currentCols < 3) {
+                document.getElementById('rowCount').value = '5';
+                document.getElementById('colCount').value = '5';
+                updateGrid();
+            }
+            
+            // 根据不同公式设置不同的示例数据
+            if (formula.includes('A1:A5')) {
+                document.getElementById('A1').value = '10';
+                document.getElementById('A2').value = '20';
+                document.getElementById('A3').value = '30';
+                document.getElementById('A4').value = '40';
+                document.getElementById('A5').value = '50';
+            } else if (formula.includes('A1:A3')) {
+                document.getElementById('A1').value = '10';
+                document.getElementById('A2').value = '20';
+                document.getElementById('A3').value = '30';
+            }
+            
+            if (formula.includes('B1:B5')) {
+                document.getElementById('B1').value = '5';
+                document.getElementById('B2').value = '15';
+                document.getElementById('B3').value = '25';
+                document.getElementById('B4').value = '35';
+                document.getElementById('B5').value = '45';
+            } else if (formula.includes('B1:B3')) {
+                document.getElementById('B1').value = '5';
+                document.getElementById('B2').value = '15';
+                document.getElementById('B3').value = '25';
+            } else if (formula.includes('B1')) {
+                document.getElementById('B1').value = '2';
+            }
+            
+            if (formula.includes('C1')) {
+                document.getElementById('C1').value = '15';
+            }
+            
+            if (formula.includes('VLOOKUP')) {
+                document.getElementById('A1').value = 'Apple';
+                document.getElementById('B1').value = 'Apple';
+                document.getElementById('C1').value = '100';
+                document.getElementById('B2').value = 'Banana';
+                document.getElementById('C2').value = '80';
+                document.getElementById('B3').value = 'Orange';
+                document.getElementById('C3').value = '90';
+            }
+        }
+
+        // 使用示例公式
+        function useExample(formula) {
+            document.getElementById('formulaInput').value = formula;
+            setExampleDataForFormula(formula);
+        }
+
+        // 页面加载时初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            initDataGrid();
+            loadExample();
+        });
+    </script>
+</body>
+</html>

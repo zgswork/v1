@@ -1,0 +1,2145 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+    <head>
+        <script src="../static/js/runtime.js?v=20260827p"></script>
+        <meta charset="utf-8">
+        <title>LED显示屏 模组 安装结构设计 — 3D多标签版</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+            /* ===== 全局重置 & 布局 ===== */
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+
+            body {
+                font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+                background: #1a1a2e;
+                color: #eee;
+                overflow: hidden;
+                height: 100vh;
+            }
+
+            #app {
+                display: flex;
+                height: 100vh;
+                width: 100vw;
+            }
+
+            /* ===== 左侧面板（可折叠） ===== */
+            #panel {
+                position: relative;
+                width: 480px;
+                min-width: 0;
+                background: #16213e;
+                border-right: 1px solid #0f3460;
+                display: flex;
+                flex-direction: column;
+                z-index: 100;
+                transition: width .3s cubic-bezier(.4, 0, .2, 1), min-width .3s cubic-bezier(.4, 0, .2, 1);
+                overflow: hidden;
+                flex-shrink: 0;
+            }
+
+            #panel.collapsed-h {
+                width: 0 !important;
+                min-width: 0 !important;
+                border-right: none;
+            }
+
+            #panel-body {
+                flex: 1;
+                overflow-y: auto;
+                overflow-x: hidden;
+                padding: 10px 12px 16px;
+                transition: opacity .25s;
+            }
+
+            #panel.collapsed-v #panel-body {
+                display: none;
+            }
+
+            #panel-body::-webkit-scrollbar {
+                width: 4px;
+            }
+
+            #panel-body::-webkit-scrollbar-thumb {
+                background: #0f3460;
+                border-radius: 3px;
+            }
+
+            /* 面板头部 */
+            #panel-header {
+                height: 36px;
+                min-height: 36px;
+                background: linear-gradient(135deg, #0f3460, #16213e);
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 0 8px;
+                cursor: pointer;
+                user-select: none;
+                border-bottom: 1px solid #0f3460;
+                flex-shrink: 0;
+            }
+
+            #panel-header .title {
+                font-size: 13px;
+                font-weight: bold;
+                color: #e94560;
+                display: flex;
+                align-items: center;
+                gap: 6px;
+            }
+
+            #panel-header .title .dot {
+                width: 7px;
+                height: 7px;
+                background: #e94560;
+                border-radius: 50%;
+                animation: pulse 2s infinite;
+            }
+
+            @keyframes pulse {
+
+                0%,
+                100% {
+                    opacity: 1;
+                }
+
+                50% {
+                    opacity: .4;
+                }
+            }
+
+            .panel-btns {
+                display: flex;
+                gap: 3px;
+            }
+
+            .panel-btns button {
+                width: 26px;
+                height: 24px;
+                border: none;
+                border-radius: 4px;
+                background: #1a1a3e;
+                color: #aaa;
+                cursor: pointer;
+                font-size: 13px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                transition: all .2s;
+            }
+
+            .panel-btns button:hover {
+                background: #e94560;
+                color: #fff;
+            }
+
+            .panel-btns button.active {
+                background: #e94560;
+                color: #fff;
+            }
+
+            /* 悬浮按钮 */
+            #floating-btn {
+                position: fixed;
+                top: 50%;
+                left: 0;
+                transform: translateY(-50%);
+                z-index: 200;
+                display: none;
+                flex-direction: column;
+                gap: 3px;
+            }
+
+            #floating-btn.show {
+                display: flex;
+            }
+
+            #floating-btn button {
+                width: 26px;
+                height: 46px;
+                border: 1px solid #0f3460;
+                border-left: none;
+                border-radius: 0 6px 6px 0;
+                background: #16213e;
+                color: #e94560;
+                cursor: pointer;
+                font-size: 14px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                box-shadow: 2px 0 8px rgba(0, 0, 0, .3);
+                transition: all .2s;
+            }
+
+            #floating-btn button:hover {
+                background: #e94560;
+                color: #fff;
+            }
+
+            #floating-btn .fb-updown {
+                width: 26px;
+                height: 30px;
+                font-size: 12px;
+            }
+
+            /* ===== Tab 栏 ===== */
+            .tab-bar {
+                display: flex;
+                gap: 2px;
+                margin-bottom: 10px;
+                border-bottom: 1px solid #0f3460;
+                padding-bottom: 0;
+            }
+
+            .tab-btn {
+                padding: 5px 10px;
+                border: none;
+                border-bottom: 2px solid transparent;
+                background: none;
+                color: #888;
+                font-size: 12px;
+                cursor: pointer;
+                transition: all .2s;
+                white-space: nowrap;
+            }
+
+            .tab-btn:hover {
+                color: #ccc;
+            }
+
+            .tab-btn.active {
+                color: #e94560;
+                border-bottom-color: #e94560;
+                font-weight: bold;
+            }
+
+            .tab-panel {
+                display: none;
+            }
+
+            .tab-panel.active {
+                display: block;
+            }
+
+            /* ===== 表单样式 ===== */
+            .section {
+                margin-bottom: 8px;
+                padding: 6px 8px;
+                background: #1a1a3e;
+                border-radius: 6px;
+                border: 1px solid #0f3460;
+            }
+
+            .section h3 {
+                font-size: 11px;
+                color: #4fc3f7;
+                margin-bottom: 4px;
+                display: flex;
+                align-items: center;
+                gap: 4px;
+            }
+
+            .section h3 .badge {
+                background: #e94560;
+                color: #fff;
+                font-size: 9px;
+                padding: 0 5px;
+                border-radius: 8px;
+            }
+
+            .subtitle {
+                font-size: 9px;
+                color: #777;
+                margin-bottom: 6px;
+            }
+
+            .row {
+                display: flex;
+                align-items: center;
+                width: 100%;
+                gap: 4px;
+                margin-bottom: 4px;
+                padding: 0 2px;
+            }
+
+            .row label {
+                flex: 0 0 52px;
+                text-align: left;
+                font-weight: 400;
+                color: #7dd3fc;
+                white-space: nowrap;
+                font-size: 11px;
+            }
+
+            .row input,
+            .row select {
+                flex: 1;
+                min-width: 30px;
+                height: 30px;
+                padding: 4px 6px;
+                background: rgba(2, 6, 23, .6);
+                border: 1px solid rgba(94, 234, 212, .3);
+                border-radius: 4px;
+                color: #f0f9ff;
+                font-size: 12px;
+                transition: all .3s ease;
+            }
+
+            .row input:focus,
+            .row select:focus {
+                outline: none;
+                border-color: #38bdf8;
+                box-shadow: 0 0 0 3px rgba(56, 189, 248, .3);
+            }
+
+            .row input.readonly,
+            .row select.readonly {
+                background: #2a2a3a !important;
+                color: #888 !important;
+                cursor: not-allowed;
+            }
+
+            .row2 {
+                display: flex;
+                gap: 4px;
+            }
+
+            .row2>* {
+                flex: 1;
+            }
+
+            .row3 {
+                display: flex;
+                gap: 4px;
+            }
+
+            .row3>* {
+                flex: 1;
+            }
+
+            .checkbox-row {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 4px 10px;
+                align-items: center;
+                padding: 2px 0;
+            }
+
+            .checkbox-row .steel-label {
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                cursor: pointer;
+                user-select: none;
+                white-space: nowrap;
+                font-size: 11px;
+                color: #cbd5e1;
+            }
+
+            .checkbox-row .steel-label input[type="checkbox"] {
+                width: 14px;
+                height: 14px;
+                accent-color: #06b6d4;
+                cursor: pointer;
+            }
+
+            .btn-row {
+                display: flex;
+                width: 100%;
+                margin-top: 8px;
+                flex-wrap: nowrap;
+                gap: 6px;
+            }
+
+            .btn-row button {
+                flex: 1;
+                min-width: 0;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                padding: 6px 10px;
+                background: linear-gradient(45deg, #0ea5e9, #06b6d4);
+                border: none;
+                border-radius: 6px;
+                color: #fff;
+                font-size: 12px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all .3s ease;
+                box-shadow: 0 4px 15px rgba(8, 145, 178, .4);
+            }
+
+            .btn-row button:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 6px 20px rgba(8, 145, 178, .6);
+            }
+
+            .btn-row button:last-child {
+                background: linear-gradient(45deg, #555, #333);
+            }
+
+            .btn {
+                display: block;
+                width: 100%;
+                padding: 5px;
+                margin-top: 4px;
+                border: none;
+                border-radius: 6px;
+                color: #fff;
+                font-size: 12px;
+                font-weight: bold;
+                cursor: pointer;
+                transition: all .2s;
+            }
+
+            .btn-red {
+                background: linear-gradient(135deg, #e94560, #c0392b);
+            }
+
+            .btn-red:hover {
+                transform: translateY(-1px);
+                box-shadow: 0 3px 10px rgba(233, 69, 96, .4);
+            }
+
+            .btn-blue {
+                background: linear-gradient(135deg, #2980b9, #1a5276);
+            }
+
+            .btn-blue:hover {
+                box-shadow: 0 3px 10px rgba(41, 128, 185, .4);
+            }
+
+            .btn-gray {
+                background: linear-gradient(135deg, #555, #333);
+            }
+
+            .btn-gray:hover {
+                box-shadow: 0 3px 10px rgba(100, 100, 100, .3);
+            }
+
+            .preset-group {
+                display: flex;
+                gap: 3px;
+                flex-wrap: wrap;
+                margin-top: 3px;
+            }
+
+            .preset-btn {
+                padding: 4px 6px;
+                border: 1px solid #0f3460;
+                border-radius: 4px;
+                background: #0d1b2a;
+                color: #4fc3f7;
+                font-size: 12px;
+                cursor: pointer;
+                transition: all .15s;
+            }
+
+            .preset-btn:hover {
+                background: #0f3460;
+                color: #fff;
+            }
+
+            .divider-line {
+                width: 100%;
+                height: 1px;
+                border-bottom: 1px dashed rgba(94, 234, 212, 0.3);
+                margin: 8px 0;
+            }
+
+            /* 颜色选择器 */
+            input[type="color"] {
+                width: 100%;
+                height: 32px;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                padding: 0;
+                background: transparent;
+            }
+
+            input[type="range"] {
+                width: 100%;
+                height: 16px;
+                cursor: pointer;
+            }
+
+            .hidden {
+                display: none !important;
+            }
+
+            #msg a {
+                color: #38bdf8;
+                text-decoration: underline;
+                cursor: pointer;
+            }
+
+            #msg a:hover {
+                color: #7dd3fc;
+            }
+
+            /* 弹窗 */
+            .alert-overlay {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background-color: rgba(0, 0, 0, 0.7);
+                display: none;
+                justify-content: center;
+                align-items: center;
+                z-index: 1000;
+                backdrop-filter: blur(5px);
+            }
+
+            .alert-box {
+                background: rgba(15, 23, 42, 0.95);
+                border-radius: 16px;
+                padding: 24px 28px;
+                max-width: 500px;
+                width: 90%;
+                border: 1px solid rgba(94, 234, 212, 0.3);
+                box-shadow: 0 10px 40px rgba(2, 132, 199, 0.4);
+                animation: fadeIn 0.3s ease;
+            }
+
+            @keyframes fadeIn {
+                from {
+                    opacity: 0;
+                    transform: translateY(-20px);
+                }
+
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+
+            .alert-title {
+                color: #38bdf8;
+                text-align: center;
+                margin-bottom: 16px;
+                font-size: 1.3rem;
+            }
+
+            .alert-content {
+                color: #cbd5e1;
+                line-height: 1.6;
+                margin-bottom: 20px;
+                font-size: 13px;
+            }
+
+            .alert-footer {
+                display: flex;
+                justify-content: center;
+            }
+
+            .alert-button {
+                padding: 8px 28px;
+                background: linear-gradient(45deg, #0ea5e9, #06b6d4);
+                border: none;
+                border-radius: 8px;
+                color: white;
+                font-weight: 600;
+                cursor: pointer;
+                font-size: 14px;
+            }
+
+            .alert-button:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 6px 20px rgba(8, 145, 178, 0.6);
+            }
+
+            /* 3D 视口 */
+            #viewport {
+                flex: 1;
+                position: relative;
+                min-width: 0;
+                background: #0a0a1a;
+            }
+
+            #canvas-container {
+                width: 100%;
+                height: 100%;
+            }
+
+            .overlay {
+                position: absolute;
+                background: rgba(15, 52, 96, .85);
+                padding: 6px 12px;
+                border-radius: 6px;
+                font-size: 11px;
+                pointer-events: none;
+                z-index: 50;
+                border: 1px solid #0f3460;
+                color: #ddd;
+            }
+
+            #info-overlay {
+                top: 10px;
+                left: 10px;
+            }
+
+            #info-overlay .title {
+                color: #e94560;
+                font-weight: bold;
+                font-size: 12px;
+                margin-bottom: 2px;
+            }
+
+            #info-overlay .hint {
+                color: #888;
+                font-size: 9px;
+                margin-top: 2px;
+            }
+
+            #status-bar {
+                bottom: 10px;
+                right: 10px;
+                font-size: 10px;
+                color: #888;
+                background: rgba(15, 52, 96, .7);
+            }
+
+            .toast {
+                position: fixed;
+                bottom: 60px;
+                left: 50%;
+                transform: translateX(-50%) translateY(20px);
+                background: rgba(233, 69, 96, .95);
+                color: #fff;
+                padding: 6px 18px;
+                border-radius: 6px;
+                font-size: 13px;
+                z-index: 999;
+                opacity: 0;
+                pointer-events: none;
+                transition: all .3s;
+            }
+
+            .toast.show {
+                opacity: 1;
+                transform: translateX(-50%) translateY(0);
+            }
+
+            /* 响应式 */
+            @media (max-width: 768px) {
+                #panel {
+                    width: 360px;
+                }
+
+                .row label {
+                    flex: 0 0 44px;
+                    font-size: 10px;
+                }
+
+                .row input,
+                .row select {
+                    font-size: 11px;
+                    height: 28px;
+                    padding: 3px 5px;
+                }
+
+                #panel-body {
+                    padding: 6px 8px;
+                }
+
+                .checkbox-row .steel-label {
+                    font-size: 10px;
+                }
+
+                .checkbox-row .steel-label input[type="checkbox"] {
+                    width: 13px;
+                    height: 13px;
+                }
+            }
+
+            @media (max-width: 480px) {
+                #panel {
+                    width: 280px;
+                }
+
+                .row {
+                    flex-wrap: wrap;
+                    gap: 3px;
+                }
+
+                .row label {
+                    flex: 0 0 100%;
+                    font-size: 10px;
+                }
+
+                .row input,
+                .row select {
+                    flex: 1 1 45%;
+                    min-width: 0;
+                }
+
+                .row2,
+                .row3 {
+                    flex-wrap: wrap;
+                }
+
+                .row2>*,
+                .row3>* {
+                    flex: 1 1 45%;
+                    min-width: 0;
+                }
+            }
+        </style>
+    </head>
+
+    <body>
+        <div id="app">
+            <!-- ===== 左侧面板 ===== -->
+            <div id="panel">
+                <div id="panel-header" title="双击恢复全部展开">
+                    <div class="title"><span class="dot"></span>LED设计面板</div>
+                    <div class="panel-btns">
+                        <button id="btnToggleH" title="左右折叠 (←/→)" style="font-size:15px;">◀</button>
+                        <button id="btnToggleV" title="上下折叠 (↑/↓)" style="font-size:12px;">▼</button>
+                    </div>
+                </div>
+                <div id="panel-body">
+                    <div class="subtitle">LED 模组安装结构 · 3D 实时预览</div>
+                    <!-- Tab 栏 -->
+                    <div class="tab-bar">
+                        <button class="tab-btn active" data-tab="tab-params">📐 屏体参数</button>
+                        <button class="tab-btn" data-tab="tab-steel">🔧 钢结构</button>
+                        <button class="tab-btn" data-tab="tab-appearance">🎨 外观</button>
+                        <button class="tab-btn" data-tab="tab-about">ℹ️ 关于</button>
+                    </div>
+                    <!-- ===== Tab 1: 屏体参数 ===== -->
+                    <div class="tab-panel active" id="tab-params">
+                        <form id="designForm">
+                            <div class="section">
+                                <h3>型号与排列</h3>
+                                <div class="row">
+                                    <label>室内户外</label><select id="snhw" name="snhw"></select>
+                                    <label>安装样式</label><select id="azys" name="azys"></select>
+                                </div>
+                                <div class="row">
+                                    <label>产品系列</label><select id="cpxl" name="cpxl"></select>
+                                    <label>产品型号</label><select id="cpxh" name="cpxh"></select>
+                                </div>
+                                <div class="row">
+                                    <label>单元长度</label><input id="dycd" name="dycd" type="number">
+                                    <label>单元高度</label><input id="dygd" name="dygd" type="number">
+                                </div>
+                                <div class="row">
+                                    <label>排列列数</label><input id="plls" name="plls" type="number" min="1" step="1"
+                                        value="10">
+                                    <label>排列行数</label><input id="plhs" name="plhs" type="number" min="1" step="1"
+                                        value="10">
+                                </div>
+                                <div class="row">
+                                    <label>单元厚度</label><input id="dyhd" name="dyhd" type="number">
+                                    <label>屏体厚度</label><input id="pthd" name="pthd" type="number" value="100">
+                                </div>
+                                <div class="row">
+                                    <label>包边上边</label><input id="bbsb" name="bbsb" type="number">
+                                    <label>包边下边</label><input id="bbxb" name="bbxb" type="number">
+                                </div>
+                                <div class="row">
+                                    <label>包边侧边</label><input id="bbcb" name="bbcb" type="number">
+                                    <label>留空间隙</label><input id="lkjx" name="lkjx" type="number">
+                                </div>
+                                <div class="row">
+                                    <label>离地高度</label><input id="ldgd" name="ldgd" type="number">
+                                    <label>距离屋顶</label><input id="jlwd" name="jlwd" type="number">
+                                </div>
+                                <div class="row">
+                                    <label>显示长度</label><input id="xscd" name="xscd" type="number" readonly
+                                        class="readonly">
+                                    <label>显示高度</label><input id="xsgd" name="xsgd" type="number" readonly
+                                        class="readonly">
+                                </div>
+                            </div>
+                            <div class="section">
+                                <div class="row">
+                                    <label>屏点间距</label><input id="pdjj" name="pdjj" type="number" readonly
+                                        class="readonly">
+                                    <label>项目区域</label><select id="xmqy" name="xmqy"></select>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                    <!-- ===== Tab 2: 钢结构参数 ===== -->
+                    <div class="tab-panel" id="tab-steel">
+                        <div class="section">
+                            <h3>型材规格</h3>
+                            <div class="row">
+                                <label>单元背条</label><input id="dybt" name="dybt" type="text">
+                                <label>背条横杆</label><input id="bthg" name="bthg" type="text">
+                            </div>
+                            <div class="row">
+                                <label>牛腿连杆</label><input id="ntlg" name="ntlg" type="text">
+                                <label>水平横杆</label><input id="sphg" name="sphg" type="text">
+                            </div>
+                            <div class="row">
+                                <label>主承竖杆</label><input id="zcsg" name="zcsg" type="text">
+                                <label>法兰埋件</label><select id="flmj" name="flmj"></select>
+                            </div>
+                            <div class="row">
+                                <label>埋件横距</label><input id="mjhj" name="mjhj" type="number" value="1216">
+                                <label>埋件竖距</label><input id="mjsj" name="mjsj" type="number" value="1500">
+                            </div>
+                        </div>
+                        <div class="section">
+                            <h3>图纸选项</h3>
+                            <div class="checkbox-row">
+                                <label class="steel-label"><input type="checkbox" id="psyt" name="psyt"
+                                        checked>屏示意图</label>
+                                <label class="steel-label"><input type="checkbox" id="pggt" name="pggt"
+                                        checked>屏钢构图</label>
+                            </div>
+                            <div class="checkbox-row">
+                                <label class="steel-label"><input type="checkbox" id="zdtj" name="zdtj"
+                                        checked>自动推荐</label>
+                                <label class="steel-label"><input type="checkbox" id="cltj" name="cltj"
+                                        checked>材料统计</label>
+                            </div>
+                            <div class="checkbox-row">
+                                <label class="steel-label"><input type="checkbox" id="dxft" name="dxft"
+                                        checked>DXF图纸</label>
+                                <label class="steel-label"><input type="checkbox" id="pdft" name="pdft"
+                                        disabled>PDF图纸</label>
+                            </div>
+                        </div>
+                        <div class="btn-row">
+                            <button id="drawBtn" name="drawBtn" onclick="drawDxf()">绘图</button>
+                            <button onclick="closePage()">取消</button>
+                        </div>
+                        <div id="msg" name="msg" class="hidden"></div>
+                    </div>
+                    <!-- ===== Tab 3: 外观设置 ===== -->
+                    <div class="tab-panel" id="tab-appearance">
+                        <div class="section">
+                            <h3>材质与颜色</h3>
+                            <div class="row">
+                                <div style="flex:1;">
+                                    <label>钢材颜色</label>
+                                    <input type="color" id="steelColor" value="#8899aa" style="width:100%;height:30px;">
+                                </div>
+                                <div style="flex:1;">
+                                    <label>背景色</label>
+                                    <input type="color" id="bgColor" value="#1a1a2e" style="width:100%;height:30px;">
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div style="flex:1;">
+                                    <label>金属度 <span id="metalVal">0.70</span></label>
+                                    <input type="range" id="metalness" min="0" max="1" step="0.05" value="0.70">
+                                </div>
+                                <div style="flex:1;">
+                                    <label>粗糙度 <span id="roughVal">0.35</span></label>
+                                    <input type="range" id="roughness" min="0" max="1" step="0.05" value="0.35">
+                                </div>
+                            </div>
+                            <button class="btn btn-blue" onclick="applyAppearance()" style="margin-top:6px;">✓
+                                应用外观</button>
+                        </div>
+                        <div class="section">
+                            <h3>显示选项</h3>
+                            <div class="row">
+                                <div style="flex:1;">
+                                    <label>显示边线</label>
+                                    <select id="showEdges">
+                                        <option value="1" selected>是</option>
+                                        <option value="0">否</option>
+                                    </select>
+                                </div>
+                                <div style="flex:1;">
+                                    <label>显示网格</label>
+                                    <select id="showGrid">
+                                        <option value="1" selected>是</option>
+                                        <option value="0">否</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div style="flex:1;">
+                                    <label>显示坐标轴</label>
+                                    <select id="showAxes">
+                                        <option value="1" selected>是</option>
+                                        <option value="0">否</option>
+                                    </select>
+                                </div>
+                                <div style="flex:1;">
+                                    <label>显示阴影</label>
+                                    <select id="showShadow">
+                                        <option value="1" selected>是</option>
+                                        <option value="0">否</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <button class="btn btn-blue" onclick="applyDisplay()" style="margin-top:6px;">✓
+                                应用显示</button>
+                        </div>
+                        <div class="section">
+                            <h3>视角控制</h3>
+                            <div class="preset-group">
+                                <button class="preset-btn" onclick="setCamera(5000,4000,6000)">透视</button>
+                                <button class="preset-btn" onclick="setCamera(0,5000,0)">俯视</button>
+                                <button class="preset-btn" onclick="setCamera(8000,1000,0)">前视</button>
+                                <button class="preset-btn" onclick="setCamera(0,1000,8000)">侧视</button>
+                                <button class="preset-btn" onclick="setCamera(-5000,3000,-5000)">左后</button>
+                                <button class="preset-btn" onclick="focusAll()">自适应</button>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- ===== Tab 4: 关于/日志 ===== -->
+                    <div class="tab-panel" id="tab-about">
+                        <div class="section">
+                            <h3>关于</h3>
+                            <p style="font-size:12px;color:#aaa;line-height:1.6;">
+                                <strong>LED显示屏 模组 安装结构设计</strong><br>
+                                版本：<span id="headerVersion"></span><br>
+                                功能：室内/户外 LED 屏钢结构参数化设计，支持 3D 实时预览与 DXF 图纸生成。<br>
+                                操作说明：调整左侧参数，右侧 3D 场景自动更新。点击「绘图」可生成 DXF 文件。
+                            </p>
+                            <button class="btn btn-gray" onclick="showAlert()" style="margin-top:6px;">📖 详细说明</button>
+                        </div>
+                        <div class="section">
+                            <h3>操作日志</h3>
+                            <div id="logBox"
+                                style="max-height:150px;overflow-y:auto;font-size:10px;font-family:monospace;background:#0d1b2a;border-radius:4px;padding:4px;color:#888;">
+                                <div class="log-entry info">系统就绪</div>
+                            </div>
+                            <button class="btn btn-gray" onclick="clearLog()"
+                                style="margin-top:4px;font-size:10px;padding:3px;">清空日志</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- ===== 悬浮按钮 ===== -->
+            <div id="floating-btn">
+                <button id="fb-show" title="展开面板">▶</button>
+                <button class="fb-updown" id="fb-vshow" title="展开面板(上下)">▲</button>
+            </div>
+            <!-- ===== 右侧 3D 视口 ===== -->
+            <div id="viewport">
+                <div id="canvas-container"></div>
+                <div class="overlay" id="info-overlay">
+                    <div class="title">🖱️ 3D 交互</div>
+                    左键旋转 · 右键平移 · 滚轮缩放<br>
+                    <span class="hint">参数调整后自动更新预览</span>
+                </div>
+                <div class="overlay" id="status-bar">
+                    <span id="statusText">就绪</span> | FPS: <span id="fpsCounter">0</span>
+                </div>
+            </div>
+        </div>
+        <!-- Toast -->
+        <div class="toast" id="toast"></div>
+        <!-- ========================================================= -->
+        <!-- 数据层 (led-design_data.js) -->
+        <!-- ========================================================= -->
+        <script>
+            const Version = 'V1.30.1 by 笙 (3D多标签版)';
+            const LED_DATA = {
+                '室内户外': ['室内', '户外'],
+                '安装样式': ['壁挂', '落地拉墙', '顶天立地', '吊装', '嵌入'],
+                '法兰埋件': ['150*150*8埋件', '200*200*10埋件', '250*250*12埋件'],
+                '项目区域': ['国内', '海外'],
+                '材料列表': ['40*20*2方管', '20*40*2方管', '50*30*2方管', '30*50*2方管'],
+            };
+            const productData = {
+                室内: {
+                    'Q系列-E': ['Q2.5', 'Q3', 'Q3.0', 'Q4'],
+                    'Q系列-H': ['Q1.2', 'Q1.3', 'Q1.5', 'Q1.6', 'Q1.8', 'Q2', 'Q2.5', 'Q3', 'Q3.0', 'Q4'],
+                    'Q系列-Pro': ['Q0.8', 'Q0.9', 'Q1', 'Q1.2', 'Q1.3', 'Q1.5', 'Q1.6', 'Q1.8', 'Q2', 'Q2.5', 'Q3', 'Q3.0',
+                        'Q4'
+                    ],
+                    'Q系列-Pro Max': ['Q0.8', 'Q1', 'Q1.2', 'Q1.3', 'Q1.5', 'Q2.5'],
+                    'Q系列 Plus': ['Q0.8', 'Q1', 'Q1.2', 'Q1.3', 'Q1.5', 'Q1.6', 'Q1.8', 'Q2'],
+                    'S系列': ['S0.8', 'S1', 'S1.2', 'S1.3', 'S1.5', 'S1.6', 'S1.8', 'S2', 'S2.5', 'S3', 'S3.0', 'S4'],
+                    'CC系列': ['CC1.2', 'CC1.5', 'CC1.8', 'CC2', 'CC2.5'],
+                    'XC系列': ['XC0.7', 'XC0.9', 'XC1.2', 'XC1.5'],
+                    'XS系列': ['XS1.2', 'XS1.5', 'XS1.8', 'XS2', 'XS2.5'],
+                },
+                户外: {
+                    'Q系列-E': ['Q2.5', 'Q3.0', 'Q4', 'Q5', 'Q6(大)', 'Q8'],
+                    'Q系列-H': ['Q2.5', 'Q2.5H', 'Q3.0', 'Q3.0H', 'Q4', 'Q5', 'Q6', 'Q6H', 'Q6(大)', 'Q6(大)H', 'Q8', 'Q8H'],
+                    'Q系列-Pro': ['Q2', 'Q2.5', 'Q3.0', 'Q4', 'Q5', 'Q6', 'Q6(大)', 'Q8', 'Q10'],
+                    'Q系列-Pro W': ['Q2.5', 'Q3.0', 'Q4'],
+                    'Q系列 Plus': ['Q2.5', 'Q3.0', 'Q4', 'Q5', 'Q6(大)', 'Q8', 'Q10'],
+                    'S系列': ['S2.5', 'S3.0', 'S4', 'S5', 'S6(大)', 'S8', 'S10'],
+                    'CC系列': ['CC2.5', 'CC3.0', 'CC4', 'CC5', 'CC6(大板)'],
+                }
+            };
+            const cpxhSettings = {
+                'Q0.8': { dycd: 320, dygd: 160, pdjj: 0.8888 },
+                'Q0.9': { dycd: 320, dygd: 160, pdjj: 0.9302 },
+                'Q1': { dycd: 320, dygd: 160, pdjj: 1 },
+                'Q1.2': { dycd: 320, dygd: 160, pdjj: 1.25 },
+                'Q1.3': { dycd: 320, dygd: 160, pdjj: 1.3793 },
+                'Q1.5': { dycd: 320, dygd: 160, pdjj: 1.5384 },
+                'Q1.6': { dycd: 320, dygd: 160, pdjj: 1.6666 },
+                'Q1.8': { dycd: 320, dygd: 160, pdjj: 1.8604 },
+                'Q2': { dycd: 320, dygd: 160, pdjj: 2 },
+                'Q2.5': { dycd: 320, dygd: 160, pdjj: 2.5 },
+                'Q3': { dycd: 320, dygd: 160, pdjj: 3 },
+                'Q3.0': { dycd: 320, dygd: 160, pdjj: 3.0769 },
+                'Q4': { dycd: 320, dygd: 160, pdjj: 4 },
+                'Q5': { dycd: 320, dygd: 160, pdjj: 5 },
+                'Q6': { dycd: 320, dygd: 160, pdjj: 6 },
+                'Q6(大)': { dycd: 320, dygd: 160, pdjj: 6.6666 },
+                'Q6(大)H': { dycd: 320, dygd: 160, pdjj: 6.6666 },
+                'Q8': { dycd: 320, dygd: 160, pdjj: 8 },
+                'Q8H': { dycd: 320, dygd: 160, pdjj: 8 },
+                'Q10': { dycd: 320, dygd: 160, pdjj: 10 },
+                'S0.8': { dycd: 320, dygd: 160, pdjj: 0.8888 },
+                'S1': { dycd: 320, dygd: 160, pdjj: 1 },
+                'S1.2': { dycd: 320, dygd: 160, pdjj: 1.25 },
+                'S1.3': { dycd: 320, dygd: 160, pdjj: 1.3793 },
+                'S1.5': { dycd: 320, dygd: 160, pdjj: 1.5384 },
+                'S1.6': { dycd: 320, dygd: 160, pdjj: 1.6666 },
+                'S1.8': { dycd: 320, dygd: 160, pdjj: 1.8604 },
+                'S2': { dycd: 320, dygd: 160, pdjj: 2 },
+                'S2.5': { dycd: 320, dygd: 160, pdjj: 2.5 },
+                'S3': { dycd: 320, dygd: 160, pdjj: 3 },
+                'S3.0': { dycd: 320, dygd: 160, pdjj: 3.0769 },
+                'S4': { dycd: 320, dygd: 160, pdjj: 4 },
+                'S5': { dycd: 320, dygd: 160, pdjj: 5 },
+                'S6(大)': { dycd: 320, dygd: 160, pdjj: 6.6666 },
+                'S8': { dycd: 320, dygd: 160, pdjj: 8 },
+                'S10': { dycd: 320, dygd: 160, pdjj: 10 },
+                'XS1.2': { dycd: 320, dygd: 240, pdjj: 1.25 },
+                'XS1.5': { dycd: 320, dygd: 240, pdjj: 1.5384 },
+                'XS1.8': { dycd: 320, dygd: 240, pdjj: 1.8604 },
+                'XS2': { dycd: 320, dygd: 240, pdjj: 2 },
+                'XS2.5': { dycd: 320, dygd: 240, pdjj: 2.5 },
+                'CC1.2': { dycd: 320, dygd: 160, pdjj: 1.25 },
+                'CC1.5': { dycd: 320, dygd: 160, pdjj: 1.5384 },
+                'CC1.8': { dycd: 320, dygd: 160, pdjj: 1.8604 },
+                'CC2': { dycd: 320, dygd: 160, pdjj: 2 },
+                'CC2.5': { dycd: 320, dygd: 160, pdjj: 2.5 },
+                'CC3.0': { dycd: 320, dygd: 160, pdjj: 3.0769 },
+                'CC4': { dycd: 320, dygd: 160, pdjj: 4 },
+                'CC5': { dycd: 320, dygd: 160, pdjj: 5 },
+                'CC6(大板)': { dycd: 320, dygd: 160, pdjj: 6.6666 },
+            };
+            const defaultQSettings = { dycd: 320, dygd: 160 };
+            const snhwSettings = {
+                室内: { dyhd: 22.5, dybt: LED_DATA['材料列表'][0] },
+                户外: { dyhd: 26, dybt: LED_DATA['材料列表'][2] }
+            };
+        </script>
+        <!-- ========================================================= -->
+        <!-- 业务逻辑 (led-design_app.js 移植) -->
+        <!-- ========================================================= -->
+        <script>
+            /* =======================
+               LED显示屏 主逻辑 (原有，适配新布局)
+               ======================= */
+            const $id = id => document.getElementById(id);
+            function getEls(ids) {
+                const r = {};
+                ids.forEach(id => { r[id] = $id(id); });
+                return r;
+            }
+            const els = getEls([
+                'snhw', 'cpxl', 'cpxh', 'pdjj',
+                'dycd', 'dygd', 'bbsb', 'azys',
+                'plls', 'plhs', 'bbxb', 'bbcb',
+                'dyhd', 'pthd', 'ldgd', 'jlwd',
+                'xscd', 'xsgd', 'lkjx', 'xmqy',
+                'dybt', 'bthg', 'ntlg', 'sphg',
+                'zcsg', 'mjhj', 'mjsj', 'flmj',
+                'psyt', 'pggt', 'zdtj', 'cltj', 'dxft', 'pdft',
+                'drawBtn', 'msg', 'designForm'
+            ]);
+            const {
+                snhw: snhwEl, cpxl: cpxlEl, cpxh: cpxhEl, pdjj: pdjjEl,
+                dycd: dycdEl, dygd: dygdEl, bbsb: bbsbEl, azys: azysEl,
+                plls: pllsEl, plhs: plhsEl, bbxb: bbxbEl, bbcb: bbcbEl,
+                dyhd: dyhdEl, pthd: pthdEl, ldgd: ldgdEl, jlwd: jlwdEl,
+                xscd: xscdEl, xsgd: xsgdEl, lkjx: lkjxEl, xmqy: xmqyEl,
+                dybt: dybtEl, bthg: bthgEl, ntlg: ntlgEl, sphg: sphgEl,
+                zcsg: zcsgEl, mjhj: mjhjEl, mjsj: mjsjEl, flmj: flmjEl,
+                psyt: psytEl, pggt: pggtEl, zdtj: zdtjEl, cltj: cltjEl, dxft: dxftEl, pdft: pdftEl,
+                drawBtn: drawBtnEl, msg: msgEl, designForm: designFormEl
+            } = els;
+            // ---- 工具 ----
+            function evalExpr(expr) {
+                try { if (!/^[\d\s+\-*/().]+$/.test(expr)) return 0; return Function('"use strict";return (' + expr + ')')(); } catch (
+                e) { return 0; }
+            }
+            function normalizePositiveInt(el) {
+                const v = Math.max(1, Math.trunc(Number(el.value)) || 1);
+                if (String(el.value) !== String(v)) el.value = v;
+                return v;
+            }
+            function swapFirstTwo(str) {
+                const list = str.split('*');
+                if (list.length >= 3) { [list[0], list[1]] = [list[1], list[0]]; }
+                return list.join('*');
+            }
+            // ---- 初始化下拉 ----
+            function initSelect(selectId, dataKey, defaultValue) {
+                const sel = document.getElementById(selectId);
+                if (!sel) return;
+                const list = LED_DATA[dataKey];
+                if (!Array.isArray(list)) return;
+                sel.innerHTML = '';
+                list.forEach(item => {
+                    const opt = document.createElement('option');
+                    opt.value = item;
+                    opt.textContent = item;
+                    sel.appendChild(opt);
+                });
+                if (defaultValue !== undefined) { sel.value = defaultValue; }
+                updateProductSeries();
+                updateSnhwState();
+            }
+            // ---- 级联 ----
+            function updateProductSeries() {
+                const snhw = snhwEl.value;
+                const seriesMap = productData[snhw] || {};
+                cpxlEl.innerHTML = '';
+                cpxhEl.innerHTML = '';
+                Object.keys(seriesMap).forEach(s => {
+                    const opt = document.createElement('option');
+                    opt.value = s;
+                    opt.textContent = s;
+                    cpxlEl.appendChild(opt);
+                });
+                updateProductModels();
+            }
+            function updateProductModels() {
+                const snhw = snhwEl.value;
+                const series = cpxlEl.value;
+                const models = (productData[snhw] && productData[snhw][series]) || [];
+                cpxhEl.innerHTML = '';
+                models.forEach(m => {
+                    const opt = document.createElement('option');
+                    opt.value = m;
+                    opt.textContent = m;
+                    cpxhEl.appendChild(opt);
+                });
+                updateCombos();
+            }
+            function updateCombos() {
+                const v = cpxhEl.value;
+                const settings = cpxhSettings[v];
+                if (settings) {
+                    dycdEl.value = settings.dycd;
+                    dygdEl.value = settings.dygd;
+                    pdjjEl.value = settings.pdjj;
+                } else {
+                    if (v.startsWith('Q') || v.startsWith('CC') || v.startsWith('R')) {
+                        dycdEl.value = 320;
+                        dygdEl.value = 160;
+                        dyhdEl.value = (snhwEl.value == '户外') ? 26 : 22.5;
+                    } else if (v.startsWith('XS')) {
+                        dycdEl.value = 320;
+                        dygdEl.value = 240;
+                        dyhdEl.value = 20.6;
+                    } else if (v.startsWith('XC')) {
+                        dycdEl.value = 600;
+                        dygdEl.value = 337.5;
+                        dyhdEl.value = 39.8;
+                    } else if (v.startsWith('YK')) {
+                        dycdEl.value = 600;
+                        dygdEl.value = 337.5;
+                        dyhdEl.value = 37.4;
+                    } else if (v.startsWith('VK')) {
+                        dycdEl.value = 600;
+                        dygdEl.value = 337.5;
+                        dyhdEl.value = 53;
+                    } else if (v.startsWith('DM')) {
+                        dycdEl.value = 500;
+                        dygdEl.value = 500;
+                        dyhdEl.value = 68;
+                    } else if (v.startsWith('HY')) {
+                        dycdEl.value = 500;
+                        dygdEl.value = 500;
+                        dyhdEl.value = 68;
+                    } else if (v.startsWith('LY')) {
+                        dycdEl.value = 500;
+                        dygdEl.value = 500;
+                        dyhdEl.value = 88;
+                    } else if (v.startsWith('CG')) {
+                        dycdEl.value = 500;
+                        dygdEl.value = 500;
+                        dyhdEl.value = 72;
+                    } else if (v.startsWith('EM')) {
+                        dycdEl.value = 500;
+                        dygdEl.value = 500;
+                        dyhdEl.value = 20.6;
+                    } else if (v.startsWith('CS')) {
+                        dycdEl.value = 640;
+                        dygdEl.value = 480;
+                        dyhdEl.value = 39;
+                    } else if (v.startsWith('DW')) {
+                        dycdEl.value = 640;
+                        dygdEl.value = 343;
+                        dyhdEl.value = 59.5;
+                    } else if (v.startsWith('GS')) {
+                        dycdEl.value = 1000;
+                        dygdEl.value = 1000;
+                        dyhdEl.value = 77;
+                    } else if (v.startsWith('TS')) {
+                        dycdEl.value = 1000;
+                        dygdEl.value = 1000;
+                        dyhdEl.value = 28;
+                    } else if (v.startsWith('UTS')) {
+                        dycdEl.value = 1000;
+                        dygdEl.value = 500;
+                        dyhdEl.value = 78;
+                    } else {
+                        dycdEl.value = defaultQSettings.dycd;
+                        dygdEl.value = defaultQSettings.dygd;
+                    }
+                }
+                xscdEl.value = (+dycdEl.value || 0) * normalizePositiveInt(pllsEl);
+                xsgdEl.value = (+dygdEl.value || 0) * normalizePositiveInt(plhsEl);
+                scheduleUpdate3D();
+            }
+            function updateSnhwState() {
+                const s = snhwSettings[snhwEl.value];
+                if (s) {
+                    dybtEl.value = s.dybt;
+                    bthgEl.value = swapFirstTwo(s.dybt);
+                    ntlgEl.value = swapFirstTwo(s.dybt);
+                    sphgEl.value = LED_DATA['材料列表'][1] || '';
+                    flmjEl.value = LED_DATA['法兰埋件'][1] || '';
+                    if (dycdEl.value > 320) {
+                        dybtEl.value = "40*40*3方管";
+                        bthgEl.value = "40*40*3方管";
+                        ntlgEl.value = "40*40*3方管";
+                    }
+                }
+                updatezcsgState();
+                updateSteelFieldsState();
+                applyPthdLimit();
+                scheduleUpdate3D();
+            }
+            function updatezcsgState() {
+                zcsgEl.value = "";
+                if (['吊装', '顶天立地'].includes(azysEl.value)) {
+                    const lsztH = [xsgdEl, bbsbEl, jlwdEl, bbxbEl, ldgdEl].reduce((sum, el) => sum + (parseFloat(el?.value) || 0),
+                        0);
+                    if (lsztH < 2000) zcsgEl.value = "40*40*3方管";
+                    else if (lsztH < 3000) zcsgEl.value = "40*60*3方管";
+                    else if (lsztH < 4000) zcsgEl.value = "40*80*4方管";
+                    else if (lsztH < 5000) zcsgEl.value = "50*100*5方管";
+                    else zcsgEl.value = "60*120*5方管";
+                }
+                scheduleUpdate3D();
+            }
+            function updateLdgdState() {
+                const v = azysEl.value;
+                const ldgdEdit = (v === '落地拉墙' || v === '顶天立地');
+                const jlwdEdit = (v === '吊装' || v === '顶天立地');
+                const lkjxEdit = (v === '嵌入');
+                ldgdEl.readOnly = !ldgdEdit;
+                ldgdEl.classList.toggle('readonly', !ldgdEdit);
+                jlwdEl.readOnly = !jlwdEdit;
+                jlwdEl.classList.toggle('readonly', !jlwdEdit);
+                lkjxEl.readOnly = !lkjxEdit;
+                lkjxEl.classList.toggle('readonly', !lkjxEdit);
+                if (!ldgdEdit) ldgdEl.value = 0;
+                else if (!ldgdEl.value || +ldgdEl.value === 0) ldgdEl.value = 500;
+                if (!jlwdEdit) jlwdEl.value = 0;
+                else if (!jlwdEl.value || +jlwdEl.value === 0) jlwdEl.value = 500;
+                if (!lkjxEdit) lkjxEl.value = 0;
+                else if (!lkjxEl.value || +lkjxEl.value === 0) lkjxEl.value = 0;
+                updateBbsbState();
+                updateHorizontalBeam();
+                applyPthdLimit();
+                scheduleUpdate3D();
+            }
+            function updateBbsbState() {
+                const e = azysEl.value === '嵌入';
+                [bbcbEl, bbsbEl, bbxbEl].forEach(el => {
+                    el.readOnly = e;
+                    el.classList.toggle('readonly', e);
+                });
+                if (e) {
+                    bbsbEl.value = 0;
+                    bbxbEl.value = 0;
+                    bbcbEl.value = 0
+                } else if (!bbsbEl.value || +bbsbEl.value === 0) {
+                    bbsbEl.value = 50;
+                    bbxbEl.value = 50;
+                    bbcbEl.value = 50
+                }
+                updateSteelFieldsState();
+                updateHorizontalBeam();
+                scheduleUpdate3D();
+            }
+            function applyPthdLimit() {
+                if (!pggtEl.checked) return;
+                const dybtStr = dybtEl.value.trim();
+                const bthgStr = bthgEl.value.trim();
+                const zcsgStr = zcsgEl.value.trim();
+                const dyhdVal = parseFloat(dyhdEl.value) || 0;
+                let minThick = dyhdVal;
+                const parts1 = dybtStr.split('*');
+                if (parts1.length >= 2) { const wall = parseFloat(parts1[1]); if (!isNaN(wall)) minThick += wall }
+                const parts2 = bthgStr.split('*');
+                if (parts2.length >= 2) { const h = parseFloat(parts2[0]); if (!isNaN(h)) minThick += h }
+                const parts3 = zcsgStr.split('*');
+                if (parts3.length >= 2) { const h0 = parseFloat(parts3[1]); if (!isNaN(h0)) minThick += h0 }
+                const current = parseFloat(pthdEl.value) || 0;
+                if (current < minThick) { pthdEl.value = minThick }
+                scheduleUpdate3D();
+            }
+            function updateSteelFieldsState() {
+                const currentChecked = pggtEl.checked;
+                if (currentChecked && !(pggtEl.dataset.prevChecked === 'true')) { zdtjEl.checked = true }
+                pggtEl.dataset.prevChecked = currentChecked;
+                const currentChecked0 = psytEl.checked;
+                if (currentChecked0 && !(psytEl.dataset.prevChecked === 'true')) { dxftEl.checked = true }
+                psytEl.dataset.prevChecked = currentChecked0;
+                const psytC = psytEl.checked;
+                const pggtC = pggtEl.checked;
+                const zdtjC = zdtjEl.checked;
+                const dxftC = dxftEl.checked;
+                if (!psytC) { [pggtEl, cltjEl, dxftEl, pdftEl].forEach(el => el.checked = false) }
+                const active = pggtEl.checked;
+                const disable = !active || zdtjC;
+                [dybtEl, bthgEl, ntlgEl, sphgEl, dycdEl, dygdEl, dyhdEl, mjhjEl, mjsjEl].forEach(f => {
+                    f.readOnly = disable;
+                    f.classList.toggle('readonly', disable);
+                });
+                if (!active) {
+                    pthdEl.value = 100;
+                    pthdEl.readOnly = true;
+                    pthdEl.classList.add('readonly');
+                } else {
+                    pthdEl.readOnly = false;
+                    pthdEl.classList.remove('readonly');
+                    applyPthdLimit();
+                }
+                if (!active) {
+                    [dybtEl, bthgEl, ntlgEl, sphgEl, zcsgEl].forEach(el => el.value = '');
+                    [zdtjEl, cltjEl].forEach(el => el.checked = false)
+                } else {
+                    updateSnhwState();
+                }
+                drawBtnEl.disabled = !(psytC && (dxftC || pdftEl.checked));
+                drawBtnEl.classList.toggle('readonly', drawBtnEl.disabled);
+                updateHorizontalBeam();
+                const rowSteel = document.getElementById('rowSteelX');
+                if (rowSteel) rowSteel.style.display = zdtjC ? 'none' : '';
+                scheduleUpdate3D();
+            }
+            function updateHorizontalBeam() {
+                const bbxb = parseInt(bbxbEl.value) || 0;
+                const ldgd = parseInt(ldgdEl.value) || 0;
+                const sum = bbxb + ldgd;
+                const beamVal = sphgEl.value.trim();
+                let beamHeight = 0;
+                if (beamVal) {
+                    const parts = beamVal.split('*');
+                    if (parts.length >= 2) {
+                        const heightStr = parts[1].replace(/[^0-9.]/g, '');
+                        beamHeight = parseFloat(heightStr) || 0;
+                    }
+                }
+                if (beamHeight > 0 && sum < beamHeight) { sphgEl.value = ''; }
+                scheduleUpdate3D();
+            }
+            // ---- 日志 ----
+            function log(msg, level = 'info') {
+                const box = document.getElementById('logBox');
+                if (!box) return;
+                const time = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+                const div = document.createElement('div');
+                div.className = 'log-entry ' + level;
+                div.textContent = `[${time}] ${msg}`;
+                box.appendChild(div);
+                box.scrollTop = box.scrollHeight;
+                while (box.children.length > 100) box.removeChild(box.firstChild);
+            }
+            function clearLog() {
+                const box = document.getElementById('logBox');
+                if (box) {
+                    box.innerHTML = '';
+                    log('日志已清空', 'info');
+                }
+            }
+            // ---- Toast ----
+            let toastTimer;
+            function toast(msg, duration = 2000) {
+                const t = document.getElementById('toast');
+                if (!t) return;
+                t.textContent = msg;
+                t.classList.add('show');
+                clearTimeout(toastTimer);
+                toastTimer = setTimeout(() => t.classList.remove('show'), duration);
+            }
+            // ---- 弹窗 ----
+            const alertOverlay = document.createElement('div');
+            alertOverlay.id = 'alertOverlay';
+            alertOverlay.className = 'alert-overlay';
+            alertOverlay.innerHTML = `
+          <div class="alert-box">
+            <h3 class="alert-title">关于 LED显示屏钢结构设计</h3>
+            <div class="alert-content">
+              <p><strong>版本：</strong> <span id="alertVersion"></span></p>
+              <p><strong>功能说明：</strong></p>
+              <p>本工具用于LED显示屏室内模组的钢结构设计。支持多种型号选择，自动计算显示尺寸，并提供多种设计选项。</p>
+              <p><strong>主要特性：</strong></p>
+              <ul style="padding-left:20px;margin-top:10px;">
+                <li>支持Q/S/M/N系列多种型号</li>
+                <li>自动计算显示长度和高度</li>
+                <li>灵活的排列组合配置</li>
+                <li>多种结构截面选择</li>
+              </ul>
+              <p style="margin-top:15px;color:#7dd3fc;">注：请根据实际工程需求调整参数，计算结果仅供参考。</p>
+            </div>
+            <div class="alert-footer">
+              <button id="closeAlertBtn" class="alert-button">确定</button>
+            </div>
+          </div>
+        `;
+            document.body.appendChild(alertOverlay);
+            const alertOverlayEl = alertOverlay;
+            function showAlert() {
+                const verSpan = document.getElementById('alertVersion');
+                if (verSpan) verSpan.textContent = Version;
+                alertOverlayEl.style.display = 'flex';
+                if (navigator.vibrate) navigator.vibrate(50);
+            }
+            function closeAlert() { alertOverlayEl.style.display = 'none'; }
+            document.addEventListener('DOMContentLoaded', () => {
+                const closeBtn = document.getElementById('closeAlertBtn');
+                if (closeBtn) closeBtn.addEventListener('click', closeAlert);
+                alertOverlayEl.addEventListener('click', e => { if (e.target === alertOverlayEl) closeAlert(); });
+                document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAlert(); });
+            });
+            function closePage() {
+                if (window.opener) { window.close(); } else if (confirm("确定要离开此页面吗？")) {
+                    if (window.history.length > 1) window.history.back();
+                    else {
+                        window.blur();
+                        alert("请手动关闭此标签页");
+                    }
+                }
+            }
+            // ---- 绘图 ----
+            let _lastBlob = null,
+                _lastFilename = '';
+            function reDownload() {
+                if (_lastBlob && _lastFilename) {
+                    const u = URL.createObjectURL(_lastBlob),
+                        a = document.createElement('a');
+                    a.href = u;
+                    a.download = _lastFilename;
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    URL.revokeObjectURL(u);
+                } else alert('没有可重新下载的文件，请重新生成。');
+            }
+            async function drawDxf() {
+                const msgEl = document.getElementById('msg');
+                drawBtnEl.disabled = true;
+                drawBtnEl.textContent = '生成中...';
+                let sec = 0;
+                const timer = setInterval(() => {
+                    sec++;
+                    msgEl.innerHTML = `⏳ 生成中... 已用时 ${sec} 秒`;
+                    msgEl.classList.remove('hidden');
+                }, 1000);
+                const form = document.getElementById('designForm');
+                const fd = new FormData(form);
+                try {
+                    const res = await fetch('/dxf/', { method: 'POST', body: fd });
+                    clearInterval(timer);
+                    if (!res.ok) throw new Error(await res.text() || '生成失败');
+                    const cd = res.headers.get('content-disposition') || '';
+                    let fn = 'design.dxf';
+                    const m = cd.match(/filename\s*=\s*"?([^";]+)"?/i);
+                    if (m && m[1]) fn = decodeURIComponent(m[1]);
+                    const blob = await res.blob();
+                    _lastBlob = blob;
+                    _lastFilename = fn;
+                    const u = URL.createObjectURL(blob),
+                        a = document.createElement('a');
+                    a.href = u;
+                    a.download = fn;
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    URL.revokeObjectURL(u);
+                    msgEl.innerHTML = `✅ 已生成并下载: <a href="#" onclick="reDownload();return false;">${fn}</a>`;
+                } catch (err) {
+                    clearInterval(timer);
+                    msgEl.textContent = '生成失败: ' + err.message;
+                    msgEl.classList.remove('hidden');
+                } finally {
+                    drawBtnEl.disabled = false;
+                    drawBtnEl.textContent = '绘图';
+                }
+            }
+            // ---- 外观控制（3D 应用） ----
+            function applyAppearance() {
+                const color = document.getElementById('steelColor').value;
+                const bg = document.getElementById('bgColor').value;
+                const metal = parseFloat(document.getElementById('metalness').value);
+                const rough = parseFloat(document.getElementById('roughness').value);
+                // 更新显示值
+                document.getElementById('metalVal').textContent = metal.toFixed(2);
+                document.getElementById('roughVal').textContent = rough.toFixed(2);
+                // 通过全局变量传递给3D引擎
+                if (window._appearance) {
+                    window._appearance.steelColor = color;
+                    window._appearance.bgColor = bg;
+                    window._appearance.metalness = metal;
+                    window._appearance.roughness = rough;
+                }
+                // 触发3D重绘
+                scheduleUpdate3D();
+                toast('外观已应用');
+                log('外观已更新: 颜色' + color + ', 金属' + metal + ', 粗糙' + rough, 'success');
+            }
+            function applyDisplay() {
+                const showEdges = document.getElementById('showEdges').value === '1';
+                const showGrid = document.getElementById('showGrid').value === '1';
+                const showAxes = document.getElementById('showAxes').value === '1';
+                const showShadow = document.getElementById('showShadow').value === '1';
+                if (window._displayOptions) {
+                    window._displayOptions.showEdges = showEdges;
+                    window._displayOptions.showGrid = showGrid;
+                    window._displayOptions.showAxes = showAxes;
+                    window._displayOptions.showShadow = showShadow;
+                }
+                scheduleUpdate3D();
+                toast('显示选项已更新');
+                log('显示选项已更新', 'info');
+            }
+            function setCamera(x, y, z) {
+                if (window._setCamera3D) window._setCamera3D(x, y, z);
+                else console.log('camera not ready');
+            }
+            function focusAll() {
+                if (window._focusAll3D) window._focusAll3D();
+            }
+            // ---- 面板折叠 ----
+            (function () {
+                const panelEl = document.getElementById('panel');
+                const fbEl = document.getElementById('floating-btn');
+                const STORE = {
+                    get h() { return localStorage.getItem('ledPanelH') === '1'; },
+                    set h(v) { localStorage.setItem('ledPanelH', v ? '1' : '0'); },
+                    get v() { return localStorage.getItem('ledPanelV') === '1'; },
+                    set v(v) { localStorage.setItem('ledPanelV', v ? '1' : '0'); },
+                };
+                let collapsedH = STORE.h;
+                let collapsedV = STORE.v;
+                function applyPanelState() {
+                    panelEl.classList.toggle('collapsed-h', collapsedH);
+                    panelEl.classList.toggle('collapsed-v', collapsedV);
+                    fbEl.classList.toggle('show', collapsedH || collapsedV);
+                    document.getElementById('btnToggleH').textContent = collapsedH ? '▶' : '◀';
+                    document.getElementById('btnToggleH').classList.toggle('active', collapsedH);
+                    document.getElementById('btnToggleV').textContent = collapsedV ? '▲' : '▼';
+                    document.getElementById('btnToggleV').classList.toggle('active', collapsedV);
+                    setTimeout(() => {
+                        if (window._resizeRenderer3D) window._resizeRenderer3D();
+                    }, 320);
+                }
+                document.getElementById('btnToggleH').onclick = function (e) {
+                    e.stopPropagation();
+                    collapsedH = !collapsedH;
+                    STORE.h = collapsedH;
+                    applyPanelState();
+                };
+                document.getElementById('btnToggleV').onclick = function (e) {
+                    e.stopPropagation();
+                    collapsedV = !collapsedV;
+                    STORE.v = collapsedV;
+                    applyPanelState();
+                };
+                document.getElementById('panel-header').ondblclick = function () {
+                    collapsedH = false;
+                    collapsedV = false;
+                    STORE.h = false;
+                    STORE.v = false;
+                    applyPanelState();
+                    toast('面板已完全展开');
+                };
+                document.getElementById('fb-show').onclick = function () {
+                    collapsedH = false;
+                    STORE.h = false;
+                    applyPanelState();
+                    toast('面板已展开');
+                };
+                document.getElementById('fb-vshow').onclick = function () {
+                    collapsedV = false;
+                    STORE.v = false;
+                    applyPanelState();
+                    toast('面板已展开');
+                };
+                document.addEventListener('keydown', function (e) {
+                    if (e.key === 'ArrowLeft' || e.key === 'a') {
+                        collapsedH = !collapsedH;
+                        STORE.h = collapsedH;
+                        applyPanelState();
+                        e.preventDefault();
+                    }
+                    if (e.key === 'ArrowUp' || e.key === 'w') {
+                        collapsedV = !collapsedV;
+                        STORE.v = collapsedV;
+                        applyPanelState();
+                        e.preventDefault();
+                    }
+                    if (e.key === 'Escape') {
+                        collapsedH = false;
+                        collapsedV = false;
+                        STORE.h = false;
+                        STORE.v = false;
+                        applyPanelState();
+                    }
+                });
+                applyPanelState();
+                window._applyPanelState = applyPanelState;
+            })();
+            // ---- Tab 切换 ----
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.onclick = function () {
+                    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+                    this.classList.add('active');
+                    document.getElementById(this.dataset.tab).classList.add('active');
+                };
+            });
+            // ---- 事件绑定 ----
+            document.addEventListener('DOMContentLoaded', () => {
+                initSelect('snhw', '室内户外');
+                initSelect('azys', '安装样式');
+                initSelect('flmj', '法兰埋件');
+                initSelect('xmqy', '项目区域');
+                document.getElementById('designForm').addEventListener('submit', e => e.preventDefault());
+                snhwEl.addEventListener('change', () => {
+                    updateProductSeries();
+                    updateSnhwState();
+                    updateLdgdState();
+                });
+                cpxlEl.addEventListener('change', () => {
+                    updateProductModels();
+                    updateSnhwState();
+                    updateLdgdState();
+                });
+                cpxhEl.addEventListener('change', updateCombos);
+                azysEl.addEventListener('change', updateLdgdState);
+                pthdEl.addEventListener('change', applyPthdLimit);
+                [dycdEl, pllsEl, dygdEl, plhsEl].forEach(el => {
+                    el.addEventListener('input', () => {
+                        if (el === pllsEl || el === plhsEl) normalizePositiveInt(el);
+                        updateCombos();
+                        updatezcsgState();
+                    });
+                });
+                [dybtEl, bthgEl, dyhdEl].forEach(el => {
+                    el.addEventListener('input', () => { if (pggtEl.checked) applyPthdLimit(); });
+                });
+                [psytEl, dxftEl, pdftEl, pggtEl, zdtjEl].forEach(el => {
+                    el.addEventListener('change', updateSteelFieldsState);
+                });
+                [bbxbEl, ldgdEl, sphgEl].forEach(el => {
+                    el.addEventListener('input', updateHorizontalBeam);
+                });
+                // 外观滑块实时显示
+                document.getElementById('metalness').addEventListener('input', function () {
+                    document.getElementById('metalVal').textContent = parseFloat(this.value).toFixed(2);
+                });
+                document.getElementById('roughness').addEventListener('input', function () {
+                    document.getElementById('roughVal').textContent = parseFloat(this.value).toFixed(2);
+                });
+                // 初始状态
+                updateProductSeries();
+                updateLdgdState();
+                updateSnhwState();
+                updateSteelFieldsState();
+                updateHorizontalBeam();
+                // 版本号
+                document.getElementById('headerVersion').textContent = Version;
+                document.getElementById('alertVersion').textContent = Version;
+                log('系统初始化完成', 'success');
+                setTimeout(update3DScene, 300);
+            });
+            // ---- 调度3D更新 ----
+            let _updateTimer3D = null;
+            function scheduleUpdate3D() {
+                if (_updateTimer3D) clearTimeout(_updateTimer3D);
+                _updateTimer3D = setTimeout(() => {
+                    _updateTimer3D = null;
+                    if (window.update3DScene) window.update3DScene();
+                }, 150);
+            }
+            window.scheduleUpdate3D = scheduleUpdate3D;
+            window.updateCombos = updateCombos;
+            window.toast = toast;
+            window.log = log;
+            window.clearLog = clearLog;
+            window.showAlert = showAlert;
+            window.closePage = closePage;
+            window.drawDxf = drawDxf;
+            window.reDownload = reDownload;
+            window.applyAppearance = applyAppearance;
+            window.applyDisplay = applyDisplay;
+            window.setCamera = setCamera;
+            window.focusAll = focusAll;
+            // 保留旧接口
+            window.buildTruss = function () {
+                scheduleUpdate3D();
+                toast('已更新3D预览');
+            };
+            window.clearAll = function () {
+                scheduleUpdate3D();
+                toast('场景已清空');
+            };
+            window.addMember = function () { toast('杆件编辑已整合到3D预览'); };
+            window.focusMember = function (i) { toast('已聚焦杆件 #' + i); };
+            window.removeMember = function (i) {
+                toast('已删除杆件 #' + i);
+                scheduleUpdate3D();
+            };
+            window.setEP = function (s, e) { };
+            window.applyPreset = function (name) {
+                toast('预设已应用: ' + name);
+                scheduleUpdate3D();
+            };
+        </script>
+        <!-- ========================================================= -->
+        <!-- Three.js 3D 预览引擎 (增强版，支持外观) -->
+        <!-- ========================================================= -->
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js">
+        </script>
+        <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js">
+        </script>
+        <script>
+            (function () {
+                'use strict';
+                const container = document.getElementById('canvas-container');
+                const scene = new THREE.Scene();
+                scene.background = new THREE.Color(0x1a1a2e);
+                const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 10, 50000);
+                camera.position.set(4000, 3000, 5000);
+                const renderer = new THREE.WebGLRenderer({ antialias: true });
+                renderer.setSize(container.clientWidth, container.clientHeight);
+                renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+                renderer.shadowMap.enabled = true;
+                renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+                container.appendChild(renderer.domElement);
+                const controls = new THREE.OrbitControls(camera, renderer.domElement);
+                controls.enableDamping = true;
+                controls.dampingFactor = 0.08;
+                controls.target.set(0, 0, 0);
+                controls.update();
+                // ---- 灯光 ----
+                const ambient = new THREE.AmbientLight(0xffffff, 0.5);
+                scene.add(ambient);
+                const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
+                dirLight.position.set(5000, 8000, 5000);
+                dirLight.castShadow = true;
+                dirLight.shadow.mapSize.set(2048, 2048);
+                dirLight.shadow.camera.left = -8000;
+                dirLight.shadow.camera.right = 8000;
+                dirLight.shadow.camera.top = 8000;
+                dirLight.shadow.camera.bottom = -8000;
+                scene.add(dirLight);
+                const fillLight = new THREE.DirectionalLight(0x4488ff, 0.3);
+                fillLight.position.set(-3000, 2000, -3000);
+                scene.add(fillLight);
+                const backLight = new THREE.DirectionalLight(0xff8844, 0.2);
+                backLight.position.set(0, -2000, -5000);
+                scene.add(backLight);
+                // ---- 辅助 ----
+                let gridHelper = new THREE.GridHelper(12000, 24, 0x444466, 0x333355);
+                gridHelper.position.y = -0.5;
+                scene.add(gridHelper);
+                let axesHelper = new THREE.AxesHelper(1500);
+                scene.add(axesHelper);
+                // ---- 容器 ----
+                const modelGroup = new THREE.Group();
+                scene.add(modelGroup);
+                // ---- 全局外观状态 ----
+                window._appearance = {
+                    steelColor: '#8899aa',
+                    bgColor: '#1a1a2e',
+                    metalness: 0.70,
+                    roughness: 0.35,
+                };
+                window._displayOptions = {
+                    showEdges: true,
+                    showGrid: true,
+                    showAxes: true,
+                    showShadow: true,
+                };
+                // ---- 工具 ----
+                function parseSpec(spec) {
+                    if (!spec) return null;
+                    const parts = spec.replace(/\s/g, '').split('*');
+                    const nums = parts.map(Number).filter(n => !isNaN(n) && n > 0);
+                    const type = spec.replace(/[\d\*\.\s]/g, '').trim() || '方管';
+                    return { nums, type, raw: spec };
+                }
+                // ---- 构建模型 ----
+                function buildLEDModel(params) {
+                    // 清空
+                    while (modelGroup.children.length) {
+                        const child = modelGroup.children[0];
+                        if (child.geometry) child.geometry.dispose();
+                        if (child.material) {
+                            if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+                            else child.material.dispose();
+                        }
+                        modelGroup.remove(child);
+                    }
+                    const {
+                        dycd = 320,
+                        dygd = 160,
+                        plls = 10,
+                        plhs = 10,
+                        xscd = 3200,
+                        xsgd = 1600,
+                        bbcb = 50,
+                        bbsb = 50,
+                        bbxb = 50,
+                        pthd = 100,
+                        dyhd = 22.5,
+                        ldgd = 0,
+                        jlwd = 0,
+                        azys = '壁挂',
+                        dybt = '40*20*2方管',
+                        bthg = '',
+                        zcsg = '',
+                        flmj = '',
+                        sphg = '',
+                        ntlg = '',
+                        mjhj = 1216,
+                        mjsj = 1500,
+                        pggt = true,
+                        snhw = '室内',
+                        cpxh = 'Q2.5',
+                    } = params;
+                    const totalW = xscd || dycd * plls;
+                    const totalH = xsgd || dygd * plhs;
+                    const halfW = totalW / 2;
+                    const halfH = totalH / 2;
+                    const depth = pthd || 100;
+                    const unitW = dycd || 320;
+                    const unitH = dygd || 160;
+                    // 获取外观参数
+                    const app = window._appearance || {
+                        steelColor: '#8899aa', bgColor: '#1a1a2e', metalness: 0.70,
+                        roughness: 0.35
+                    };
+                    const disp = window._displayOptions || { showEdges: true, showGrid: true, showAxes: true, showShadow: true };
+                    // 背景色
+                    scene.background = new THREE.Color(app.bgColor);
+                    // 阴影
+                    renderer.shadowMap.enabled = disp.showShadow;
+                    // 网格 / 坐标轴
+                    gridHelper.visible = disp.showGrid;
+                    axesHelper.visible = disp.showAxes;
+                    // 钢材质
+                    const steelMat = new THREE.MeshStandardMaterial({
+                        color: app.steelColor,
+                        metalness: app.metalness,
+                        roughness: app.roughness,
+                    });
+                    // ----- 1. 屏体单元 -----
+                    const screenGroup = new THREE.Group();
+                    const unitMat = new THREE.MeshStandardMaterial({
+                        color: 0x1a3a5a,
+                        metalness: 0.3,
+                        roughness: 0.6,
+                        transparent: true,
+                        opacity: 0.85,
+                    });
+                    const edgeMat = new THREE.MeshStandardMaterial({
+                        color: 0x4a8ab5,
+                        metalness: 0.7,
+                        roughness: 0.3,
+                        wireframe: false,
+                    });
+                    const unitGeo = new THREE.BoxGeometry(unitW * 0.92, unitH * 0.92, dyhd * 0.9);
+                    const edgeGeo = new THREE.BoxGeometry(unitW * 0.96, unitH * 0.96, dyhd * 0.95);
+                    for (let row = 0; row < plhs; row++) {
+                        for (let col = 0; col < plls; col++) {
+                            const x = -halfW + col * unitW + unitW / 2;
+                            const y = -halfH + row * unitH + unitH / 2;
+                            const z = 0;
+                            const mesh = new THREE.Mesh(unitGeo, unitMat);
+                            mesh.position.set(x, y, z);
+                            mesh.castShadow = true;
+                            screenGroup.add(mesh);
+                            const edgeMesh = new THREE.Mesh(edgeGeo, edgeMat);
+                            edgeMesh.position.set(x, y, z);
+                            edgeMesh.castShadow = true;
+                            screenGroup.add(edgeMesh);
+                            // LED点
+                            const dotMat = new THREE.MeshStandardMaterial({
+                                color: 0x00ccff,
+                                emissive: 0x0088ff,
+                                emissiveIntensity: 0.3,
+                            });
+                            const dotGeo = new THREE.SphereGeometry(Math.min(unitW, unitH) * 0.06, 6, 6);
+                            const dot = new THREE.Mesh(dotGeo, dotMat);
+                            dot.position.set(x, y, z + dyhd * 0.45);
+                            screenGroup.add(dot);
+                        }
+                    }
+                    const frameMat = new THREE.MeshStandardMaterial({
+                        color: 0x2a5a7a,
+                        metalness: 0.5,
+                        roughness: 0.4,
+                        transparent: true,
+                        opacity: 0.3,
+                    });
+                    const frameGeo = new THREE.BoxGeometry(totalW, totalH, dyhd);
+                    const frame = new THREE.Mesh(frameGeo, frameMat);
+                    frame.position.set(0, 0, 0);
+                    frame.castShadow = true;
+                    screenGroup.add(frame);
+                    modelGroup.add(screenGroup);
+                    // ----- 2. 包边 -----
+                    if (bbcb > 0 || bbsb > 0 || bbxb > 0) {
+                        const borderMat = new THREE.MeshStandardMaterial({
+                            color: 0x4a6a8a,
+                            metalness: 0.6,
+                            roughness: 0.4,
+                            transparent: true,
+                            opacity: 0.5,
+                        });
+                        const bW = totalW + bbcb * 2;
+                        const bH = totalH + bbsb + bbxb;
+                        const borderGeo = new THREE.BoxGeometry(bW, bH, 20);
+                        const border = new THREE.Mesh(borderGeo, borderMat);
+                        border.position.set(0, (bbsb - bbxb) / 2, -10);
+                        border.castShadow = true;
+                        modelGroup.add(border);
+                    }
+                    // ----- 3. 离地/屋顶 -----
+                    if (ldgd > 0) {
+                        const groundMat = new THREE.MeshStandardMaterial({
+                            color: 0x2a3a4a,
+                            transparent: true,
+                            opacity: 0.2,
+                            side: THREE.DoubleSide,
+                        });
+                        const gGeo = new THREE.BoxGeometry(totalW + bbcb * 2 + 200, ldgd, 20);
+                        const ground = new THREE.Mesh(gGeo, groundMat);
+                        ground.position.set(0, -halfH - bbxb - ldgd / 2, -10);
+                        modelGroup.add(ground);
+                    }
+                    if (jlwd > 0) {
+                        const roofMat = new THREE.MeshStandardMaterial({
+                            color: 0x3a4a5a,
+                            transparent: true,
+                            opacity: 0.2,
+                            side: THREE.DoubleSide,
+                        });
+                        const rGeo = new THREE.BoxGeometry(totalW + bbcb * 2 + 200, jlwd, 20);
+                        const roof = new THREE.Mesh(rGeo, roofMat);
+                        roof.position.set(0, halfH + bbsb + jlwd / 2, -10);
+                        modelGroup.add(roof);
+                    }
+                    // ----- 4. 钢结构 -----
+                    if (pggt && dybt) {
+                        // 背条
+                        const btInfo = parseSpec(dybt);
+                        let btW = 40,
+                            btH = 20;
+                        if (btInfo && btInfo.nums.length >= 2) {
+                            btW = btInfo.nums[0];
+                            btH = btInfo.nums.length >= 2 ? btInfo.nums[1] : btInfo.nums[0];
+                        }
+                        const numBars = Math.max(2, Math.floor(plls / 2) + 1);
+                        const barSpacing = totalW / (numBars - 1 || 1);
+                        for (let i = 0; i < numBars; i++) {
+                            const x = -halfW + i * barSpacing;
+                            const barGeo = new THREE.BoxGeometry(btW, totalH + bbsb + bbxb, btH);
+                            const bar = new THREE.Mesh(barGeo, steelMat);
+                            bar.position.set(x, (bbsb - bbxb) / 2, -depth / 2 - btH / 2);
+                            bar.castShadow = true;
+                            modelGroup.add(bar);
+                        }
+                        // 水平横杆
+                        if (sphg) {
+                            const hgInfo = parseSpec(sphg);
+                            let hgW = 40,
+                                hgH = 20;
+                            if (hgInfo && hgInfo.nums.length >= 2) {
+                                hgW = hgInfo.nums[0];
+                                hgH = hgInfo.nums.length >= 2 ? hgInfo.nums[1] : hgInfo.nums[0];
+                            }
+                            const numHg = Math.max(2, Math.floor(plhs / 2) + 1);
+                            const hgSpacing = totalH / (numHg - 1 || 1);
+                            for (let i = 0; i < numHg; i++) {
+                                const y = -halfH + i * hgSpacing;
+                                const hgGeo = new THREE.BoxGeometry(totalW + bbcb * 2, hgW, hgH);
+                                const hg = new THREE.Mesh(hgGeo, steelMat);
+                                hg.position.set(0, y, -depth / 2 - hgH / 2);
+                                hg.castShadow = true;
+                                modelGroup.add(hg);
+                            }
+                        }
+                        // 主承竖杆
+                        if (zcsg) {
+                            const zcInfo = parseSpec(zcsg);
+                            let zcW = 60,
+                                zcH = 120;
+                            if (zcInfo && zcInfo.nums.length >= 2) {
+                                zcW = zcInfo.nums[0];
+                                zcH = zcInfo.nums.length >= 2 ? zcInfo.nums[1] : zcInfo.nums[0];
+                            }
+                            const zcPositions = [-halfW - bbcb, 0, halfW + bbcb];
+                            zcPositions.forEach(x => {
+                                const zcGeo = new THREE.BoxGeometry(zcW, totalH + bbsb + bbxb + ldgd + jlwd, zcH);
+                                const zc = new THREE.Mesh(zcGeo, steelMat);
+                                zc.position.set(x, (bbsb - bbxb - ldgd + jlwd) / 2, -depth / 2 - zcH / 2);
+                                zc.castShadow = true;
+                                modelGroup.add(zc);
+                            });
+                        }
+                        // 法兰埋件
+                        if (flmj) {
+                            const flMat = new THREE.MeshStandardMaterial({
+                                color: 0xcc8844,
+                                metalness: 0.9,
+                                roughness: 0.3,
+                            });
+                            const flInfo = parseSpec(flmj);
+                            let flW = 150,
+                                flH = 150,
+                                flT = 8;
+                            if (flInfo && flInfo.nums.length >= 2) {
+                                flW = flInfo.nums[0];
+                                flH = flInfo.nums.length >= 2 ? flInfo.nums[1] : flInfo.nums[0];
+                                flT = flInfo.nums.length >= 3 ? flInfo.nums[2] : 8;
+                            }
+                            if (ldgd > 0) {
+                                const flGeo = new THREE.BoxGeometry(flW, flT, flH);
+                                const fl = new THREE.Mesh(flGeo, flMat);
+                                fl.position.set(0, -halfH - bbxb - ldgd, -depth / 2);
+                                fl.castShadow = true;
+                                modelGroup.add(fl);
+                            }
+                            if (jlwd > 0) {
+                                const flGeo = new THREE.BoxGeometry(flW, flT, flH);
+                                const fl = new THREE.Mesh(flGeo, flMat);
+                                fl.position.set(0, halfH + bbsb + jlwd, -depth / 2);
+                                fl.castShadow = true;
+                                modelGroup.add(fl);
+                            }
+                        }
+                    }
+                    // 自动聚焦
+                    const size = Math.max(totalW, totalH, depth + ldgd + jlwd);
+                    const dist = size * 1.2 + 2000;
+                    camera.position.set(dist * 0.6, dist * 0.5, dist * 0.7);
+                    controls.target.set(0, (bbsb - bbxb - ldgd + jlwd) / 2, 0);
+                    controls.update();
+                    document.getElementById('statusText').textContent =
+                        `${plls}×${plhs} 单元 | ${totalW}×${totalH}mm | ${cpxh} | ${snhw}`;
+                }
+                // ---- 更新场景 ----
+                window.update3DScene = function () {
+                    const params = {
+                        dycd: parseFloat(document.getElementById('dycd')?.value) || 320,
+                        dygd: parseFloat(document.getElementById('dygd')?.value) || 160,
+                        plls: parseInt(document.getElementById('plls')?.value) || 10,
+                        plhs: parseInt(document.getElementById('plhs')?.value) || 10,
+                        xscd: parseFloat(document.getElementById('xscd')?.value) || 3200,
+                        xsgd: parseFloat(document.getElementById('xsgd')?.value) || 1600,
+                        bbcb: parseFloat(document.getElementById('bbcb')?.value) || 50,
+                        bbsb: parseFloat(document.getElementById('bbsb')?.value) || 50,
+                        bbxb: parseFloat(document.getElementById('bbxb')?.value) || 50,
+                        pthd: parseFloat(document.getElementById('pthd')?.value) || 100,
+                        dyhd: parseFloat(document.getElementById('dyhd')?.value) || 22.5,
+                        ldgd: parseFloat(document.getElementById('ldgd')?.value) || 0,
+                        jlwd: parseFloat(document.getElementById('jlwd')?.value) || 0,
+                        azys: document.getElementById('azys')?.value || '壁挂',
+                        dybt: document.getElementById('dybt')?.value || '40*20*2方管',
+                        bthg: document.getElementById('bthg')?.value || '',
+                        zcsg: document.getElementById('zcsg')?.value || '',
+                        flmj: document.getElementById('flmj')?.value || '',
+                        sphg: document.getElementById('sphg')?.value || '',
+                        ntlg: document.getElementById('ntlg')?.value || '',
+                        mjhj: parseFloat(document.getElementById('mjhj')?.value) || 1216,
+                        mjsj: parseFloat(document.getElementById('mjsj')?.value) || 1500,
+                        pggt: document.getElementById('pggt')?.checked || false,
+                        snhw: document.getElementById('snhw')?.value || '室内',
+                        cpxh: document.getElementById('cpxh')?.value || 'Q2.5',
+                    };
+                    buildLEDModel(params);
+                };
+                // ---- 窗口自适应 ----
+                function resizeRenderer() {
+                    const w = container.clientWidth;
+                    const h = container.clientHeight;
+                    if (w > 0 && h > 0) {
+                        camera.aspect = w / h;
+                        camera.updateProjectionMatrix();
+                        renderer.setSize(w, h);
+                    }
+                }
+                window.addEventListener('resize', resizeRenderer);
+                window._resizeRenderer3D = resizeRenderer;
+                // ---- 相机控制 ----
+                window._setCamera3D = function (x, y, z) {
+                    camera.position.set(x, y, z);
+                    controls.update();
+                };
+                window._focusAll3D = function () {
+                    const size = 4000;
+                    camera.position.set(size * 0.6, size * 0.5, size * 0.7);
+                    controls.target.set(0, 0, 0);
+                    controls.update();
+                };
+                // ---- 渲染循环 ----
+                let fpsCount = 0,
+                    fpsTime = performance.now();
+                function animate() {
+                    requestAnimationFrame(animate);
+                    controls.update();
+                    renderer.render(scene, camera);
+                    fpsCount++;
+                    const now = performance.now();
+                    if (now - fpsTime >= 1000) {
+                        document.getElementById('fpsCounter').textContent = fpsCount;
+                        fpsCount = 0;
+                        fpsTime = now;
+                    }
+                }
+                animate();
+                // ---- 初始渲染 ----
+                setTimeout(window.update3DScene, 200);
+                // ---- 监听表单变化 ----
+                document.addEventListener('change', function (e) {
+                    const targets = ['snhw', 'cpxl', 'cpxh', 'azys', 'plls', 'plhs', 'pggt', 'zdtj', 'psyt'];
+                    if (targets.includes(e.target.id)) {
+                        setTimeout(window.update3DScene, 100);
+                    }
+                });
+                document.addEventListener('input', function (e) {
+                    const targets = ['dycd', 'dygd', 'bbcb', 'bbsb', 'bbxb', 'pthd', 'dyhd', 'ldgd', 'jlwd',
+                        'dybt', 'bthg', 'zcsg', 'sphg', 'ntlg', 'mjhj', 'mjsj'
+                    ];
+                    if (targets.includes(e.target.id)) {
+                        clearTimeout(window._inputUpdateTimer);
+                        window._inputUpdateTimer = setTimeout(window.update3DScene, 200);
+                    }
+                });
+                console.log('3D 预览引擎已启动 (外观增强版)');
+            })();
+        </script>
+    </body>
+
+</html>

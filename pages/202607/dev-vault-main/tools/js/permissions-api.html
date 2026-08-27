@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html tk="title_permissions_api_playgroun" lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Permissions API Playground</title>
+<meta name="description" content="Interactive playground for the browser Permissions API - check, monitor, and request browser permissions in real-time">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0d1117;--surface:#161b22;--surface2:#1c2129;--border:#30363d;
+  --text:#e6edf3;--text2:#8b949e;--text3:#6e7681;
+  --green:#3fb950;--green-bg:rgba(63,185,80,.12);
+  --red:#f85149;--red-bg:rgba(248,81,73,.12);
+  --yellow:#d29922;--yellow-bg:rgba(210,153,34,.12);
+  --gray:#484f58;--gray-bg:rgba(72,79,88,.12);
+  --blue:#58a6ff;--blue-bg:rgba(88,166,255,.12);
+  --purple:#bc8cff;
+  --radius:8px;--radius-sm:4px;
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.5;min-height:100vh}
+a{color:var(--blue);text-decoration:none}
+
+.container{max-width:1200px;margin:0 auto;padding:24px 16px}
+
+header{text-align:center;padding:32px 0 24px;border-bottom:1px solid var(--border);margin-bottom:32px}
+header h1{font-size:28px;font-weight:600;margin-bottom:8px}
+header h1 code{background:var(--surface);padding:2px 8px;border-radius:var(--radius-sm);font-size:24px;color:var(--blue)}
+header p{color:var(--text2);font-size:14px;max-width:600px;margin:0 auto}
+
+.browser-bar{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:12px;font-size:12px;color:var(--text3)}
+.browser-bar .dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+.browser-bar .dot.ok{background:var(--green)}.browser-bar .dot.no{background:var(--red)}
+
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:24px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.tab{padding:10px 16px;font-size:13px;color:var(--text2);cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;transition:color .15s,border-color .15s;background:none;border-top:none;border-left:none;border-right:none;font-family:inherit}
+.tab:hover{color:var(--text)}.tab.active{color:var(--text);border-bottom-color:var(--blue)}
+
+.panel{display:none}.panel.active{display:block}
+
+/* Dashboard grid */
+.perm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
+.perm-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;cursor:pointer;transition:border-color .15s,transform .1s}
+.perm-card:hover{border-color:var(--blue);transform:translateY(-1px)}
+.perm-card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.perm-card h3{font-size:14px;font-weight:600;display:flex;align-items:center;gap:8px}
+.perm-card h3 .icon{font-size:18px}
+.perm-card .desc{font-size:12px;color:var(--text2);margin-bottom:12px}
+.perm-card-actions{display:flex;gap:8px;align-items:center}
+
+.badge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;text-transform:uppercase;letter-spacing:.5px}
+.badge.granted{color:var(--green);background:var(--green-bg)}
+.badge.denied{color:var(--red);background:var(--red-bg)}
+.badge.prompt{color:var(--yellow);background:var(--yellow-bg)}
+.badge.unsupported{color:var(--gray);background:var(--gray-bg)}
+
+.btn{font-size:12px;padding:4px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;transition:background .15s,border-color .15s;font-family:inherit}
+.btn:hover{background:var(--border);border-color:var(--text3)}
+.btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}.btn.primary:hover{opacity:.9}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+
+/* Live log */
+.log-container{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;max-height:500px;overflow-y:auto;font-family:'SFMono-Regular',Consolas,monospace;font-size:13px}
+.log-entry{padding:6px 0;border-bottom:1px solid var(--border);display:flex;gap:12px;align-items:baseline}
+.log-entry:last-child{border-bottom:none}
+.log-time{color:var(--text3);font-size:11px;white-space:nowrap}
+.log-perm{color:var(--blue);font-weight:600}
+.log-arrow{color:var(--text3)}
+.log-empty{color:var(--text3);text-align:center;padding:40px 0}
+
+/* Detail panel */
+.detail-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);z-index:100;display:none;align-items:center;justify-content:center;padding:16px}
+.detail-overlay.open{display:flex}
+.detail-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);max-width:600px;width:100%;max-height:90vh;overflow-y:auto;padding:24px}
+.detail-box h2{font-size:20px;margin-bottom:4px}
+.detail-box .sub{color:var(--text2);font-size:13px;margin-bottom:16px}
+.detail-box section{margin-bottom:16px}
+.detail-box section h4{font-size:13px;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+.detail-box pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;font-size:12px;overflow-x:auto;line-height:1.6;color:var(--text)}
+.detail-box .close-btn{float:right;background:none;border:none;color:var(--text2);font-size:20px;cursor:pointer;padding:4px 8px;line-height:1}
+.detail-box .close-btn:hover{color:var(--text)}
+
+/* Matrix table */
+.matrix-wrap{overflow-x:auto}
+.matrix{width:100%;border-collapse:collapse;font-size:13px}
+.matrix th,.matrix td{padding:10px 12px;border:1px solid var(--border);text-align:center}
+.matrix th{background:var(--surface);color:var(--text2);font-weight:600;position:sticky;top:0}
+.matrix td:first-child,.matrix th:first-child{text-align:left;font-weight:600}
+.matrix .yes{color:var(--green)}.matrix .no{color:var(--red)}.matrix .partial{color:var(--yellow)}
+
+/* Code generator */
+.codegen{display:grid;grid-template-columns:250px 1fr;gap:16px;min-height:400px}
+@media(max-width:700px){.codegen{grid-template-columns:1fr}}
+.codegen-sidebar{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px}
+.codegen-sidebar label{display:flex;align-items:center;gap:8px;font-size:13px;padding:6px 0;cursor:pointer}
+.codegen-sidebar input[type=checkbox]{accent-color:var(--blue)}
+.codegen-output{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;position:relative}
+.codegen-output pre{font-size:12px;line-height:1.6;overflow:auto;max-height:500px;white-space:pre;color:var(--text)}
+.copy-btn{position:absolute;top:12px;right:12px}
+
+.codegen-options{margin-top:16px;padding-top:12px;border-top:1px solid var(--border)}
+.codegen-options h4{font-size:12px;color:var(--text2);margin-bottom:8px}
+.codegen-options label{font-size:12px}
+
+/* Responsive */
+@media(max-width:600px){
+  header h1{font-size:22px}header h1 code{font-size:18px}
+  .perm-grid{grid-template-columns:1fr}
+  .codegen{grid-template-columns:1fr}
+  .container{padding:16px 12px}
+  .tabs{gap:0}.tab{padding:8px 12px;font-size:12px}
+}
+</style>
+</head>
+<body>
+
+
+
+<div class="container" style="position:relative">
+  <header>
+    <h1><code>navigator.permissions</code> Playground</h1>
+    <p>Query, monitor, and request browser permissions in real-time. No prompts triggered until you click "Request Access".</p>
+    <div class="browser-bar">
+      <span class="dot" id="apiDot"></span>
+      <span id="apiStatus">Checking Permissions API support...</span>
+    </div>
+  </header>
+
+  <div class="tabs" role="tablist">
+    <button class="tab active" data-tab="dashboard" role="tab" ti="btn_dashboard">Dashboard</button>
+    <button class="tab" data-tab="monitor" role="tab" ti="btn_live_monitor">Live Monitor</button>
+    <button class="tab" data-tab="matrix" role="tab" ti="btn_browser_matrix">Browser Matrix</button>
+    <button class="tab" data-tab="codegen" role="tab" ti="btn_code_generator">Code Generator</button>
+  </div>
+
+  <!-- Dashboard -->
+  <div class="panel active" id="panel-dashboard">
+    <div class="perm-grid" id="permGrid"></div>
+  </div>
+
+  <!-- Live Monitor -->
+  <div class="panel" id="panel-monitor">
+    <p style="font-size:13px;color:var(--text2);margin-bottom:12px">Permission state changes appear here in real-time. Change a permission in browser settings to see updates.</p>
+    <div class="log-container" id="logContainer">
+      <div class="log-empty" id="logEmpty">No changes detected yet. Waiting for permission state changes...</div>
+    </div>
+  </div>
+
+  <!-- Browser Matrix -->
+  <div class="panel" id="panel-matrix">
+    <p style="font-size:13px;color:var(--text2);margin-bottom:12px">Permissions API support varies across browsers. Data based on MDN compatibility tables.</p>
+    <div class="matrix-wrap">
+      <table class="matrix" id="matrixTable">
+        <thead>
+          <tr>
+            <th ti="th_permission">Permission</th>
+            <th ti="th_chrome">Chrome</th>
+            <th ti="th_firefox">Firefox</th>
+            <th ti="th_safari">Safari</th>
+            <th ti="th_edge">Edge</th>
+          </tr>
+        </thead>
+        <tbody id="matrixBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Code Generator -->
+  <div class="panel" id="panel-codegen">
+    <div class="codegen">
+      <div class="codegen-sidebar">
+        <h4 style="font-size:13px;color:var(--text2);margin-bottom:12px">Select Permissions</h4>
+        <div id="codegenChecks"></div>
+        <div class="codegen-options">
+          <h4>Options</h4>
+          <label><input type="checkbox" id="optAsync" checked> async/await</label><br>
+          <label><input type="checkbox" id="optOnchange"> Include onchange listener</label><br>
+          <label><input type="checkbox" id="optTryCatch" checked> Wrap in try/catch</label>
+        </div>
+      </div>
+      <div class="codegen-output">
+        <button class="btn copy-btn" id="copyBtn" onclick="copyCode()" ti="btn_copy">Copy</button>
+        <pre id="codeOutput"></pre>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Detail overlay -->
+<div class="detail-overlay" id="detailOverlay">
+  <div class="detail-box" id="detailBox"></div>
+</div>
+
+
+<script>var _LANG={'title_permissions_api_playgroun':["Permissions API Playground", "权限 API 测试平台"],'metadesc_interactive_playground_fo':["Interactive playground for the browser Permissions API - check, monitor, and request browser permissions in real-time", "浏览器权限 API 的交互式演示环境 - 实时检查、监控和请求浏览器权限"],'h2_perm_icon_perm_name':["${perm.icon} ${perm.name}", "${perm.icon} ${perm.name}"],'btn_dashboard':["Dashboard", "仪表板"],'btn_live_monitor':["Live Monitor", "实时监控"],'btn_browser_matrix':["Browser Matrix", "浏览器矩阵"],'btn_code_generator':["Code Generator", "代码生成器"],'btn_copy':["Copy", "复制"],'btn_details':["Details", "细节"],'btn_request_access':["Request Access", "请求访问"],'btn_n_a':["N/A", "不适用"],'btn_u2715':["\\u2715", "☎"],'th_permission':["Permission", "允许"],'th_chrome':["Chrome", "铬合金"],'th_firefox':["Firefox", "火狐浏览器"],'th_safari':["Safari", "狩猎之旅"],'th_edge':["Edge", "边缘"],'jtc_permissions_api_supported':["Permissions API supported in this browser", "此浏览器支持权限 API"],'jtc_permissions_api_not_suppo':["Permissions API not supported in this browser", "此浏览器不支持权限 API"],'jtc_requesting':["Requesting...", "正在请求……"],'jtc_request_access':["Request Access", "请求访问"],'jtc_select_at_least_one_perm':["// Select at least one permission", "// 选择至少一项权限"],'jtc_copied':["Copied!", "已复制！"],'jtc_copy':["Copy", "复制"],'jtlword_details':["Details", "细节"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>
+const PERMISSIONS = [
+  {
+    name: 'geolocation',
+    icon: '\uD83C\uDF0D',
+    desc: 'Access the device\'s geographic location',
+    api: 'Geolocation API',
+    apiLink: 'https://developer.mozilla.org/en-US/docs/Web/API/Geolocation_API',
+    requestCode: 'navigator.geolocation.getCurrentPosition(pos => console.log(pos))',
+    request: () => new Promise((res, rej) => navigator.geolocation.getCurrentPosition(res, rej)),
+    browser: { chrome: true, firefox: true, safari: true, edge: true }
+  },
+  {
+    name: 'notifications',
+    icon: '\uD83D\uDD14',
+    desc: 'Display system notifications to the user',
+    api: 'Notifications API',
+    apiLink: 'https://developer.mozilla.org/en-US/docs/Web/API/Notifications_API',
+    requestCode: 'Notification.requestPermission()',
+    request: () => Notification.requestPermission(),
+    browser: { chrome: true, firefox: true, safari: true, edge: true }
+  },
+  {
+    name: 'camera',
+    icon: '\uD83D\uDCF7',
+    desc: 'Access the device\'s camera for video capture',
+    api: 'MediaDevices API',
+    apiLink: 'https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia',
+    requestCode: 'navigator.mediaDevices.getUserMedia({ video: true })',
+    request: () => navigator.mediaDevices.getUserMedia({ video: true }).then(s => { s.getTracks().forEach(t => t.stop()); }),
+    browser: { chrome: true, firefox: true, safari: true, edge: true }
+  },
+  {
+    name: 'microphone',
+    icon: '\uD83C\uDF99\uFE0F',
+    desc: 'Access the device\'s microphone for audio capture',
+    api: 'MediaDevices API',
+    apiLink: 'https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia',
+    requestCode: 'navigator.mediaDevices.getUserMedia({ audio: true })',
+    request: () => navigator.mediaDevices.getUserMedia({ audio: true }).then(s => { s.getTracks().forEach(t => t.stop()); }),
+    browser: { chrome: true, firefox: true, safari: true, edge: true }
+  },
+  {
+    name: 'clipboard-read',
+    icon: '\uD83D\uDCCB',
+    desc: 'Read data from the system clipboard',
+    api: 'Clipboard API',
+    apiLink: 'https://developer.mozilla.org/en-US/docs/Web/API/Clipboard/read',
+    requestCode: 'navigator.clipboard.readText()',
+    request: () => navigator.clipboard.readText(),
+    browser: { chrome: true, firefox: 'partial', safari: true, edge: true }
+  },
+  {
+    name: 'clipboard-write',
+    icon: '\u270D\uFE0F',
+    desc: 'Write data to the system clipboard',
+    api: 'Clipboard API',
+    apiLink: 'https://developer.mozilla.org/en-US/docs/Web/API/Clipboard/writeText',
+    requestCode: 'navigator.clipboard.writeText("hello")',
+    request: () => navigator.clipboard.writeText('Copied from Permissions Playground!'),
+    browser: { chrome: true, firefox: true, safari: true, edge: true }
+  },
+  {
+    name: 'push',
+    icon: '\uD83D\uDCE8',
+    desc: 'Receive push messages from a server (requires Service Worker)',
+    api: 'Push API',
+    apiLink: 'https://developer.mozilla.org/en-US/docs/Web/API/Push_API',
+    requestCode: 'swReg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey })',
+    request: null,
+    browser: { chrome: true, firefox: true, safari: true, edge: true }
+  },
+  {
+    name: 'persistent-storage',
+    icon: '\uD83D\uDCBE',
+    desc: 'Request persistent storage that won\'t be evicted by the browser',
+    api: 'Storage API',
+    apiLink: 'https://developer.mozilla.org/en-US/docs/Web/API/StorageManager/persist',
+    requestCode: 'navigator.storage.persist()',
+    request: () => navigator.storage.persist(),
+    browser: { chrome: true, firefox: true, safari: false, edge: true }
+  },
+  {
+    name: 'screen-wake-lock',
+    icon: '\uD83D\uDCA1',
+    desc: 'Prevent the screen from dimming or locking',
+    api: 'Screen Wake Lock API',
+    apiLink: 'https://developer.mozilla.org/en-US/docs/Web/API/Screen_Wake_Lock_API',
+    requestCode: 'navigator.wakeLock.request("screen")',
+    request: () => navigator.wakeLock ? navigator.wakeLock.request('screen').then(l => { setTimeout(() => l.release(), 3000); }) : Promise.reject(new Error('Not supported')),
+    browser: { chrome: true, firefox: true, safari: true, edge: true }
+  },
+  {
+    name: 'midi',
+    icon: '\uD83C\uDFB9',
+    desc: 'Access MIDI devices for musical instrument communication',
+    api: 'Web MIDI API',
+    apiLink: 'https://developer.mozilla.org/en-US/docs/Web/API/Web_MIDI_API',
+    requestCode: 'navigator.requestMIDIAccess()',
+    request: () => navigator.requestMIDIAccess ? navigator.requestMIDIAccess() : Promise.reject(new Error('Not supported')),
+    browser: { chrome: true, firefox: false, safari: false, edge: true }
+  },
+  {
+    name: 'storage-access',
+    icon: '\uD83D\uDD10',
+    desc: 'Access first-party storage in a third-party context (anti-tracking)',
+    api: 'Storage Access API',
+    apiLink: 'https://developer.mozilla.org/en-US/docs/Web/API/Storage_Access_API',
+    requestCode: 'document.requestStorageAccess()',
+    request: () => document.requestStorageAccess ? document.requestStorageAccess() : Promise.reject(new Error('Not supported')),
+    browser: { chrome: true, firefox: true, safari: true, edge: true }
+  }
+];
+
+// State
+const permStates = {};
+const logEntries = [];
+const watchers = {};
+
+// --- Tabs ---
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('panel-' + tab.dataset.tab).classList.add('active');
+  });
+});
+
+// --- API support check ---
+function checkApiSupport() {
+  const dot = document.getElementById('apiDot');
+  const status = document.getElementById('apiStatus');
+  if ('permissions' in navigator) {
+    dot.classList.add('ok');
+    status.textContent=T("jtc_permissions_api_supported");
+  } else {
+    dot.classList.add('no');
+    status.textContent=T("jtc_permissions_api_not_suppo");
+  }
+}
+
+// --- Query permission ---
+async function queryPermission(name) {
+  if (!('permissions' in navigator)) {
+    return { state: 'unsupported', status: null };
+  }
+  try {
+    const status = await navigator.permissions.query({ name });
+    return { state: status.state, status };
+  } catch {
+    return { state: 'unsupported', status: null };
+  }
+}
+
+// --- Watch permission changes ---
+function watchPermission(name, status) {
+  if (!status || watchers[name]) return;
+  watchers[name] = true;
+  status.addEventListener('change', () => {
+    const oldState = permStates[name] || 'unknown';
+    const newState = status.state;
+    permStates[name] = newState;
+    addLogEntry(name, oldState, newState);
+    updateCardBadge(name, newState);
+  });
+}
+
+// --- Dashboard ---
+async function buildDashboard() {
+  const grid = document.getElementById('permGrid');
+  grid.innerHTML = '';
+  for (const perm of PERMISSIONS) {
+    const result = await queryPermission(perm.name);
+    permStates[perm.name] = result.state;
+    if (result.status) watchPermission(perm.name, result.status);
+
+    const card = document.createElement('div');
+    card.className = 'perm-card';
+    card.id = 'card-' + perm.name;
+    card.innerHTML = `
+      <div class="perm-card-head">
+        <h3><span class="icon">${perm.icon}</span> ${perm.name}</h3>
+        <span class="badge ${result.state}" id="badge-${perm.name}">${result.state}</span>
+      </div>
+      <div class="desc">${perm.desc}</div>
+      <div class="perm-card-actions">
+        <button class="btn" onclick="event.stopPropagation();showDetail('${perm.name}')" ti="btn_details">Details</button>
+        ${perm.request ? `<button class="btn primary" id="req-${perm.name}" onclick="event.stopPropagation();requestAccess('${perm.name}')" ti="btn_request_access">Request Access</button>` : `<button class="btn" disabled title="Requires Service Worker setup" ti="btn_n_a">N/A</button>`}
+      </div>
+    `;
+    card.addEventListener('click', () => showDetail(perm.name));
+    grid.appendChild(card);
+  }
+}
+
+function updateCardBadge(name, state) {
+  const badge = document.getElementById('badge-' + name);
+  if (badge) {
+    badge.className = 'badge ' + state;
+    badge.textContent = state;
+  }
+}
+
+// --- Request Access ---
+async function requestAccess(name) {
+  const perm = PERMISSIONS.find(p => p.name === name);
+  if (!perm || !perm.request) return;
+  const btn = document.getElementById('req-' + name);
+  if (btn) { btn.textContent=T("jtc_requesting"); btn.disabled = true; }
+  try {
+    await perm.request();
+    // Re-query to update state
+    const result = await queryPermission(name);
+    const oldState = permStates[name];
+    permStates[name] = result.state;
+    if (oldState !== result.state) {
+      addLogEntry(name, oldState, result.state);
+    }
+    updateCardBadge(name, result.state);
+  } catch (e) {
+    console.warn(`Request for ${name} failed:`, e.message);
+    // Re-query anyway as state may have changed to denied
+    const result = await queryPermission(name);
+    const oldState = permStates[name];
+    permStates[name] = result.state;
+    if (oldState !== result.state) {
+      addLogEntry(name, oldState, result.state);
+    }
+    updateCardBadge(name, result.state);
+  } finally {
+    if (btn) { btn.textContent=T("jtc_request_access"); btn.disabled = false; }
+  }
+}
+
+// --- Live Monitor ---
+function addLogEntry(name, oldState, newState) {
+  const now = new Date();
+  const time = now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  logEntries.unshift({ time, name, oldState, newState });
+  renderLog();
+}
+
+function renderLog() {
+  const container = document.getElementById('logContainer');
+  const empty = document.getElementById('logEmpty');
+  if (logEntries.length === 0) {
+    if (empty) empty.style.display = 'block';
+    return;
+  }
+  container.innerHTML = logEntries.map(e => `
+    <div class="log-entry">
+      <span class="log-time">${e.time}</span>
+      <span class="log-perm">${e.name}</span>
+      <span class="log-arrow"><span class="badge ${e.oldState}" style="font-size:10px">${e.oldState}</span> \u2192 <span class="badge ${e.newState}" style="font-size:10px">${e.newState}</span></span>
+    </div>
+  `).join('');
+}
+
+// --- Detail overlay ---
+function showDetail(name) {
+  const perm = PERMISSIONS.find(p => p.name === name);
+  if (!perm) return;
+  const state = permStates[name] || 'unknown';
+  const box = document.getElementById('detailBox');
+  box.innerHTML = `
+    <button class="close-btn" onclick="closeDetail()" ti="btn_u2715">\u2715</button>
+    <h2 ti="h2_perm_icon_perm_name">${perm.icon} ${perm.name}</h2>
+    <div class="sub">${perm.desc}</div>
+    <p style="margin-bottom:16px">Current state: <span class="badge ${state}">${state}</span></p>
+
+    <section>
+      <h4>Related API</h4>
+      <p style="font-size:13px"><a href="${perm.apiLink}" target="_blank" rel="noopener">${perm.api}</a></p>
+    </section>
+
+    <section>
+      <h4>Query Permission</h4>
+      <pre><code>const status = await navigator.permissions.query({
+  name: '${perm.name}'
+});
+console.log(status.state); // "granted" | "denied" | "prompt"</code></pre>
+    </section>
+
+    <section>
+      <h4>Request Access</h4>
+      <pre><code>${perm.requestCode}</code></pre>
+    </section>
+
+    <section>
+      <h4>Listen for Changes</h4>
+      <pre><code>const status = await navigator.permissions.query({
+  name: '${perm.name}'
+});
+status.addEventListener('change', () => {
+  console.log('State changed to:', status.state);
+});</code></pre>
+    </section>
+  `;
+  document.getElementById('detailOverlay').classList.add('open');
+}
+
+function closeDetail() {
+  document.getElementById('detailOverlay').classList.remove('open');
+}
+
+document.getElementById('detailOverlay').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('detailOverlay')) closeDetail();
+});
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDetail(); });
+
+// --- Browser Matrix ---
+function buildMatrix() {
+  const body = document.getElementById('matrixBody');
+  body.innerHTML = PERMISSIONS.map(p => {
+    const cell = (val) => {
+      if (val === true) return '<td class="yes">\u2713 Yes</td>';
+      if (val === false) return '<td class="no">\u2717 No</td>';
+      return '<td class="partial">\u25CB Partial</td>';
+    };
+    return `<tr><td>${p.icon} ${p.name}</td>${cell(p.browser.chrome)}${cell(p.browser.firefox)}${cell(p.browser.safari)}${cell(p.browser.edge)}</tr>`;
+  }).join('');
+}
+
+// --- Code Generator ---
+function buildCodegenChecks() {
+  const container = document.getElementById('codegenChecks');
+  container.innerHTML = PERMISSIONS.map(p => `
+    <label><input type="checkbox" value="${p.name}" class="cg-check" checked> ${p.icon} ${p.name}</label>
+  `).join('');
+  container.querySelectorAll('.cg-check').forEach(cb => cb.addEventListener('change', generateCode));
+  document.getElementById('optAsync').addEventListener('change', generateCode);
+  document.getElementById('optOnchange').addEventListener('change', generateCode);
+  document.getElementById('optTryCatch').addEventListener('change', generateCode);
+  generateCode();
+}
+
+function generateCode() {
+  const selected = [...document.querySelectorAll('.cg-check:checked')].map(cb => cb.value);
+  const useAsync = document.getElementById('optAsync').checked;
+  const useOnchange = document.getElementById('optOnchange').checked;
+  const useTry = document.getElementById('optTryCatch').checked;
+
+  if (selected.length === 0) {
+    document.getElementById('codeOutput').textContent=T("jtc_select_at_least_one_perm");
+    return;
+  }
+
+  let code = '';
+  const indent = useTry ? '    ' : '  ';
+  const baseIndent = useTry ? '  ' : '';
+
+  if (useAsync) {
+    code += `async function checkPermissions() {\n`;
+    if (useTry) code += `  try {\n`;
+
+    code += `${baseIndent}  const permissions = ${JSON.stringify(selected, null, 4).replace(/\n/g, '\n' + baseIndent + '  ')};\n\n`;
+    code += `${baseIndent}  for (const name of permissions) {\n`;
+    code += `${indent}  const status = await navigator.permissions.query({ name });\n`;
+    code += `${indent}  console.log(\`\${name}: \${status.state}\`);\n`;
+
+    if (useOnchange) {
+      code += `\n${indent}  status.addEventListener('change', () => {\n`;
+      code += `${indent}    console.log(\`\${name} changed to: \${status.state}\`);\n`;
+      code += `${indent}  });\n`;
+    }
+
+    code += `${baseIndent}  }\n`;
+
+    if (useTry) {
+      code += `  } catch (error) {\n`;
+      code += `    console.error('Permission query failed:', error);\n`;
+      code += `  }\n`;
+    }
+    code += `}\n\ncheckPermissions();`;
+  } else {
+    code += `function checkPermissions() {\n`;
+    if (useTry) code += `  try {\n`;
+
+    code += `${baseIndent}  const permissions = ${JSON.stringify(selected, null, 4).replace(/\n/g, '\n' + baseIndent + '  ')};\n\n`;
+    code += `${baseIndent}  permissions.forEach(function(name) {\n`;
+    code += `${indent}  navigator.permissions.query({ name: name })\n`;
+    code += `${indent}    .then(function(status) {\n`;
+    code += `${indent}      console.log(name + ': ' + status.state);\n`;
+
+    if (useOnchange) {
+      code += `\n${indent}      status.addEventListener('change', function() {\n`;
+      code += `${indent}        console.log(name + ' changed to: ' + status.state);\n`;
+      code += `${indent}      });\n`;
+    }
+
+    code += `${indent}    })`;
+
+    if (useTry) {
+      code += `\n${indent}    .catch(function(err) {\n`;
+      code += `${indent}      console.error(name + ' query failed:', err);\n`;
+      code += `${indent}    });\n`;
+    } else {
+      code += `;\n`;
+    }
+
+    code += `${baseIndent}  });\n`;
+    if (useTry) code += `  } catch (error) {\n    console.error('Setup failed:', error);\n  }\n`;
+    code += `}\n\ncheckPermissions();`;
+  }
+
+  document.getElementById('codeOutput').textContent = code;
+}
+
+function copyCode() {
+  const code = document.getElementById('codeOutput').textContent;
+  navigator.clipboard.writeText(code).then(() => {
+    const btn = document.getElementById('copyBtn');
+    btn.textContent=T("jtc_copied");
+    setTimeout(() => { btn.textContent=T("jtc_copy"); }, 1500);
+  }).catch(() => {});
+}
+
+// --- Init ---
+checkApiSupport();
+buildDashboard();
+buildMatrix();
+buildCodegenChecks();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+</body>
+</html>

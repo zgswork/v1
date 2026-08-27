@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Three.js 3D 模型展示</title>
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+            html,
+            body {
+                width: 100%;
+                height: 100%;
+                overflow: hidden;
+                font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+            }
+            #app {
+                position: fixed;
+                inset: 0;
+                background: #0d1117;
+            }
+            canvas {
+                display: block;
+            }
+            #panel {
+                position: absolute;
+                top: 16px;
+                left: 16px;
+                z-index: 10;
+                background: rgba(22, 27, 34, 0.85);
+                backdrop-filter: blur(8px);
+                border: 1px solid rgba(255, 255, 255, 0.08);
+                border-radius: 12px;
+                padding: 16px 18px;
+                color: #e6edf3;
+                width: 260px;
+                font-size: 13px;
+                box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+            }
+            #panel h1 {
+                font-size: 15px;
+                margin-bottom: 12px;
+                font-weight: 600;
+                letter-spacing: .5px;
+            }
+            .row {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                margin: 10px 0;
+                gap: 10px;
+            }
+            .row label {
+                color: #9da7b3;
+                flex: 0 0 auto;
+            }
+            .row input[type="range"] {
+                flex: 1;
+                accent-color: #58a6ff;
+            }
+            .row select,
+            .row input[type="color"] {
+                flex: 1;
+                background: #0d1117;
+                color: #e6edf3;
+                border: 1px solid #30363d;
+                border-radius: 6px;
+                padding: 4px 6px;
+                font-size: 12px;
+            }
+            .btn {
+                width: 100%;
+                margin-top: 6px;
+                padding: 8px;
+                border: none;
+                border-radius: 8px;
+                background: #238636;
+                color: #fff;
+                font-size: 13px;
+                cursor: pointer;
+                transition: .15s;
+            }
+            .btn:hover {
+                background: #2ea043;
+            }
+            .btn.secondary {
+                background: #21262d;
+                border: 1px solid #30363d;
+            }
+            .btn.secondary:hover {
+                background: #30363d;
+            }
+            #hint {
+                margin-top: 12px;
+                color: #6e7681;
+                font-size: 11px;
+                line-height: 1.6;
+            }
+            #fileInput {
+                display: none;
+            }
+            #loader {
+                position: absolute;
+                bottom: 16px;
+                left: 50%;
+                transform: translateX(-50%);
+                z-index: 10;
+                color: #9da7b3;
+                font-size: 12px;
+                background: rgba(22, 27, 34, .8);
+                padding: 6px 14px;
+                border-radius: 20px;
+                display: none;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="app"></div>
+        <div id="panel">
+            <h1>🧊 Three.js 3D 模型</h1>
+            <div class="row">
+                <label>模型</label>
+                <select id="shape">
+                    <option value="knot">环面纽结</option>
+                    <option value="torus">圆环</option>
+                    <option value="box">立方体</option>
+                    <option value="sphere">球体</option>
+                    <option value="cone">圆锥</option>
+                    <option value="dodeca">十二面体</option>
+                </select>
+            </div>
+            <div class="row"> <label>颜色</label> <input type="color" id="color" value="#4f9dff" /> </div>
+            <div class="row"> <label>旋转</label> <input type="range" id="speed" min="0" max="3" step="0.05"
+                    value="0.6" /> </div>
+            <div class="row"> <label>线框</label> <input type="checkbox" id="wireframe" /> </div>
+            <button class="btn" id="loadBtn">📁 加载我的 .glb/.gltf 模型</button>
+            <button class="btn secondary" id="resetBtn">↺ 重置视角</button>
+            <div id="hint">拖拽旋转 · 滚轮缩放 · 右键平移<br />把本地模型文件拖进窗口即可加载</div>
+            <input type="file" id="fileInput" accept=".glb,.gltf,.obj" />
+        </div>
+        <div id="loader">加载中…</div>
+        <script type="importmap">
+  {    "imports": {      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"    }  }
+  </script>
+        <script type="module">
+            import * as THREE from 'three';
+            import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+            import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+            import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+            import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+            const app = document.getElementById('app');
+            // --- 渲染器 ---
+            const renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.0;
+            app.appendChild(renderer.domElement);
+            // --- 场景 / 相机 ---
+            const scene = new THREE.Scene();
+            scene.background = new THREE.Color('#0d1117');
+            const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+            camera.position.set(4, 3, 6);
+            const controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.08;
+            controls.minDistance = 2;
+            controls.maxDistance = 30;
+            controls.target.set(0, 0.5, 0);
+            // --- 环境光照（用于金属/反射感） ---
+            const pmrem = new THREE.PMREMGenerator(renderer);
+            scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+            // --- 灯光 ---
+            const hemi = new THREE.HemisphereLight(0xffffff, 0x222233, 0.6);
+            scene.add(hemi);
+            const key = new THREE.DirectionalLight(0xffffff, 2.2);
+            key.position.set(5, 8, 5);
+            key.castShadow = true;
+            key.shadow.mapSize.set(2048, 2048);
+            key.shadow.camera.near = 1;
+            key.shadow.camera.far = 30;
+            key.shadow.camera.left = -8; key.shadow.camera.right = 8;
+            key.shadow.camera.top = 8; key.shadow.camera.bottom = -8;
+            key.shadow.bias = -0.0001;
+            scene.add(key);
+            const fill = new THREE.DirectionalLight(0x88aaff, 0.6);
+            fill.position.set(-6, 4, -4);
+            scene.add(fill);
+            // --- 地面 ---
+            const ground = new THREE.Mesh(new THREE.CircleGeometry(12, 64), new THREE.MeshStandardMaterial({ color: 0x161b22, roughness: 0.9, metalness: 0.0 }));
+            ground.rotation.x = -Math.PI / 2;
+            ground.receiveShadow = true;
+            scene.add(ground);
+            const grid = new THREE.GridHelper(24, 24, 0x30363d, 0x21262d);
+            grid.position.y = 0.001;
+            scene.add(grid);
+            // --- 当前模型容器 ---
+            let current = null;
+            const material = new THREE.MeshStandardMaterial({ color: 0x4f9dff, roughness: 0.35, metalness: 0.6 });
+            function buildGeometry(type) {
+                switch (type) {
+                    case 'torus': return new THREE.TorusGeometry(1.2, 0.45, 32, 100);
+                    case 'box': return new THREE.BoxGeometry(1.8, 1.8, 1.8);
+                    case 'sphere': return new THREE.SphereGeometry(1.3, 64, 48);
+                    case 'cone': return new THREE.ConeGeometry(1.3, 2.4, 64);
+                    case 'dodeca': return new THREE.DodecahedronGeometry(1.5);
+                    case 'knot':
+                    default: return new THREE.TorusKnotGeometry(1.1, 0.38, 200, 32);
+                }
+            }
+            function setModel(type) {
+                if (current) { scene.remove(current); disposeObject(current); }
+                const geo = buildGeometry(type);
+                const mesh = new THREE.Mesh(geo, material);
+                mesh.castShadow = true;
+                mesh.receiveShadow = true;
+                // 调整到地面上
+                geo.computeBoundingBox();
+                const h = geo.boundingBox.max.y - geo.boundingBox.min.y;
+                mesh.position.y = h / 2;
+                current = mesh;
+                scene.add(current);
+            }
+            function disposeObject(obj) { obj.traverse(o => { if (o.geometry) o.geometry.dispose(); }); }
+            setModel('knot');
+            // --- UI 控制 ---
+            const shapeSel = document.getElementById('shape');
+            const colorInput = document.getElementById('color');
+            const speedInput = document.getElementById('speed');
+            const wireInput = document.getElementById('wireframe');
+            const loaderEl = document.getElementById('loader');
+            shapeSel.addEventListener('change', e => setModel(e.target.value));
+            colorInput.addEventListener('input', e => material.color.set(e.target.value));
+            wireInput.addEventListener('change', e => { material.wireframe = e.target.checked; });
+            document.getElementById('resetBtn').addEventListener('click', () => { camera.position.set(4, 3, 6); controls.target.set(0, 0.5, 0); });
+            // --- 加载外部模型 ---
+            const fileInput = document.getElementById('fileInput');
+            document.getElementById('loadBtn').addEventListener('click', () => fileInput.click());
+            fileInput.addEventListener('change', e => { if (e.target.files[0]) loadFile(e.target.files[0]); });
+            function loadFile(file) {
+                const url = URL.createObjectURL(file);
+                const ext = file.name.split('.').pop().toLowerCase();
+                loaderEl.style.display = 'block';
+                loaderEl.textContent = '加载中：' + file.name;
+                const onLoaded = (obj) => {
+                    if (current) { scene.remove(current); disposeObject(current); }
+                    obj.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+                    // 自动居中并缩放
+                    const box = new THREE.Box3().setFromObject(obj);
+                    const size = box.getSize(new THREE.Vector3());
+                    const center = box.getCenter(new THREE.Vector3());
+                    const maxDim = Math.max(size.x, size.y, size.z) || 1;
+                    const scale = 4 / maxDim;
+                    obj.scale.setScalar(scale);
+                    obj.position.sub(center.multiplyScalar(scale));
+                    obj.position.y += size.y * scale / 2;
+                    current = obj;
+                    scene.add(obj);
+                    loaderEl.style.display = 'none';
+                    URL.revokeObjectURL(url);
+                };
+                const onError = (err) => {
+                    console.error(err);
+                    loaderEl.textContent = '加载失败，请检查文件格式';
+                    setTimeout(() => loaderEl.style.display = 'none', 2000);
+                    URL.revokeObjectURL(url);
+                };
+                if (ext === 'glb' || ext === 'gltf') { new GLTFLoader().load(url, g => onLoaded(g.scene), undefined, onError); }
+                else if (ext === 'obj') { new OBJLoader().load(url, onLoaded, undefined, onError); }
+                else { onError(new Error('不支持的格式')); }
+            }
+            // --- 拖拽加载 ---
+            window.addEventListener('dragover', e => e.preventDefault());
+            window.addEventListener('drop', e => {
+                e.preventDefault();
+                const f = e.dataTransfer.files[0];
+                if (f) loadFile(f);
+            });
+            // --- 动画循环 ---
+            const clock = new THREE.Clock();
+            function animate() {
+                const dt = clock.getDelta();
+                if (current) current.rotation.y += parseFloat(speedInput.value) * dt;
+                controls.update();
+                renderer.render(scene, camera);
+                requestAnimationFrame(animate);
+            }
+            animate();
+            // --- 自适应窗口 ---
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+        </script>
+    </body>
+</html>

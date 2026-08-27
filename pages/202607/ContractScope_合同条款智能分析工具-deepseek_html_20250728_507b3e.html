@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ContractScope | 合同条款智能分析工具</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-dark: #0a192f;
+            --secondary-dark: #112240;
+            --accent-blue: #64ffda;
+            --accent-gold: #d4af37;
+            --text-light: #ccd6f6;
+            --text-gray: #8892b0;
+            --high-risk: #ff3860;
+            --medium-risk: #ffdd57;
+            --low-risk: #48c774;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, var(--primary-dark) 0%, #0c2a4d 100%);
+            color: var(--text-light);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 20px;
+            padding: 20px;
+            height: calc(100vh - 60px);
+        }
+
+        @media (max-width: 1200px) {
+            .container {
+                grid-template-columns: 1fr;
+                grid-template-rows: auto auto auto;
+                height: auto;
+            }
+        }
+
+        .panel {
+            background: rgba(17, 34, 64, 0.7);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(100, 255, 218, 0.1);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 15px;
+            margin-bottom: 15px;
+            border-bottom: 1px solid rgba(100, 255, 218, 0.2);
+        }
+
+        .panel-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--accent-blue);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .panel-content {
+            flex: 1;
+            overflow: auto;
+        }
+
+        /* 编辑器面板 */
+        .editor-container {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .editor-toolbar {
+            display: flex;
+            gap: 10px;
+            padding: 10px 0;
+            flex-wrap: wrap;
+        }
+
+        .tool-btn {
+            background: rgba(100, 255, 218, 0.1);
+            border: 1px solid var(--accent-blue);
+            color: var(--accent-blue);
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 0.9rem;
+        }
+
+        .tool-btn:hover {
+            background: rgba(100, 255, 218, 0.2);
+        }
+
+        #contract-editor {
+            flex: 1;
+            background: rgba(10, 25, 47, 0.8);
+            color: var(--text-light);
+            border: 1px solid rgba(100, 255, 218, 0.2);
+            border-radius: 8px;
+            padding: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.95rem;
+            line-height: 1.6;
+            resize: none;
+            outline: none;
+            overflow: auto;
+        }
+
+        #contract-editor:focus {
+            border-color: var(--accent-blue);
+        }
+
+        /* 分析看板面板 */
+        .analysis-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .summary-card {
+            background: rgba(10, 25, 47, 0.8);
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+            transition: transform 0.3s ease;
+        }
+
+        .summary-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .summary-value {
+            font-size: 2rem;
+            font-weight: 700;
+            margin: 10px 0;
+        }
+
+        .risk-high .summary-value {
+            color: var(--high-risk);
+        }
+
+        .risk-medium .summary-value {
+            color: var(--medium-risk);
+        }
+
+        .risk-low .summary-value {
+            color: var(--low-risk);
+        }
+
+        .summary-label {
+            font-size: 0.9rem;
+            color: var(--text-gray);
+        }
+
+        .heatmap-container {
+            margin: 20px 0;
+            background: rgba(10, 25, 47, 0.5);
+            border-radius: 8px;
+            padding: 15px;
+        }
+
+        .heatmap-title {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+
+        .heatmap {
+            display: grid;
+            grid-template-columns: repeat(20, 1fr);
+            gap: 3px;
+            height: 40px;
+        }
+
+        .heatmap-cell {
+            border-radius: 3px;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+
+        .heatmap-cell:hover {
+            transform: scale(1.1);
+        }
+
+        .risk-low {
+            background-color: var(--low-risk);
+        }
+
+        .risk-medium {
+            background-color: var(--medium-risk);
+        }
+
+        .risk-high {
+            background-color: var(--high-risk);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.7; }
+            50% { opacity: 1; }
+            100% { opacity: 0.7; }
+        }
+
+        .radar-container {
+            height: 300px;
+            margin-top: 20px;
+        }
+
+        /* 详情面板 */
+        .clause-card {
+            background: rgba(10, 25, 47, 0.8);
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-left: 4px solid var(--accent-blue);
+            transition: all 0.3s ease;
+        }
+
+        .clause-card.risk-high {
+            border-left-color: var(--high-risk);
+        }
+
+        .clause-card.risk-medium {
+            border-left-color: var(--medium-risk);
+        }
+
+        .clause-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .clause-title {
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+
+        .risk-tag {
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .risk-tag.high {
+            background: rgba(255, 56, 96, 0.2);
+            color: var(--high-risk);
+        }
+
+        .risk-tag.medium {
+            background: rgba(255, 221, 87, 0.2);
+            color: var(--medium-risk);
+        }
+
+        .clause-content {
+            color: var(--text-gray);
+            font-size: 0.95rem;
+            line-height: 1.5;
+            margin-bottom: 15px;
+        }
+
+        .clause-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .action-btn {
+            padding: 8px 15px;
+            border-radius: 5px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .view-btn {
+            background: rgba(56, 103, 214, 0.2);
+            color: #3867d6;
+            border: none;
+        }
+
+        .replace-btn {
+            background: rgba(100, 255, 218, 0.2);
+            color: var(--accent-blue);
+            border: none;
+        }
+
+        /* 顶部导航 */
+        header {
+            background: rgba(10, 25, 47, 0.8);
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(100, 255, 218, 0.1);
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--accent-blue);
+        }
+
+        .logo-icon {
+            color: var(--accent-gold);
+        }
+
+        .nav-actions {
+            display: flex;
+            gap: 15px;
+        }
+
+        .nav-btn {
+            background: rgba(100, 255, 218, 0.1);
+            border: 1px solid var(--accent-blue);
+            color: var(--accent-blue);
+            padding: 8px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .nav-btn:hover {
+            background: rgba(100, 255, 218, 0.2);
+        }
+
+        /* 进度条 */
+        .progress-container {
+            margin: 20px 0;
+        }
+
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+        }
+
+        .progress-bar {
+            height: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 5px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--accent-blue);
+            width: 0%;
+            transition: width 1s ease-in-out;
+            border-radius: 5px;
+        }
+
+        /* 模糊条款高亮 */
+        .blurred-clause {
+            background-color: rgba(255, 221, 87, 0.3);
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+
+        /* 导出面板 */
+        .export-panel {
+            background: rgba(10, 25, 47, 0.9);
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+        }
+
+        .export-options {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .export-option {
+            background: rgba(17, 34, 64, 0.8);
+            border: 1px solid rgba(100, 255, 218, 0.2);
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .export-option:hover {
+            border-color: var(--accent-blue);
+            transform: translateY(-3px);
+        }
+
+        .export-icon {
+            font-size: 2rem;
+            margin-bottom: 10px;
+            color: var(--accent-blue);
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo">
+            <i class="fas fa-file-contract logo-icon"></i>
+            <span>ContractScope</span>
+        </div>
+        <div class="nav-actions">
+            <button class="nav-btn">
+                <i class="fas fa-history"></i> 历史记录
+            </button>
+            <button class="nav-btn">
+                <i class="fas fa-cog"></i> 设置
+            </button>
+            <button class="nav-btn" id="export-btn">
+                <i class="fas fa-file-export"></i> 导出报告
+            </button>
+        </div>
+    </header>
+
+    <div class="container">
+        <!-- 左侧面板：合同编辑器 -->
+        <div class="panel">
+            <div class="panel-header">
+                <div class="panel-title">
+                    <i class="fas fa-edit"></i>
+                    <span>合同编辑器</span>
+                </div>
+                <div class="tool-btn">
+                    <i class="fas fa-redo"></i> 重置
+                </div>
+            </div>
+            <div class="editor-container">
+                <div class="editor-toolbar">
+                    <div class="tool-btn">
+                        <i class="fas fa-bolt"></i> 快速分析
+                    </div>
+                    <div class="tool-btn">
+                        <i class="fas fa-magic"></i> 格式化
+                    </div>
+                    <div class="tool-btn">
+                        <i class="fas fa-save"></i> 保存草稿
+                    </div>
+                    <div class="tool-btn">
+                        <i class="fas fa-file-import"></i> 导入合同
+                    </div>
+                </div>
+                <textarea id="contract-editor" placeholder="在此粘贴合同文本或使用Markdown格式编写...">
+# 软件许可协议
+
+**甲方**：上海科技有限公司  
+**乙方**：北京数据服务有限公司  
+
+## 第一条 许可内容
+1. 甲方授予乙方非独占性、不可转让的许可，使用其数据分析软件（以下简称"软件"）。
+2. 许可期限自2023年10月1日至2025年9月30日。
+
+## 第二条 费用与支付
+1. 乙方应支付许可费人民币¥500,000元，分两期支付：
+   - 合同签订后7个工作日内支付50%
+   - 软件交付并验收合格后支付剩余50%
+2. 逾期付款需按每日0.05%支付违约金。
+
+## 第三条 知识产权
+1. 软件所有知识产权归甲方所有。
+2. 乙方不得对软件进行反向工程、反编译或反汇编。
+
+## 第四条 保密条款
+1. 双方应对协议内容及履行过程中知悉的商业秘密保密。
+2. 保密期限为协议终止后5年。
+
+## 第五条 违约责任
+1. 任何一方违约应赔偿守约方因此遭受的合理损失。
+2. 如乙方违反知识产权条款，甲方有权立即终止协议并追偿。
+
+## 第六条 争议解决
+因本协议产生的争议，双方应协商解决；协商不成的，提交上海市浦东新区人民法院诉讼解决。
+
+## 第七条 其他
+1. 本协议自双方签字盖章之日起生效。
+2. 协议一式两份，双方各执一份。
+                </textarea>
+            </div>
+        </div>
+
+        <!-- 中间面板：实时分析看板 -->
+        <div class="panel">
+            <div class="panel-header">
+                <div class="panel-title">
+                    <i class="fas fa-chart-line"></i>
+                    <span>智能分析看板</span>
+                </div>
+                <div class="tool-btn">
+                    <i class="fas fa-sync"></i> 刷新
+                </div>
+            </div>
+            <div class="panel-content">
+                <div class="progress-container">
+                    <div class="progress-header">
+                        <span>分析进度</span>
+                        <span>98%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: 98%"></div>
+                    </div>
+                </div>
+
+                <div class="analysis-summary">
+                    <div class="summary-card risk-high">
+                        <div class="summary-value">23</div>
+                        <div class="summary-label">高风险条款</div>
+                    </div>
+                    <div class="summary-card risk-medium">
+                        <div class="summary-value">15</div>
+                        <div class="summary-label">中等风险条款</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="summary-value">8</div>
+                        <div class="summary-label">模糊表述</div>
+                    </div>
+                    <div class="summary-card risk-low">
+                        <div class="summary-value">86</div>
+                        <div class="summary-label">安全条款</div>
+                    </div>
+                </div>
+
+                <div class="heatmap-container">
+                    <div class="heatmap-title">
+                        <span>合同风险热力图</span>
+                        <small>点击区块查看详情</small>
+                    </div>
+                    <div class="heatmap">
+                        <div class="heatmap-cell risk-low"></div>
+                        <div class="heatmap-cell risk-low"></div>
+                        <div class="heatmap-cell risk-low"></div>
+                        <div class="heatmap-cell risk-low"></div>
+                        <div class="heatmap-cell risk-medium"></div>
+                        <div class="heatmap-cell risk-medium"></div>
+                        <div class="heatmap-cell risk-high"></div>
+                        <div class="heatmap-cell risk-high"></div>
+                        <div class="heatmap-cell risk-low"></div>
+                        <div class="heatmap-cell risk-low"></div>
+                        <div class="heatmap-cell risk-low"></div>
+                        <div class="heatmap-cell risk-medium"></div>
+                        <div class="heatmap-cell risk-medium"></div>
+                        <div class="heatmap-cell risk-high"></div>
+                        <div class="heatmap-cell risk-high"></div>
+                        <div class="heatmap-cell risk-high"></div>
+                        <div class="heatmap-cell risk-low"></div>
+                        <div class="heatmap-cell risk-low"></div>
+                        <div class="heatmap-cell risk-low"></div>
+                        <div class="heatmap-cell risk-low"></div>
+                    </div>
+                </div>
+
+                <div class="radar-container">
+                    <canvas id="riskRadar"></canvas>
+                </div>
+
+                <div class="export-panel">
+                    <div class="panel-title">
+                        <i class="fas fa-file-download"></i>
+                        <span>导出合规性检查清单</span>
+                    </div>
+                    <div class="export-options">
+                        <div class="export-option">
+                            <div class="export-icon">
+                                <i class="fas fa-file-pdf"></i>
+                            </div>
+                            <div>PDF格式</div>
+                        </div>
+                        <div class="export-option">
+                            <div class="export-icon">
+                                <i class="fas fa-file-word"></i>
+                            </div>
+                            <div>Word文档</div>
+                        </div>
+                        <div class="export-option">
+                            <div class="export-icon">
+                                <i class="fas fa-file-excel"></i>
+                            </div>
+                            <div>Excel表格</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右侧面板：条款详情 -->
+        <div class="panel">
+            <div class="panel-header">
+                <div class="panel-title">
+                    <i class="fas fa-info-circle"></i>
+                    <span>条款详情分析</span>
+                </div>
+                <div class="tool-btn">
+                    <i class="fas fa-filter"></i> 筛选
+                </div>
+            </div>
+            <div class="panel-content">
+                <div class="clause-card risk-high">
+                    <div class="clause-header">
+                        <div class="clause-title">违约责任条款</div>
+                        <div class="risk-tag high">高风险</div>
+                    </div>
+                    <div class="clause-content">
+                        "任何一方违约应赔偿守约方因此遭受的<span class="blurred-clause">合理损失</span>。如乙方违反知识产权条款，甲方有权立即终止协议并追偿。"
+                    </div>
+                    <div class="clause-actions">
+                        <button class="action-btn view-btn">
+                            <i class="fas fa-book"></i> 查看司法解释
+                        </button>
+                        <button class="action-btn replace-btn">
+                            <i class="fas fa-exchange-alt"></i> 替换建议条款
+                        </button>
+                    </div>
+                </div>
+
+                <div class="clause-card risk-medium">
+                    <div class="clause-header">
+                        <div class="clause-title">许可内容条款</div>
+                        <div class="risk-tag medium">中等风险</div>
+                    </div>
+                    <div class="clause-content">
+                        "甲方授予乙方非独占性、不可转让的许可，使用其数据分析软件。许可期限自2023年10月1日至2025年9月30日。"
+                    </div>
+                    <div class="clause-actions">
+                        <button class="action-btn view-btn">
+                            <i class="fas fa-book"></i> 查看司法解释
+                        </button>
+                        <button class="action-btn replace-btn">
+                            <i class="fas fa-exchange-alt"></i> 替换建议条款
+                        </button>
+                    </div>
+                </div>
+
+                <div class="clause-card">
+                    <div class="clause-header">
+                        <div class="clause-title">争议解决条款</div>
+                        <div class="risk-tag">低风险</div>
+                    </div>
+                    <div class="clause-content">
+                        "因本协议产生的争议，双方应协商解决；协商不成的，提交上海市浦东新区人民法院诉讼解决。"
+                    </div>
+                    <div class="clause-actions">
+                        <button class="action-btn view-btn">
+                            <i class="fas fa-book"></i> 查看司法解释
+                        </button>
+                    </div>
+                </div>
+
+                <div class="clause-card risk-high">
+                    <div class="clause-header">
+                        <div class="clause-title">费用与支付条款</div>
+                        <div class="risk-tag high">高风险</div>
+                    </div>
+                    <div class="clause-content">
+                        "逾期付款需按每日0.05%支付违约金。"
+                    </div>
+                    <div class="clause-actions">
+                        <button class="action-btn view-btn">
+                            <i class="fas fa-book"></i> 查看司法解释
+                        </button>
+                        <button class="action-btn replace-btn">
+                            <i class="fas fa-exchange-alt"></i> 替换建议条款
+                        </button>
+                    </div>
+                </div>
+
+                <div class="clause-card">
+                    <div class="clause-header">
+                        <div class="clause-title">保密条款</div>
+                        <div class="risk-tag">低风险</div>
+                    </div>
+                    <div class="clause-content">
+                        "双方应对协议内容及履行过程中知悉的商业秘密保密。保密期限为协议终止后5年。"
+                    </div>
+                    <div class="clause-actions">
+                        <button class="action-btn view-btn">
+                            <i class="fas fa-book"></i> 查看司法解释
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 初始化雷达图
+        document.addEventListener('DOMContentLoaded', function() {
+            const ctx = document.getElementById('riskRadar').getContext('2d');
+            const riskRadar = new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: ['违约责任', '条款明确性', '法律依据', '风险覆盖', '公平性', '执行性'],
+                    datasets: [{
+                        label: '当前合同',
+                        data: [85, 65, 90, 75, 60, 80],
+                        fill: true,
+                        backgroundColor: 'rgba(100, 255, 218, 0.2)',
+                        borderColor: 'rgba(100, 255, 218, 1)',
+                        pointBackgroundColor: 'rgba(100, 255, 218, 1)',
+                        pointBorderColor: '#fff',
+                        pointHoverBackgroundColor: '#fff',
+                        pointHoverBorderColor: 'rgba(100, 255, 218, 1)'
+                    }, {
+                        label: '行业标准',
+                        data: [65, 75, 80, 70, 85, 75],
+                        fill: true,
+                        backgroundColor: 'rgba(212, 175, 55, 0.2)',
+                        borderColor: 'rgba(212, 175, 55, 1)',
+                        pointBackgroundColor: 'rgba(212, 175, 55, 1)',
+                        pointBorderColor: '#fff',
+                        pointHoverBackgroundColor: '#fff',
+                        pointHoverBorderColor: 'rgba(212, 175, 55, 1)'
+                    }]
+                },
+                options: {
+                    elements: {
+                        line: {
+                            borderWidth: 3
+                        }
+                    },
+                    scales: {
+                        r: {
+                            angleLines: {
+                                display: true
+                            },
+                            suggestedMin: 0,
+                            suggestedMax: 100,
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            },
+                            pointLabels: {
+                                color: '#ccd6f6',
+                                font: {
+                                    size: 12
+                                }
+                            },
+                            ticks: {
+                                display: false,
+                                stepSize: 20
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            labels: {
+                                color: '#ccd6f6',
+                                font: {
+                                    size: 12
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        });
+
+        // 模糊条款检测高亮
+        document.addEventListener('DOMContentLoaded', function() {
+            const editor = document.getElementById('contract-editor');
+            editor.addEventListener('input', function() {
+                highlightBlurredClauses();
+            });
+            
+            // 初始高亮
+            highlightBlurredClauses();
+            
+            function highlightBlurredClauses() {
+                // 在实际应用中，这里应该有AI检测模糊表述的逻辑
+                // 这里只是模拟演示
+                const text = editor.value;
+                const blurredTerms = ['合理', '重大', '及时', '必要', '尽可能', '原则上'];
+                
+                let highlightedText = text;
+                blurredTerms.forEach(term => {
+                    const regex = new RegExp(term, 'g');
+                    highlightedText = highlightedText.replace(regex, `<span class="blurred-clause">${term}</span>`);
+                });
+                
+                // 创建临时元素用于处理HTML
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = highlightedText;
+                
+                // 只更新有变化的部分
+                if (tempDiv.innerText !== editor.value) {
+                    const startPos = editor.selectionStart;
+                    const endPos = editor.selectionEnd;
+                    const scrollTop = editor.scrollTop;
+                    
+                    editor.innerHTML = highlightedText;
+                    
+                    // 恢复光标位置和滚动位置
+                    editor.selectionStart = startPos;
+                    editor.selectionEnd = endPos;
+                    editor.scrollTop = scrollTop;
+                }
+            }
+        });
+
+        // 导出按钮功能
+        document.getElementById('export-btn').addEventListener('click', function() {
+            alert('合规性检查清单导出成功！在实际应用中，这里会生成PDF/Word/Excel文件');
+        });
+
+        // 条款替换功能
+        document.querySelectorAll('.replace-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                const clauseCard = this.closest('.clause-card');
+                const clauseTitle = clauseCard.querySelector('.clause-title').textContent;
+                alert(`"${clauseTitle}"条款已替换为建议版本`);
+                clauseCard.classList.remove('risk-high', 'risk-medium');
+                clauseCard.querySelector('.risk-tag').className = 'risk-tag';
+                clauseCard.querySelector('.risk-tag').textContent = '已优化';
+            });
+        });
+
+        // 司法解释查看功能
+        document.querySelectorAll('.view-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                const clauseCard = this.closest('.clause-card');
+                const clauseTitle = clauseCard.querySelector('.clause-title').textContent;
+                alert(`正在打开"${clauseTitle}"相关司法解释...`);
+                // 实际应用中这里会打开相关法律库页面
+            });
+        });
+    </script>
+</body>
+</html>

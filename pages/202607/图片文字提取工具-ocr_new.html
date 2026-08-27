@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图片文字提取工具</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/tesseract.js@v4.1.1/dist/tesseract.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            margin: 0;
+            font-family: 'Inter', 'SF Pro', 'Segoe UI', '微软雅黑', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #222;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            backdrop-filter: blur(10px);
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 2.2rem;
+            font-weight: 700;
+            letter-spacing: 1px;
+        }
+        .header p {
+            margin: 0.5rem 0 0 0;
+            opacity: 0.9;
+            font-size: 1.1rem;
+        }
+        .main-content {
+            padding: 2rem;
+        }
+        .upload-section {
+            text-align: center;
+            margin-bottom: 2rem;
+            padding: 2rem;
+            border: 2px dashed #ddd;
+            border-radius: 15px;
+            background: #fafafa;
+            transition: all 0.3s ease;
+        }
+        .upload-section:hover {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+        .upload-section.dragover {
+            border-color: #667eea;
+            background: #e8f2ff;
+            transform: scale(1.02);
+        }
+        .upload-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 1rem 2rem;
+            font-size: 1.1rem;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin: 1rem;
+        }
+        .upload-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+        .file-input {
+            display: none;
+        }
+        .preview-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+        .image-preview {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 1.5rem;
+            text-align: center;
+            border: 1px solid #e9ecef;
+        }
+        .image-preview h3 {
+            margin: 0 0 1rem 0;
+            color: #495057;
+        }
+        .preview-image {
+            max-width: 100%;
+            max-height: 300px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+        .controls {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            margin: 1.5rem 0;
+            flex-wrap: wrap;
+        }
+        .control-btn {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 0.8rem 1.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.95rem;
+        }
+        .control-btn:hover {
+            background: #5a6268;
+            transform: translateY(-1px);
+        }
+        .control-btn.primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .control-btn.primary:hover {
+            background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
+        }
+        .control-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e9ecef;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 1rem 0;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        .result-section {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 1.5rem;
+            border: 1px solid #e9ecef;
+        }
+        .result-section h3 {
+            margin: 0 0 1rem 0;
+            color: #495057;
+        }
+        .result-text {
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 1rem;
+            min-height: 150px;
+            white-space: pre-wrap;
+            font-family: 'Courier New', monospace;
+            line-height: 1.6;
+            overflow-y: auto;
+            max-height: 300px;
+        }
+        .result-actions {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .action-btn {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 0.8rem 1.5rem;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.95rem;
+            min-width: 120px;
+            min-height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+        .action-btn:hover {
+            background: #218838;
+            transform: translateY(-1px);
+        }
+        .action-btn.secondary {
+            background: #17a2b8;
+        }
+        .action-btn.secondary:hover {
+            background: #138496;
+        }
+        .action-btn:nth-child(3) {
+            background: #6c757d;
+        }
+        .action-btn:nth-child(3):hover {
+            background: #5a6268;
+        }
+        .status {
+            text-align: center;
+            padding: 1rem;
+            margin: 1rem 0;
+            border-radius: 8px;
+            font-weight: 500;
+        }
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .status.processing {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        .back-link {
+            display: inline-block;
+            color: #667eea;
+            text-decoration: none;
+            font-size: 1rem;
+            margin-top: 1rem;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            transition: all 0.3s ease;
+        }
+        .back-link:hover {
+            background: #f0f4ff;
+            transform: translateX(-5px);
+        }
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+            .preview-section {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
+            .controls {
+                flex-direction: column;
+                align-items: center;
+            }
+            .control-btn {
+                width: 100%;
+                max-width: 300px;
+            }
+            .result-actions {
+                flex-direction: column;
+                align-items: center;
+            }
+            .action-btn {
+                width: 100%;
+                max-width: 300px;
+            }
+        }
+        @media (max-width: 480px) {
+            .header h1 {
+                font-size: 1.8rem;
+            }
+            .main-content {
+                padding: 1rem;
+            }
+            .upload-section {
+                padding: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🖼️ 图片文字提取工具</h1>
+            <p>基于AI的智能OCR文字识别，支持多种图片格式</p>
+        </div>
+        
+        <div class="main-content">
+            <!-- 上传区域 -->
+            <div class="upload-section" id="uploadSection">
+                <h3>📁 选择或拖拽图片</h3>
+                <p>支持 JPG、PNG、BMP 等格式，建议图片清晰度不低于300DPI</p>
+                <input type="file" id="fileInput" class="file-input" accept="image/*">
+                <button class="upload-btn" onclick="document.getElementById('fileInput').click()">
+                    选择图片
+                </button>
+                <p>或直接拖拽图片到此处</p>
+            </div>
+
+            <!-- 状态显示 -->
+            <div id="status" class="status info" style="display: none;">
+                准备就绪，请选择图片开始识别
+            </div>
+
+            <!-- 进度条 -->
+            <div class="progress-bar" id="progressBar" style="display: none;">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+
+            <!-- 预览和结果区域 -->
+            <div class="preview-section" id="previewSection" style="display: none;">
+                <div class="image-preview">
+                    <h3>📸 原始图片</h3>
+                    <img id="previewImage" class="preview-image" alt="预览图片">
+                </div>
+                
+                <div class="result-section">
+                    <h3>📝 识别结果</h3>
+                    <div class="result-text" id="resultText" contenteditable="true" spellcheck="false" title="可直接在此处编辑识别文本">识别结果将在这里显示...</div>
+                    <div class="result-actions">
+                        <button class="action-btn" onclick="copyResult()">
+                            <span>📋 复制文本</span>
+                        </button>
+                        <button class="action-btn secondary" onclick="downloadResult()">
+                            <span>💾 下载结果</span>
+                        </button>
+                        <button class="action-btn" style="background:#6c757d" onclick="clearResult()">
+                            <span>🧹 清空</span>
+                        </button>
+                    </div>
+                    <div id="resultStats" style="margin-top:0.6rem;color:#6b7280;font-size:0.9rem;">字数：0｜行数：0</div>
+                </div>
+            </div>
+
+            <!-- 控制按钮 -->
+            <div class="controls" id="controls" style="display: none;">
+                <button class="control-btn primary" id="recognizeBtn" onclick="startRecognition()">
+                    🔍 开始识别
+                </button>
+                <button class="control-btn" onclick="resetAll()">
+                    🔄 重新开始
+                </button>
+            </div>
+
+            <!-- 返回链接 -->
+
+        </div>
+    </div>
+
+    <script>
+        let selectedFile = null;
+        let worker = null;
+
+        // 文件选择处理
+        document.getElementById('fileInput').addEventListener('change', handleFileSelect);
+        
+        // 拖拽处理
+        const uploadSection = document.getElementById('uploadSection');
+        uploadSection.addEventListener('dragover', handleDragOver);
+        uploadSection.addEventListener('drop', handleDrop);
+        uploadSection.addEventListener('dragleave', handleDragLeave);
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file && file.type.startsWith('image/')) {
+                processSelectedFile(file);
+            }
+        }
+
+        function handleDragOver(event) {
+            event.preventDefault();
+            uploadSection.classList.add('dragover');
+        }
+
+        function handleDrop(event) {
+            event.preventDefault();
+            uploadSection.classList.remove('dragover');
+            const file = event.dataTransfer.files[0];
+            if (file && file.type.startsWith('image/')) {
+                processSelectedFile(file);
+            }
+        }
+
+        function handleDragLeave(event) {
+            event.preventDefault();
+            uploadSection.classList.remove('dragover');
+        }
+
+        function processSelectedFile(file) {
+            selectedFile = file;
+            showStatus('info', '图片已选择，准备进行识别...');
+            
+            // 显示预览
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                document.getElementById('previewImage').src = e.target.result;
+                document.getElementById('previewSection').style.display = 'grid';
+                document.getElementById('controls').style.display = 'flex';
+                document.getElementById('recognizeBtn').disabled = false;
+                // 重置结果文本和统计
+                document.getElementById('resultText').textContent = '识别结果将在这里显示...';
+                updateResultStats();
+            };
+            reader.readAsDataURL(file);
+            // 生成轻量预处理版本用于识别
+            preprocessLight(file).then((blob) => { selectedFile = blob || file; });
+        }
+
+        // 轻量预处理：灰度 + 轻微对比度 + 适度放大（不显著增时长）
+        function preprocessLight(file) {
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.onload = () => {
+                    const scale = Math.min(1.5, Math.max(1, 900 / Math.min(img.width, img.height)));
+                    const w = Math.round(img.width * scale);
+                    const h = Math.round(img.height * scale);
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    canvas.width = w;
+                    canvas.height = h;
+                    ctx.drawImage(img, 0, 0, w, h);
+                    const imageData = ctx.getImageData(0, 0, w, h);
+                    const data = imageData.data;
+                    for (let i = 0; i < data.length; i += 4) {
+                        const r = data[i], g = data[i+1], b = data[i+2];
+                        const gray = (r * 0.299 + g * 0.587 + b * 0.114);
+                        const contrasted = Math.max(0, Math.min(255, (gray - 128) * 1.15 + 128));
+                        data[i] = data[i+1] = data[i+2] = contrasted;
+                    }
+                    ctx.putImageData(imageData, 0, 0);
+                    canvas.toBlob((blob) => resolve(blob || file), 'image/png', 0.9);
+                };
+                img.src = URL.createObjectURL(file);
+            });
+        }
+
+        async function startRecognition() {
+            if (!selectedFile) return;
+
+            const recognizeBtn = document.getElementById('recognizeBtn');
+            const progressBar = document.getElementById('progressBar');
+            const progressFill = document.getElementById('progressFill');
+            
+            recognizeBtn.disabled = true;
+            progressBar.style.display = 'block';
+            progressFill.style.width = '0%';
+            showStatus('processing', '正在识别中，请稍候...');
+
+            try {
+                if (worker) { try { worker.terminate(); } catch(_){} worker = null; }
+                showStatus('processing', '正在加载OCR引擎...');
+                
+
+                
+                worker = await Tesseract.createWorker({ 
+                    logger: m => {
+                        console.log(m);
+                        if (m.status === 'recognizing text') {
+                            const progress = Math.round(m.progress * 100);
+                            progressFill.style.width = progress + '%';
+                        } else if (m.status === 'loading tesseract core') {
+                            showStatus('processing', '正在加载核心组件...');
+                        } else if (m.status === 'loading language traineddata') {
+                            showStatus('processing', '正在加载语言包...');
+                        } else if (m.status === 'initializing tesseract') {
+                            showStatus('processing', '正在初始化...');
+                        }
+                    },
+                    errorHandler: e => console.error(e)
+                });
+                await worker.loadLanguage('chi_sim+eng');
+                await worker.initialize('chi_sim+eng');
+                
+                // 参数微调：提高中文段落文本精度且不显著增时
+                await worker.setParameters({
+                    tessedit_pageseg_mode: '6',          // 假定为统一文本块
+                    user_defined_dpi: '300',             // 提示更高DPI
+                    preserve_interword_spaces: '1',
+                    classify_bln_numeric_mode: '0',
+                    tessedit_char_blacklist: '丁'        // 降低将“且”误识为“丁”的概率
+                });
+                
+                showStatus('processing', '正在识别中，请稍候...');
+                // 优先使用预览图的DataURL，避免某些环境下Blob在Worker中处理失败
+                const previewSrc = document.getElementById('previewImage')?.src;
+                const imageForOCR = (previewSrc && previewSrc.startsWith('data:')) ? previewSrc : selectedFile;
+                const result = await worker.recognize(imageForOCR);
+                
+                if (result && result.data && result.data.text && result.data.text.trim()) {
+                    document.getElementById('resultText').textContent = result.data.text.trim();
+                    updateResultStats(); // 更新统计
+                    showStatus('success', '识别完成！');
+                } else {
+                    showStatus('error', '识别完成但未获取到文本内容，请尝试更清晰的图片');
+                }
+                
+                setTimeout(() => { 
+                    progressBar.style.display = 'none'; 
+                    progressFill.style.width = '0%'; 
+                }, 800);
+                
+            } catch (error) {
+                console.error('识别失败:', error);
+                const msg = (error && (error.message || String(error))) || '未知错误';
+                showStatus('error', `识别失败：${msg}`);
+                progressBar.style.display = 'none';
+                progressFill.style.width = '0%';
+            } finally {
+                recognizeBtn.disabled = false;
+            }
+        }
+
+        function showStatus(type, message) {
+            const status = document.getElementById('status');
+            status.className = `status ${type}`;
+            status.textContent = message;
+            status.style.display = 'block';
+        }
+
+        function copyResult() {
+            const resultText = document.getElementById('resultText').textContent;
+            if (resultText && resultText !== '识别结果将在这里显示...') {
+                navigator.clipboard.writeText(resultText).then(() => {
+                    showStatus('success', '文本已复制到剪贴板');
+                }).catch(() => {
+                    showStatus('error', '复制失败，请手动选择文本');
+                });
+            }
+        }
+
+        function downloadResult() {
+            const resultText = document.getElementById('resultText').textContent;
+            if (resultText && resultText !== '识别结果将在这里显示...') {
+                const blob = new Blob([resultText], { type: 'text/plain;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'ocr_result.txt';
+                a.click();
+                URL.revokeObjectURL(url);
+                showStatus('success', '结果已下载');
+            }
+        }
+
+        function clearResult() {
+            const el = document.getElementById('resultText');
+            el.innerText = '';
+            updateResultStats();
+        }
+
+        function updateResultStats() {
+            const el = document.getElementById('resultText');
+            // 读取可编辑区域纯文本，统一换行并移除零宽字符
+            const raw = (el.innerText || '')
+                .replace(/\u200B|\u200C|\u200D|\uFEFF/g, '') // 零宽字符
+                .replace(/\r\n?|\u2028|\u2029/g, '\n');     // 统一为\n
+            const noTrailing = raw.replace(/\n+$/,'');
+            const linesArr = noTrailing.split('\n');
+            const nonEmptyLines = linesArr.filter(l => l.trim().length > 0).length;
+            // 字数按可见字符计，不含换行
+            const charCount = noTrailing.replace(/\n/g, '').length;
+            const stats = document.getElementById('resultStats');
+            stats.textContent = `字数：${charCount}｜行数：${linesArr.length}（非空：${nonEmptyLines}）`;
+        }
+
+        document.addEventListener('DOMContentLoaded', function(){
+            const res = document.getElementById('resultText');
+            if (res) {
+                ['input','keyup','paste','cut'].forEach(evt => res.addEventListener(evt, updateResultStats));
+            }
+            updateResultStats();
+        });
+
+        function resetAll() {
+            selectedFile = null;
+            document.getElementById('fileInput').value = '';
+            document.getElementById('previewSection').style.display = 'none';
+            document.getElementById('controls').style.display = 'none';
+            document.getElementById('progressBar').style.display = 'none';
+            document.getElementById('resultText').textContent = '识别结果将在这里显示...';
+            updateResultStats();
+            showStatus('info', '已重置，请重新选择图片');
+        }
+
+        // 页面卸载时清理worker
+        window.addEventListener('beforeunload', () => {
+            if (worker) {
+                worker.terminate();
+            }
+        });
+    </script>
+</body>
+</html>

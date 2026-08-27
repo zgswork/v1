@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html tk="title_promise_patterns_playgrou" lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Promise Patterns Playground</title>
+<meta name="description" content="Interactive playground for JavaScript Promise patterns — all/allSettled/race/any, retry, timeout, cancellation, and visualization.">
+<style>
+:root {
+  --bg: #0a0a0a;
+  --surface: #141414;
+  --surface-2: #1e1e1e;
+  --border: #2a2a2a;
+  --text: #e0e0e0;
+  --text-dim: #888;
+  --accent: #6e9eff;
+  --accent-dim: #4a7ad4;
+  --green: #4caf50;
+  --red: #ef5350;
+  --orange: #ff9800;
+  --purple: #b388ff;
+  --yellow: #ffd54f;
+  --radius: 8px;
+  --font-mono: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; }
+header { text-align: center; padding: 2rem 1rem; border-bottom: 1px solid var(--border); }
+header h1 { font-size: 2rem; font-weight: 700; }
+header h1 span { color: var(--accent); }
+header p { color: var(--text-dim); margin-top: 0.5rem; }
+nav { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center; padding: 1rem; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--bg); z-index: 10; }
+nav button { background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 0.5rem 1rem; border-radius: var(--radius); cursor: pointer; font-size: 0.85rem; transition: all 0.2s; }
+nav button:hover { border-color: var(--accent); }
+nav button.active { background: var(--accent); color: #000; border-color: var(--accent); }
+main { max-width: 1000px; margin: 0 auto; padding: 1.5rem 1rem; }
+.section { display: none; }
+.section.active { display: block; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem; margin-bottom: 1rem; }
+.card h3 { color: var(--accent); margin-bottom: 0.75rem; font-size: 1.1rem; }
+.card p { color: var(--text-dim); font-size: 0.9rem; margin-bottom: 0.75rem; }
+.output { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem; font-family: var(--font-mono); font-size: 0.85rem; white-space: pre-wrap; word-break: break-all; max-height: 400px; overflow-y: auto; }
+button.run { background: var(--accent); color: #000; border: none; padding: 0.5rem 1.25rem; border-radius: var(--radius); cursor: pointer; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.75rem; margin-right: 0.5rem; transition: background 0.2s; }
+button.run:hover { background: var(--accent-dim); }
+button.run:disabled { opacity: 0.5; cursor: not-allowed; }
+.timeline { display: flex; flex-direction: column; gap: 4px; margin-top: 0.75rem; }
+.timeline-row { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; }
+.timeline-label { width: 80px; text-align: right; color: var(--text-dim); flex-shrink: 0; }
+.timeline-track { flex: 1; height: 24px; background: var(--surface-2); border-radius: 4px; position: relative; overflow: hidden; }
+.timeline-bar { position: absolute; top: 2px; height: 20px; border-radius: 3px; display: flex; align-items: center; padding-left: 6px; font-size: 0.7rem; font-weight: 600; transition: width 0.3s ease; }
+.timeline-bar.running { animation: pulse 1s infinite; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.6; } }
+table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+th, td { padding: 0.5rem 0.75rem; text-align: left; border-bottom: 1px solid var(--border); }
+th { color: var(--accent); font-weight: 600; }
+code { background: var(--surface-2); padding: 0.1rem 0.35rem; border-radius: 3px; font-family: var(--font-mono); font-size: 0.8rem; color: var(--purple); }
+@media (max-width: 700px) { nav button { font-size: 0.75rem; padding: 0.4rem 0.75rem; } }
+</style>
+</head>
+<body>
+
+
+<header>
+  <h1><span>Promise</span> Patterns Playground</h1>
+  <p>Visualize and compare async patterns in real-time</p>
+</header>
+<nav id="nav"></nav>
+<main id="main"></main>
+
+
+<script>var _LANG={'title_promise_patterns_playgrou':["Promise Patterns Playground", "承诺模式游乐场"],'metadesc_interactive_playground_fo':["Interactive playground for JavaScript Promise patterns — all/allSettled/race/any, retry, timeout, cancellation, and visualization.", "JavaScript Promise 模式的交互式游乐场——all/allSettled/race/any、重试、超时、取消和可视化。"],'h3_promise_all_allsettled_ra':["Promise.all / allSettled / race / any", "承诺.all / allSettled / race / any"],'h3_quick_reference':["Quick Reference", "快速参考"],'h3_error_handling_patterns':["Error Handling Patterns", "错误处理模式"],'h3_sequential_vs_parallel_ex':["Sequential vs Parallel Execution", "顺序执行与并行执行"],'h3_promise_withresolvers':["Promise.withResolvers()", "Promise.withResolvers()"],'h3_use_case_event_to_promise':["Use Case: Event-to-Promise", "用例：事件到承诺"],'h3_retry_with_exponential_ba':["Retry with Exponential Backoff", "使用指数退避重试"],'h3_timeout_patterns':["Timeout Patterns", "超时模式"],'h3_cancellable_promise_patte':["Cancellable Promise Patterns", "可取消承诺模式"],'h3_cancellable_fetch_pattern':["Cancellable Fetch Pattern", "可取消的获取模式"],'h3_memory_leak_patterns_to_a':["Memory Leak Patterns to Avoid", "避免内存泄漏模式"],'h3_promise_resolution_guaran':["Promise Resolution Guarantee", "承诺解决保证"],'btn_run_all_combinators':["Run All Combinators", "运行所有组合子"],'btn_run_all_patterns':["Run All Patterns", "运行所有模式"],'btn_run_comparison':["Run Comparison", "运行比较"],'btn_run_demo':["Run Demo", "运行演示"],'btn_run_demo_2':["Run Demo", "运行演示"],'btn_run_retry':["Run Retry", "运行重试"],'btn_run_timeout_demo':["Run Timeout Demo", "运行超时演示"],'btn_start_long_operation':["Start Long Operation", "开始长期运营"],'btn_cancel':["Cancel", "取消"],'btn_run_leak_detection_demo':["Run Leak Detection Demo", "运行泄漏检测演示"],'label_label':["${label}:", "${label}:"],'label_pattern':["Pattern:", "图案："],'th_method':["Method", "方法"],'th_resolves_when':["Resolves when", "解决于"],'th_rejects_when':["Rejects when", "拒绝"],'th_result_type':["Result type", "结果类型"],'label_fail_rate':["Fail rate", "故障率"],'label_max_retries':["Max retries", "最大重试次数"],'jtlword_method':["Method", "方法"],'jtlword_sequential':["Sequential", "顺序"],'jtlword_parallel':["Parallel", "平行线"],'jtlword_cancel':["Cancel", "取消"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>
+function ln(label, value, cls='value') {
+  return `<span class="label" ti="label_label">${label}: </span><span class="${cls}">${value}</span>\n`;
+}
+
+function delay(ms, value, shouldFail=false) {
+  return new Promise((resolve, reject) => {
+    setTimeout(() => shouldFail ? reject(new Error(value)) : resolve(value), ms);
+  });
+}
+
+const sections = [
+  { id: 'combinators', label: 'Combinators' },
+  { id: 'errors', label: 'Error Handling' },
+  { id: 'seqpar', label: 'Seq vs Parallel' },
+  { id: 'resolvers', label: 'withResolvers' },
+  { id: 'retry', label: 'Retry' },
+  { id: 'timeout', label: 'Timeout' },
+  { id: 'cancel', label: 'Cancellation' },
+  { id: 'leaks', label: 'Memory Leaks' },
+];
+
+const nav = document.getElementById('nav');
+sections.forEach((s, i) => {
+  const btn = document.createElement('button');
+  btn.textContent = s.label;
+  btn.onclick = () => {
+    document.querySelectorAll('.section').forEach(el => el.classList.remove('active'));
+    document.getElementById('sec-' + s.id).classList.add('active');
+    document.querySelectorAll('nav button').forEach((b, j) => b.classList.toggle('active', j === i));
+  };
+  if (i === 0) btn.classList.add('active');
+  nav.appendChild(btn);
+});
+
+const main = document.getElementById('main');
+
+// ── Combinators ──
+const sec1 = document.createElement('div');
+sec1.id = 'sec-combinators';
+sec1.className = 'section active';
+sec1.innerHTML = `
+<div class="card">
+  <h3 ti="h3_promise_all_allsettled_ra">Promise.all / allSettled / race / any</h3>
+  <p>Visual comparison of all four combinators with the same set of promises (200ms OK, 400ms OK, 300ms FAIL).</p>
+  <button class="run" onclick="runCombinators()" id="combBtn" ti="btn_run_all_combinators">Run All Combinators</button>
+  <div class="timeline" id="combTimeline"></div>
+  <div class="output" id="combOut" style="margin-top:0.75rem"></div>
+</div>
+<div class="card">
+  <h3 ti="h3_quick_reference">Quick Reference</h3>
+  <table>
+    <thead><tr><th ti="th_method">Method</th><th ti="th_resolves_when">Resolves when</th><th ti="th_rejects_when">Rejects when</th><th ti="th_result_type">Result type</th></tr></thead>
+    <tbody>
+      <tr><td><code>Promise.all</code></td><td>ALL fulfill</td><td>ANY rejects</td><td>Array of values</td></tr>
+      <tr><td><code>Promise.allSettled</code></td><td>ALL settle</td><td>Never rejects</td><td>Array of {status, value/reason}</td></tr>
+      <tr><td><code>Promise.race</code></td><td>First settles (fulfill or reject)</td><td>First rejects (if first)</td><td>Single value</td></tr>
+      <tr><td><code>Promise.any</code></td><td>First fulfills</td><td>ALL reject (AggregateError)</td><td>Single value</td></tr>
+    </tbody>
+  </table>
+</div>`;
+main.appendChild(sec1);
+
+async function runCombinators() {
+  const btn = document.getElementById('combBtn');
+  btn.disabled = true;
+  const tl = document.getElementById('combTimeline');
+  const o = document.getElementById('combOut');
+  tl.innerHTML = '';
+  o.innerHTML = ln('Status', 'Running...', 'warn');
+
+  const colors = ['var(--accent)', 'var(--green)', 'var(--red)', 'var(--orange)'];
+  const labels = ['Promise.all', 'allSettled', 'Promise.race', 'Promise.any'];
+  const maxMs = 500;
+
+  // Build timeline
+  for (let i = 0; i < 4; i++) {
+    tl.innerHTML += `<div class="timeline-row">
+      <div class="timeline-label">${labels[i]}</div>
+      <div class="timeline-track"><div class="timeline-bar running" id="bar${i}" style="left:0;width:0%;background:${colors[i]}"></div></div>
+      <div id="barLabel${i}" style="width:80px;font-size:0.75rem;color:var(--text-dim)">...</div>
+    </div>`;
+  }
+
+  const makePromises = () => [
+    delay(200, 'fast-ok'),
+    delay(400, 'slow-ok'),
+    delay(300, 'fail', true),
+  ];
+
+  let result = '';
+  const start = performance.now();
+
+  // Promise.all
+  try {
+    const r = await Promise.all(makePromises());
+    const t = (performance.now() - start).toFixed(0);
+    document.getElementById('bar0').style.width = (t/maxMs*100)+'%';
+    document.getElementById('bar0').classList.remove('running');
+    document.getElementById('barLabel0').textContent = t + 'ms OK';
+    result += ln('Promise.all', `Fulfilled: [${r}] (${t}ms)`);
+  } catch(e) {
+    const t = (performance.now() - start).toFixed(0);
+    document.getElementById('bar0').style.width = (t/maxMs*100)+'%';
+    document.getElementById('bar0').style.background = 'var(--red)';
+    document.getElementById('bar0').classList.remove('running');
+    document.getElementById('barLabel0').textContent = t + 'ms FAIL';
+    document.getElementById('barLabel0').style.color = 'var(--red)';
+    result += ln('Promise.all', `Rejected: ${e.message} (${t}ms)`, 'error');
+  }
+
+  // Promise.allSettled
+  const start2 = performance.now();
+  const r2 = await Promise.allSettled(makePromises());
+  const t2 = (performance.now() - start2).toFixed(0);
+  document.getElementById('bar1').style.width = (t2/maxMs*100)+'%';
+  document.getElementById('bar1').classList.remove('running');
+  document.getElementById('barLabel1').textContent = t2 + 'ms OK';
+  result += '\n' + ln('Promise.allSettled', `All settled (${t2}ms)`);
+  r2.forEach((r, i) => {
+    result += ln(`  [${i}]`, `${r.status}: ${r.value || r.reason?.message}`, r.status === 'fulfilled' ? 'value' : 'error');
+  });
+
+  // Promise.race
+  const start3 = performance.now();
+  try {
+    const r3 = await Promise.race(makePromises());
+    const t3 = (performance.now() - start3).toFixed(0);
+    document.getElementById('bar2').style.width = (t3/maxMs*100)+'%';
+    document.getElementById('bar2').classList.remove('running');
+    document.getElementById('barLabel2').textContent = t3 + 'ms OK';
+    result += '\n' + ln('Promise.race', `Winner: ${r3} (${t3}ms)`);
+  } catch(e) {
+    const t3 = (performance.now() - start3).toFixed(0);
+    document.getElementById('bar2').style.width = (t3/maxMs*100)+'%';
+    document.getElementById('bar2').classList.remove('running');
+    document.getElementById('barLabel2').textContent = t3 + 'ms';
+    result += '\n' + ln('Promise.race', `First settled (reject): ${e.message} (${t3}ms)`, 'error');
+  }
+
+  // Promise.any
+  const start4 = performance.now();
+  try {
+    const r4 = await Promise.any(makePromises());
+    const t4 = (performance.now() - start4).toFixed(0);
+    document.getElementById('bar3').style.width = (t4/maxMs*100)+'%';
+    document.getElementById('bar3').classList.remove('running');
+    document.getElementById('barLabel3').textContent = t4 + 'ms OK';
+    result += '\n' + ln('Promise.any', `First fulfilled: ${r4} (${t4}ms)`);
+  } catch(e) {
+    const t4 = (performance.now() - start4).toFixed(0);
+    document.getElementById('bar3').style.width = (t4/maxMs*100)+'%';
+    document.getElementById('bar3').classList.remove('running');
+    result += '\n' + ln('Promise.any', `All rejected: ${e.message} (${t4}ms)`, 'error');
+  }
+
+  o.innerHTML = result;
+  btn.disabled = false;
+}
+
+// ── Error Handling ──
+const sec2 = document.createElement('div');
+sec2.id = 'sec-errors';
+sec2.className = 'section';
+sec2.innerHTML = `
+<div class="card">
+  <h3 ti="h3_error_handling_patterns">Error Handling Patterns</h3>
+  <p>Compare different approaches to handling async errors.</p>
+  <button class="run" onclick="runErrorPatterns()" ti="btn_run_all_patterns">Run All Patterns</button>
+  <div class="output" id="errOut"></div>
+</div>`;
+main.appendChild(sec2);
+
+async function runErrorPatterns() {
+  const o = document.getElementById('errOut');
+  let result = '';
+
+  // Pattern 1: .catch chain
+  result += ln('── Pattern 1: .catch() chain ──', '', 'label') + '\n';
+  const r1 = await Promise.reject(new Error('API failed'))
+    .catch(e => { return { error: e.message, fallback: 'cached data' }; });
+  result += ln('Result', JSON.stringify(r1));
+
+  // Pattern 2: try/catch with async/await
+  result += '\n' + ln('── Pattern 2: try/catch + async/await ──', '', 'label') + '\n';
+  try {
+    await Promise.reject(new Error('Network error'));
+    result += ln('Result', 'Should not reach here', 'error');
+  } catch(e) {
+    result += ln('Caught', e.message, 'value');
+  }
+
+  // Pattern 3: Error boundary with allSettled
+  result += '\n' + ln('── Pattern 3: allSettled error boundary ──', '', 'label') + '\n';
+  const results = await Promise.allSettled([
+    delay(100, 'data-1'),
+    delay(50, 'fail', true),
+    delay(150, 'data-3'),
+  ]);
+  const successes = results.filter(r => r.status === 'fulfilled').map(r => r.value);
+  const failures = results.filter(r => r.status === 'rejected').map(r => r.reason.message);
+  result += ln('Successes', JSON.stringify(successes));
+  result += ln('Failures', JSON.stringify(failures), 'error');
+
+  // Pattern 4: Tuple pattern
+  result += '\n' + ln('── Pattern 4: Go-style [error, data] tuple ──', '', 'label') + '\n';
+  async function safeAsync(promise) {
+    try { return [null, await promise]; }
+    catch(e) { return [e, null]; }
+  }
+  const [err1, data1] = await safeAsync(delay(50, 'success'));
+  const [err2, data2] = await safeAsync(delay(50, 'oops', true));
+  result += ln('[err, data] success', `[${err1}, ${data1}]`);
+  result += ln('[err, data] failure', `[${err2?.message}, ${data2}]`, 'error');
+
+  o.innerHTML = result;
+}
+
+// ── Sequential vs Parallel ──
+const sec3 = document.createElement('div');
+sec3.id = 'sec-seqpar';
+sec3.className = 'section';
+sec3.innerHTML = `
+<div class="card">
+  <h3 ti="h3_sequential_vs_parallel_ex">Sequential vs Parallel Execution</h3>
+  <p>See the dramatic difference between running promises sequentially vs in parallel.</p>
+  <button class="run" onclick="runSeqPar()" id="spBtn" ti="btn_run_comparison">Run Comparison</button>
+  <div class="timeline" id="spTimeline"></div>
+  <div class="output" id="spOut" style="margin-top:0.75rem"></div>
+</div>`;
+main.appendChild(sec3);
+
+async function runSeqPar() {
+  const btn = document.getElementById('spBtn');
+  btn.disabled = true;
+  const tl = document.getElementById('spTimeline');
+  const o = document.getElementById('spOut');
+
+  const tasks = [200, 300, 150, 250, 100]; // ms delays
+
+  tl.innerHTML = `
+    <div class="timeline-row"><div class="timeline-label">Sequential</div><div class="timeline-track"><div class="timeline-bar running" id="seqBar" style="left:0;width:0%;background:var(--orange)"></div></div><div id="seqLabel" style="width:80px;font-size:0.75rem">...</div></div>
+    <div class="timeline-row"><div class="timeline-label">Parallel</div><div class="timeline-track"><div class="timeline-bar running" id="parBar" style="left:0;width:0%;background:var(--green)"></div></div><div id="parLabel" style="width:80px;font-size:0.75rem">...</div></div>`;
+
+  const maxTime = tasks.reduce((a,b)=>a+b, 0);
+
+  // Sequential
+  const seqStart = performance.now();
+  const seqResults = [];
+  for (const ms of tasks) {
+    const r = await delay(ms, `done-${ms}`);
+    seqResults.push(r);
+    const elapsed = performance.now() - seqStart;
+    document.getElementById('seqBar').style.width = (elapsed/maxTime*100)+'%';
+  }
+  const seqTime = performance.now() - seqStart;
+  document.getElementById('seqBar').classList.remove('running');
+  document.getElementById('seqLabel').textContent = seqTime.toFixed(0) + 'ms';
+
+  // Parallel
+  const parStart = performance.now();
+  const parResults = await Promise.all(tasks.map(ms => delay(ms, `done-${ms}`)));
+  const parTime = performance.now() - parStart;
+  document.getElementById('parBar').style.width = (parTime/maxTime*100)+'%';
+  document.getElementById('parBar').classList.remove('running');
+  document.getElementById('parLabel').textContent = parTime.toFixed(0) + 'ms';
+
+  o.innerHTML =
+    ln('Tasks', tasks.map(t => t + 'ms').join(', ')) +
+    ln('Sum of delays', maxTime + 'ms') + '\n' +
+    ln('Sequential time', seqTime.toFixed(0) + 'ms', 'warn') +
+    ln('Parallel time', parTime.toFixed(0) + 'ms') +
+    ln('Speedup', (seqTime / parTime).toFixed(1) + 'x faster');
+
+  btn.disabled = false;
+}
+
+// ── Promise.withResolvers ──
+const sec4 = document.createElement('div');
+sec4.id = 'sec-resolvers';
+sec4.className = 'section';
+sec4.innerHTML = `
+<div class="card">
+  <h3 ti="h3_promise_withresolvers">Promise.withResolvers()</h3>
+  <p>ES2024: Create a promise with externally accessible resolve/reject functions.</p>
+  <button class="run" onclick="runWithResolvers()" ti="btn_run_demo" ti="btn_run_demo_2">Run Demo</button>
+  <div class="output" id="wrOut"></div>
+</div>
+<div class="card">
+  <h3 ti="h3_use_case_event_to_promise">Use Case: Event-to-Promise</h3>
+  <p>Convert event-based APIs to promises using withResolvers.</p>
+  <button class="run" onclick="runEventToPromise()">Run Demo</button>
+  <div class="output" id="etpOut"></div>
+</div>`;
+main.appendChild(sec4);
+
+function runWithResolvers() {
+  const o = document.getElementById('wrOut');
+  if (typeof Promise.withResolvers !== 'function') {
+    o.innerHTML =
+      ln('Support', 'Promise.withResolvers() not available in this browser', 'error') +
+      '\n' + ln('── Polyfill pattern ──', '', 'label') +
+      '\nfunction withResolvers() {\n  let resolve, reject;\n  const promise = new Promise((res, rej) => {\n    resolve = res;\n    reject = rej;\n  });\n  return { promise, resolve, reject };\n}';
+    return;
+  }
+
+  const { promise, resolve, reject } = Promise.withResolvers();
+  o.innerHTML =
+    ln('typeof promise', typeof promise) +
+    ln('typeof resolve', typeof resolve) +
+    ln('typeof reject', typeof reject) +
+    ln('promise instanceof Promise', promise instanceof Promise) +
+    '\n' + ln('Resolving in 500ms...', '', 'warn');
+
+  setTimeout(() => {
+    resolve('Hello from withResolvers!');
+    promise.then(val => {
+      o.innerHTML += ln('Resolved value', val);
+    });
+  }, 500);
+}
+
+function runEventToPromise() {
+  const o = document.getElementById('etpOut');
+
+  // Simulate with setTimeout as event
+  function waitForEvent(ms) {
+    let resolve, reject;
+    if (typeof Promise.withResolvers === 'function') {
+      ({ promise: p, resolve, reject } = Promise.withResolvers());
+      var p;
+    } else {
+      var p = new Promise((res, rej) => { resolve = res; reject = rej; });
+    }
+    // Simulate an event firing
+    setTimeout(() => resolve({ type: 'click', timestamp: Date.now() }), ms);
+    // Timeout
+    setTimeout(() => reject(new Error('Timed out')), ms + 1000);
+    return p;
+  }
+
+  o.innerHTML = ln('Waiting for simulated event (300ms)...', '', 'warn');
+  waitForEvent(300).then(event => {
+    o.innerHTML =
+      ln('Event received', JSON.stringify(event)) +
+      '\n' + ln('── Pattern ──', '', 'label') +
+      '\nconst { promise, resolve } = Promise.withResolvers();\n' +
+      'element.addEventListener("click", resolve, { once: true });\n' +
+      'const event = await promise;';
+  }).catch(e => {
+    o.innerHTML = ln('Error', e.message, 'error');
+  });
+}
+
+// ── Retry ──
+const sec5 = document.createElement('div');
+sec5.id = 'sec-retry';
+sec5.className = 'section';
+sec5.innerHTML = `
+<div class="card">
+  <h3 ti="h3_retry_with_exponential_ba">Retry with Exponential Backoff</h3>
+  <p>Watch retry attempts in real-time with increasing delays.</p>
+  <div style="margin-bottom:0.75rem;display:flex;gap:0.75rem;flex-wrap:wrap;align-items:center">
+    <label style="color:var(--text-dim);font-size:0.85rem" ti="label_fail_rate">Fail rate</label>
+    <select id="retryRate"><option value="0.7">70%</option><option value="0.5">50%</option><option value="0.9" selected>90%</option><option value="1">100%</option></select>
+    <label style="color:var(--text-dim);font-size:0.85rem" ti="label_max_retries">Max retries</label>
+    <select id="retryMax"><option value="3">3</option><option value="5" selected>5</option><option value="8">8</option></select>
+  </div>
+  <button class="run" onclick="runRetry()" id="retryBtn" ti="btn_run_retry">Run Retry</button>
+  <div class="output" id="retryOut"></div>
+</div>`;
+main.appendChild(sec5);
+
+async function runRetry() {
+  const btn = document.getElementById('retryBtn');
+  btn.disabled = true;
+  const o = document.getElementById('retryOut');
+  const failRate = +document.getElementById('retryRate').value;
+  const maxRetries = +document.getElementById('retryMax').value;
+  const baseDelay = 100;
+
+  o.innerHTML = ln('Config', `failRate=${failRate*100}%, maxRetries=${maxRetries}, baseDelay=${baseDelay}ms`) + '\n';
+
+  async function retryWithBackoff(fn, retries, delayMs) {
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      const waitMs = attempt === 0 ? 0 : delayMs * Math.pow(2, attempt - 1) + Math.random() * delayMs;
+      if (attempt > 0) {
+        o.innerHTML += ln(`  Wait`, `${waitMs.toFixed(0)}ms (backoff)`, 'warn');
+        await new Promise(r => setTimeout(r, waitMs));
+      }
+      try {
+        const result = await fn(attempt);
+        o.innerHTML += ln(`  Attempt ${attempt + 1}`, `SUCCESS: ${result}`, 'value');
+        return result;
+      } catch(e) {
+        o.innerHTML += ln(`  Attempt ${attempt + 1}`, `FAIL: ${e.message}`, 'error');
+        if (attempt === retries) throw e;
+      }
+    }
+  }
+
+  const start = performance.now();
+  try {
+    const result = await retryWithBackoff(
+      (attempt) => {
+        if (Math.random() < failRate) throw new Error('Server error 503');
+        return `Data from attempt ${attempt + 1}`;
+      },
+      maxRetries, baseDelay
+    );
+    const elapsed = (performance.now() - start).toFixed(0);
+    o.innerHTML += '\n' + ln('Final result', result) + ln('Total time', elapsed + 'ms');
+  } catch(e) {
+    const elapsed = (performance.now() - start).toFixed(0);
+    o.innerHTML += '\n' + ln('All retries failed', e.message, 'error') + ln('Total time', elapsed + 'ms', 'error');
+  }
+  btn.disabled = false;
+}
+
+// ── Timeout ──
+const sec6 = document.createElement('div');
+sec6.id = 'sec-timeout';
+sec6.className = 'section';
+sec6.innerHTML = `
+<div class="card">
+  <h3 ti="h3_timeout_patterns">Timeout Patterns</h3>
+  <p>Add timeouts to any promise. Compare Promise.race timeout vs AbortSignal.timeout.</p>
+  <button class="run" onclick="runTimeout()" id="toBtn" ti="btn_run_timeout_demo">Run Timeout Demo</button>
+  <div class="output" id="toOut"></div>
+</div>`;
+main.appendChild(sec6);
+
+async function runTimeout() {
+  const btn = document.getElementById('toBtn');
+  btn.disabled = true;
+  const o = document.getElementById('toOut');
+  let result = '';
+
+  // Pattern 1: Promise.race timeout
+  result += ln('── Pattern 1: Promise.race timeout ──', '', 'label') + '\n';
+
+  function withTimeout(promise, ms) {
+    const timeout = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`Timed out after ${ms}ms`)), ms)
+    );
+    return Promise.race([promise, timeout]);
+  }
+
+  // Fast enough
+  try {
+    const r = await withTimeout(delay(100, 'fast-data'), 500);
+    result += ln('Fast (100ms, timeout 500ms)', r);
+  } catch(e) { result += ln('Fast', e.message, 'error'); }
+
+  // Too slow
+  try {
+    const r = await withTimeout(delay(600, 'slow-data'), 200);
+    result += ln('Slow (600ms, timeout 200ms)', r);
+  } catch(e) { result += ln('Slow (600ms, timeout 200ms)', e.message, 'error'); }
+
+  // Pattern 2: AbortSignal.timeout
+  result += '\n' + ln('── Pattern 2: AbortSignal.timeout() ──', '', 'label') + '\n';
+  if (typeof AbortSignal.timeout === 'function') {
+    try {
+      const signal = AbortSignal.timeout(200);
+      await new Promise((resolve, reject) => {
+        signal.addEventListener('abort', () => reject(signal.reason));
+        setTimeout(() => resolve('data'), 500);
+      });
+      result += ln('Result', 'Should not reach', 'error');
+    } catch(e) {
+      result += ln('AbortSignal.timeout(200)', e.message || e.toString(), 'value');
+      result += ln('Error type', e.constructor.name);
+    }
+  } else {
+    result += ln('AbortSignal.timeout', 'Not supported', 'error');
+  }
+
+  o.innerHTML = result;
+  btn.disabled = false;
+}
+
+// ── Cancellation ──
+const sec7 = document.createElement('div');
+sec7.id = 'sec-cancel';
+sec7.className = 'section';
+sec7.innerHTML = `
+<div class="card">
+  <h3 ti="h3_cancellable_promise_patte">Cancellable Promise Patterns</h3>
+  <p>Implement cancellation using AbortController.</p>
+  <button class="run" onclick="runCancel()" id="cancelBtn" ti="btn_start_long_operation">Start Long Operation</button>
+  <button class="run" onclick="cancelOp()" id="cancelAbort" style="background:var(--red)" disabled ti="btn_cancel">Cancel</button>
+  <div class="output" id="cancelOut"></div>
+</div>
+<div class="card">
+  <h3 ti="h3_cancellable_fetch_pattern">Cancellable Fetch Pattern</h3>
+  <div class="output"><span class="label" ti="label_pattern">Pattern:</span>
+const controller = new AbortController();
+
+// Start fetch
+const response = fetch(url, { signal: controller.signal });
+
+// Cancel after 5 seconds
+setTimeout(() => controller.abort(), 5000);
+
+// Or cancel on user action
+button.onclick = () => controller.abort();
+
+try {
+  const data = await response;
+} catch(e) {
+  if (e.name === 'AbortError') {
+    console.log('Request was cancelled');
+  }
+}</div>
+</div>`;
+main.appendChild(sec7);
+
+let currentController = null;
+
+async function runCancel() {
+  const btn = document.getElementById('cancelBtn');
+  const abortBtn = document.getElementById('cancelAbort');
+  const o = document.getElementById('cancelOut');
+  btn.disabled = true;
+  abortBtn.disabled = false;
+
+  currentController = new AbortController();
+  const signal = currentController.signal;
+
+  o.innerHTML = ln('Status', 'Running long operation (5 steps, 500ms each)...', 'warn') + '\n';
+
+  try {
+    for (let i = 1; i <= 5; i++) {
+      if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
+      await new Promise((resolve, reject) => {
+        const timer = setTimeout(resolve, 500);
+        signal.addEventListener('abort', () => { clearTimeout(timer); reject(new DOMException('Aborted', 'AbortError')); }, { once: true });
+      });
+      o.innerHTML += ln(`Step ${i}/5`, 'Complete');
+    }
+    o.innerHTML += '\n' + ln('Result', 'All steps completed successfully!', 'value');
+  } catch(e) {
+    if (e.name === 'AbortError') {
+      o.innerHTML += '\n' + ln('Cancelled', 'Operation was cancelled by user', 'error');
+      o.innerHTML += ln('signal.aborted', signal.aborted);
+      o.innerHTML += ln('signal.reason', signal.reason?.message || signal.reason);
+    } else {
+      o.innerHTML += ln('Error', e.message, 'error');
+    }
+  }
+
+  btn.disabled = false;
+  abortBtn.disabled = true;
+}
+
+function cancelOp() {
+  if (currentController) currentController.abort('User cancelled');
+}
+
+// ── Memory Leaks ──
+const sec8 = document.createElement('div');
+sec8.id = 'sec-leaks';
+sec8.className = 'section';
+sec8.innerHTML = `
+<div class="card">
+  <h3 ti="h3_memory_leak_patterns_to_a">Memory Leak Patterns to Avoid</h3>
+  <div class="output"><span class="error">BAD: Unresolved promise with closure</span>
+function fetchData() {
+  const largeData = new Array(1000000).fill('x');
+  return new Promise((resolve) => {
+    // If this never resolves, largeData is retained forever
+    someEventThatMayNeverFire.on('data', resolve);
+  });
+}
+
+<span class="value">GOOD: Add cleanup/timeout</span>
+function fetchData() {
+  const largeData = new Array(1000000).fill('x');
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('Timeout')), 30000);
+    someEvent.on('data', (val) => {
+      clearTimeout(timer);
+      resolve(val);
+    });
+  });
+}
+
+<span class="error">BAD: Promise in loop without await</span>
+for (const item of items) {
+  fetch(item.url); // Fire-and-forget — unhandled rejections
+}
+
+<span class="value">GOOD: Collect and await</span>
+const results = await Promise.allSettled(
+  items.map(item => fetch(item.url))
+);
+
+<span class="error">BAD: Event listener that creates promises</span>
+element.addEventListener('click', async () => {
+  const data = await fetch('/api'); // New promise each click
+  // If clicks are rapid, previous fetches pile up
+});
+
+<span class="value">GOOD: Debounce or cancel previous</span>
+let controller;
+element.addEventListener('click', async () => {
+  controller?.abort(); // Cancel previous
+  controller = new AbortController();
+  try {
+    const data = await fetch('/api', { signal: controller.signal });
+  } catch(e) {
+    if (e.name !== 'AbortError') throw e;
+  }
+});</div>
+</div>
+<div class="card">
+  <h3 ti="h3_promise_resolution_guaran">Promise Resolution Guarantee</h3>
+  <p>Always ensure promises eventually settle — a never-settling promise leaks memory.</p>
+  <button class="run" onclick="runLeakDemo()" ti="btn_run_leak_detection_demo">Run Leak Detection Demo</button>
+  <div class="output" id="leakOut"></div>
+</div>`;
+main.appendChild(sec8);
+
+function runLeakDemo() {
+  const o = document.getElementById('leakOut');
+  // Demonstrate that adding timeout prevents leaks
+  let pendingCount = 0;
+  const tracked = [];
+
+  function createLeakyPromise() {
+    pendingCount++;
+    return new Promise(() => { /* Never resolves */ });
+  }
+
+  function createSafePromise(timeoutMs = 1000) {
+    pendingCount++;
+    return new Promise((resolve, reject) => {
+      setTimeout(() => {
+        pendingCount--;
+        reject(new Error('Timed out — cleaned up'));
+      }, timeoutMs);
+    });
+  }
+
+  o.innerHTML =
+    ln('── Leaky Promise ──', '', 'label') +
+    ln('Created', 'new Promise(() => {}) — never settles') +
+    ln('Memory impact', 'Promise + closure + any captured variables retained forever', 'error') +
+    ln('pendingCount', '1 (and growing with each call)', 'error') +
+    '\n' +
+    ln('── Safe Promise ──', '', 'label') +
+    ln('Created', 'new Promise with setTimeout fallback') +
+    ln('Memory impact', 'Cleaned up after timeout', 'value') +
+    ln('pendingCount', '0 (after timeout fires)', 'value') +
+    '\n' +
+    ln('Rule', 'Every Promise must eventually settle. Add timeouts as safety nets.', 'warn');
+}
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+</body>
+</html>
+

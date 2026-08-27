@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html tk="title_dns_resolution_visualizer" lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DNS Resolution Visualizer — Step-by-Step DNS Lookup</title>
+<meta name="description" content="Interactive DNS resolution visualizer. Watch recursive and iterative queries, cache hits, DNSSEC validation, and TTL countdown step by step.">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0a0a;color:#e6e6e6;min-height:100vh}
+.container{max-width:1100px;margin:0 auto;padding:20px 16px}
+h1{text-align:center;font-size:1.6rem;color:#fff;margin-bottom:4px}
+.subtitle{text-align:center;color:#888;font-size:0.85rem;margin-bottom:20px}
+.tabs{display:flex;gap:6px;margin-bottom:16px;border-bottom:1px solid #222;padding-bottom:8px}
+.tab{padding:8px 16px;border-radius:8px 8px 0 0;border:1px solid transparent;background:transparent;color:#888;cursor:pointer;font-size:0.85rem;font-weight:600}
+.tab.active{background:#1a1a2e;color:#4da6ff;border-color:#333}
+.tab:hover:not(.active){color:#ccc}
+.panel{display:none}.panel.active{display:block}
+
+/* Controls */
+.controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px;padding:12px;background:#111;border-radius:10px;border:1px solid #222}
+.controls label{font-size:0.8rem;color:#888}
+.controls input,.controls select{padding:6px 10px;border-radius:6px;border:1px solid #333;background:#1a1a1a;color:#fff;font-size:0.85rem}
+.controls input{flex:1;min-width:180px}
+.btn{padding:8px 16px;border-radius:8px;border:none;font-weight:600;cursor:pointer;font-size:0.82rem}
+.btn-primary{background:#3b82f6;color:#fff}.btn-primary:hover{background:#2563eb}
+.btn-secondary{background:#333;color:#ccc}.btn-secondary:hover{background:#444}
+.btn-sm{padding:5px 10px;font-size:0.75rem}
+.speed-control{display:flex;align-items:center;gap:6px}
+.speed-control input[type=range]{width:80px}
+
+/* Diagram */
+.diagram{position:relative;background:#0d0d1a;border:1px solid #222;border-radius:12px;padding:20px;min-height:420px;overflow:hidden}
+.node{position:absolute;width:120px;text-align:center;transition:all 0.3s}
+.node-box{background:#1a1a2e;border:2px solid #333;border-radius:10px;padding:12px 8px;font-size:0.75rem;font-weight:600;color:#ccc;transition:all 0.3s}
+.node-box.active{border-color:#3b82f6;background:#1a2744;color:#fff;box-shadow:0 0 12px rgba(59,130,246,0.3)}
+.node-box.cached{border-color:#10b981;background:#0d2e1f;color:#10b981}
+.node-icon{font-size:1.4rem;display:block;margin-bottom:4px}
+.node-label{font-size:0.65rem;color:#666;margin-top:4px}
+
+/* Arrows */
+.arrow{position:absolute;pointer-events:none;z-index:5}
+.arrow-line{stroke:#3b82f6;stroke-width:2;fill:none;opacity:0;transition:opacity 0.3s}
+.arrow-line.visible{opacity:1}
+.arrow-line.response{stroke:#10b981;stroke-dasharray:6,3}
+.arrow-head{fill:#3b82f6}
+.arrow-head.response{fill:#10b981}
+
+/* Log */
+.log{background:#111;border:1px solid #222;border-radius:10px;padding:12px;margin-top:12px;max-height:200px;overflow-y:auto;font-family:'Cascadia Code',Consolas,monospace;font-size:0.75rem}
+.log-entry{padding:4px 0;border-bottom:1px solid #1a1a1a;display:flex;gap:8px;align-items:flex-start}
+.log-step{color:#4da6ff;min-width:28px;font-weight:700}
+.log-msg{color:#ccc;line-height:1.4}
+.log-msg .query{color:#f59e0b}.log-msg .response{color:#10b981}.log-msg .cache{color:#a78bfa}.log-msg .error{color:#ef4444}
+
+/* Presets */
+.presets{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.preset{padding:5px 12px;border-radius:16px;border:1px solid #333;background:#161616;color:#888;font-size:0.72rem;cursor:pointer}
+.preset:hover{background:#1c1c1c;color:#ccc}
+.preset.active{background:#1a2744;color:#4da6ff;border-color:#2a4a7a}
+
+/* Cache Table */
+.cache-table{width:100%;border-collapse:collapse;font-size:0.78rem}
+.cache-table th{background:#1a1a2e;color:#4da6ff;padding:8px;text-align:left;border-bottom:2px solid #333}
+.cache-table td{padding:7px 8px;border-bottom:1px solid #1a1a1a;color:#ccc}
+.cache-table tr:hover td{background:#111}
+.ttl-bar{height:6px;border-radius:3px;background:#333;overflow:hidden;min-width:60px}
+.ttl-fill{height:100%;border-radius:3px;background:#3b82f6;transition:width 0.5s}
+.ttl-low .ttl-fill{background:#ef4444}
+
+/* Reference */
+.ref-section{margin-bottom:20px}
+.ref-section h3{color:#4da6ff;font-size:0.95rem;margin-bottom:8px}
+.ref-section p,.ref-section li{color:#aaa;font-size:0.82rem;line-height:1.6}
+.ref-section ul{padding-left:20px}
+.record-type{display:inline-block;padding:2px 8px;border-radius:4px;background:#1a2744;color:#4da6ff;font-size:0.72rem;font-weight:700;margin:2px}
+</style>
+</head>
+<body>
+
+
+<div class="container" style="position:relative">
+<h1 ti="h1_dns_resolution_visualizer">DNS Resolution Visualizer</h1>
+<p class="subtitle" ti="subtitle_watch_dns_queries_travel">Watch DNS queries travel from browser to root servers and back</p>
+
+<div class="tabs">
+<button class="tab active" onclick="showTab('visualizer')" ti="btn_visualizer">Visualizer</button>
+<button class="tab" onclick="showTab('cache')" ti="btn_cache_inspector">Cache Inspector</button>
+<button class="tab" onclick="showTab('reference')" ti="btn_reference">Reference</button>
+</div>
+
+<div id="tab-visualizer" class="panel active">
+<div class="presets" id="presets"></div>
+<div class="controls">
+<label ti="label_domain">Domain:</label>
+<input type="text" id="domain" value="www.example.com" tp="placeholder_e_g_www_example_com" placeholder="e.g. www.example.com">
+<label ti="label_type">Type:</label>
+<select id="qtype"><option>A</option><option>AAAA</option><option>CNAME</option><option>MX</option><option>NS</option><option>TXT</option></select>
+<div class="speed-control"><label ti="label_speed">Speed:</label><input type="range" id="speed" min="1" max="5" value="3"><span id="speed-label">3×</span></div>
+<button class="btn btn-primary" id="btn-run" onclick="runSimulation()" ti="btn_resolve">▶ Resolve</button>
+<button class="btn btn-secondary" onclick="stepSimulation()" ti="btn_step">Step</button>
+<button class="btn btn-secondary" onclick="resetSimulation()" ti="btn_reset">Reset</button>
+</div>
+
+<div class="diagram" id="diagram">
+<svg width="100%" height="100%" style="position:absolute;top:0;left:0;pointer-events:none" id="arrows"></svg>
+</div>
+
+<div class="log" id="log"></div>
+</div>
+
+<div id="tab-cache" class="panel">
+<h3 style="color:#fff;margin-bottom:12px" ti="h3_dns_cache_state">DNS Cache State</h3>
+<p style="color:#888;font-size:0.8rem;margin-bottom:12px">Records cached during simulation. TTL counts down in real-time.</p>
+<table class="cache-table">
+<thead><tr><th ti="th_domain">Domain</th><th ti="th_type">Type</th><th ti="th_value">Value</th><th ti="th_ttl">TTL</th><th ti="th_remaining">Remaining</th></tr></thead>
+<tbody id="cache-body"></tbody>
+</table>
+</div>
+
+<div id="tab-reference" class="panel">
+<div class="ref-section">
+<h3 ti="h3_how_dns_resolution_works">How DNS Resolution Works</h3>
+<p>DNS (Domain Name System) translates human-readable domain names into IP addresses. The process involves multiple servers working together in a hierarchical system.</p>
+</div>
+<div class="ref-section">
+<h3 ti="h3_resolution_steps">Resolution Steps</h3>
+<ul>
+<li><strong ti="strong_browser_cache">Browser Cache</strong> — Browser checks its own DNS cache first (Chrome: chrome://net-internals/#dns)</li>
+<li><strong ti="strong_os_cache">OS Cache</strong> — Operating system's DNS resolver cache (stub resolver)</li>
+<li><strong ti="strong_recursive_resolver">Recursive Resolver</strong> — ISP or configured DNS server (e.g., 8.8.8.8). Does the heavy lifting</li>
+<li><strong ti="strong_root_server">Root Server</strong> — 13 root server clusters (a.root-servers.net through m.root-servers.net). Returns TLD nameserver</li>
+<li><strong ti="strong_tld_server">TLD Server</strong> — Top-Level Domain server (.com, .org, .net). Returns authoritative nameserver</li>
+<li><strong ti="strong_authoritative_ns">Authoritative NS</strong> — The domain's own nameserver. Returns the actual DNS record</li>
+</ul>
+</div>
+<div class="ref-section">
+<h3 ti="h3_record_types">Record Types</h3>
+<p>
+<span class="record-type">A</span> IPv4 address
+<span class="record-type">AAAA</span> IPv6 address
+<span class="record-type">CNAME</span> Canonical name (alias)
+<span class="record-type">MX</span> Mail exchange
+<span class="record-type">NS</span> Nameserver
+<span class="record-type">TXT</span> Text record (SPF, DKIM, etc.)
+<span class="record-type">SOA</span> Start of Authority
+<span class="record-type">PTR</span> Reverse lookup
+</p>
+</div>
+<div class="ref-section">
+<h3 ti="h3_key_concepts">Key Concepts</h3>
+<ul>
+<li><strong ti="strong_ttl_time_to_live">TTL (Time To Live)</strong> — How long a record can be cached (seconds). Low TTL = fresher data but more queries</li>
+<li><strong ti="strong_recursive_vs_iterative">Recursive vs Iterative</strong> — Recursive: resolver does all work. Iterative: each server refers to the next</li>
+<li><strong ti="strong_dnssec">DNSSEC</strong> — Cryptographic signatures that verify DNS responses haven't been tampered with</li>
+<li><strong ti="strong_dns_over_https_doh">DNS over HTTPS (DoH)</strong> — Encrypts DNS queries over HTTPS (port 443). Used by browsers</li>
+<li><strong ti="strong_dns_over_tls_dot">DNS over TLS (DoT)</strong> — Encrypts DNS queries over TLS (port 853). Used by OS resolvers</li>
+<li><strong ti="strong_anycast">Anycast</strong> — Root/TLD servers use anycast routing — same IP, nearest physical server responds</li>
+</ul>
+</div>
+</div>
+</div>
+
+
+<script>var _LANG={'title_dns_resolution_visualizer':["DNS Resolution Visualizer — Step-by-Step DNS Lookup", "DNS解析可视化工具——逐​​步DNS查找"],'metadesc_interactive_dns_resolutio':["Interactive DNS resolution visualizer. Watch recursive and iterative queries, cache hits, DNSSEC validation, and TTL countdown step by step.", "交互式 DNS 解析可视化工具。逐步观察递归和迭代查询、缓存命中、DNSSEC 验证和 TTL 倒计时。"],'h1_dns_resolution_visualizer':["DNS Resolution Visualizer", "DNS解析可视化工具"],'h3_dns_cache_state':["DNS Cache State", "DNS缓存状态"],'h3_how_dns_resolution_works':["How DNS Resolution Works", "DNS解析的工作原理"],'h3_resolution_steps':["Resolution Steps", "解决方法"],'h3_record_types':["Record Types", "记录类型"],'h3_key_concepts':["Key Concepts", "关键概念"],'subtitle_watch_dns_queries_travel':["Watch DNS queries travel from browser to root servers and back", "观察 DNS 查询从浏览器到根服务器再返回的路径。"],'btn_visualizer':["Visualizer", "可视化工具"],'btn_cache_inspector':["Cache Inspector", "缓存检查器"],'btn_reference':["Reference", "参考"],'btn_resolve':["▶ Resolve", "▶ 解决"],'btn_step':["Step", "步"],'btn_reset':["Reset", "重置"],'btn_p_name':["${p.name}", "${p.name}"],'placeholder_e_g_www_example_com':["e.g. www.example.com", "例如 www.example.com"],'strong_browser_cache':["Browser Cache", "浏览器缓存"],'strong_os_cache':["OS Cache", "操作系统缓存"],'strong_recursive_resolver':["Recursive Resolver", "递归解析器"],'strong_root_server':["Root Server", "根服务器"],'strong_tld_server':["TLD Server", "顶级域名服务器"],'strong_authoritative_ns':["Authoritative NS", "权威的NS"],'strong_ttl_time_to_live':["TTL (Time To Live)", "TTL（生存时间）"],'strong_recursive_vs_iterative':["Recursive vs Iterative", "递归与迭代"],'strong_dnssec':["DNSSEC", "DNSSEC"],'strong_dns_over_https_doh':["DNS over HTTPS (DoH)", "基于 HTTPS 的 DNS（DoH）"],'strong_dns_over_tls_dot':["DNS over TLS (DoT)", "基于TLS的DNS（DoT）"],'strong_anycast':["Anycast", "任意播"],'th_domain':["Domain", "领域"],'th_type':["Type", "类型"],'th_value':["Value", "价值"],'th_ttl':["TTL", "TTL"],'th_remaining':["Remaining", "其余的"],'label_domain':["Domain:", "领域："],'label_type':["Type:", "类型："],'label_speed':["Speed:", "速度："],'jtc_resolve':["▶ Resolve", "▶ 解决"],'jtc_resolve_2':["▶ Resolve", "▶ 解决"],'jtc_pause':["⏸ Pause", "⏸ 暂停"],'jtc_resolve_3':["▶ Resolve", "▶ 解决"],'jtc_resolve_4':["▶ Resolve", "▶ 解决"],'jtc_resolve_5':["▶ Resolve", "▶ 解决"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>
+const PRESETS = [
+  {name:'Standard Lookup',domain:'www.example.com',type:'A',desc:'Full recursive resolution through all 6 steps',cacheHit:null},
+  {name:'Browser Cache Hit',domain:'www.google.com',type:'A',desc:'Domain found in browser cache — instant response',cacheHit:'browser'},
+  {name:'OS Cache Hit',domain:'api.github.com',type:'A',desc:'Found in OS resolver cache, skips network',cacheHit:'os'},
+  {name:'Resolver Cache Hit',domain:'cdn.jsdelivr.net',type:'A',desc:'Recursive resolver has cached answer',cacheHit:'resolver'},
+  {name:'CNAME Chain',domain:'www.example.org',type:'CNAME',desc:'CNAME alias → follow chain → final A record',cacheHit:null,cname:true},
+  {name:'NXDOMAIN',domain:'nonexistent.invalid',type:'A',desc:'Domain does not exist — negative response',cacheHit:null,nxdomain:true},
+  {name:'MX Record',domain:'example.com',type:'MX',desc:'Mail exchange record lookup for email routing',cacheHit:null},
+  {name:'DNSSEC Validated',domain:'cloudflare.com',type:'A',desc:'Response validated with DNSSEC signatures',cacheHit:null,dnssec:true},
+];
+
+const NODES = [
+  {id:'browser',label:'Browser',icon:'🌐',x:10,y:20},
+  {id:'os',label:'OS Resolver',icon:'💻',x:10,y:55},
+  {id:'resolver',label:'Recursive\nResolver',icon:'🔄',x:38,y:38},
+  {id:'root',label:'Root Server',icon:'🌍',x:66,y:10},
+  {id:'tld',label:'TLD Server',icon:'📁',x:66,y:45},
+  {id:'auth',label:'Authoritative\nNS',icon:'📋',x:66,y:80},
+];
+
+let dnsCache = {};
+let steps = [];
+let stepIndex = 0;
+let running = false;
+let autoRunTimer = null;
+let currentPreset = 0;
+let cacheTimers = [];
+
+function showTab(id) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + id).classList.add('active');
+  document.querySelector(`.tab[onclick="showTab('${id}')"]`).classList.add('active');
+  if (id === 'cache') renderCacheTable();
+}
+
+function renderPresets() {
+  const el = document.getElementById('presets');
+  el.innerHTML = PRESETS.map((p, i) =>
+    `<button class="preset ${i === currentPreset ? 'active' : ''}" onclick="loadPreset(${i})" title="${p.desc}" ti="btn_p_name">${p.name}</button>`
+  ).join('');
+}
+
+function loadPreset(i) {
+  currentPreset = i;
+  const p = PRESETS[i];
+  document.getElementById('domain').value = p.domain;
+  document.getElementById('qtype').value = p.type;
+  renderPresets();
+  resetSimulation();
+}
+
+function renderDiagram() {
+  const d = document.getElementById('diagram');
+  const svg = document.getElementById('arrows');
+  // Clear old nodes (keep svg)
+  d.querySelectorAll('.node').forEach(n => n.remove());
+  svg.innerHTML = '';
+
+  NODES.forEach(n => {
+    const div = document.createElement('div');
+    div.className = 'node';
+    div.id = 'node-' + n.id;
+    div.style.left = n.x + '%';
+    div.style.top = n.y + '%';
+    div.innerHTML = `<div class="node-box" id="box-${n.id}"><span class="node-icon">${n.icon}</span>${n.label.replace('\n','<br>')}</div><div class="node-label" id="lbl-${n.id}"></div>`;
+    d.appendChild(div);
+  });
+}
+
+function getNodeCenter(id) {
+  const d = document.getElementById('diagram');
+  const n = document.getElementById('node-' + id);
+  if (!n) return {x:0,y:0};
+  const dr = d.getBoundingClientRect();
+  const nr = n.getBoundingClientRect();
+  return {x: nr.left - dr.left + nr.width/2, y: nr.top - dr.top + nr.height/2};
+}
+
+function drawArrow(from, to, type, label) {
+  const svg = document.getElementById('arrows');
+  const a = getNodeCenter(from);
+  const b = getNodeCenter(to);
+  const isResp = type === 'response';
+
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const len = Math.sqrt(dx*dx + dy*dy);
+  const ux = dx/len, uy = dy/len;
+  const offset = 8;
+  const perpX = -uy * offset * (isResp ? -1 : 1);
+  const perpY = ux * offset * (isResp ? -1 : 1);
+
+  const x1 = a.x + perpX, y1 = a.y + perpY;
+  const x2 = b.x + perpX, y2 = b.y + perpY;
+
+  const mid = `${(x1+x2)/2 + perpX},${(y1+y2)/2 + perpY}`;
+
+  const line = document.createElementNS('http://www.w3.org/2000/svg','path');
+  line.setAttribute('d',`M${x1},${y1} Q${mid} ${x2},${y2}`);
+  line.setAttribute('class','arrow-line visible ' + (isResp ? 'response' : ''));
+  line.setAttribute('marker-end',`url(#head-${isResp?'resp':'req'})`);
+  svg.appendChild(line);
+
+  if (label) {
+    const txt = document.createElementNS('http://www.w3.org/2000/svg','text');
+    txt.setAttribute('x', (x1+x2)/2 + perpX);
+    txt.setAttribute('y', (y1+y2)/2 + perpY - 6);
+    txt.setAttribute('fill', isResp ? '#10b981' : '#f59e0b');
+    txt.setAttribute('font-size', '10');
+    txt.setAttribute('text-anchor', 'middle');
+    txt.textContent = label;
+    svg.appendChild(txt);
+  }
+}
+
+function initArrowDefs() {
+  const svg = document.getElementById('arrows');
+  const defs = document.createElementNS('http://www.w3.org/2000/svg','defs');
+  ['req','resp'].forEach(t => {
+    const m = document.createElementNS('http://www.w3.org/2000/svg','marker');
+    m.setAttribute('id','head-'+t);
+    m.setAttribute('viewBox','0 0 10 7');
+    m.setAttribute('refX','10');m.setAttribute('refY','3.5');
+    m.setAttribute('markerWidth','8');m.setAttribute('markerHeight','6');
+    m.setAttribute('orient','auto');
+    const p = document.createElementNS('http://www.w3.org/2000/svg','polygon');
+    p.setAttribute('points','0 0, 10 3.5, 0 7');
+    p.setAttribute('fill', t==='req' ? '#3b82f6' : '#10b981');
+    m.appendChild(p);
+    defs.appendChild(m);
+  });
+  svg.appendChild(defs);
+}
+
+function generateSteps(domain, qtype, preset) {
+  const steps = [];
+  const tld = domain.split('.').pop();
+  const sld = domain.split('.').slice(-2).join('.');
+  const fakeIP = '93.184.' + (Math.floor(Math.random()*250)+1) + '.' + (Math.floor(Math.random()*250)+1);
+  const fakeIPv6 = '2606:2800:220:1:248:1893:25c8:' + Math.floor(Math.random()*0xffff).toString(16);
+
+  // Cache hit scenarios
+  if (preset && preset.cacheHit === 'browser') {
+    steps.push({active:'browser',msg:`Browser checks local DNS cache for <span class="query">${domain}</span>`});
+    steps.push({active:'browser',cached:'browser',msg:`<span class="cache">Cache HIT!</span> Browser found ${domain} → ${fakeIP} (TTL: 120s remaining)`});
+    steps.push({active:'browser',msg:`Resolution complete: <span class="response">${domain} → ${fakeIP}</span> (from browser cache, 0ms)`});
+    return steps;
+  }
+
+  if (preset && preset.cacheHit === 'os') {
+    steps.push({active:'browser',msg:`Browser checks local DNS cache for <span class="query">${domain}</span> — miss`});
+    steps.push({active:'browser',arrow:{from:'browser',to:'os',type:'query',label:domain},msg:`Query OS resolver: <span class="query">${domain} ${qtype}?</span>`});
+    steps.push({active:'os',cached:'os',msg:`<span class="cache">OS Cache HIT!</span> Found ${domain} → ${fakeIP} (TTL: 245s remaining)`});
+    steps.push({active:'os',arrow:{from:'os',to:'browser',type:'response',label:fakeIP},msg:`OS returns cached answer: <span class="response">${fakeIP}</span>`});
+    steps.push({active:'browser',msg:`Resolution complete: <span class="response">${domain} → ${fakeIP}</span> (from OS cache, ~1ms)`});
+    return steps;
+  }
+
+  if (preset && preset.cacheHit === 'resolver') {
+    steps.push({active:'browser',msg:`Browser cache — miss`});
+    steps.push({active:'browser',arrow:{from:'browser',to:'os',type:'query',label:domain},msg:`Query OS resolver — miss`});
+    steps.push({active:'os',arrow:{from:'os',to:'resolver',type:'query',label:`${domain} ${qtype}?`},msg:`OS forwards to recursive resolver (e.g. 8.8.8.8)`});
+    steps.push({active:'resolver',cached:'resolver',msg:`<span class="cache">Resolver Cache HIT!</span> ${domain} → ${fakeIP} (TTL: 1800s)`});
+    steps.push({active:'resolver',arrow:{from:'resolver',to:'os',type:'response',label:fakeIP},msg:`Resolver returns cached: <span class="response">${fakeIP}</span>`});
+    steps.push({active:'os',arrow:{from:'os',to:'browser',type:'response'},msg:`OS caches and forwards to browser`});
+    steps.push({active:'browser',msg:`Resolution complete: <span class="response">${domain} → ${fakeIP}</span> (~5ms)`});
+    return steps;
+  }
+
+  // Full resolution
+  steps.push({active:'browser',msg:`Browser checks local DNS cache for <span class="query">${domain}</span> — miss`});
+  steps.push({active:'browser',arrow:{from:'browser',to:'os',type:'query',label:domain},msg:`Browser asks OS resolver: <span class="query">${domain} ${qtype}?</span>`});
+  steps.push({active:'os',msg:`OS stub resolver checks /etc/hosts and local cache — miss`});
+  steps.push({active:'os',arrow:{from:'os',to:'resolver',type:'query',label:`${domain} ${qtype}?`},msg:`OS forwards query to recursive resolver (nameserver from /etc/resolv.conf)`});
+  steps.push({active:'resolver',msg:`Recursive resolver starts iterative resolution`});
+  steps.push({active:'resolver',arrow:{from:'resolver',to:'root',type:'query',label:`. ${qtype}?`},msg:`Query root server: <span class="query">"Where is .${tld}?"</span>`});
+  steps.push({active:'root',msg:`Root server (e.g. a.root-servers.net) looks up .${tld} delegation`});
+  steps.push({active:'root',arrow:{from:'root',to:'resolver',type:'response',label:`NS for .${tld}`},msg:`Root responds: <span class="response">"Try .${tld} servers: a.gtld-servers.net"</span> (referral)`});
+
+  if (preset && preset.nxdomain) {
+    steps.push({active:'resolver',arrow:{from:'resolver',to:'tld',type:'query',label:`${domain}?`},msg:`Query .${tld} TLD server`});
+    steps.push({active:'tld',msg:`.${tld} server checks for ${sld} — not found`});
+    steps.push({active:'tld',arrow:{from:'tld',to:'resolver',type:'response',label:'NXDOMAIN'},msg:`<span class="error">NXDOMAIN — domain does not exist</span>`});
+    steps.push({active:'resolver',arrow:{from:'resolver',to:'os',type:'response',label:'NXDOMAIN'},msg:`Resolver caches negative response (SOA TTL) and returns NXDOMAIN`});
+    steps.push({active:'os',arrow:{from:'os',to:'browser',type:'response'},msg:`OS forwards NXDOMAIN to browser`});
+    steps.push({active:'browser',msg:`<span class="error">Resolution failed: ${domain} — NXDOMAIN (domain not found)</span>`});
+    return steps;
+  }
+
+  steps.push({active:'resolver',arrow:{from:'resolver',to:'tld',type:'query',label:`${sld} ${qtype}?`},msg:`Query .${tld} TLD server: <span class="query">"Where is ${sld}?"</span>`});
+  steps.push({active:'tld',msg:`.${tld} server looks up NS records for ${sld}`});
+  steps.push({active:'tld',arrow:{from:'tld',to:'resolver',type:'response',label:`NS for ${sld}`},msg:`TLD responds: <span class="response">"Try ns1.${sld}"</span> (referral)`});
+
+  steps.push({active:'resolver',arrow:{from:'resolver',to:'auth',type:'query',label:`${domain} ${qtype}?`},msg:`Query authoritative NS: <span class="query">${domain} ${qtype}?</span>`});
+  steps.push({active:'auth',msg:`Authoritative nameserver ns1.${sld} looks up zone file`});
+
+  if (preset && preset.cname) {
+    steps.push({active:'auth',arrow:{from:'auth',to:'resolver',type:'response',label:'CNAME'},msg:`Auth responds: <span class="response">${domain} CNAME → ${sld}</span> (alias)`});
+    steps.push({active:'resolver',msg:`CNAME found — resolver must now resolve <span class="query">${sld}</span> (follow the chain)`});
+    steps.push({active:'resolver',arrow:{from:'resolver',to:'auth',type:'query',label:`${sld} A?`},msg:`Query authoritative NS again: <span class="query">${sld} A?</span>`});
+    steps.push({active:'auth',arrow:{from:'auth',to:'resolver',type:'response',label:fakeIP},msg:`Auth responds: <span class="response">${sld} A ${fakeIP}</span> (TTL: 3600s)`});
+  } else if (qtype === 'MX') {
+    steps.push({active:'auth',arrow:{from:'auth',to:'resolver',type:'response',label:'MX 10'},msg:`Auth responds: <span class="response">${domain} MX 10 mail.${sld}</span> (TTL: 3600s)`});
+  } else if (qtype === 'AAAA') {
+    steps.push({active:'auth',arrow:{from:'auth',to:'resolver',type:'response',label:fakeIPv6.slice(0,12)+'…'},msg:`Auth responds: <span class="response">${domain} AAAA ${fakeIPv6}</span> (TTL: 3600s)`});
+  } else {
+    if (preset && preset.dnssec) {
+      steps.push({active:'auth',arrow:{from:'auth',to:'resolver',type:'response',label:`${fakeIP} + RRSIG`},msg:`Auth responds with DNSSEC: <span class="response">${domain} A ${fakeIP}</span> + RRSIG signature`});
+      steps.push({active:'resolver',msg:`🔒 Resolver validates DNSSEC chain: RRSIG → DNSKEY → DS → parent zone`});
+      steps.push({active:'resolver',msg:`<span class="response">✓ DNSSEC validation passed — response is authentic</span>`});
+    } else {
+      steps.push({active:'auth',arrow:{from:'auth',to:'resolver',type:'response',label:fakeIP},msg:`Auth responds: <span class="response">${domain} A ${fakeIP}</span> (TTL: 3600s)`});
+    }
+  }
+
+  const answer = qtype === 'MX' ? `MX 10 mail.${sld}` : qtype === 'AAAA' ? fakeIPv6 : fakeIP;
+  steps.push({active:'resolver',msg:`Resolver caches answer (TTL: 3600s)`,cache:{domain,type:qtype,value:answer,ttl:3600}});
+  steps.push({active:'resolver',arrow:{from:'resolver',to:'os',type:'response',label:answer.length>16?answer.slice(0,14)+'…':answer},msg:`Resolver returns answer to OS`});
+  steps.push({active:'os',msg:`OS caches answer`,cache:{domain,type:qtype,value:answer,ttl:3600}});
+  steps.push({active:'os',arrow:{from:'os',to:'browser',type:'response'},msg:`OS forwards to browser`});
+  steps.push({active:'browser',msg:`Resolution complete: <span class="response">${domain} → ${answer}</span> (~50-200ms total)`});
+
+  return steps;
+}
+
+function addLog(stepNum, msg) {
+  const log = document.getElementById('log');
+  const entry = document.createElement('div');
+  entry.className = 'log-entry';
+  entry.innerHTML = `<span class="log-step">${stepNum}</span><span class="log-msg">${msg}</span>`;
+  log.appendChild(entry);
+  log.scrollTop = log.scrollHeight;
+}
+
+function highlightNode(id, cached) {
+  NODES.forEach(n => {
+    const box = document.getElementById('box-' + n.id);
+    box.classList.remove('active','cached');
+  });
+  if (id) {
+    const box = document.getElementById('box-' + id);
+    if (cached) box.classList.add('cached');
+    else box.classList.add('active');
+  }
+}
+
+function executeStep() {
+  if (stepIndex >= steps.length) {
+    running = false;
+    document.getElementById('btn-run').textContent=T("jtc_resolve");
+    return false;
+  }
+
+  const s = steps[stepIndex];
+  highlightNode(s.active, s.cached);
+  if (s.arrow) drawArrow(s.arrow.from, s.arrow.to, s.arrow.type, s.arrow.label);
+  addLog(stepIndex + 1, s.msg);
+  if (s.cache) {
+    dnsCache[s.cache.domain + ':' + s.cache.type] = {...s.cache, cachedAt: Date.now()};
+  }
+  stepIndex++;
+  return true;
+}
+
+function getDelay() {
+  const speed = parseInt(document.getElementById('speed').value);
+  return [2000, 1200, 800, 400, 200][speed - 1];
+}
+
+function runSimulation() {
+  if (running) {
+    running = false;
+    clearTimeout(autoRunTimer);
+    document.getElementById('btn-run').textContent=T("jtc_resolve");
+    return;
+  }
+
+  if (stepIndex === 0) {
+    const domain = document.getElementById('domain').value.trim();
+    const qtype = document.getElementById('qtype').value;
+    const preset = PRESETS[currentPreset];
+    steps = generateSteps(domain, qtype, preset.domain === domain ? preset : null);
+    document.getElementById('arrows').innerHTML = '';
+    initArrowDefs();
+  }
+
+  running = true;
+  document.getElementById('btn-run').textContent=T("jtc_pause");
+
+  function tick() {
+    if (!running) return;
+    if (executeStep()) {
+      autoRunTimer = setTimeout(tick, getDelay());
+    } else {
+      running = false;
+      document.getElementById('btn-run').textContent=T("jtc_resolve");
+    }
+  }
+  tick();
+}
+
+function stepSimulation() {
+  if (stepIndex === 0) {
+    const domain = document.getElementById('domain').value.trim();
+    const qtype = document.getElementById('qtype').value;
+    const preset = PRESETS[currentPreset];
+    steps = generateSteps(domain, qtype, preset.domain === domain ? preset : null);
+    document.getElementById('arrows').innerHTML = '';
+    initArrowDefs();
+  }
+  running = false;
+  clearTimeout(autoRunTimer);
+  document.getElementById('btn-run').textContent=T("jtc_resolve");
+  executeStep();
+}
+
+function resetSimulation() {
+  running = false;
+  clearTimeout(autoRunTimer);
+  steps = [];
+  stepIndex = 0;
+  document.getElementById('log').innerHTML = '';
+  document.getElementById('btn-run').textContent=T("jtc_resolve");
+  highlightNode(null);
+  renderDiagram();
+  initArrowDefs();
+}
+
+function renderCacheTable() {
+  const body = document.getElementById('cache-body');
+  const entries = Object.values(dnsCache);
+  if (!entries.length) {
+    body.innerHTML = '<tr><td colspan="5" style="color:#666;text-align:center;padding:20px">No cached records. Run a simulation first.</td></tr>';
+    return;
+  }
+  body.innerHTML = entries.map(e => {
+    const elapsed = (Date.now() - e.cachedAt) / 1000;
+    const remaining = Math.max(0, e.ttl - elapsed);
+    const pct = (remaining / e.ttl) * 100;
+    const low = pct < 20 ? ' ttl-low' : '';
+    return `<tr>
+      <td>${e.domain}</td><td><span class="record-type">${e.type}</span></td><td>${e.value}</td>
+      <td>${e.ttl}s</td>
+      <td><div class="ttl-bar${low}"><div class="ttl-fill" style="width:${pct}%"></div></div> ${Math.round(remaining)}s</td>
+    </tr>`;
+  }).join('');
+}
+
+document.getElementById('speed').addEventListener('input', e => {
+  document.getElementById('speed-label').textContent = e.target.value + '×';
+});
+
+// Init
+renderPresets();
+renderDiagram();
+initArrowDefs();
+
+// Update cache table if visible
+setInterval(() => {
+  if (document.getElementById('tab-cache').classList.contains('active')) renderCacheTable();
+}, 1000);
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+</body>
+</html>

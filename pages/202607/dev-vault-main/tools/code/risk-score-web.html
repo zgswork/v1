@@ -1,0 +1,966 @@
+<!DOCTYPE html>
+<html tk="title_is_your_claude_code_safe" lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Is Your Claude Code Safe? — CLAUDE.md Risk Scanner</title>
+  <meta name="description" content="Paste your CLAUDE.md and instantly detect dangerous commands, exposed secrets, and risky configurations. Free, client-side only." />
+  <!-- OGP / Social -->
+  <meta property="og:title" content="Is Your Claude Code Safe? — CLAUDE.md Risk Scanner" />
+  <meta property="og:description" content="Free tool: paste your CLAUDE.md to scan for dangerous permissions, exposed API keys, and missing safety hooks. 100% client-side, no signup." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://gokuscraper.github.io/dev-vault/risk-score-scanner/" />
+  <meta property="og:image" content="https://gokuscraper.github.io/dev-vault/risk-score-scanner/ogp.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="CLAUDE.md Risk Scanner — Free Claude Code Safety Audit" />
+  <meta name="twitter:description" content="Paste your CLAUDE.md, get an instant safety score. Detects rm -rf, hardcoded API keys, missing hooks, and more." />
+  <meta name="twitter:image" content="https://gokuscraper.github.io/dev-vault/risk-score-scanner/ogp.png" />
+  <style>
+    /* ── Reset ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* ── Design tokens ── */
+    :root {
+      --bg:          #1a1a2e;
+      --bg-surface:  #16213e;
+      --bg-card:     #1e2040;
+      --bg-deep:     #0f3460;
+      --accent:      #e94560;
+      --accent-dark: #c0392b;
+      --text:        #eaeaea;
+      --text-muted:  #8888aa;
+      --border:      rgba(255,255,255,.08);
+      --safe:        #2ecc71;
+      --caution:     #f1c40f;
+      --warning-col: #e67e22;
+      --critical:    #e74c3c;
+      --info-col:    #3498db;
+      --radius:      12px;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    /* ── HERO ── */
+    header {
+      background: linear-gradient(135deg, var(--bg-surface) 0%, var(--bg-deep) 100%);
+      border-bottom: 2px solid var(--accent);
+      padding: 56px 20px 44px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    header::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse at 15% 60%, rgba(233,69,96,.18) 0%, transparent 55%),
+        radial-gradient(ellipse at 85% 20%, rgba(15,52,96,.45) 0%, transparent 55%);
+      pointer-events: none;
+    }
+
+    .hero-badge {
+      display: inline-block;
+      background: rgba(233,69,96,.18);
+      border: 1px solid rgba(233,69,96,.4);
+      color: var(--accent);
+      font-size: .72rem;
+      font-weight: 700;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      padding: 4px 16px;
+      border-radius: 999px;
+      margin-bottom: 20px;
+    }
+
+    header h1 {
+      font-size: clamp(1.9rem, 5.5vw, 3.4rem);
+      font-weight: 800;
+      letter-spacing: -.025em;
+      line-height: 1.1;
+      margin-bottom: 16px;
+      position: relative;
+    }
+    header h1 em { font-style: normal; color: var(--accent); }
+
+    header p.sub {
+      font-size: clamp(.9rem, 2.5vw, 1.1rem);
+      color: var(--text-muted);
+      max-width: 560px;
+      margin: 0 auto 32px;
+    }
+
+    .hero-pills {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .pill {
+      background: rgba(255,255,255,.06);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 5px 14px;
+      font-size: .78rem;
+      color: var(--text-muted);
+    }
+    .pill strong { color: var(--text); font-weight: 600; }
+
+    /* ── LAYOUT ── */
+    main {
+      max-width: 840px;
+      margin: 0 auto;
+      padding: 36px 18px 72px;
+    }
+
+    /* ── CARD ── */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-bottom: 22px;
+    }
+    .card-label {
+      font-size: .68rem;
+      font-weight: 700;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+    }
+
+    /* ── TEXTAREA ── */
+    textarea {
+      width: 100%;
+      min-height: 220px;
+      background: rgba(0,0,0,.4);
+      border: 1px solid rgba(255,255,255,.1);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: 'Consolas', 'Courier New', monospace;
+      font-size: .85rem;
+      line-height: 1.7;
+      padding: 14px 16px;
+      resize: vertical;
+      outline: none;
+      transition: border-color .2s, box-shadow .2s;
+    }
+    textarea::placeholder { color: var(--text-muted); opacity: .7; }
+    textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(233,69,96,.15);
+    }
+
+    .scan-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: 14px;
+      flex-wrap: wrap;
+    }
+    .btn-scan {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: .95rem;
+      font-weight: 700;
+      padding: 11px 28px;
+      cursor: pointer;
+      transition: transform .14s, box-shadow .14s;
+    }
+    .btn-scan:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 22px rgba(233,69,96,.5);
+    }
+    .btn-scan:active { transform: scale(.97); }
+    .btn-sample {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      border-radius: 8px;
+      font-size: .83rem;
+      padding: 9px 16px;
+      cursor: pointer;
+      transition: border-color .15s, color .15s;
+    }
+    .btn-sample:hover { border-color: rgba(255,255,255,.22); color: var(--text); }
+
+    .hint {
+      font-size: .75rem;
+      color: var(--text-muted);
+      margin-left: auto;
+    }
+
+    /* ── SCORE ── */
+    #result-section { display: none; }
+
+    .score-wrap {
+      display: flex;
+      align-items: center;
+      gap: 28px;
+      flex-wrap: wrap;
+    }
+
+    /* Ring */
+    .ring-outer { position: relative; width: 130px; height: 130px; flex-shrink: 0; }
+    .ring-svg { width: 130px; height: 130px; transform: rotate(-90deg); }
+    .ring-bg { fill: none; stroke: rgba(255,255,255,.07); stroke-width: 11; }
+    .ring-fg {
+      fill: none;
+      stroke-width: 11;
+      stroke-linecap: round;
+      /* circumference for r=55: 2π×55 ≈ 345.6 */
+      stroke-dasharray: 345.6;
+      stroke-dashoffset: 345.6;
+      transition: stroke-dashoffset 1.1s cubic-bezier(.4,0,.2,1), stroke .3s;
+    }
+    .ring-center {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    }
+    .ring-num {
+      font-size: 2.2rem;
+      font-weight: 800;
+      line-height: 1;
+    }
+    .ring-of {
+      font-size: .65rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+
+    .score-meta { flex: 1; min-width: 180px; }
+    .score-band {
+      font-size: 1.35rem;
+      font-weight: 800;
+      margin-bottom: 6px;
+    }
+    .score-desc-text { font-size: .88rem; color: var(--text-muted); line-height: 1.5; }
+    .score-bar-wrap {
+      height: 6px;
+      background: rgba(255,255,255,.07);
+      border-radius: 999px;
+      margin-top: 12px;
+      overflow: hidden;
+    }
+    .score-bar-fill {
+      height: 100%;
+      border-radius: 999px;
+      width: 0%;
+      transition: width 1.1s cubic-bezier(.4,0,.2,1);
+    }
+
+    /* ── FINDINGS ── */
+    .findings-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+    }
+    .finding {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      background: rgba(0,0,0,.28);
+      border-radius: 8px;
+      padding: 12px 14px;
+      border-left: 3px solid transparent;
+    }
+    .finding.critical { border-color: var(--critical); }
+    .finding.warning  { border-color: var(--warning-col); }
+    .finding.info     { border-color: var(--info-col); }
+
+    .finding-icon { font-size: 1.05rem; flex-shrink: 0; margin-top: 1px; }
+    .finding-body { flex: 1; min-width: 0; }
+    .finding-title { font-size: .87rem; font-weight: 700; margin-bottom: 3px; }
+    .finding-detail { font-size: .78rem; color: var(--text-muted); line-height: 1.5; }
+    .finding-fix {
+      margin-top: 6px;
+      font-size: .76rem;
+      color: var(--safe);
+      padding: 5px 8px;
+      background: rgba(46,204,113,.07);
+      border-left: 2px solid rgba(46,204,113,.4);
+      border-radius: 0 4px 4px 0;
+    }
+    .finding-pts {
+      font-size: .68rem;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 999px;
+      white-space: nowrap;
+      flex-shrink: 0;
+      align-self: flex-start;
+    }
+    .pts-critical { background: rgba(231,76,60,.2);  color: var(--critical); }
+    .pts-warning  { background: rgba(230,126,34,.2); color: var(--warning-col); }
+    .pts-info     { background: rgba(52,152,219,.18); color: #5dade2; }
+
+    /* all-clear */
+    .all-clear {
+      display: flex;
+      gap: 14px;
+      align-items: center;
+      background: rgba(46,204,113,.08);
+      border: 1px solid rgba(46,204,113,.25);
+      border-radius: 10px;
+      padding: 16px 18px;
+    }
+    .all-clear-icon { font-size: 1.8rem; }
+    .all-clear-title { font-weight: 700; color: var(--safe); }
+    .all-clear-sub   { font-size: .82rem; color: var(--text-muted); margin-top: 2px; }
+
+    /* ── IMPROVEMENTS ── */
+    .improve-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .improve-item {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      font-size: .85rem;
+      line-height: 1.55;
+    }
+    .improve-arrow {
+      color: var(--accent);
+      font-weight: 700;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    /* ── CTA ── */
+    .cta-card {
+      background: linear-gradient(135deg, #1a1040 0%, #241255 100%);
+      border: 1px solid rgba(233,69,96,.35);
+      border-radius: var(--radius);
+      padding: 32px 24px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+      margin-bottom: 22px;
+    }
+    .cta-card::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 420px;
+      height: 240px;
+      background: radial-gradient(ellipse, rgba(233,69,96,.12) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .cta-eye {
+      font-size: .7rem;
+      font-weight: 700;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 10px;
+    }
+    .cta-card h2 {
+      font-size: clamp(1.15rem, 3vw, 1.6rem);
+      font-weight: 800;
+      margin-bottom: 10px;
+    }
+    .cta-card p {
+      font-size: .88rem;
+      color: var(--text-muted);
+      max-width: 460px;
+      margin: 0 auto 20px;
+      line-height: 1.6;
+    }
+    .cta-feats {
+      display: flex;
+      justify-content: center;
+      gap: 14px;
+      flex-wrap: wrap;
+      margin-bottom: 22px;
+    }
+    .cta-feat {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: .78rem;
+      color: var(--text-muted);
+    }
+    .cta-feat .ok { color: var(--safe); font-weight: 700; }
+    .btn-cta {
+      display: inline-block;
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%);
+      color: #fff;
+      text-decoration: none;
+      font-size: 1rem;
+      font-weight: 800;
+      padding: 14px 36px;
+      border-radius: 10px;
+      box-shadow: 0 4px 22px rgba(233,69,96,.4);
+      transition: transform .14s, box-shadow .14s;
+    }
+    .btn-cta:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 32px rgba(233,69,96,.6);
+    }
+    .btn-cta-sub {
+      display: block;
+      font-size: .72rem;
+      font-weight: 400;
+      opacity: .82;
+      margin-top: 3px;
+    }
+
+    /* ── FOOTER ── */
+    footer {
+      text-align: center;
+      padding: 20px;
+      font-size: .76rem;
+      color: var(--text-muted);
+      border-top: 1px solid var(--border);
+    }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 520px) {
+      .score-wrap { flex-direction: column; align-items: flex-start; }
+      .cta-feats  { flex-direction: column; align-items: center; }
+      .hint       { display: none; }
+    }
+
+    /* ── ANIMATIONS ── */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(14px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .fade-up   { animation: fadeUp .4s ease both; }
+    .delay-1   { animation-delay: .07s; }
+    .delay-2   { animation-delay: .14s; }
+    .delay-3   { animation-delay: .21s; }
+  </style>
+</head>
+<body>
+
+
+
+
+
+<!-- ══════════════ HERO ══════════════ -->
+<header>
+  <div class="hero-badge">Free — No Signup — 100% Client-Side</div>
+  <h1>Is Your <em>Claude Code</em> Safe?</h1>
+  <p class="sub">Paste your <code>CLAUDE.md</code> to instantly scan for dangerous commands, exposed secrets, and risky configurations.</p>
+  <div class="hero-pills">
+    <span class="pill"><strong>8</strong> risk patterns</span>
+    <span class="pill"><strong>3</strong> severity levels</span>
+    <span class="pill"><strong>0</strong> data sent to server</span>
+    <span class="pill">Ctrl+Enter to scan</span>
+  </div>
+</header>
+
+<!-- ══════════════ MAIN ══════════════ -->
+<main>
+
+  <!-- Input -->
+  <div class="card">
+    <div class="card-label">Step 1 — Paste Your CLAUDE.md</div>
+    <textarea id="txt"
+      placeholder="# My CLAUDE.md&#10;&#10;Paste the full contents of your Claude Code instruction file here…&#10;(or click &quot;Load risky sample&quot; to see the scanner in action)"
+      spellcheck="false"
+    ></textarea>
+    <div class="scan-row">
+      <button class="btn-scan" onclick="runScan()">Scan Now &rarr;</button>
+      <button class="btn-sample" onclick="loadSample()" ti="btn_load_risky_sample" ti="btn_load_risky_sample">Load risky sample</button>
+      <span class="hint" id="hint">Ctrl+Enter to scan</span>
+    </div>
+  </div>
+
+  <!-- Static CTA (shown before first scan) -->
+  <div class="cta-card" id="static-cta">
+    <div class="cta-eye">More than a scanner</div>
+    <h2 ti="h2_harden_your_claude_code_s" ti="h2_harden_your_claude_code_s">Harden Your Claude Code Setup</h2>
+    <p>The scanner catches obvious risks. The Ops Kit shows you how to fix them with ready-to-use hook templates, hardening scripts, and a 25-item checklist.</p>
+    <a href="https://gokuscraper.github.io/dev-vault/cc-ops-kit-landing/" class="btn-cta" target="_blank" rel="noopener">
+      Get Claude Code Ops Kit
+      <span class="btn-cta-sub">$9.99 on Gumroad · instant download</span>
+    </a>
+  </div>
+
+  <!-- ─── RESULT SECTION ─── -->
+  <div id="result-section">
+
+    <!-- Score -->
+    <div class="card fade-up" id="score-card">
+      <div class="card-label">Risk Score</div>
+      <div class="score-wrap">
+        <div class="ring-outer">
+          <svg class="ring-svg" viewBox="0 0 120 120">
+            <circle class="ring-bg" cx="60" cy="60" r="55"/>
+            <circle class="ring-fg" id="ring-fg" cx="60" cy="60" r="55"/>
+          </svg>
+          <div class="ring-center">
+            <span class="ring-num" id="ring-num">0</span>
+            <span class="ring-of">/ 100</span>
+          </div>
+        </div>
+        <div class="score-meta">
+          <div class="score-band" id="score-band">—</div>
+          <div class="score-desc-text" id="score-desc">Scanning…</div>
+          <div class="score-bar-wrap">
+            <div class="score-bar-fill" id="score-bar"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Findings -->
+    <div class="card fade-up delay-1" id="findings-card">
+      <div class="card-label">Findings</div>
+      <ul class="findings-list" id="findings-list"></ul>
+    </div>
+
+    <!-- Improvements -->
+    <div class="card fade-up delay-2" id="improve-card">
+      <div class="card-label">Improvement Suggestions</div>
+      <ul class="improve-list" id="improve-list"></ul>
+    </div>
+
+    <!-- Result CTA -->
+    <div class="cta-card fade-up delay-3">
+      <div class="cta-eye">Want a deeper audit?</div>
+      <h2 ti="h2_get_the_full_claude_code" ti="h2_get_the_full_claude_code">Get the Full Claude Code Ops Kit</h2>
+      <p>Battle-tested CLAUDE.md template, PreToolUse safety hooks, secrets injection guide, and a step-by-step hardening checklist.</p>
+      <div class="cta-feats">
+        <span class="cta-feat"><span class="ok">&#10003;</span> Safe CLAUDE.md template</span>
+        <span class="cta-feat"><span class="ok">&#10003;</span> PreToolUse hook scripts</span>
+        <span class="cta-feat"><span class="ok">&#10003;</span> Dangerous-command blocklist</span>
+        <span class="cta-feat"><span class="ok">&#10003;</span> 25-item hardening checklist</span>
+      </div>
+      <a href="https://gokuscraper.github.io/dev-vault/cc-ops-kit-landing/" class="btn-cta" target="_blank" rel="noopener">
+        Get Detailed Report
+        <span class="btn-cta-sub">Claude Code Ops Kit — $9.99</span>
+      </a>
+    </div>
+
+    <div class="cta-card fade-up delay-3" style="border-color:#2563eb">
+      <div class="cta-eye">Rolling this out to a team?</div>
+      <h2 ti="h2_one_unprotected_developer" ti="h2_one_unprotected_developer">One unprotected developer is the whole org's risk</h2>
+      <p>An unsafe config on one machine can delete files, leak secrets, or break production for everyone. Score your team's governance for free, or have the baseline designed and audited for you (async / remote-friendly).</p>
+      <div class="cta-feats">
+        <span class="cta-feat"><span class="ok">&#10003;</span> 8 org-level controls</span>
+        <span class="cta-feat"><span class="ok">&#10003;</span> Shared baseline + CI gate</span>
+        <span class="cta-feat"><span class="ok">&#10003;</span> Audit trail</span>
+        <span class="cta-feat"><span class="ok">&#10003;</span> Real documented incidents</span>
+      </div>
+      <a href="https://gokuscraper.github.io/dev-vault/cc-safe-setup/team-governance-scorecard.html?utm_source=risk-scanner&amp;utm_medium=tool&amp;utm_campaign=team-cta" class="btn-cta" target="_blank" rel="noopener" style="background:#2563eb">
+        Free Team Governance Scorecard
+        <span class="btn-cta-sub">8 org controls · runs in your browser</span>
+      </a>
+      <p style="margin-top:10px;font-size:.85rem">
+        Want it done for you? <a href="https://gokuscraper.github.io/dev-vault/cc-safe-setup/services-en.html?utm_source=risk-scanner&amp;utm_medium=tool&amp;utm_campaign=team-cta" target="_blank" rel="noopener" style="color:#6c8cff">Team safety services</a> &middot; <a href="https://gokuscraper.github.io/dev-vault/cc-safe-setup/services-jp.html?utm_source=risk-scanner&amp;utm_medium=tool&amp;utm_campaign=team-cta" target="_blank" rel="noopener" style="color:#6c8cff">日本語（法人向け）</a>
+      </p>
+    </div>
+
+    <div style="text-align:center;margin-top:8px">
+      <button class="btn-sample" onclick="resetScan()">&larr; Scan a different file</button>
+    </div>
+
+  </div><!-- /result-section -->
+
+</main>
+
+<footer>
+  Claude Code Risk Scanner &mdash; free, open-source, runs entirely in your browser. No data is sent anywhere.
+  <br>Also try: <a href="https://gokuscraper.github.io/dev-vault/cl
+<script>var _LANG={'title_is_your_claude_code_safe':["Is Your Claude Code Safe? — CLAUDE.md Risk Scanner", "您的 Claude 代码安全吗？— CLAUDE.md 风险扫描器"],'metadesc_paste_your_claude_md_and':["Paste your CLAUDE.md and instantly detect dangerous commands, exposed secrets, and risky configurations. Free, client-side only.", "粘贴您的 CLAUDE.md 文件，即可立即检测危险命令、泄露的密钥和风险配置。免费，仅限客户端使用。"],'h2_harden_your_claude_code_s':["Harden Your Claude Code Setup", "强化您的 Claude 代码设置"],'h2_get_the_full_claude_code':["Get the Full Claude Code Ops Kit", "获取完整的克劳德代码操作工具包"],'h2_one_unprotected_developer':["One unprotected developer is the whole org's risk", "一个未受保护的开发人员就可能给整个组织带来风险。"],'btn_scan_now':["Scan Now →", "立即扫描 →"],'btn_load_risky_sample':["Load risky sample", "加载风险样本"],'btn_scan_a_different_file':["← Scan a different file", "← 扫描其他文件"],'placeholder_my_claude_md_paste_the_f':["# My CLAUDE.md\n\nPaste the full contents of your Claude Code instruction file here…\n(or click \"Load risky sample\" to see the scanner in action)", "# 我的 CLAUDE.md 文件 请将您的 Claude Code 指令文件的全部内容粘贴到此处……（或点击“加载风险样本”查看扫描器运行情况）"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+aude-code-risk-scorer/" style="color:#6c8cff">Safety Scorer</a> (10-category coverage check) · <a href="https://gokuscraper.github.io/dev-vault/" style="color:#6c8cff">300+ Dev Tools</a>
+</footer>
+
+<!-- ══════════════ SCRIPT ══════════════ -->
+
+<script>var _LANG={'title_is_your_claude_code_safe':["Is Your Claude Code Safe? — CLAUDE.md Risk Scanner", "您的 Claude 代码安全吗？— CLAUDE.md 风险扫描器"],'metadesc_paste_your_claude_md_and':["Paste your CLAUDE.md and instantly detect dangerous commands, exposed secrets, and risky configurations. Free, client-side only.", "粘贴您的 CLAUDE.md 文件，即可立即检测危险命令、泄露的密钥和风险配置。免费，仅限客户端使用。"],'h2_harden_your_claude_code_s':["Harden Your Claude Code Setup", "强化您的 Claude 代码设置"],'h2_get_the_full_claude_code':["Get the Full Claude Code Ops Kit", "获取完整的克劳德代码操作工具包"],'h2_one_unprotected_developer':["One unprotected developer is the whole org's risk", "一个未受保护的开发人员就可能给整个组织带来风险。"],'btn_scan_now':["Scan Now →", "立即扫描 →"],'btn_load_risky_sample':["Load risky sample", "加载风险样本"],'btn_scan_a_different_file':["← Scan a different file", "← 扫描其他文件"],'placeholder_my_claude_md_paste_the_f':["# My CLAUDE.md\n\nPaste the full contents of your Claude Code instruction file here…\n(or click \"Load risky sample\" to see the scanner in action)", "# 我的 CLAUDE.md 文件 请将您的 Claude Code 指令文件的全部内容粘贴到此处……（或点击“加载风险样本”查看扫描器运行情况）"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>
+'use strict';
+
+/* ── Rule table ── */
+const RULES = [
+  // ────────────────── CRITICAL  (−20 each) ──────────────────
+  {
+    id: 'rm_rf',
+    sev: 'critical',
+    pts: 20,
+    icon: '⛔',
+    test: t => /\brm\s+-[a-z]*r[a-z]*f\b|\brm\s+--recursive/i.test(t),
+    title: 'Destructive file deletion (`rm -rf`) detected',
+    detail: '`rm -rf` can irreversibly wipe files or entire directories. Allowing AI agents to run this autonomously is extremely dangerous.',
+    fix: 'Add a PreToolUse hook denying bash commands matching /rm\\s+-[a-z]*r[a-z]*f/. Require explicit approval for any recursive deletion.',
+  },
+  {
+    id: 'git_force',
+    sev: 'critical',
+    pts: 20,
+    icon: '⛔',
+    test: t => /git\s+push\s+--force|git\s+push\s+-f\b|git\s+reset\s+--hard|git\s+clean\s+-[a-z]*f/i.test(t),
+    title: 'Irreversible Git operation permitted (`--force` / `--hard`)',
+    detail: '`git push --force`, `git reset --hard`, and `git clean -fd` can permanently destroy commit history and local work.',
+    fix: 'Block these via a PreToolUse hook or deny-list in your hooks config. If force-push is ever needed, gate it behind explicit human approval.',
+  },
+  {
+    id: 'secrets',
+    sev: 'critical',
+    pts: 20,
+    icon: '⛔',
+    test: t => /\b(API[_-]?KEY|SECRET[_-]?KEY|ACCESS[_-]?TOKEN|AUTH[_-]?TOKEN|PASSWORD|PRIVATE[_-]?KEY)\s*[:=]\s*\S{8,}/i.test(t)
+            || /-----BEGIN\s+(?:RSA|EC|OPENSSH|DSA)\s+PRIVATE\s+KEY-----/.test(t)
+            || /sk-[A-Za-z0-9]{20,}/.test(t),
+    title: 'Hardcoded secret or API key found',
+    detail: 'Credentials embedded directly in CLAUDE.md are visible to anyone who reads the file and may be logged by the AI model.',
+    fix: 'Move all secrets to environment variables or a secrets manager. Reference them by name only (e.g. `$GUMROAD_API_KEY`).',
+  },
+  {
+    id: 'sudo_unlimited',
+    sev: 'critical',
+    pts: 20,
+    icon: '⛔',
+    test: t => /\bsudo\b/i.test(t) && !/deny.*sudo|block.*sudo|no.*sudo|禁止.*sudo/i.test(t),
+    title: 'Unrestricted `sudo` access allowed',
+    detail: 'Allowing `sudo` without restriction gives the AI elevated system privileges that can affect the entire machine.',
+    fix: 'Either deny `sudo` outright in a hook, or maintain a strict allowlist of the exact commands that need it.',
+  },
+
+  // ────────────────── WARNING  (−10 each) ──────────────────
+  {
+    id: 'git_add_all',
+    sev: 'warning',
+    pts: 10,
+    icon: '⚠️',
+    test: t => /\bgit\s+add\s+(-A|\.)\b/i.test(t),
+    title: '`git add -A` / `git add .` can stage sensitive files',
+    detail: 'Staging everything risks accidentally committing `.env` files, credentials, or large binaries to the repository.',
+    fix: 'Use explicit paths (`git add src/`) or rely on a well-maintained `.gitignore`. Add a pre-commit secret-scanning hook.',
+  },
+  {
+    id: 'auto_post',
+    sev: 'warning',
+    pts: 10,
+    icon: '⚠️',
+    test: t => /curl\s+.*-[A-Z]*X\s+POST|fetch\s*\([^)]*,\s*\{[^}]*method\s*:\s*["']POST["']/i.test(t),
+    title: 'Automated POST to external URL',
+    detail: 'Instructions that auto-POST data to external endpoints could exfiltrate content without your awareness.',
+    fix: 'Require explicit human confirmation before any data is sent to third-party endpoints. Log all outbound requests.',
+  },
+  {
+    id: 'no_verify',
+    sev: 'warning',
+    pts: 10,
+    icon: '⚠️',
+    test: t => /--no-verify|--skip-hooks|--no-gpg-sign/i.test(t),
+    title: 'Hook bypass flag (`--no-verify`) detected',
+    detail: '`--no-verify` disables pre-commit safety hooks that would otherwise catch issues before they reach the repository.',
+    fix: 'Remove bypass flags from standard workflows. Fix the root cause of failing hooks rather than silencing them.',
+  },
+
+  // ────────────────── INFO  (−5 each) ──────────────────
+  {
+    id: 'large_file',
+    sev: 'info',
+    pts: 5,
+    icon: 'ℹ️',
+    _size: true,
+    sizeLimit: 5120,
+    title: 'CLAUDE.md exceeds 5 KB — large context risk',
+    detail: 'Very large instruction files consume more tokens per request, increase cost, and can cause critical rules to be ignored due to attention limits.',
+    fix: 'Split into focused sub-files. Keep the root CLAUDE.md under 5 KB and reference project-specific files via `@import` or equivalent.',
+  },
+  {
+    id: 'auto_commit',
+    sev: 'info',
+    pts: 5,
+    icon: 'ℹ️',
+    test: t => /\bgit\s+commit\b/i.test(t) && !/approval|review|confirm|承認|確認/i.test(t),
+    title: 'Automatic git commit without approval gate',
+    detail: 'Committing autonomously means code errors are immediately persisted to history with no review step.',
+    fix: 'Gate automated commits behind a passing test suite (`npm test` or `pytest`), and consider a lightweight approval step.',
+  },
+  {
+    id: 'env_inline',
+    sev: 'info',
+    pts: 5,
+    icon: 'ℹ️',
+    test: t => /export\s+[A-Z_]{4,}\s*=\s*\S+/g.test(t),
+    title: 'Environment variable value assigned inline',
+    detail: 'Inline env-var assignments may expose values if the file is shared or accidentally committed.',
+    fix: 'Use `export VAR_NAME` without a value in CLAUDE.md. Document where the real value is stored (vault/`.env`), never the value itself.',
+  },
+];
+
+/* ── General improvement tips (always appended) ── */
+const GENERAL_TIPS = [
+  'Add an explicit deny-list section listing every command the AI must never run autonomously.',
+  'Enable a PreToolUse hook that intercepts bash commands and blocks high-risk patterns.',
+  'Rotate any API keys that have appeared in your CLAUDE.md, even briefly.',
+  'Keep CLAUDE.md under 5 KB — split into project-specific sub-files to reduce token waste.',
+  'Add a `.gitignore` entry for `.env` and secrets files, and verify it with `git status` before every commit.',
+];
+
+/* ── Risky sample content ── */
+const SAMPLE = `# CLAUDE.md — Demo Config (Intentionally Risky)
+
+## Language
+Always respond in English.
+
+## Dangerous Commands (DO NOT USE IN PROD)
+- bash: allow rm -rf ./tmp ./build ./node_modules
+- bash: allow git reset --hard HEAD~1
+- bash: allow git push --force origin main
+- bash: allow git clean -fd
+- bash: allow sudo apt-get install -y
+
+## API Keys
+OPENAI_API_KEY=sk-abc123XYZsomethingLongValue456789
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.abc.xyz
+
+## Git workflow
+Always run: git add -A && git commit -m "auto: AI commit" --no-verify
+
+## Deployment
+curl -X POST https://api.example.com/deploy -d @payload.json
+
+## Notes
+- No PreToolUse hook configured
+- bypassPermissions intentionally omitted here but --no-verify is present
+`;
+
+/* ── Helpers ── */
+function scoreToColor(s) {
+  if (s >= 80) return 'var(--safe)';
+  if (s >= 60) return 'var(--caution)';
+  if (s >= 40) return 'var(--warning-col)';
+  return 'var(--critical)';
+}
+function scoreToLabel(s) {
+  if (s >= 80) return { band: '✅ SAFE',          desc: 'Your CLAUDE.md looks clean. No high-severity patterns detected.' };
+  if (s >= 60) return { band: '⚠️ CAUTION',        desc: 'Some risky patterns found. Review the warnings and apply the fixes.' };
+  if (s >= 40) return { band: '🔶 WARNING',        desc: 'Multiple risk factors detected. Address issues before using with autonomous agents.' };
+  return               { band: '🛑 CRITICAL RISK', desc: 'Serious security risks found. Do not run autonomous AI agents with this configuration.' };
+}
+
+function animateNum(el, target, ms) {
+  const start = performance.now();
+  (function tick(now) {
+    const t = Math.min((now - start) / ms, 1);
+    const e = 1 - Math.pow(1 - t, 3); // ease-out cubic
+    el.textContent = Math.round(target * e);
+    if (t < 1) requestAnimationFrame(tick);
+  })(start);
+}
+
+function esc(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+/* ── Main scan ── */
+function runScan() {
+  const text = document.getElementById('txt').value.trim();
+  if (!text) { document.getElementById('txt').focus(); return; }
+
+  const byteLen = new Blob([text]).size;
+  const hits = [];
+
+  for (const rule of RULES) {
+    let triggered = false;
+    if (rule._size) {
+      triggered = byteLen > rule.sizeLimit;
+    } else {
+      triggered = rule.test(text);
+    }
+    if (triggered) hits.push(rule);
+  }
+
+  // sort: critical → warning → info
+  const order = { critical: 0, warning: 1, info: 2 };
+  hits.sort((a, b) => order[a.sev] - order[b.sev]);
+
+  const deducted = hits.reduce((acc, r) => acc + r.pts, 0);
+  const score = Math.max(0, 100 - deducted);
+
+  renderResults(score, hits);
+}
+
+function renderResults(score, hits) {
+  // Toggle sections
+  document.getElementById('static-cta').style.display = 'none';
+  const sec = document.getElementById('result-section');
+  sec.style.display = 'block';
+
+  // ── Score ring & counter ──
+  const color = scoreToColor(score);
+  const lbl   = scoreToLabel(score);
+  const circumference = 345.6; // 2π×55
+
+  const ring = document.getElementById('ring-fg');
+  ring.style.stroke = color;
+  ring.style.strokeDashoffset = circumference; // reset first
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    ring.style.strokeDashoffset = circumference * (1 - score / 100);
+  }));
+
+  const numEl = document.getElementById('ring-num');
+  numEl.style.color = color;
+  animateNum(numEl, score, 1100);
+
+  document.getElementById('score-band').textContent = lbl.band;
+  document.getElementById('score-band').style.color = color;
+  document.getElementById('score-desc').textContent = lbl.desc;
+
+  const bar = document.getElementById('score-bar');
+  bar.style.background = color;
+  setTimeout(() => { bar.style.width = score + '%'; }, 60);
+
+  // ── Findings ──
+  const findEl = document.getElementById('findings-list');
+  findEl.innerHTML = '';
+
+  if (hits.length === 0) {
+    findEl.innerHTML = `
+      <li>
+        <div class="all-clear">
+          <div class="all-clear-icon">&#10003;&#65039;</div>
+          <div>
+            <div class="all-clear-title">No issues detected</div>
+            <div class="all-clear-sub">Your CLAUDE.md is clean for the patterns we check. Review the tips below to harden it further.</div>
+          </div>
+        </div>
+      </li>`;
+  } else {
+    for (const h of hits) {
+      const sevCls = h.sev;
+      const ptsCls = `pts-${h.sev}`;
+      const ptsLabel = `−${h.pts} pts`;
+      const li = document.createElement('li');
+      li.className = `finding ${sevCls}`;
+      li.innerHTML = `
+        <div class="finding-icon">${h.icon}</div>
+        <div class="finding-body">
+          <div class="finding-title">${esc(h.title)}</div>
+          <div class="finding-detail">${esc(h.detail)}</div>
+          <div class="finding-fix">&#128161; Fix: ${esc(h.fix)}</div>
+        </div>
+        <span class="finding-pts ${ptsCls}">${ptsLabel}</span>`;
+      findEl.appendChild(li);
+    }
+  }
+
+  // ── Improvements ──
+  const usedFixes = new Set(hits.map(h => h.fix));
+  const extraTips = GENERAL_TIPS.filter(t => ![...usedFixes].includes(t));
+  const allTips = [
+    ...hits.map(h => h.fix),
+    ...extraTips.slice(0, Math.max(3, 5 - hits.length)),
+  ];
+
+  const impEl = document.getElementById('improve-list');
+  impEl.innerHTML = '';
+  for (const tip of allTips) {
+    const li = document.createElement('li');
+    li.className = 'improve-item';
+    li.innerHTML = `<span class="improve-arrow">&rarr;</span><span>${esc(tip)}</span>`;
+    impEl.appendChild(li);
+  }
+
+  // Scroll
+  setTimeout(() => {
+    document.getElementById('score-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 80);
+}
+
+function loadSample() {
+  document.getElementById('txt').value = SAMPLE;
+  document.getElementById('txt').focus();
+}
+
+function resetScan() {
+  document.getElementById('result-section').style.display = 'none';
+  document.getElementById('static-cta').style.display = 'block';
+  document.getElementById('txt').value = '';
+  document.getElementById('txt').focus();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+/* Keyboard shortcut */
+document.getElementById('txt').addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); runScan(); }
+});
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+</body>
+</html>

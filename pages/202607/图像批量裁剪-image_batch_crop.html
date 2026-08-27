@@ -1,0 +1,3561 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图像批量裁剪</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Microsoft YaHei', sans-serif;
+            min-height: 100vh;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        /* 夜晚主题 */
+        body.dark {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            color: #e8e8e8;
+        }
+
+        /* 白天主题 */
+        body.light {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 50%, #667eea 100%);
+            color: #2d3748;
+        }
+
+        /* 星空背景效果 - 仅夜晚模式 */
+        body.dark::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(2px 2px at 20px 30px, #ffd700, transparent),
+                        radial-gradient(2px 2px at 40px 70px, #ffd700, transparent),
+                        radial-gradient(1px 1px at 90px 40px, #ffd700, transparent),
+                        radial-gradient(1px 1px at 130px 80px, #ffd700, transparent),
+                        radial-gradient(2px 2px at 160px 30px, #ffd700, transparent);
+            background-repeat: repeat;
+            background-size: 200px 100px;
+            animation: twinkle 4s ease-in-out infinite alternate;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        /* 白天模式的云朵效果 */
+        body.light::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.8) 0%, transparent 50%),
+                        radial-gradient(circle at 80% 30%, rgba(255, 255, 255, 0.6) 0%, transparent 50%),
+                        radial-gradient(circle at 40% 70%, rgba(255, 255, 255, 0.4) 0%, transparent 50%);
+            animation: float 6s ease-in-out infinite alternate;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        @keyframes twinkle {
+            0% { opacity: 0.3; }
+            100% { opacity: 0.8; }
+        }
+
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            100% { transform: translateY(-10px); }
+        }
+
+        /* 页眉 */
+        .header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 60px;
+            z-index: 1000;
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border-color);
+            transition: all 0.3s ease;
+        }
+
+        .light .header {
+            background: rgba(255, 255, 255, 0.9);
+            --border-color: rgba(102, 126, 234, 0.2);
+        }
+
+        .dark .header {
+            background: rgba(26, 26, 46, 0.9);
+            --border-color: rgba(255, 215, 0, 0.2);
+        }
+
+        .header-content {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 0 30px;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+        }
+
+        .logo-text {
+            font-size: 1.4em;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        .light .logo-text {
+            color: #667eea;
+        }
+
+        .dark .logo-text {
+            color: #ffd700;
+        }
+
+        .header-nav {
+            display: flex;
+            align-items: center;
+            gap: 32px;
+        }
+
+        /* 主题切换按钮 */
+        .theme-toggle {
+            width: 60px;
+            height: 30px;
+            border-radius: 25px;
+            border: none;
+            cursor: pointer;
+            position: relative;
+            transition: all 0.4s ease;
+            outline: none;
+            background: var(--toggle-bg);
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .light .theme-toggle {
+            --toggle-bg: linear-gradient(135deg, #87CEEB 0%, #98D8E8 50%, #B0E0E6 100%);
+        }
+
+        .dark .theme-toggle {
+            --toggle-bg: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+        }
+
+        .theme-toggle::before {
+            content: '';
+            position: absolute;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            top: 3px;
+            left: 3px;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            background: var(--toggle-circle);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .light .theme-toggle::before {
+            background: radial-gradient(circle at 30% 30%, #FFD700 0%, #FFA500 70%);
+            transform: translateX(0);
+            box-shadow: 0 0 10px rgba(255, 215, 0, 0.3), 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .dark .theme-toggle::before {
+            background: radial-gradient(circle at 30% 30%, #F5F5DC 0%, #E6E6FA 70%);
+            transform: translateX(30px);
+            box-shadow: 0 0 10px rgba(245, 245, 220, 0.3), 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .theme-toggle:hover {
+            transform: scale(1.05);
+        }
+
+        /* 主标题区域 */
+        .hero-section {
+            padding: 80px 0 40px;
+            text-align: center;
+            position: relative;
+            z-index: 2;
+        }
+
+        .hero-title {
+            font-size: 2.5em;
+            font-weight: 700;
+            margin-bottom: 12px;
+            text-shadow: 0 0 20px rgba(255, 215, 0, 0.3);
+        }
+
+        .light .hero-title {
+            color: #2d3748;
+            text-shadow: 0 0 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .dark .hero-title {
+            color: #ffd700;
+            text-shadow: 0 0 20px rgba(255, 215, 0, 0.3);
+        }
+
+        .hero-subtitle {
+            font-size: 1.1em;
+            max-width: 600px;
+            margin: 0 auto;
+            opacity: 0.9;
+        }
+
+        .light .hero-subtitle {
+            color: #2d3748;
+        }
+
+        .dark .hero-subtitle {
+            color: #b8b8b8;
+        }
+
+        /* 主内容区 */
+        .main-content {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 0 30px 30px;
+            position: relative;
+            z-index: 2;
+        }
+
+        /* 布局容器 */
+        .layout-container {
+            display: flex;
+            gap: 30px;
+            min-height: 600px;
+        }
+
+        /* 左侧面板 */
+        .left-panel {
+            width: 400px;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        /* 右侧操作面板 */
+        .right-panel {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .operation-panel {
+            height: 100%;
+            border-radius: 16px;
+            border: 1px solid var(--border-color);
+            transition: all 0.3s ease;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .light .operation-panel {
+            background: rgba(255, 255, 255, 0.3);
+            --border-color: rgba(102, 126, 234, 0.2);
+        }
+
+        .dark .operation-panel {
+            background: rgba(255, 255, 255, 0.05);
+            --border-color: rgba(255, 215, 0, 0.2);
+        }
+
+        /* 控制面板 */
+        .control-panel {
+            border-radius: 15px;
+            backdrop-filter: blur(15px);
+            border: 1px solid var(--border-color);
+            transition: all 0.3s ease;
+            margin-bottom: 30px;
+            overflow: hidden;
+        }
+
+        .light .control-panel {
+            background: rgba(255, 255, 255, 0.6);
+            --border-color: rgba(102, 126, 234, 0.1);
+        }
+
+        .dark .control-panel {
+            background: rgba(255, 255, 255, 0.08);
+            --border-color: rgba(255, 215, 0, 0.1);
+        }
+
+        .panel-header {
+            padding: 25px 30px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .light .panel-header {
+            --border-color: rgba(102, 126, 234, 0.1);
+        }
+
+        .dark .panel-header {
+            --border-color: rgba(255, 215, 0, 0.1);
+        }
+
+        .panel-title {
+            font-size: 1.2em;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .light .panel-title {
+            color: #667eea;
+        }
+
+        .dark .panel-title {
+            color: #ffd700;
+        }
+
+        .panel-title::before {
+            content: '';
+            width: 4px;
+            height: 18px;
+            border-radius: 2px;
+        }
+
+        .light .panel-title::before {
+            background: #667eea;
+        }
+
+        .dark .panel-title::before {
+            background: #ffd700;
+        }
+
+        /* 上传区域 */
+        .upload-section {
+            border-radius: 16px;
+            border: 1px solid var(--border-color);
+            transition: all 0.3s ease;
+            overflow: hidden;
+        }
+
+        .light .upload-section {
+            background: rgba(255, 255, 255, 0.3);
+            --border-color: rgba(102, 126, 234, 0.2);
+        }
+
+        .dark .upload-section {
+            background: rgba(255, 255, 255, 0.05);
+            --border-color: rgba(255, 215, 0, 0.2);
+        }
+
+        .upload-area {
+            border: 2px dashed var(--border-color);
+            border-radius: 12px;
+            padding: 40px 20px;
+            text-align: center;
+            margin: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .light .upload-area {
+            background: rgba(255, 255, 255, 0.3);
+            --border-color: rgba(102, 126, 234, 0.3);
+        }
+
+        .dark .upload-area {
+            background: rgba(255, 255, 255, 0.05);
+            --border-color: rgba(255, 215, 0, 0.3);
+        }
+
+        .upload-area:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 35px rgba(0, 0, 0, 0.15);
+        }
+
+        .light .upload-area:hover {
+            --border-color: rgba(102, 126, 234, 0.5);
+            background: rgba(255, 255, 255, 0.5);
+        }
+
+        .dark .upload-area:hover {
+            --border-color: rgba(255, 215, 0, 0.5);
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .upload-area.dragover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 35px rgba(0, 0, 0, 0.15);
+        }
+
+        .light .upload-area.dragover {
+            --border-color: rgba(102, 126, 234, 0.6);
+            background: rgba(102, 126, 234, 0.1);
+        }
+
+        .dark .upload-area.dragover {
+            --border-color: rgba(255, 215, 0, 0.6);
+            background: rgba(255, 215, 0, 0.1);
+        }
+
+        .upload-content {
+            position: relative;
+            z-index: 2;
+        }
+
+        .upload-icon {
+            font-size: 48px;
+            margin-bottom: 20px;
+            display: block;
+        }
+
+        .upload-title {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: inherit;
+        }
+
+        .upload-subtitle {
+            font-size: 14px;
+            opacity: 0.7;
+            margin-bottom: 25px;
+        }
+
+        .upload-btn-large {
+            padding: 15px 35px;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .light .upload-btn-large {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .dark .upload-btn-large {
+            background: linear-gradient(45deg, #ffd700, #ffed4a);
+            color: #1a1a2e;
+        }
+
+        .upload-btn-large:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+        }
+
+        .upload-btn-large::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .upload-btn-large:hover::before {
+            left: 100%;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .panel-content {
+            padding: 30px;
+        }
+
+        /* 上传操作按钮区域 */
+        .upload-actions {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .clear-btn {
+            padding: 12px 25px;
+            border: 2px solid var(--border-color);
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: transparent;
+            color: inherit;
+        }
+
+        .light .clear-btn {
+            --border-color: rgba(102, 126, 234, 0.3);
+        }
+
+        .dark .clear-btn {
+            --border-color: rgba(255, 215, 0, 0.3);
+        }
+
+        .clear-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+        }
+
+        .light .clear-btn:hover {
+            --border-color: rgba(102, 126, 234, 0.6);
+            background: rgba(102, 126, 234, 0.1);
+        }
+
+        .dark .clear-btn:hover {
+            --border-color: rgba(255, 215, 0, 0.6);
+            background: rgba(255, 215, 0, 0.1);
+        }
+
+        .back-btn {
+            padding: 8px 16px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: transparent;
+            color: inherit;
+        }
+
+        .light .back-btn {
+            --border-color: rgba(102, 126, 234, 0.3);
+        }
+
+        .dark .back-btn {
+            --border-color: rgba(255, 215, 0, 0.3);
+        }
+
+        .back-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .light .back-btn:hover {
+            --border-color: rgba(102, 126, 234, 0.6);
+            background: rgba(102, 126, 234, 0.1);
+        }
+
+        .dark .back-btn:hover {
+            --border-color: rgba(255, 215, 0, 0.6);
+            background: rgba(255, 215, 0, 0.1);
+        }
+
+        .panel-actions {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .select-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .select-all-btn, .select-none-btn, .select-inverse-btn {
+            padding: 6px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: transparent;
+            color: inherit;
+        }
+
+        .light .select-all-btn, .light .select-none-btn, .light .select-inverse-btn {
+            --border-color: rgba(102, 126, 234, 0.3);
+        }
+
+        .dark .select-all-btn, .dark .select-none-btn, .dark .select-inverse-btn {
+            --border-color: rgba(255, 215, 0, 0.3);
+        }
+
+        .select-all-btn:hover, .select-none-btn:hover, .select-inverse-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .light .select-all-btn:hover, .light .select-none-btn:hover, .light .select-inverse-btn:hover {
+            --border-color: rgba(102, 126, 234, 0.6);
+            background: rgba(102, 126, 234, 0.1);
+        }
+
+        .dark .select-all-btn:hover, .dark .select-none-btn:hover, .dark .select-inverse-btn:hover {
+            --border-color: rgba(255, 215, 0, 0.6);
+            background: rgba(255, 215, 0, 0.1);
+        }
+
+        /* 设置区域 */
+        .settings-section {
+            border-radius: 16px;
+            border: 1px solid var(--border-color);
+            transition: all 0.3s ease;
+            overflow: hidden;
+        }
+
+        .light .settings-section {
+            background: rgba(255, 255, 255, 0.3);
+            --border-color: rgba(102, 126, 234, 0.2);
+        }
+
+        .dark .settings-section {
+            background: rgba(255, 255, 255, 0.05);
+            --border-color: rgba(255, 215, 0, 0.2);
+        }
+
+        .setting-group {
+            margin-bottom: 25px;
+        }
+
+        .setting-group:last-child {
+            margin-bottom: 0;
+        }
+
+        .setting-group h3 {
+            margin: 0 0 15px 0;
+            font-size: 14px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            opacity: 0.8;
+        }
+
+        .light .setting-group h3 {
+            color: #667eea;
+        }
+
+        .dark .setting-group h3 {
+            color: #ffd700;
+        }
+
+        .setting-group h3::before {
+            content: '';
+            width: 3px;
+            height: 12px;
+            border-radius: 2px;
+        }
+
+        .light .setting-group h3::before {
+            background: #667eea;
+        }
+
+        .dark .setting-group h3::before {
+            background: #ffd700;
+        }
+
+        /* 比例选择区域 */
+        .ratio-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+        }
+
+        .ratio-btn {
+            padding: 10px 12px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 13px;
+            font-weight: 500;
+            text-align: center;
+        }
+
+        .light .ratio-btn {
+            background: rgba(255, 255, 255, 0.6);
+            color: #64748b;
+        }
+
+        .dark .ratio-btn {
+            background: rgba(255, 255, 255, 0.08);
+            color: #94a3b8;
+        }
+
+        .ratio-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .ratio-btn.active {
+            color: white;
+        }
+
+        .light .ratio-btn.active {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+        }
+
+        .dark .ratio-btn.active {
+            background: linear-gradient(45deg, #ffd700, #ffed4a);
+            color: #1a1a2e;
+        }
+
+        .custom-ratio {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .ratio-input {
+            width: 60px;
+            padding: 8px 12px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            text-align: center;
+            transition: all 0.2s ease;
+        }
+
+        .light .ratio-input {
+            background: rgba(255, 255, 255, 0.6);
+            color: #2d3748;
+        }
+
+        .dark .ratio-input {
+            background: rgba(255, 255, 255, 0.08);
+            color: #e8e8e8;
+        }
+
+        .ratio-input:focus {
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.3);
+        }
+
+        .dark .ratio-input:focus {
+            box-shadow: 0 0 0 2px rgba(255, 215, 0, 0.3);
+        }
+
+        .size-setting {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .light .size-setting {
+            background: rgba(102, 126, 234, 0.05);
+        }
+
+        .dark .size-setting {
+            background: rgba(255, 215, 0, 0.05);
+        }
+
+        .size-checkbox {
+            width: 16px;
+            height: 16px;
+        }
+
+        .size-input {
+            width: 80px;
+            padding: 8px 12px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+
+        .light .size-input {
+            background: rgba(255, 255, 255, 0.6);
+            color: #2d3748;
+        }
+
+        .dark .size-input {
+            background: rgba(255, 255, 255, 0.08);
+            color: #e8e8e8;
+        }
+
+        .size-input:focus {
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.3);
+        }
+
+        .dark .size-input:focus {
+            box-shadow: 0 0 0 2px rgba(255, 215, 0, 0.3);
+        }
+
+        .size-input:disabled {
+            opacity: 0.5;
+        }
+
+        .process-btn {
+            width: 100%;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .light .process-btn {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .dark .process-btn {
+            background: linear-gradient(45deg, #ffd700, #ffed4a);
+            color: #1a1a2e;
+        }
+
+        .process-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+        }
+
+        .process-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* 下载区域 */
+        .download-section {
+            display: none;
+            text-align: center;
+            margin-top: 30px;
+        }
+
+        .download-btn-large {
+            padding: 18px 40px;
+            border: none;
+            border-radius: 12px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            position: relative;
+            overflow: hidden;
+            min-width: 200px;
+            justify-content: center;
+        }
+
+        .light .download-btn-large {
+            background: linear-gradient(45deg, #10b981, #059669);
+            color: white;
+        }
+
+        .dark .download-btn-large {
+            background: linear-gradient(45deg, #ffd700, #ffed4a);
+            color: #1a1a2e;
+        }
+
+        .download-btn-large:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .download-btn-large::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .download-btn-large:hover::before {
+            left: 100%;
+        }
+
+        /* 响应式布局 */
+        @media (max-width: 1024px) {
+            .layout-container {
+                flex-direction: column;
+                gap: 20px;
+            }
+            
+            .left-panel {
+                width: 100%;
+            }
+            
+            .right-panel {
+                min-height: 500px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                padding: 0 20px 20px;
+            }
+            
+            .upload-area {
+                padding: 30px 15px;
+                margin: 15px;
+            }
+            
+            .upload-title {
+                font-size: 18px;
+            }
+            
+            .preview-section {
+                grid-template-columns: 1fr;
+                padding: 15px;
+            }
+            
+            .ratio-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        /* 预览区域 */
+        .preview-section {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            align-content: start;
+        }
+
+        /* 空状态 */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            grid-column: 1 / -1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 400px;
+        }
+
+        .empty-icon {
+            font-size: 48px;
+            margin-bottom: 20px;
+            opacity: 0.6;
+        }
+
+        .empty-state h3 {
+            font-size: 18px;
+            margin-bottom: 10px;
+            opacity: 0.8;
+        }
+
+        .empty-state p {
+            opacity: 0.6;
+            max-width: 300px;
+            line-height: 1.5;
+        }
+
+        /* 图片选择界面 */
+        .selector-item {
+            border-radius: 12px;
+            overflow: hidden;
+            border: 2px solid var(--border-color);
+            transition: all 0.3s ease;
+            background: var(--item-bg);
+        }
+
+        .light .selector-item {
+            --border-color: rgba(102, 126, 234, 0.2);
+            --item-bg: rgba(255, 255, 255, 0.4);
+        }
+
+        .dark .selector-item {
+            --border-color: rgba(255, 215, 0, 0.2);
+            --item-bg: rgba(255, 255, 255, 0.05);
+        }
+
+        .selector-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+        }
+
+        .selector-item.selected {
+            border-color: var(--selected-color);
+            box-shadow: 0 0 0 2px var(--selected-color);
+        }
+
+        .light .selector-item.selected {
+            --selected-color: rgba(102, 126, 234, 0.5);
+        }
+
+        .dark .selector-item.selected {
+            --selected-color: rgba(255, 215, 0, 0.5);
+        }
+
+        .selector-header {
+            padding: 15px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            position: relative;
+        }
+
+        .light .selector-header {
+            --border-color: rgba(102, 126, 234, 0.1);
+        }
+
+        .dark .selector-header {
+            --border-color: rgba(255, 215, 0, 0.1);
+        }
+
+        .image-checkbox {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+
+        .selector-filename {
+            flex: 1;
+            font-weight: 500;
+            font-size: 14px;
+            cursor: pointer;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .selector-image-container {
+            position: relative;
+            height: 200px;
+            overflow: hidden;
+        }
+
+        .selector-image {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.3s ease;
+        }
+
+        .selector-item:hover .selector-image {
+            transform: scale(1.05);
+        }
+
+        .selector-overlay {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+            padding: 20px 15px 15px;
+            transform: translateY(100%);
+            transition: transform 0.3s ease;
+        }
+
+        .selector-item:hover .selector-overlay {
+            transform: translateY(0);
+        }
+
+        .selector-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: white;
+            font-size: 12px;
+        }
+
+        .selector-size {
+            font-weight: 600;
+        }
+
+        .selector-filesize {
+            opacity: 0.8;
+        }
+
+        .preview-item {
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+            transition: all 0.3s ease;
+        }
+
+        .light .preview-item {
+            background: rgba(255, 255, 255, 0.4);
+            --border-color: rgba(102, 126, 234, 0.1);
+        }
+
+        .dark .preview-item {
+            background: rgba(255, 255, 255, 0.05);
+            --border-color: rgba(255, 215, 0, 0.1);
+        }
+
+        .preview-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        .preview-header {
+            padding: 15px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: relative;
+        }
+
+        .delete-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 24px;
+            height: 24px;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            z-index: 10;
+        }
+
+        .light .delete-btn {
+            background: rgba(239, 68, 68, 0.9);
+            color: white;
+        }
+
+        .dark .delete-btn {
+            background: rgba(248, 113, 113, 0.9);
+            color: white;
+        }
+
+        .delete-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        .light .preview-header {
+            --border-color: rgba(102, 126, 234, 0.1);
+        }
+
+        .dark .preview-header {
+            --border-color: rgba(255, 215, 0, 0.1);
+        }
+
+        .preview-filename {
+            font-weight: 500;
+            font-size: 14px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 200px;
+        }
+
+        .preview-size {
+            font-size: 12px;
+            opacity: 0.7;
+        }
+
+        .crop-container {
+            position: relative;
+            margin: 15px;
+            margin-bottom: 55px;
+            border-radius: 8px;
+            overflow: visible;
+            background: #000;
+            min-height: 300px;
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+        }
+
+        .crop-image {
+            width: 100%;
+            height: 300px;
+            object-fit: contain;
+            display: block;
+            position: relative;
+            z-index: 1;
+        }
+
+        .crop-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.6);
+            cursor: move;
+            z-index: 2;
+            pointer-events: none; /* 让点击事件穿透到裁剪框 */
+        }
+
+        .crop-box {
+            position: absolute;
+            border: 2px solid #fff;
+            box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.3), 
+                        inset 0 0 0 1px rgba(255, 255, 255, 0.5);
+            cursor: move;
+            z-index: 10;
+            background: transparent;
+            pointer-events: auto; /* 确保能接收事件 */
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        .crop-box::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.1);
+            pointer-events: none;
+        }
+
+        .crop-handle {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            background: #fff;
+            border: 2px solid #4a90e2;
+            border-radius: 50%;
+            cursor: nw-resize;
+            z-index: 15;
+            transition: all 0.2s ease;
+            pointer-events: auto;
+            touch-action: none; /* 防止触摸滚动干扰 */
+        }
+
+        .crop-handle:hover {
+            background: #4a90e2;
+            transform: scale(1.2);
+        }
+
+        .crop-handle.nw { top: -6px; left: -6px; }
+        .crop-handle.ne { top: -6px; right: -6px; cursor: ne-resize; }
+        .crop-handle.sw { bottom: -6px; left: -6px; cursor: sw-resize; }
+        .crop-handle.se { bottom: -6px; right: -6px; cursor: se-resize; }
+        .crop-handle.n { top: -6px; left: calc(50% - 6px); cursor: n-resize; }
+        .crop-handle.s { bottom: -6px; left: calc(50% - 6px); cursor: s-resize; }
+        .crop-handle.w { top: calc(50% - 6px); left: -6px; cursor: w-resize; }
+        .crop-handle.e { top: calc(50% - 6px); right: -6px; cursor: e-resize; }
+
+        .crop-handle.n:hover, .crop-handle.s:hover { transform: scale(1.2); }
+        .crop-handle.w:hover, .crop-handle.e:hover { transform: scale(1.2); }
+
+        /* 确保所有手柄都有适当的层级和响应区域 */
+        .crop-handle {
+            z-index: 100 !important;
+        }
+        
+        /* 为所有手柄添加更大的响应区域 */
+        .crop-handle::before {
+            content: '';
+            position: absolute;
+            top: -10px;
+            left: -10px;
+            right: -10px;
+            bottom: -10px;
+            background: transparent;
+            cursor: inherit;
+            z-index: 1;
+        }
+        
+        /* 确保底部手柄在最前面 */
+        .crop-handle.sw, .crop-handle.s, .crop-handle.se {
+            z-index: 101 !important;
+        }
+
+        /* 网格线 */
+        .crop-grid {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+            z-index: 3;
+        }
+
+        .crop-grid::before,
+        .crop-grid::after {
+            content: '';
+            position: absolute;
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .crop-grid::before {
+            top: 33.33%;
+            left: 0;
+            right: 0;
+            height: 1px;
+            box-shadow: 0 33.33% 0 rgba(255, 255, 255, 0.3);
+        }
+
+        .crop-grid::after {
+            top: 0;
+            bottom: 0;
+            left: 33.33%;
+            width: 1px;
+            box-shadow: 33.33% 0 0 rgba(255, 255, 255, 0.3);
+        }
+
+        /* 裁剪信息显示 */
+        .crop-info {
+            position: absolute;
+            bottom: 35px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            z-index: 5;
+            font-family: monospace;
+            pointer-events: none;
+        }
+
+        /* 缩放控制 */
+        .zoom-controls {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            display: flex;
+            gap: 5px;
+            z-index: 5;
+        }
+
+        .zoom-btn {
+            width: 28px;
+            height: 28px;
+            border: none;
+            border-radius: 50%;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+
+        .zoom-btn:hover {
+            background: rgba(0, 0, 0, 0.9);
+            transform: scale(1.1);
+        }
+
+        /* 图片控制按钮 */
+        .image-controls {
+            position: absolute;
+            bottom: -40px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 5px;
+            z-index: 3;
+            pointer-events: auto;
+        }
+
+        .control-btn {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s ease;
+        }
+
+        .control-btn:hover {
+            background: rgba(0, 0, 0, 0.9);
+        }
+
+        .crop-actions {
+            padding: 15px;
+            text-align: center;
+        }
+
+        .ratio-quick-select {
+            display: flex;
+            gap: 5px;
+            justify-content: center;
+            margin-top: 10px;
+            flex-wrap: wrap;
+        }
+
+        .ratio-quick-btn {
+            padding: 5px 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            background: transparent;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s ease;
+        }
+
+        .light .ratio-quick-btn {
+            color: #2d3748;
+            --border-color: rgba(102, 126, 234, 0.3);
+        }
+
+        .dark .ratio-quick-btn {
+            color: #e8e8e8;
+            --border-color: rgba(255, 215, 0, 0.3);
+        }
+
+        .ratio-quick-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .light .ratio-quick-btn:hover {
+            --border-color: rgba(102, 126, 234, 0.6);
+            background: rgba(102, 126, 234, 0.1);
+        }
+
+        .dark .ratio-quick-btn:hover {
+            --border-color: rgba(255, 215, 0, 0.6);
+            background: rgba(255, 215, 0, 0.1);
+        }
+
+        .ratio-quick-btn.active {
+            font-weight: 600;
+        }
+
+        .light .ratio-quick-btn.active {
+            background: rgba(102, 126, 234, 0.2);
+            --border-color: rgba(102, 126, 234, 0.6);
+        }
+
+        .dark .ratio-quick-btn.active {
+            background: rgba(255, 215, 0, 0.2);
+            --border-color: rgba(255, 215, 0, 0.6);
+        }
+
+        .reset-btn {
+            padding: 6px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            background: transparent;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s ease;
+        }
+
+        .light .reset-btn {
+            color: #2d3748;
+            --border-color: rgba(102, 126, 234, 0.2);
+        }
+
+        .dark .reset-btn {
+            color: #e8e8e8;
+            --border-color: rgba(255, 215, 0, 0.2);
+        }
+
+        .reset-btn:hover {
+            background: var(--hover-bg);
+        }
+
+        .light .reset-btn:hover {
+            --hover-bg: rgba(102, 126, 234, 0.1);
+        }
+
+        .dark .reset-btn:hover {
+            --hover-bg: rgba(255, 215, 0, 0.1);
+        }
+
+        /* 下载区域 */
+        .download-section {
+            display: none;
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        .download-btn {
+            padding: 15px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            min-width: 200px;
+        }
+
+        .light .download-btn {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .dark .download-btn {
+            background: linear-gradient(45deg, #ffd700, #ffed4a);
+            color: #1a1a2e;
+        }
+
+        .download-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+        }
+
+        .download-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: currentColor;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .upload-section {
+                flex-direction: column;
+                gap: 20px;
+            }
+            
+            .upload-area {
+                flex: none;
+            }
+            
+            .preview-section {
+                grid-template-columns: 1fr;
+            }
+            
+            .ratio-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .custom-ratio {
+                flex-wrap: wrap;
+                gap: 10px;
+            }
+            
+            .size-setting {
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+            
+            .header-nav {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body class="light">
+    <!-- 页眉 -->
+    <header class="header">
+        <div class="header-content">
+            <div class="logo">
+                <div class="logo-text">图像批量裁剪</div>
+            </div>
+            <nav class="header-nav">
+                <button class="theme-toggle" onclick="toggleTheme()"></button>
+            </nav>
+        </div>
+    </header>
+
+    <!-- 主标题区域 -->
+    <section class="hero-section">
+        <h1 class="hero-title">图像批量裁剪</h1>
+        <p class="hero-subtitle">批量上传图片，自定义裁剪比例和尺寸，可视化调整每张图片的裁剪区域，一键下载处理结果。</p>
+    </section>
+
+    <!-- 主内容区 -->
+    <main class="main-content">
+        <div class="layout-container">
+            <!-- 左侧面板 -->
+            <div class="left-panel">
+                <!-- 上传区域 -->
+                <div class="upload-section">
+                    <div class="upload-area" id="dropZone">
+                        <div class="upload-content">
+                            <div class="upload-icon"></div>
+                            <h3 class="upload-title">选择或拖拽图片</h3>
+                            <p class="upload-subtitle">支持批量上传</p>
+                            <div class="upload-actions">
+                                <button class="upload-btn-large" onclick="selectFiles()">
+                                    <span>选择图片</span>
+                                    <span id="fileCount" style="display: none;">(0张)</span>
+                                </button>
+                                <button class="clear-btn" onclick="clearFiles()" id="clearBtn" style="display: none;">
+                                    <span>清空</span>
+                                </button>
+                            </div>
+                        </div>
+                        <input type="file" id="fileInput" class="file-input" multiple accept="image/*">
+                    </div>
+                </div>
+
+                <!-- 设置区域 -->
+                <div class="settings-section">
+                    <div class="panel-header">
+                        <h2 class="panel-title">裁剪设置</h2>
+                    </div>
+                    <div class="panel-content">
+                        <!-- 裁剪比例 -->
+                        <div class="setting-group">
+                            <h3>裁剪比例</h3>
+                            <div class="ratio-grid">
+                                <button class="ratio-btn active" onclick="setRatio('1:1')">1:1</button>
+                                <button class="ratio-btn" onclick="setRatio('3:2')">3:2</button>
+                                <button class="ratio-btn" onclick="setRatio('4:3')">4:3</button>
+                                <button class="ratio-btn" onclick="setRatio('16:9')">16:9</button>
+                                <button class="ratio-btn" onclick="setRatio('2:3')">2:3</button>
+                                <button class="ratio-btn" onclick="setRatio('3:4')">3:4</button>
+                                <button class="ratio-btn" onclick="setRatio('9:16')">9:16</button>
+                                <button class="ratio-btn" onclick="setRatio('5:4')">5:4</button>
+                                <button class="ratio-btn" onclick="setRatio('4:5')">4:5</button>
+                                <button class="ratio-btn" onclick="setRatio('free')">自由</button>
+                            </div>
+                        </div>
+                        
+                        <!-- 自定义比例 -->
+                        <div class="setting-group">
+                            <h3>自定义比例</h3>
+                            <div class="custom-ratio">
+                                <input type="number" class="ratio-input" id="customWidth" placeholder="宽" min="1" value="1">
+                                <span>:</span>
+                                <input type="number" class="ratio-input" id="customHeight" placeholder="高" min="1" value="1">
+                                <button class="ratio-btn" onclick="setCustomRatio()">应用</button>
+                            </div>
+                        </div>
+                        
+                        <!-- 输出设置 -->
+                        <div class="setting-group">
+                            <h3>输出设置</h3>
+                            <div class="size-setting">
+                                <input type="checkbox" class="size-checkbox" id="limitSize" onchange="toggleSizeLimit()">
+                                <label for="limitSize">统一最大边长</label>
+                                <input type="number" class="size-input" id="maxSize" placeholder="像素" min="100" value="1024" disabled>
+                                <span>px</span>
+                            </div>
+                        </div>
+                        
+                        <button class="process-btn" onclick="processAllImages()" id="processBtn" disabled>
+                            <span>处理并下载所有图片</span>
+                            <div class="loading hidden" id="processLoading"></div>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右侧操作面板 -->
+            <div class="right-panel">
+                <div class="operation-panel">
+                    <div class="panel-header">
+                        <h2 class="panel-title">图片裁剪操作</h2>
+                        <div class="panel-actions">
+                            <div class="select-actions" id="selectActions" style="display: none;">
+                                <span style="opacity: 0.7; font-size: 14px;">所有图片将被处理</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="panel-content">
+                        <!-- 预览区域 -->
+                        <div class="preview-section" id="previewSection">
+                            <div class="empty-state">
+                                <div class="empty-icon"></div>
+                                <h3>请先选择图片开始裁剪</h3>
+                                <p>选择图片后，可以在此处调整每张图片的裁剪区域</p>
+                            </div>
+                        </div>
+
+                        <!-- 下载区域 -->
+                        <div class="download-section" id="downloadSection">
+                            <button class="download-btn-large" onclick="downloadAll()" id="downloadBtn">
+                                <span>批量下载</span>
+                                <span id="processedCount" style="display: none;">(0张)</span>
+                                <div class="loading hidden" id="downloadLoading"></div>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let selectedFiles = [];
+        let processedFiles = [];
+        let currentRatio = '1:1';
+        let currentTheme = 'light';
+        let cropData = {};
+        let imageTransforms = {};
+        let fileSettings = {}; // 记录每个文件的设置
+        let isInitialUpload = false; // 标记是否是初次上传
+        
+        // 全局拖拽状态管理
+        let globalDragState = {
+            isDragging: false,
+            isResizing: false,
+            currentIndex: null,
+            resizeHandle: null,
+            startX: 0,
+            startY: 0,
+            startLeft: 0,
+            startTop: 0,
+            startWidth: 0,
+            startHeight: 0
+        };
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            initTheme();
+            initDropZone();
+            initFileInput();
+            initGlobalDragEvents();
+        });
+        
+        // 初始化全局拖拽事件
+        function initGlobalDragEvents() {
+            // 使用捕获阶段确保事件优先级
+            document.addEventListener('mousemove', handleGlobalMouseMove, true);
+            document.addEventListener('mouseup', handleGlobalMouseUp, true);
+            
+            // 防止文本选择干扰拖拽
+            document.addEventListener('selectstart', (e) => {
+                if (globalDragState.isDragging || globalDragState.isResizing) {
+                    e.preventDefault();
+                    return false;
+                }
+            });
+        }
+        
+        // 全局鼠标移动处理
+        function handleGlobalMouseMove(e) {
+            if (!globalDragState.isDragging && !globalDragState.isResizing) return;
+            if (globalDragState.currentIndex === null) return;
+            
+            e.preventDefault(); // 防止默认行为
+            
+            const deltaX = e.clientX - globalDragState.startX;
+            const deltaY = e.clientY - globalDragState.startY;
+            const index = globalDragState.currentIndex;
+            
+            // 确保cropData存在
+            if (!cropData[index]) {
+                console.error('cropData不存在，索引:', index);
+                return;
+            }
+            
+            if (globalDragState.isResizing && globalDragState.resizeHandle) {
+                // 调用调整大小函数
+                resizeCropBox(
+                    index, 
+                    deltaX, 
+                    deltaY, 
+                    globalDragState.resizeHandle, 
+                    globalDragState.startLeft, 
+                    globalDragState.startTop, 
+                    globalDragState.startWidth, 
+                    globalDragState.startHeight
+                );
+            } else if (globalDragState.isDragging) {
+                const cropBox = document.getElementById(`cropBox-${index}`);
+                if (!cropBox) return;
+                
+                const newLeft = globalDragState.startLeft + deltaX;
+                const newTop = globalDragState.startTop + deltaY;
+                
+                // 严格的边界检查，确保裁剪框完全在图像内
+                const data = cropData[index];
+                const currentWidth = parseFloat(cropBox.style.width) || 0;
+                const currentHeight = parseFloat(cropBox.style.height) || 0;
+                const maxLeft = data.offsetX + data.imgWidth * data.scale - currentWidth;
+                const maxTop = data.offsetY + data.imgHeight * data.scale - currentHeight;
+                
+                // 确保裁剪框不超出图片边界
+                const clampedLeft = Math.max(data.offsetX, Math.min(maxLeft, newLeft));
+                const clampedTop = Math.max(data.offsetY, Math.min(maxTop, newTop));
+                
+                cropBox.style.left = clampedLeft + 'px';
+                cropBox.style.top = clampedTop + 'px';
+                
+                // 更新数据
+                cropData[index].x = (clampedLeft - data.offsetX) / data.scale;
+                cropData[index].y = (clampedTop - data.offsetY) / data.scale;
+                
+                // 更新信息显示
+                updateCropInfo(index);
+            }
+        }
+        
+        // 全局鼠标释放处理
+        function handleGlobalMouseUp(e) {
+            if (globalDragState.isDragging || globalDragState.isResizing) {
+                console.log('全局结束拖拽/调整', {
+                    isDragging: globalDragState.isDragging,
+                    isResizing: globalDragState.isResizing,
+                    index: globalDragState.currentIndex,
+                    handle: globalDragState.resizeHandle
+                }); // 详细调试信息
+                e.preventDefault();
+            }
+            globalDragState.isDragging = false;
+            globalDragState.isResizing = false;
+            globalDragState.currentIndex = null;
+            globalDragState.resizeHandle = null;
+        }
+
+        // 主题切换
+        function toggleTheme() {
+            currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            document.body.className = currentTheme;
+            localStorage.setItem('theme', currentTheme);
+        }
+
+        function initTheme() {
+            const savedTheme = localStorage.getItem('theme');
+            if (savedTheme) {
+                currentTheme = savedTheme;
+                document.body.className = currentTheme;
+            }
+        }
+
+        // 拖拽上传
+        function initDropZone() {
+            const dropZone = document.getElementById('dropZone');
+            
+            dropZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropZone.classList.add('dragover');
+            });
+            
+            dropZone.addEventListener('dragleave', (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('dragover');
+            });
+            
+            dropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('dragover');
+                const files = Array.from(e.dataTransfer.files);
+                handleFiles(files);
+            });
+        }
+
+        // 文件输入
+        function initFileInput() {
+            const fileInput = document.getElementById('fileInput');
+            
+            fileInput.addEventListener('change', (e) => {
+                const files = Array.from(e.target.files);
+                handleFiles(files);
+            });
+        }
+
+        // 选择文件
+        function selectFiles() {
+            document.getElementById('fileInput').click();
+        }
+
+
+
+
+
+
+
+        // 格式化文件大小
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+
+        // 处理文件
+        function handleFiles(files) {
+            const imageFiles = files.filter(file => file.type.startsWith('image/'));
+            selectedFiles = [...selectedFiles, ...imageFiles];
+            updateProcessButton();
+            
+            // 上传后直接显示裁剪界面
+            if (selectedFiles.length > 0) {
+                createCropInterface();
+            }
+        }
+
+        // 创建裁剪界面
+        async function createCropInterface() {
+            const previewSection = document.getElementById('previewSection');
+            
+            // 隐藏选择操作，显示下载区域
+            document.getElementById('selectActions').style.display = 'none';
+            document.getElementById('downloadSection').style.display = 'block';
+            
+            // 清空预览区域
+            previewSection.innerHTML = '';
+            cropData = {};
+            
+            const processBtn = document.getElementById('processBtn');
+            const processLoading = document.getElementById('processLoading');
+            
+            processBtn.disabled = true;
+            processLoading.classList.remove('hidden');
+            processBtn.querySelector('span').style.display = 'none';
+            
+            try {
+                // 为所有文件创建裁剪界面
+                for (let i = 0; i < selectedFiles.length; i++) {
+                    const file = selectedFiles[i];
+                    await createPreviewItem(file, i);
+                }
+                
+                // 更新下载区域
+                const processedCount = document.getElementById('processedCount');
+                processedCount.textContent = `(${selectedFiles.length}张)`;
+                processedCount.style.display = 'inline';
+                
+                // 滚动到预览区域
+                previewSection.scrollIntoView({ behavior: 'smooth' });
+                
+            } catch (error) {
+                console.error('创建裁剪界面失败:', error);
+                alert('创建裁剪界面失败，请重试');
+            } finally {
+                processBtn.disabled = false;
+                processLoading.classList.add('hidden');
+                processBtn.querySelector('span').style.display = 'inline';
+            }
+        }
+
+        // 更新处理按钮和文件计数
+        function updateProcessButton() {
+            const processBtn = document.getElementById('processBtn');
+            const fileCount = document.getElementById('fileCount');
+            const clearBtn = document.getElementById('clearBtn');
+            
+            if (selectedFiles.length > 0) {
+                processBtn.querySelector('span').textContent = `处理并下载所有图片 (${selectedFiles.length}张)`;
+                processBtn.disabled = false;
+                
+                fileCount.textContent = `(${selectedFiles.length}张)`;
+                fileCount.style.display = 'inline';
+                clearBtn.style.display = 'block';
+            } else {
+                processBtn.querySelector('span').textContent = '处理并下载所有图片';
+                processBtn.disabled = true;
+                fileCount.textContent = '(0张)';
+                fileCount.style.display = 'none';
+                clearBtn.style.display = 'none';
+            }
+        }
+
+        // 处理所有图片
+        async function processAllImages() {
+            if (selectedFiles.length === 0) {
+                alert('没有图片需要处理');
+                return;
+            }
+            
+            const processBtn = document.getElementById('processBtn');
+            const processLoading = document.getElementById('processLoading');
+            
+            processBtn.disabled = true;
+            processLoading.classList.remove('hidden');
+            processBtn.querySelector('span').style.display = 'none';
+            
+            try {
+                // 直接下载所有裁剪后的图片
+                await downloadAll();
+                
+            } catch (error) {
+                console.error('处理失败:', error);
+                alert('处理失败，请重试');
+            } finally {
+                processBtn.disabled = false;
+                processLoading.classList.add('hidden');
+                processBtn.querySelector('span').style.display = 'inline';
+            }
+        }
+
+        // 清空所有文件
+        function clearFiles() {
+            selectedFiles = [];
+            fileSettings = {}; // 清空文件设置
+            cropData = {}; // 清空裁剪数据
+            
+            const previewSection = document.getElementById('previewSection');
+            previewSection.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-icon"></div>
+                    <h3>请先选择图片开始裁剪</h3>
+                    <p>选择图片后，可以在此处调整每张图片的裁剪区域</p>
+                </div>
+            `;
+            
+            document.getElementById('downloadSection').style.display = 'none';
+            document.getElementById('selectActions').style.display = 'none';
+            document.getElementById('fileInput').value = '';
+            
+            updateProcessButton();
+        }
+
+        // 删除单个文件
+        function deleteFile(index) {
+            const file = selectedFiles[index];
+            const fileKey = `${file.name}_${file.size}_${file.lastModified}`;
+            
+            // 删除文件和其设置
+            selectedFiles.splice(index, 1);
+            delete fileSettings[fileKey];
+            delete cropData[index];
+            
+            updateProcessButton();
+            
+            // 重新创建裁剪界面
+            if (selectedFiles.length > 0) {
+                createCropInterface();
+            } else {
+                const previewSection = document.getElementById('previewSection');
+                previewSection.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon"></div>
+                        <h3>请先选择图片开始裁剪</h3>
+                        <p>选择图片后，可以在此处调整每张图片的裁剪区域</p>
+                    </div>
+                `;
+                document.getElementById('downloadSection').style.display = 'none';
+                document.getElementById('selectActions').style.display = 'none';
+            }
+        }
+        
+        // 删除预览项（从裁剪界面）
+        function deletePreviewFile(index) {
+            // 直接调用deleteFile函数保持一致性
+            deleteFile(index);
+        }
+
+        // 设置比例
+        function setRatio(ratio) {
+            currentRatio = ratio;
+            document.querySelectorAll('.ratio-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            // 实时更新所有可见的裁剪框
+            updateAllCropBoxes();
+        }
+
+        // 设置自定义比例
+        function setCustomRatio() {
+            const width = document.getElementById('customWidth').value;
+            const height = document.getElementById('customHeight').value;
+            
+            if (width && height) {
+                currentRatio = `${width}:${height}`;
+                document.querySelectorAll('.ratio-btn').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                event.target.classList.add('active');
+                
+                // 实时更新所有可见的裁剪框
+                updateAllCropBoxes();
+            }
+        }
+
+        // 更新所有可见的裁剪框
+        function updateAllCropBoxes() {
+            // 查找所有可见的裁剪框
+            const cropContainers = document.querySelectorAll('.crop-container');
+            cropContainers.forEach((container) => {
+                const containerMatch = container.id.match(/crop-(\d+)/);
+                if (containerMatch) {
+                    const index = parseInt(containerMatch[1]);
+                    const data = cropData[index];
+                    if (data) {
+                        // 重新计算并应用新比例的裁剪框
+                        updateCropBoxRatio(index, data.imgWidth, data.imgHeight);
+                    }
+                }
+            });
+        }
+
+        // 更新单个裁剪框的比例
+        function updateCropBoxRatio(index, imgWidth, imgHeight) {
+            const container = document.getElementById(`crop-${index}`);
+            const cropBox = document.getElementById(`cropBox-${index}`);
+            if (!container || !cropBox) return;
+
+            const containerRect = container.getBoundingClientRect();
+            const data = cropData[index];
+
+            // 如果比例没有变化，直接返回，避免重复计算导致裁剪框变小
+            if (data.currentRatio === currentRatio) {
+                return;
+            }
+
+            // 获取当前裁剪框的中心点
+            const currentCenterX = data.x + data.width / 2;
+            const currentCenterY = data.y + data.height / 2;
+
+            // 计算新的裁剪框尺寸
+            const displayWidth = containerRect.width;
+            const displayHeight = containerRect.height;
+            const scaleX = displayWidth / imgWidth;
+            const scaleY = displayHeight / imgHeight;
+            const scale = Math.min(scaleX, scaleY);
+
+            const actualWidth = imgWidth * scale;
+            const actualHeight = imgHeight * scale;
+            const offsetX = (displayWidth - actualWidth) / 2;
+            const offsetY = (displayHeight - actualHeight) / 2;
+
+            // 计算新比例下的裁剪框尺寸
+            let newCropWidth, newCropHeight;
+            const targetRatio = calculateRatio(currentRatio);
+
+            if (targetRatio) {
+                // 有固定比例 - 重置为最大尺寸
+                const imageRatio = actualWidth / actualHeight;
+
+                if (imageRatio > targetRatio) {
+                    // 图片更宽，以高度为准
+                    newCropHeight = actualHeight;
+                    newCropWidth = newCropHeight * targetRatio;
+                } else {
+                    // 图片更高，以宽度为准
+                    newCropWidth = actualWidth;
+                    newCropHeight = newCropWidth / targetRatio;
+                }
+            } else {
+                // 自由比例 - 保持当前尺寸
+                newCropWidth = Math.min(data.width * scale, actualWidth);
+                newCropHeight = Math.min(data.height * scale, actualHeight);
+            }
+
+            // 计算新的裁剪框位置 - 尽量保持中心点不变
+            let newCropX = offsetX + (currentCenterX * scale) - newCropWidth / 2;
+            let newCropY = offsetY + (currentCenterY * scale) - newCropHeight / 2;
+
+            // 边界检查
+            newCropX = Math.max(offsetX, Math.min(offsetX + actualWidth - newCropWidth, newCropX));
+            newCropY = Math.max(offsetY, Math.min(offsetY + actualHeight - newCropHeight, newCropY));
+
+            // 应用新的裁剪框位置和大小
+            cropBox.style.left = newCropX + 'px';
+            cropBox.style.top = newCropY + 'px';
+            cropBox.style.width = newCropWidth + 'px';
+            cropBox.style.height = newCropHeight + 'px';
+
+            // 更新裁剪数据
+            cropData[index] = {
+                ...data,
+                x: (newCropX - offsetX) / scale,
+                y: (newCropY - offsetY) / scale,
+                width: newCropWidth / scale,
+                height: newCropHeight / scale,
+                scale: scale,
+                offsetX: offsetX,
+                offsetY: offsetY,
+                currentRatio: currentRatio // 更新为全局比例
+            };
+
+            // 更新对应的比例按钮状态
+            const ratioButtons = document.querySelectorAll(`#crop-${index} .ratio-quick-btn`);
+            ratioButtons.forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.textContent === currentRatio || (btn.textContent === '自由' && currentRatio === 'free')) {
+                    btn.classList.add('active');
+                }
+            });
+
+            // 更新信息显示
+            updateCropInfo(index);
+        }
+
+        // 切换尺寸限制
+        function toggleSizeLimit() {
+            const checkbox = document.getElementById('limitSize');
+            const input = document.getElementById('maxSize');
+            input.disabled = !checkbox.checked;
+        }
+
+        // 计算比例
+        function calculateRatio(ratio) {
+            if (ratio === 'free') return null;
+            
+            const [w, h] = ratio.split(':').map(Number);
+            return w / h;
+        }
+
+        // 处理图片 (已简化为处理所有文件)
+        async function processImages(useAllFiles = false) {
+            // 简化流程：始终处理所有文件
+            const selectedFilesToProcess = selectedFiles;
+            if (selectedFilesToProcess.length === 0) {
+                alert('没有图片需要处理');
+                return;
+            }
+            
+            const processBtn = document.getElementById('processBtn');
+            const processLoading = document.getElementById('processLoading');
+            const previewSection = document.getElementById('previewSection');
+            
+            processBtn.disabled = true;
+            processLoading.classList.remove('hidden');
+            processBtn.querySelector('span').style.display = 'none';
+            
+            // 为选中的文件记录当前设置
+            selectedFilesToProcess.forEach((file, originalIndex) => {
+                const fileKey = `${file.name}_${file.size}_${file.lastModified}`;
+                // 如果不是初次上传，只更新选中文件的设置
+                if (!isInitialUpload) {
+                    fileSettings[fileKey] = {
+                        ratio: currentRatio,
+                        limitSize: document.getElementById('limitSize').checked,
+                        maxSize: document.getElementById('maxSize').value
+                    };
+                } else if (!fileSettings[fileKey]) {
+                    // 初次上传时，只为没有设置的文件添加默认设置
+                    fileSettings[fileKey] = {
+                        ratio: currentRatio,
+                        limitSize: document.getElementById('limitSize').checked,
+                        maxSize: document.getElementById('maxSize').value
+                    };
+                }
+            });
+            
+            // 清空预览区域
+            previewSection.innerHTML = '';
+            cropData = {};
+            
+            try {
+                for (let i = 0; i < selectedFilesToProcess.length; i++) {
+                    const file = selectedFilesToProcess[i];
+                    await createPreviewItem(file, i);
+                }
+                
+                // 显示下载区域
+                const downloadSection = document.getElementById('downloadSection');
+                const processedCount = document.getElementById('processedCount');
+                downloadSection.style.display = 'block';
+                processedCount.textContent = `(${selectedFilesToProcess.length}张)`;
+                processedCount.style.display = 'inline';
+                
+                // 保持选择操作按钮显示（不再隐藏）
+                // document.getElementById('selectActions').style.display = 'none';
+                
+                // 滚动到预览区域
+                previewSection.scrollIntoView({ behavior: 'smooth' });
+                
+            } catch (error) {
+                console.error('处理失败:', error);
+                alert('处理失败，请重试');
+            } finally {
+                processBtn.disabled = false;
+                processLoading.classList.add('hidden');
+                processBtn.querySelector('span').style.display = 'inline';
+            }
+        }
+
+        // 创建预览项
+        function createPreviewItem(file, index) {
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const previewItem = document.createElement('div');
+                        previewItem.className = 'preview-item';
+                        previewItem.innerHTML = `
+                            <div class="preview-header">
+                                <span class="preview-filename">${file.name}</span>
+                                <button class="delete-btn" onclick="deletePreviewFile(${index})" title="删除">×</button>
+                            </div>
+                            <div class="crop-container" id="crop-${index}">
+                                <img class="crop-image" src="${e.target.result}" alt="${file.name}" id="img-${index}">
+                                <div class="crop-overlay">
+                                    <div class="crop-box" id="cropBox-${index}">
+                                        <div class="crop-grid"></div>
+                                        <div class="crop-handle nw"></div>
+                                        <div class="crop-handle n"></div>
+                                        <div class="crop-handle ne"></div>
+                                        <div class="crop-handle w"></div>
+                                        <div class="crop-handle e"></div>
+                                        <div class="crop-handle sw"></div>
+                                        <div class="crop-handle s"></div>
+                                        <div class="crop-handle se"></div>
+                                    </div>
+                                </div>
+                                <div class="crop-info" id="cropInfo-${index}">
+                                    0×0 (0:0)
+                                </div>
+                                <div class="zoom-controls">
+                                    <button class="zoom-btn" onclick="zoomImage(${index}, 0.9)" title="缩小">−</button>
+                                    <button class="zoom-btn" onclick="zoomImage(${index}, 1.1)" title="放大">+</button>
+                                    <button class="zoom-btn" onclick="fitImage(${index})" title="适应">⌂</button>
+                                </div>
+                                <div class="image-controls">
+                                    <button class="control-btn" onclick="rotateImage(${index}, -90)">↺</button>
+                                    <button class="control-btn" onclick="rotateImage(${index}, 90)">↻</button>
+                                    <button class="control-btn" onclick="flipImage(${index}, 'horizontal')">⟷</button>
+                                    <button class="control-btn" onclick="flipImage(${index}, 'vertical')">⟺</button>
+                                </div>
+                            </div>
+                            <div class="crop-actions">
+                                <button class="reset-btn" onclick="resetCrop(${index})">重置</button>
+                                <div class="ratio-quick-select">
+                                    <button class="ratio-quick-btn" onclick="applyRatioToImage(${index}, '1:1')">1:1</button>
+                                    <button class="ratio-quick-btn" onclick="applyRatioToImage(${index}, '3:2')">3:2</button>
+                                    <button class="ratio-quick-btn" onclick="applyRatioToImage(${index}, '4:3')">4:3</button>
+                                    <button class="ratio-quick-btn" onclick="applyRatioToImage(${index}, '16:9')">16:9</button>
+                                    <button class="ratio-quick-btn" onclick="applyRatioToImage(${index}, '2:3')">2:3</button>
+                                    <button class="ratio-quick-btn" onclick="applyRatioToImage(${index}, '3:4')">3:4</button>
+                                    <button class="ratio-quick-btn" onclick="applyRatioToImage(${index}, '9:16')">9:16</button>
+                                    <button class="ratio-quick-btn" onclick="applyRatioToImage(${index}, 'free')">自由</button>
+                                </div>
+                            </div>
+                        `;
+                        
+                        document.getElementById('previewSection').appendChild(previewItem);
+                        
+                        // 初始化裁剪框
+                        setTimeout(() => {
+                            initCropBox(index, img.width, img.height, file);
+                            resolve();
+                        }, 100);
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        // 初始化裁剪框
+        function initCropBox(index, imgWidth, imgHeight, file) {
+            const container = document.getElementById(`crop-${index}`);
+            const cropBox = document.getElementById(`cropBox-${index}`);
+            const containerRect = container.getBoundingClientRect();
+            
+            // 设置裁剪框不可选中
+            cropBox.style.userSelect = 'none';
+            cropBox.style.webkitUserSelect = 'none';
+            
+            // 初始化图片变换数据
+            imageTransforms[index] = {
+                scale: 1,
+                rotation: 0,
+                flipX: false,
+                flipY: false
+            };
+            
+            // 获取文件的记录设置
+            const fileKey = `${file.name}_${file.size}_${file.lastModified}`;
+            const fileSetting = fileSettings[fileKey];
+            const useRatio = fileSetting ? fileSetting.ratio : currentRatio;
+            
+            // 设置对应的比例按钮为激活状态
+            const ratioButtons = document.querySelectorAll(`#crop-${index} .ratio-quick-btn`);
+            ratioButtons.forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.textContent === useRatio || (btn.textContent === '自由' && useRatio === 'free')) {
+                    btn.classList.add('active');
+                }
+            });
+            
+            // 计算显示尺寸
+            const displayWidth = containerRect.width;
+            const displayHeight = containerRect.height;
+            
+            // 计算缩放比例
+            const scaleX = displayWidth / imgWidth;
+            const scaleY = displayHeight / imgHeight;
+            const scale = Math.min(scaleX, scaleY);
+            
+            // 计算实际显示的图片尺寸
+            const actualWidth = imgWidth * scale;
+            const actualHeight = imgHeight * scale;
+            
+            // 计算居中偏移
+            const offsetX = (displayWidth - actualWidth) / 2;
+            const offsetY = (displayHeight - actualHeight) / 2;
+            
+            // 计算裁剪框尺寸 - 默认占满整个图，至少两边贴边
+            let cropWidth, cropHeight;
+            const targetRatio = calculateRatio(useRatio);
+            
+            if (targetRatio) {
+                // 有固定比例 - 计算能容纳的最大尺寸
+                const imageRatio = actualWidth / actualHeight;
+                
+                if (imageRatio > targetRatio) {
+                    // 图片更宽，高度占满，宽度按比例
+                    cropHeight = actualHeight;
+                    cropWidth = cropHeight * targetRatio;
+                } else {
+                    // 图片更高，宽度占满，高度按比例
+                    cropWidth = actualWidth;
+                    cropHeight = cropWidth / targetRatio;
+                }
+            } else {
+                // 自由比例 - 完全占满
+                cropWidth = actualWidth;
+                cropHeight = actualHeight;
+            }
+            
+            // 设置裁剪框位置 - 居中
+            const cropX = offsetX + (actualWidth - cropWidth) / 2;
+            const cropY = offsetY + (actualHeight - cropHeight) / 2;
+            
+            cropBox.style.left = cropX + 'px';
+            cropBox.style.top = cropY + 'px';
+            cropBox.style.width = cropWidth + 'px';
+            cropBox.style.height = cropHeight + 'px';
+            
+            // 保存裁剪数据
+            cropData[index] = {
+                x: (cropX - offsetX) / scale,
+                y: (cropY - offsetY) / scale,
+                width: cropWidth / scale,
+                height: cropHeight / scale,
+                scale: scale,
+                offsetX: offsetX,
+                offsetY: offsetY,
+                imgWidth: imgWidth,
+                imgHeight: imgHeight,
+                index: index,
+                currentRatio: useRatio // 记录当前使用的比例
+            };
+            
+            // 更新信息显示
+            updateCropInfo(index);
+            
+            // 添加拖拽功能
+            addCropInteraction(index);
+        }
+
+        // 更新裁剪信息显示
+        function updateCropInfo(index) {
+            const data = cropData[index];
+            const info = document.getElementById(`cropInfo-${index}`);
+            if (data && info) {
+                const width = Math.round(data.width);
+                const height = Math.round(data.height);
+                const ratio = (width / height).toFixed(2);
+                info.textContent = `${width}×${height} (${ratio}:1)`;
+            }
+        }
+
+        // 添加裁剪框交互
+        function addCropInteraction(index) {
+            const cropBox = document.getElementById(`cropBox-${index}`);
+            const handles = cropBox.querySelectorAll('.crop-handle');
+            
+            // 先为所有手柄添加事件监听器（使用捕获阶段，优先级更高）
+            handles.forEach(handle => {
+                // 防止手柄被选中
+                handle.style.userSelect = 'none';
+                handle.style.webkitUserSelect = 'none';
+                
+                handle.addEventListener('mousedown', (e) => {
+                    const handleClasses = Array.from(handle.classList);
+                    const direction = handleClasses.find(cls => cls !== 'crop-handle');
+                    
+                    console.log('手柄点击事件触发:', direction, '位置:', {
+                        clientX: e.clientX,
+                        clientY: e.clientY,
+                        cropBoxPosition: {
+                            left: cropBox.style.left,
+                            top: cropBox.style.top,
+                            width: cropBox.style.width,
+                            height: cropBox.style.height
+                        }
+                    }); // 详细调试信息
+                    
+                    // 立即设置全局状态
+                    globalDragState.isResizing = true;
+                    globalDragState.isDragging = false;
+                    globalDragState.currentIndex = index;
+                    globalDragState.resizeHandle = direction;
+                    globalDragState.startX = e.clientX;
+                    globalDragState.startY = e.clientY;
+                    globalDragState.startLeft = parseFloat(cropBox.style.left) || 0;
+                    globalDragState.startTop = parseFloat(cropBox.style.top) || 0;
+                    globalDragState.startWidth = parseFloat(cropBox.style.width) || 0;
+                    globalDragState.startHeight = parseFloat(cropBox.style.height) || 0;
+                    
+                    // 确保数据已初始化
+                    if (!cropData[index]) {
+                        console.error('cropData未初始化，索引:', index);
+                        return;
+                    }
+                    
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.stopImmediatePropagation(); // 阻止其他事件处理器
+                    
+                    // 返回false进一步阻止默认行为
+                    return false;
+                }, true); // 使用捕获阶段
+            });
+            
+            // 然后添加裁剪框的拖动事件（只在非手柄区域触发）
+            cropBox.addEventListener('mousedown', (e) => {
+                // 如果点击的是手柄，不处理（因为手柄有自己的处理器）
+                if (e.target.classList.contains('crop-handle')) {
+                    return;
+                }
+                
+                // 如果已经在调整大小，不处理拖动
+                if (globalDragState.isResizing) {
+                    return;
+                }
+                
+                console.log('开始拖拽移动，索引:', index); // 调试信息
+                
+                globalDragState.isDragging = true;
+                globalDragState.isResizing = false;
+                globalDragState.currentIndex = index;
+                globalDragState.resizeHandle = null;
+                globalDragState.startX = e.clientX;
+                globalDragState.startY = e.clientY;
+                globalDragState.startLeft = parseFloat(cropBox.style.left) || 0;
+                globalDragState.startTop = parseFloat(cropBox.style.top) || 0;
+                globalDragState.startWidth = parseFloat(cropBox.style.width) || 0;
+                globalDragState.startHeight = parseFloat(cropBox.style.height) || 0;
+                
+                e.preventDefault();
+                e.stopPropagation();
+            });
+        }
+
+        // 图片缩放
+        function zoomImage(index, factor) {
+            const img = document.getElementById(`img-${index}`);
+            const transform = imageTransforms[index];
+            
+            transform.scale *= factor;
+            transform.scale = Math.max(0.1, Math.min(5, transform.scale)); // 限制缩放范围
+            
+            applyImageTransform(index);
+        }
+
+        // 图片适应容器
+        function fitImage(index) {
+            const transform = imageTransforms[index];
+            transform.scale = 1;
+            applyImageTransform(index);
+        }
+
+        // 图片旋转
+        function rotateImage(index, degrees) {
+            const transform = imageTransforms[index];
+            transform.rotation += degrees;
+            transform.rotation = transform.rotation % 360;
+            applyImageTransform(index);
+        }
+
+        // 图片翻转
+        function flipImage(index, direction) {
+            const transform = imageTransforms[index];
+            if (direction === 'horizontal') {
+                transform.flipX = !transform.flipX;
+            } else {
+                transform.flipY = !transform.flipY;
+            }
+            applyImageTransform(index);
+        }
+
+        // 应用图片变换
+        function applyImageTransform(index) {
+            const img = document.getElementById(`img-${index}`);
+            const transform = imageTransforms[index];
+            
+            let transformString = '';
+            
+            if (transform.scale !== 1) {
+                transformString += `scale(${transform.scale}) `;
+            }
+            
+            if (transform.rotation !== 0) {
+                transformString += `rotate(${transform.rotation}deg) `;
+            }
+            
+            if (transform.flipX) {
+                transformString += 'scaleX(-1) ';
+            }
+            
+            if (transform.flipY) {
+                transformString += 'scaleY(-1) ';
+            }
+            
+            img.style.transform = transformString.trim();
+        }
+
+        // 调整裁剪框大小
+        function resizeCropBox(index, deltaX, deltaY, handle, startLeft, startTop, startWidth, startHeight) {
+            const cropBox = document.getElementById(`cropBox-${index}`);
+            if (!cropBox) {
+                console.error('找不到cropBox，索引:', index);
+                return;
+            }
+            
+            const data = cropData[index];
+            if (!data) {
+                console.error('找不到cropData，索引:', index);
+                return;
+            }
+            
+            // 使用该裁剪框自己的比例设置，而不是全局比例
+            const targetRatio = calculateRatio(data.currentRatio || currentRatio);
+            
+            let newWidth = startWidth;
+            let newHeight = startHeight;
+            let newLeft = startLeft;
+            let newTop = startTop;
+            
+            // 根据拖拽点调整尺寸
+            switch (handle) {
+                case 'se':
+                    newWidth = startWidth + deltaX;
+                    newHeight = startHeight + deltaY;
+                    break;
+                case 'sw':
+                    newWidth = startWidth - deltaX;
+                    newHeight = startHeight + deltaY;
+                    newLeft = startLeft + deltaX;
+                    break;
+                case 'ne':
+                    newWidth = startWidth + deltaX;
+                    newHeight = startHeight - deltaY;
+                    newTop = startTop + deltaY;
+                    break;
+                case 'nw':
+                    newWidth = startWidth - deltaX;
+                    newHeight = startHeight - deltaY;
+                    newLeft = startLeft + deltaX;
+                    newTop = startTop + deltaY;
+                    break;
+                case 'n':
+                    newHeight = startHeight - deltaY;
+                    newTop = startTop + deltaY;
+                    break;
+                case 's':
+                    newHeight = startHeight + deltaY;
+                    break;
+                case 'w':
+                    newWidth = startWidth - deltaX;
+                    newLeft = startLeft + deltaX;
+                    break;
+                case 'e':
+                    newWidth = startWidth + deltaX;
+                    break;
+            }
+            
+            // 保持比例，但要考虑边界限制
+            if (targetRatio) {
+                const aspectRatio = targetRatio;
+                const maxWidth = data.imgWidth * data.scale;
+                const maxHeight = data.imgHeight * data.scale;
+                
+                if (handle === 'n' || handle === 's') {
+                    newWidth = newHeight * aspectRatio;
+                    // 检查宽度是否超过边界
+                    if (newWidth > maxWidth) {
+                        newWidth = maxWidth;
+                        newHeight = newWidth / aspectRatio;
+                    }
+                    const widthDiff = newWidth - startWidth;
+                    newLeft = startLeft - widthDiff / 2;
+                    // 确保不超出左右边界
+                    if (newLeft < data.offsetX) {
+                        newLeft = data.offsetX;
+                    } else if (newLeft + newWidth > data.offsetX + maxWidth) {
+                        newLeft = data.offsetX + maxWidth - newWidth;
+                    }
+                } else if (handle === 'w' || handle === 'e') {
+                    newHeight = newWidth / aspectRatio;
+                    // 检查高度是否超过边界
+                    if (newHeight > maxHeight) {
+                        newHeight = maxHeight;
+                        newWidth = newHeight * aspectRatio;
+                    }
+                    const heightDiff = newHeight - startHeight;
+                    newTop = startTop - heightDiff / 2;
+                    // 确保不超出上下边界
+                    if (newTop < data.offsetY) {
+                        newTop = data.offsetY;
+                    } else if (newTop + newHeight > data.offsetY + maxHeight) {
+                        newTop = data.offsetY + maxHeight - newHeight;
+                    }
+                } else {
+                    // 角点拖拽
+                    if (handle === 'se' || handle === 'nw') {
+                        // 先计算按比例的尺寸
+                        let tempHeight = newWidth / aspectRatio;
+                        let tempWidth = newWidth;
+                        
+                        // 检查是否超出边界，如果超出则以另一个维度为准
+                        if (tempHeight > maxHeight || (handle === 'nw' && startTop + startHeight - tempHeight < data.offsetY)) {
+                            newHeight = Math.min(newHeight, maxHeight);
+                            if (handle === 'nw') {
+                                newHeight = Math.min(newHeight, startTop + startHeight - data.offsetY);
+                            }
+                            newWidth = newHeight * aspectRatio;
+                        } else {
+                            newHeight = tempHeight;
+                        }
+                        
+                        if (handle === 'nw') {
+                            newTop = startTop + startHeight - newHeight;
+                        }
+                    } else {
+                        // sw 或 ne
+                        let tempWidth = newHeight * aspectRatio;
+                        let tempHeight = newHeight;
+                        
+                        if (tempWidth > maxWidth || (handle === 'sw' && startLeft + startWidth - tempWidth < data.offsetX)) {
+                            newWidth = Math.min(newWidth, maxWidth);
+                            if (handle === 'sw') {
+                                newWidth = Math.min(newWidth, startLeft + startWidth - data.offsetX);
+                            }
+                            newHeight = newWidth / aspectRatio;
+                        } else {
+                            newWidth = tempWidth;
+                        }
+                        
+                        if (handle === 'sw') {
+                            newLeft = startLeft + startWidth - newWidth;
+                        } else if (handle === 'ne') {
+                            newTop = startTop + startHeight - newHeight;
+                        }
+                    }
+                }
+            }
+            
+            // 严格的边界检查，确保裁剪框不超出图像边界
+            const minSize = 20;
+            const maxLeft = data.offsetX + data.imgWidth * data.scale;
+            const maxTop = data.offsetY + data.imgHeight * data.scale;
+            
+            // 先检查尺寸限制
+            newWidth = Math.max(minSize, Math.min(newWidth, data.imgWidth * data.scale));
+            newHeight = Math.max(minSize, Math.min(newHeight, data.imgHeight * data.scale));
+            
+            // 再检查位置限制，确保裁剪框完全在图像内
+            newLeft = Math.max(data.offsetX, Math.min(maxLeft - newWidth, newLeft));
+            newTop = Math.max(data.offsetY, Math.min(maxTop - newHeight, newTop));
+            
+            // 再次检查，如果调整后位置变了，可能需要重新调整尺寸
+            if (newLeft + newWidth > maxLeft) {
+                newWidth = maxLeft - newLeft;
+            }
+            if (newTop + newHeight > maxTop) {
+                newHeight = maxTop - newTop;
+            }
+            
+            // 只有当裁剪框完全在边界内时才更新
+            if (newWidth >= minSize && newHeight >= minSize && 
+                newLeft >= data.offsetX && newTop >= data.offsetY &&
+                newLeft + newWidth <= maxLeft && newTop + newHeight <= maxTop) {
+                
+                cropBox.style.width = newWidth + 'px';
+                cropBox.style.height = newHeight + 'px';
+                cropBox.style.left = newLeft + 'px';
+                cropBox.style.top = newTop + 'px';
+                
+                // 更新数据
+                cropData[index].x = (newLeft - data.offsetX) / data.scale;
+                cropData[index].y = (newTop - data.offsetY) / data.scale;
+                cropData[index].width = newWidth / data.scale;
+                cropData[index].height = newHeight / data.scale;
+                
+                // 更新信息显示
+                updateCropInfo(index);
+            }
+        }
+
+        // 重置裁剪框
+        function resetCrop(index) {
+            const data = cropData[index];
+            const file = selectedFiles[index];
+            initCropBox(index, data.imgWidth, data.imgHeight, file);
+        }
+
+        // 为单个图像应用比例
+        function applyRatioToImage(index, ratio) {
+            const data = cropData[index];
+            if (!data) return;
+
+            // 更新按钮状态
+            const ratioButtons = document.querySelectorAll(`#crop-${index} .ratio-quick-btn`);
+            ratioButtons.forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.textContent === ratio || (btn.textContent === '自由' && ratio === 'free')) {
+                    btn.classList.add('active');
+                }
+            });
+
+            // 应用新比例到该图像的裁剪框（强制更新，因为是用户主动点击）
+            updateSingleCropBoxRatio(index, data.imgWidth, data.imgHeight, ratio, true);
+        }
+
+        // 更新单个图像的裁剪框比例
+        function updateSingleCropBoxRatio(index, imgWidth, imgHeight, ratio, forceUpdate = false) {
+            const container = document.getElementById(`crop-${index}`);
+            const cropBox = document.getElementById(`cropBox-${index}`);
+            if (!container || !cropBox) return;
+
+            const containerRect = container.getBoundingClientRect();
+            const data = cropData[index];
+
+            // 检查是否是重复点击同一个比例（用于重置裁剪框）
+            const isSameRatio = data.currentRatio === ratio;
+
+            // 如果比例没有变化且不是强制更新，直接返回
+            if (!forceUpdate && isSameRatio) {
+                return;
+            }
+
+            // 获取当前裁剪框的中心点
+            const currentCenterX = data.x + data.width / 2;
+            const currentCenterY = data.y + data.height / 2;
+
+            // 计算新的裁剪框尺寸
+            const displayWidth = containerRect.width;
+            const displayHeight = containerRect.height;
+            const scaleX = displayWidth / imgWidth;
+            const scaleY = displayHeight / imgHeight;
+            const scale = Math.min(scaleX, scaleY);
+
+            const actualWidth = imgWidth * scale;
+            const actualHeight = imgHeight * scale;
+            const offsetX = (displayWidth - actualWidth) / 2;
+            const offsetY = (displayHeight - actualHeight) / 2;
+
+            // 计算新比例下的裁剪框尺寸
+            let newCropWidth, newCropHeight;
+            const targetRatio = calculateRatio(ratio);
+
+            if (targetRatio) {
+                // 有固定比例
+                const imageRatio = actualWidth / actualHeight;
+
+                // 如果是强制更新（用户主动点击按钮），总是重置为最大尺寸
+                if (forceUpdate) {
+                    if (imageRatio > targetRatio) {
+                        newCropHeight = actualHeight;
+                        newCropWidth = newCropHeight * targetRatio;
+                    } else {
+                        newCropWidth = actualWidth;
+                        newCropHeight = newCropWidth / targetRatio;
+                    }
+                } else {
+                    // 被动更新 - 以当前尺寸为基准，调整到新比例
+                    const currentSize = Math.min(data.width * scale, data.height * scale);
+
+                    if (imageRatio > targetRatio) {
+                        // 图片更宽，以高度为准
+                        newCropHeight = Math.min(currentSize, actualHeight);
+                        newCropWidth = newCropHeight * targetRatio;
+                    } else {
+                        // 图片更高，以宽度为准
+                        newCropWidth = Math.min(currentSize, actualWidth);
+                        newCropHeight = newCropWidth / targetRatio;
+                    }
+                }
+            } else {
+                // 自由比例 - 保持当前尺寸
+                newCropWidth = Math.min(data.width * scale, actualWidth);
+                newCropHeight = Math.min(data.height * scale, actualHeight);
+            }
+
+            // 计算新的裁剪框位置 - 尽量保持中心点不变
+            let newCropX = offsetX + (currentCenterX * scale) - newCropWidth / 2;
+            let newCropY = offsetY + (currentCenterY * scale) - newCropHeight / 2;
+
+            // 边界检查
+            newCropX = Math.max(offsetX, Math.min(offsetX + actualWidth - newCropWidth, newCropX));
+            newCropY = Math.max(offsetY, Math.min(offsetY + actualHeight - newCropHeight, newCropY));
+
+            // 应用新的裁剪框位置和大小
+            cropBox.style.left = newCropX + 'px';
+            cropBox.style.top = newCropY + 'px';
+            cropBox.style.width = newCropWidth + 'px';
+            cropBox.style.height = newCropHeight + 'px';
+
+            // 更新裁剪数据
+            cropData[index] = {
+                ...data,
+                x: (newCropX - offsetX) / scale,
+                y: (newCropY - offsetY) / scale,
+                width: newCropWidth / scale,
+                height: newCropHeight / scale,
+                scale: scale,
+                offsetX: offsetX,
+                offsetY: offsetY,
+                currentRatio: ratio // 保持当前比例设置
+            };
+
+            // 更新信息显示
+            updateCropInfo(index);
+        }
+
+        // 裁剪所有图片
+        async function cropAllImages() {
+            processedFiles = [];
+            
+            for (let i = 0; i < selectedFiles.length; i++) {
+                const file = selectedFiles[i];
+                const data = cropData[i];
+                
+                if (data) {
+                    console.log(`裁剪图片 ${i}:`, {
+                        filename: file.name,
+                        cropData: data,
+                        x: data.x,
+                        y: data.y,
+                        width: data.width,
+                        height: data.height
+                    });
+                    
+                    const croppedBlob = await cropImage(file, data);
+                    processedFiles.push({
+                        originalFile: file,
+                        croppedBlob: croppedBlob,
+                        filename: getNewFilename(file.name)
+                    });
+                }
+            }
+        }
+
+        // 裁剪单个图片
+        function cropImage(file, data) {
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+                        
+                        // 设置画布尺寸
+                        let outputWidth = data.width;
+                        let outputHeight = data.height;
+                        
+                        // 如果启用了尺寸限制
+                        const limitSize = document.getElementById('limitSize').checked;
+                        const maxSize = parseInt(document.getElementById('maxSize').value);
+                        
+                        if (limitSize && maxSize) {
+                            // 计算缩放比例，让最大边等于maxSize
+                            const scale = maxSize / Math.max(outputWidth, outputHeight);
+                            outputWidth *= scale;
+                            outputHeight *= scale;
+                        }
+                        
+                        canvas.width = outputWidth;
+                        canvas.height = outputHeight;
+                        
+                        // 设置白色背景
+                        ctx.fillStyle = '#ffffff';
+                        ctx.fillRect(0, 0, outputWidth, outputHeight);
+                        
+                        // 确保裁剪区域在图片范围内
+                        const cropX = Math.max(0, Math.min(data.x, img.width - data.width));
+                        const cropY = Math.max(0, Math.min(data.y, img.height - data.height));
+                        const cropWidth = Math.min(data.width, img.width - cropX);
+                        const cropHeight = Math.min(data.height, img.height - cropY);
+                        
+                        // 绘制裁剪的图片
+                        ctx.drawImage(
+                            img,
+                            cropX, cropY, cropWidth, cropHeight,
+                            0, 0, outputWidth, outputHeight
+                        );
+                        
+                        canvas.toBlob(resolve, 'image/jpeg', 0.85);
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        // 获取新文件名
+        function getNewFilename(originalName) {
+            const nameWithoutExt = originalName.replace(/\.[^/.]+$/, '');
+            return `${nameWithoutExt}_cropped.jpg`;
+        }
+
+        // 批量下载
+        async function downloadAll() {
+            const downloadBtn = document.getElementById('downloadBtn');
+            const downloadLoading = document.getElementById('downloadLoading');
+            const btnText = downloadBtn.querySelector('span');
+            const processedCount = document.getElementById('processedCount');
+            
+            downloadBtn.disabled = true;
+            btnText.style.display = 'none';
+            downloadLoading.classList.remove('hidden');
+            
+            try {
+                // 如果还没有处理过图片，先进行裁剪
+                if (processedFiles.length === 0) {
+                    btnText.textContent = '正在处理...';
+                    btnText.style.display = 'inline';
+                    await cropAllImages();
+                    btnText.textContent = '批量下载';
+                    btnText.style.display = 'none';
+                    
+                    // 更新处理数量
+                    processedCount.textContent = `(${processedFiles.length}张)`;
+                }
+                
+                await new Promise(resolve => setTimeout(resolve, 500));
+                
+                for (const file of processedFiles) {
+                    const link = document.createElement('a');
+                    link.download = file.filename;
+                    link.href = URL.createObjectURL(file.croppedBlob);
+                    link.click();
+                    URL.revokeObjectURL(link.href);
+                    
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+                
+            } catch (error) {
+                console.error('下载失败:', error);
+                alert('下载失败，请重试');
+            } finally {
+                downloadBtn.disabled = false;
+                btnText.style.display = 'inline';
+                downloadLoading.classList.add('hidden');
+                
+                // 下载完成后，保持裁剪界面，用户可以继续调整
+                // 清空已处理的文件，以便下次重新处理
+                processedFiles = [];
+            }
+        }
+    </script>
+
+<!-- 自动添加的底部代码开始 -->
+<div style="all: initial; display: block; width: 100%; margin: 0; padding: 0; border: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+    <div style="opacity: 1 !important; background: rgba(255, 255, 255, 1) !important;">
+        <!-- Footer Section Start -->
+<footer style="
+    position: relative;
+    width: 100%;
+    background: linear-gradient(135deg, #2c2c2c 0%, #1a1a1a 100%);
+    color: #e0e0e0;
+    padding: 35px 30px;
+    border-top: 1px solid #404040;
+    margin: 0;
+    margin-top: 50px;
+    box-sizing: border-box;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    clear: both;
+    z-index: 1000;
+">
+    <div style="
+        max-width: 1200px;
+        margin: 0 auto;
+        display: flex;
+        justify-content: flex-start;
+        align-items: flex-end;
+        gap: 90px;
+        flex-wrap: wrap;
+    ">
+        <div style="flex: 1.5; min-width: 300px;">
+            <h2 style="
+                font-size: 28px;
+                font-weight: 600;
+                margin: 0 0 8px 0;
+                letter-spacing: 1px;
+                color: #e0e0e0;
+            ">月起星九</h2>
+            <div style="
+                font-size: 16px;
+                color: #b0b0b0;
+                margin-bottom: 20px;
+                font-weight: 300;
+            ">AI实战 / 一人企业</div>
+            <p style="
+                font-size: 14px;
+                line-height: 1.7;
+                color: #a0a0a0;
+                max-width: 450px;
+                margin: 0 0 28px 0;
+            ">
+                AI图像工程师，擅长AI绘画技巧、ComfyUI、智能体开发，AI编程ing。
+            </p>
+            
+            <div style="
+                display: flex;
+                gap: 14px;
+                flex-wrap: wrap;
+            ">
+                <button id="wechatCopyBtn" style="
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 8px;
+                    padding: 10px 16px;
+                    background: #333333;
+                    border-radius: 25px;
+                    color: #e0e0e0;
+                    font-size: 14px;
+                    transition: all 0.3s ease;
+                    border: 1px solid #555555;
+                    cursor: pointer;
+                ">
+                    🌍 微信：yueqixingjiu
+                </button>
+                <a href="https://t.zsxq.com/Pz6v1" style="
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 8px;
+                    padding: 10px 16px;
+                    background: #333333;
+                    border-radius: 25px;
+                    color: #e0e0e0;
+                    text-decoration: none;
+                    font-size: 14px;
+                    transition: all 0.3s ease;
+                    border: 1px solid #555555;
+                " target="_blank">
+                    🪐 加入AI编程星球
+                </a>
+
+            </div>
+        </div>
+        
+        <div style="
+            flex: 1;
+            display: flex;
+            gap: 50px;
+            flex-wrap: wrap;
+        ">
+            <div style="min-width: 140px;">
+                <h3 style="
+                    font-size: 16px;
+                    font-weight: 600;
+                    margin: 0 0 24px 0;
+                    color: #e0e0e0;
+                ">其他工具链接</h3>
+                <div style="
+                    display: flex;
+                    flex-direction: column;
+                    gap: 7px;
+                ">
+                    <a href="https://deepseek.idoxu.com/yueqixingjiu/image_batch_crop.html" style="
+                        display: flex;
+                        align-items: center;
+                        gap: 12px;
+                        color: #b0b0b0;
+                        text-decoration: none;
+                        font-size: 14px;
+                        transition: all 0.3s ease;
+                        padding: 6px 0;
+                        line-height: 1.4;
+                    " target="_blank">
+                        图像批量裁剪
+                    </a>
+                    <a href="https://deepseek.idoxu.com/yueqixingjiu/image_format_converter.html" style="
+                        display: flex;
+                        align-items: center;
+                        gap: 12px;
+                        color: #b0b0b0;
+                        text-decoration: none;
+                        font-size: 14px;
+                        transition: all 0.3s ease;
+                        padding: 6px 0;
+                        line-height: 1.4;
+                    " target="_blank">
+                        全格式识别与转换
+                    </a>
+                    <a href="https://deepseek.idoxu.com/yueqixingjiu/image_stitcher.html" style="
+                        display: flex;
+                        align-items: center;
+                        gap: 12px;
+                        color: #b0b0b0;
+                        text-decoration: none;
+                        font-size: 14px;
+                        transition: all 0.3s ease;
+                        padding: 6px 0;
+                        line-height: 1.4;
+                    " target="_blank">
+                        图像一键拼接
+                    </a>
+                    <a href="https://deepseek.idoxu.com/yueqixingjiu/image_format_converter.html" style="
+                        display: flex;
+                        align-items: center;
+                        gap: 12px;
+                        color: #b0b0b0;
+                        text-decoration: none;
+                        font-size: 14px;
+                        transition: all 0.3s ease;
+                        padding: 6px 0;
+                        line-height: 1.4;
+                    " target="_blank">
+                        图像批量格式转换
+                    </a>
+                    <a href="https://deepseek.idoxu.com/yueqixingjiu/claude_parse.html" style="
+                        display: flex;
+                        align-items: center;
+                        gap: 12px;
+                        color: #b0b0b0;
+                        text-decoration: none;
+                        font-size: 14px;
+                        transition: all 0.3s ease;
+                        padding: 6px 0;
+                        line-height: 1.4;
+                    " target="_blank">
+                        claude code聊天记录解析工具
+                    </a>
+                </div>
+            </div>
+            
+            
+        </div>
+    </div>
+    
+    <div style="
+        text-align: center;
+        font-size: 12px;
+        color: #808080;
+        margin-top: 25px;
+        padding-top: 15px;
+        border-top: 1px solid #404040;
+        max-width: 1920px;
+        margin-left: auto;
+        margin-right: auto;
+    ">
+        © 2025 月起星九 · 保留所有权利
+    </div>
+</footer>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const wechatBtn = document.getElementById('wechatCopyBtn');
+    
+    wechatBtn.addEventListener('click', function() {
+        const wechatId = 'yueqixingjiu';
+        
+        navigator.clipboard.writeText(wechatId).then(function() {
+            const originalText = wechatBtn.innerHTML;
+            wechatBtn.innerHTML = '✅ 已复制微信号';
+            wechatBtn.style.background = '#28a745';
+            
+            setTimeout(function() {
+                wechatBtn.innerHTML = originalText;
+                wechatBtn.style.background = '#333333';
+            }, 2000);
+        }).catch(function() {
+            const originalText = wechatBtn.innerHTML;
+            wechatBtn.innerHTML = '❌ 复制失败';
+            wechatBtn.style.background = '#dc3545';
+            
+            setTimeout(function() {
+                wechatBtn.innerHTML = originalText;
+                wechatBtn.style.background = '#333333';
+            }, 2000);
+        });
+    });
+});
+</script>
+
+<!-- Footer Section End -->
+    </div>
+</div>
+<!-- 自动添加的底部代码结束 -->
+<!-- 自动添加的底部代码开始 -->
+<div style="all: initial; display: block; width: 100%; margin: 0; padding: 0; border: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+    <div style="opacity: 1 !important; background: rgba(255, 255, 255, 1) !important;">
+        <!-- Footer Section Start -->
+<footer style="
+    position: relative;
+    width: 100%;
+    background: linear-gradient(135deg, #2c2c2c 0%, #1a1a1a 100%);
+    color: #e0e0e0;
+    padding: 35px 30px;
+    border-top: 1px solid #404040;
+    margin: 0;
+    margin-top: 50px;
+    box-sizing: border-box;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    clear: both;
+    z-index: 1000;
+">
+    <div style="
+        max-width: 1200px;
+        margin: 0 auto;
+        display: flex;
+        justify-content: flex-start;
+        align-items: flex-end;
+        gap: 90px;
+        flex-wrap: wrap;
+    ">
+        <div style="flex: 1.5; min-width: 300px;">
+            <h2 style="
+                font-size: 28px;
+                font-weight: 600;
+                margin: 0 0 8px 0;
+                letter-spacing: 1px;
+                color: #e0e0e0;
+            ">月起星九</h2>
+            <div style="
+                font-size: 16px;
+                color: #b0b0b0;
+                margin-bottom: 20px;
+                font-weight: 300;
+            ">AI实战 / 一人企业</div>
+            <p style="
+                font-size: 14px;
+                line-height: 1.7;
+                color: #a0a0a0;
+                max-width: 450px;
+                margin: 0 0 28px 0;
+            ">
+                AI图像工程师，擅长ComfyUI、AI生图应用、智能体开发，AI编程ing。
+            </p>
+            
+            <div style="
+                display: flex;
+                gap: 14px;
+                flex-wrap: wrap;
+            ">
+                <button id="wechatCopyBtn" style="
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 8px;
+                    padding: 10px 16px;
+                    background: #333333;
+                    border-radius: 25px;
+                    color: #e0e0e0;
+                    font-size: 14px;
+                    transition: all 0.3s ease;
+                    border: 1px solid #555555;
+                    cursor: pointer;
+                ">
+                    🌍 微信：yueqixingjiu
+                </button>
+                <a href="https://t.zsxq.com/Pz6v1" style="
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 8px;
+                    padding: 10px 16px;
+                    background: #333333;
+                    border-radius: 25px;
+                    color: #e0e0e0;
+                    text-decoration: none;
+                    font-size: 14px;
+                    transition: all 0.3s ease;
+                    border: 1px solid #555555;
+                " target="_blank">
+                    🪐 加入AI编程星球
+                </a>
+                <a href="https://dkfile.com/yueqixingjiu/fuyebikeng.html" style="
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 8px;
+                    padding: 10px 16px;
+                    background: #333333;
+                    border-radius: 25px;
+                    color: #e0e0e0;
+                    text-decoration: none;
+                    font-size: 14px;
+                    transition: all 0.3s ease;
+                    border: 1px solid #555555;
+                " target="_blank">
+                    🚀 点击开启副业之路
+                </a>
+
+            </div>
+        </div>
+        
+        <div style="
+            flex: 1;
+            display: flex;
+            gap: 50px;
+            flex-wrap: wrap;
+        ">
+            <div style="min-width: 140px;">
+                <h3 style="
+                    font-size: 16px;
+                    font-weight: 600;
+                    margin: 0 0 24px 0;
+                    color: #e0e0e0;
+                ">其他工具链接</h3>
+                <div style="
+                    display: flex;
+                    flex-direction: column;
+                    gap: 7px;
+                ">
+                    <a href="https://deepseek.idoxu.com/yueqixingjiu/image_batch_crop.html" style="
+                        display: flex;
+                        align-items: center;
+                        gap: 12px;
+                        color: #b0b0b0;
+                        text-decoration: none;
+                        font-size: 14px;
+                        transition: all 0.3s ease;
+                        padding: 6px 0;
+                        line-height: 1.4;
+                    " target="_blank">
+                        图像批量裁剪
+                    </a>
+                    <a href="https://deepseek.idoxu.com/yueqixingjiu/image_format_converter.html" style="
+                        display: flex;
+                        align-items: center;
+                        gap: 12px;
+                        color: #b0b0b0;
+                        text-decoration: none;
+                        font-size: 14px;
+                        transition: all 0.3s ease;
+                        padding: 6px 0;
+                        line-height: 1.4;
+                    " target="_blank">
+                        全格式识别与转换
+                    </a>
+                    <a href="https://deepseek.idoxu.com/yueqixingjiu/image_stitcher.html" style="
+                        display: flex;
+                        align-items: center;
+                        gap: 12px;
+                        color: #b0b0b0;
+                        text-decoration: none;
+                        font-size: 14px;
+                        transition: all 0.3s ease;
+                        padding: 6px 0;
+                        line-height: 1.4;
+                    " target="_blank">
+                        图像一键拼接
+                    </a>
+                    <a href="https://deepseek.idoxu.com/yueqixingjiu/image_format_converter.html" style="
+                        display: flex;
+                        align-items: center;
+                        gap: 12px;
+                        color: #b0b0b0;
+                        text-decoration: none;
+                        font-size: 14px;
+                        transition: all 0.3s ease;
+                        padding: 6px 0;
+                        line-height: 1.4;
+                    " target="_blank">
+                        图像批量格式转换
+                    </a>
+                    <a href="https://deepseek.idoxu.com/yueqixingjiu/image_comparison_animate.html" style="
+                        display: flex;
+                        align-items: center;
+                        gap: 12px;
+                        color: #b0b0b0;
+                        text-decoration: none;
+                        font-size: 14px;
+                        transition: all 0.3s ease;
+                        padding: 6px 0;
+                        line-height: 1.4;
+                    " target="_blank">
+                        图片对比动画效果生成
+                    </a>
+                </div>
+            </div>
+            
+            
+        </div>
+    </div>
+    
+    <div style="
+        text-align: center;
+        font-size: 12px;
+        color: #808080;
+        margin-top: 25px;
+        padding-top: 15px;
+        border-top: 1px solid #404040;
+        max-width: 1920px;
+        margin-left: auto;
+        margin-right: auto;
+    ">
+        © 2025 月起星九 · 保留所有权利
+    </div>
+</footer>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const wechatBtn = document.getElementById('wechatCopyBtn');
+    
+    wechatBtn.addEventListener('click', function() {
+        const wechatId = 'yueqixingjiu';
+        
+        navigator.clipboard.writeText(wechatId).then(function() {
+            const originalText = wechatBtn.innerHTML;
+            wechatBtn.innerHTML = '✅ 已复制微信号';
+            wechatBtn.style.background = '#28a745';
+            
+            setTimeout(function() {
+                wechatBtn.innerHTML = originalText;
+                wechatBtn.style.background = '#333333';
+            }, 2000);
+        }).catch(function() {
+            const originalText = wechatBtn.innerHTML;
+            wechatBtn.innerHTML = '❌ 复制失败';
+            wechatBtn.style.background = '#dc3545';
+            
+            setTimeout(function() {
+                wechatBtn.innerHTML = originalText;
+                wechatBtn.style.background = '#333333';
+            }, 2000);
+        });
+    });
+});
+</script>
+
+<!-- Footer Section End -->
+    </div>
+</div>
+<!-- 自动添加的底部代码结束 --></body>
+</html>

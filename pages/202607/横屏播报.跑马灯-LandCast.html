@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover, minimal-ui">
+<title>横屏播报.跑马灯</title>
+<style>
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html, body {
+    width: 100%;
+    width: 100dvw;
+    height: 100%;
+    height: 100dvh;
+    overflow: hidden;
+    background: #000;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  }
+
+  /* ---------- 控制面板 ---------- */
+  .control-panel {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    z-index: 100;
+    background: rgba(20, 20, 20, 0.92);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    padding: 10px 16px 12px;
+    transition: transform 0.35s ease, opacity 0.35s ease;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .control-panel.hidden {
+    transform: translateY(-100%);
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .control-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+  }
+
+  .control-row:last-child {
+    margin-bottom: 0;
+  }
+
+  /* 文字输入 */
+  .text-input {
+    flex: 1;
+    min-width: 140px;
+    height: 38px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    color: #fff;
+    font-size: 15px;
+    padding: 0 12px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .text-input:focus {
+    border-color: rgba(255, 255, 255, 0.4);
+  }
+
+  .text-input::placeholder {
+    color: rgba(255, 255, 255, 0.35);
+  }
+
+  /* 按钮 */
+  .btn {
+    height: 38px;
+    padding: 0 16px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.1s;
+    white-space: nowrap;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  .btn:active {
+    transform: scale(0.96);
+  }
+
+  .btn-primary {
+    background: #fff;
+    color: #000;
+  }
+
+  .btn-ghost {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+  }
+
+  .btn-icon {
+    width: 38px;
+    padding: 0;
+    text-align: center;
+    font-size: 18px;
+  }
+
+  /* 颜色选择 */
+  .color-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .color-label {
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 13px;
+    white-space: nowrap;
+  }
+
+  .color-btn {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    cursor: pointer;
+    transition: border-color 0.2s, transform 0.15s;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  .color-btn:active {
+    transform: scale(0.9);
+  }
+
+  .color-btn.active {
+    border-color: #fff;
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.25);
+  }
+
+  .color-white   { background: #ffffff; }
+  .color-red     { background: #ff0000; }
+  .color-green   { background: #00ff00; }
+
+  /* 速度控制 */
+  .speed-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+    min-width: 180px;
+  }
+
+  .speed-label {
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 13px;
+    white-space: nowrap;
+  }
+
+  .speed-slider {
+    flex: 1;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 2px;
+    outline: none;
+  }
+
+  .speed-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #fff;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  }
+
+  .speed-slider::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #fff;
+    cursor: pointer;
+    border: none;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  }
+
+  .speed-value {
+    color: #fff;
+    font-size: 14px;
+    min-width: 36px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ---------- 跑马灯区域 ---------- */
+  .marquee-stage {
+    width: 100%;
+    width: 100dvw;
+    height: 100%;
+    height: 100dvh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .marquee-track {
+    display: inline-block;
+    white-space: nowrap;
+    font-weight: 700;
+    will-change: transform;
+    position: absolute;
+    left: 100%;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+
+  .marquee-track.paused {
+    animation-play-state: paused;
+  }
+
+  /* ---------- 设置按钮（悬浮） ---------- */
+  .toggle-settings {
+    position: fixed;
+    top: 10px;
+    right: 12px;
+    z-index: 90;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: rgba(20, 20, 20, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 18px;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    -webkit-user-select: none;
+    user-select: none;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+
+  .toggle-settings.visible {
+    display: flex;
+  }
+
+  /* ---------- 空状态提示 ---------- */
+  .empty-hint {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: rgba(255, 255, 255, 0.2);
+    font-size: 16px;
+    text-align: center;
+    pointer-events: none;
+  }
+
+  /* 横屏提示（竖屏时由 JS 显示） */
+  .rotate-hint {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: #000;
+    z-index: 9999;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    color: rgba(255,255,255,0.6);
+    font-size: 16px;
+    text-align: center;
+    padding: 30px;
+  }
+
+  .rotate-hint.visible {
+    display: flex;
+  }
+
+  .rotate-hint svg {
+    width: 56px;
+    height: 56px;
+    margin-bottom: 16px;
+    opacity: 0.5;
+    animation: rotateHint 2s ease-in-out infinite;
+  }
+
+  @keyframes rotateHint {
+    0%, 100% { transform: rotate(0deg); }
+    50% { transform: rotate(90deg); }
+  }
+</style>
+</head>
+<body>
+
+  <!-- 横屏提示 -->
+  <div class="rotate-hint">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="5" y="2" width="14" height="20" rx="2"/>
+      <line x1="12" y1="18" x2="12" y2="18"/>
+    </svg>
+    <p>请横屏使用</p>
+  </div>
+
+  <!-- 控制面板 -->
+  <div class="control-panel" id="controlPanel">
+    <!-- 第一行：文字输入 + 添加/清除/全屏/隐藏 -->
+    <div class="control-row">
+      <input type="text" class="text-input" id="textInput" placeholder="输入跑马灯文字…" maxlength="200" value="全场第二件半价· 扫码领礼品">
+      <button class="btn btn-primary" id="addBtn">添加</button>
+      <button class="btn btn-ghost" id="fullscreenBtn">全屏</button>
+      <button class="btn btn-ghost btn-icon" id="clearBtn" title="清除文字">✕</button>
+      <button class="btn btn-ghost btn-icon" id="hideBtn" title="隐藏面板">▼</button>
+    </div>
+    <!-- 第二行：颜色 + 速度 + 暂停 -->
+    <div class="control-row">
+      <div class="color-group">
+        <span class="color-label">颜色</span>
+        <div class="color-btn color-white active" data-color="#ffffff" title="白色"></div>
+        <div class="color-btn color-red" data-color="#ff0000" title="红色"></div>
+        <div class="color-btn color-green" data-color="#00ff00" title="绿色"></div>
+      </div>
+      <div class="speed-group">
+        <span class="speed-label">速度</span>
+        <input type="range" class="speed-slider" id="speedSlider" min="10" max="200" value="80" step="5">
+        <span class="speed-value" id="speedValue">80</span>
+      </div>
+      <button class="btn btn-ghost" id="pauseBtn">暂停</button>
+    </div>
+  </div>
+
+  <!-- 设置按钮（面板隐藏后出现） -->
+  <div class="toggle-settings" id="toggleSettings">⚙</div>
+
+  <!-- 跑马灯舞台 -->
+  <div class="marquee-stage" id="marqueeStage">
+    <div class="empty-hint" id="emptyHint">输入文字后点击「添加」开始播放</div>
+  </div>
+
+<script>
+(function () {
+  // ---- 元素引用 ----
+  var textInput      = document.getElementById('textInput');
+  var addBtn         = document.getElementById('addBtn');
+  var clearBtn       = document.getElementById('clearBtn');
+  var hideBtn        = document.getElementById('hideBtn');
+  var pauseBtn       = document.getElementById('pauseBtn');
+  var controlPanel   = document.getElementById('controlPanel');
+  var toggleSettings = document.getElementById('toggleSettings');
+  var speedSlider    = document.getElementById('speedSlider');
+  var speedValue     = document.getElementById('speedValue');
+  var marqueeStage   = document.getElementById('marqueeStage');
+  var emptyHint      = document.getElementById('emptyHint');
+  var colorBtns      = document.querySelectorAll('.color-btn');
+
+  // ---- 状态 ----
+  var currentColor  = '#ffffff';
+  var currentSpeed  = 80;        // 滑块值（越大越快）
+  var isPaused      = false;
+  var marqueeTrack  = null;      // 当前跑马灯 DOM
+  var currentText   = '';
+
+  // ---- 工具函数 ----
+  function getDuration(speed) {
+    // speed: 10(慢) ~ 200(快)
+    // duration: speed 越大，时间越短
+    // 映射: speed=10 -> 30s, speed=200 -> 3s
+    var minSpeed = 10, maxSpeed = 200;
+    var maxDur = 30, minDur = 3;
+    var ratio = (speed - minSpeed) / (maxSpeed - minSpeed);
+    var dur = maxDur - ratio * (maxDur - minDur);
+    return dur.toFixed(1) + 's';
+  }
+
+  function buildAnimation() {
+    var dur = getDuration(currentSpeed);
+    var id  = 'marqueeAnim_' + Date.now();
+
+    // 移除旧 style
+    var oldStyle = document.getElementById('dynamicMarqueeStyle');
+    if (oldStyle) oldStyle.remove();
+
+    var style = document.createElement('style');
+    style.id = 'dynamicMarqueeStyle';
+    style.textContent =
+      '@keyframes ' + id + ' {' +
+        '0%   { left: 100%; }' +
+        '100% { left: 100%; transform: translateX(-100%) translateY(-50%); }' +
+      '}' +
+      '.marquee-track {' +
+        'animation: ' + id + ' ' + dur + ' linear infinite;' +
+        'animation-play-state: ' + (isPaused ? 'paused' : 'running') + ';' +
+      '}';
+    document.head.appendChild(style);
+  }
+
+  function createMarquee(text) {
+    // 清除旧 track
+    if (marqueeTrack) {
+      marqueeTrack.remove();
+      marqueeTrack = null;
+    }
+
+    if (!text || text.trim() === '') {
+      emptyHint.style.display = 'block';
+      return;
+    }
+
+    emptyHint.style.display = 'none';
+    currentText = text.trim();
+
+    marqueeTrack = document.createElement('div');
+    marqueeTrack.className = 'marquee-track';
+    marqueeTrack.textContent = currentText;
+    marqueeTrack.style.color = currentColor;
+
+    // 自适应字体大小：根据屏幕高度
+    var stageH = marqueeStage.clientHeight;
+    var fontSize = Math.max(24, Math.floor(stageH * 0.5));
+    marqueeTrack.style.fontSize = fontSize + 'px';
+
+    marqueeStage.appendChild(marqueeTrack);
+
+    buildAnimation();
+  }
+
+  // ---- 事件 ----
+
+  // 添加文字
+  addBtn.addEventListener('click', function () {
+    createMarquee(textInput.value);
+  });
+
+  textInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') {
+      createMarquee(textInput.value);
+    }
+  });
+
+  // 清除
+  clearBtn.addEventListener('click', function () {
+    textInput.value = '';
+    if (marqueeTrack) {
+      marqueeTrack.remove();
+      marqueeTrack = null;
+    }
+    emptyHint.style.display = 'block';
+    currentText = '';
+  });
+
+  // 颜色选择
+  colorBtns.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      colorBtns.forEach(function (b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      currentColor = btn.getAttribute('data-color');
+      if (marqueeTrack) {
+        marqueeTrack.style.color = currentColor;
+      }
+    });
+  });
+
+  // 速度
+  speedSlider.addEventListener('input', function () {
+    currentSpeed = parseInt(speedSlider.value, 10);
+    speedValue.textContent = currentSpeed;
+    if (marqueeTrack) {
+      buildAnimation();
+    }
+  });
+
+  // 暂停/播放
+  pauseBtn.addEventListener('click', function () {
+    isPaused = !isPaused;
+    pauseBtn.textContent = isPaused ? '播放' : '暂停';
+    if (marqueeTrack) {
+      marqueeTrack.style.animationPlayState = isPaused ? 'paused' : 'running';
+    }
+  });
+
+  // 隐藏/显示面板
+  hideBtn.addEventListener('click', function () {
+    controlPanel.classList.add('hidden');
+    toggleSettings.classList.add('visible');
+  });
+
+  toggleSettings.addEventListener('click', function () {
+    controlPanel.classList.remove('hidden');
+    toggleSettings.classList.remove('visible');
+  });
+
+  // ---- 全屏模式（真正隐藏地址栏和底部菜单） ----
+  var fullscreenBtn = document.getElementById('fullscreenBtn');
+
+  function isFullscreen() {
+    return !!(
+      document.fullscreenElement ||
+      document.webkitFullscreenElement ||
+      document.mozFullScreenElement ||
+      document.msFullscreenElement
+    );
+  }
+
+  function requestFullscreen(el) {
+    var method =
+      el.requestFullscreen ||
+      el.webkitRequestFullscreen ||
+      el.mozRequestFullScreen ||
+      el.msRequestFullscreen;
+    if (method) {
+      return method.call(el);
+    }
+    return Promise.reject(new Error('不支持全屏'));
+  }
+
+  function exitFullscreen() {
+    var method =
+      document.exitFullscreen ||
+      document.webkitExitFullscreen ||
+      document.mozCancelFullScreen ||
+      document.msExitFullscreen;
+    if (method) {
+      return method.call(document);
+    }
+    return Promise.reject(new Error('不支持退出全屏'));
+  }
+
+  function updateFullscreenBtn() {
+    fullscreenBtn.textContent = isFullscreen() ? '退出' : '全屏';
+  }
+
+  fullscreenBtn.addEventListener('click', function () {
+    if (isFullscreen()) {
+      exitFullscreen().catch(function () {});
+    } else {
+      // 先隐藏面板，再请求全屏，效果更好
+      controlPanel.classList.add('hidden');
+      toggleSettings.classList.add('visible');
+      requestFullscreen(document.documentElement).catch(function (err) {
+        // 若系统不支持全屏 API，尝试滚动隐藏地址栏的兜底方案
+        tryHideAddressBar();
+      });
+    }
+  });
+
+  document.addEventListener('fullscreenchange', updateFullscreenBtn);
+  document.addEventListener('webkitfullscreenchange', updateFullscreenBtn);
+  document.addEventListener('mozfullscreenchange', updateFullscreenBtn);
+  document.addEventListener('MSFullscreenChange', updateFullscreenBtn);
+
+  // 兜底：尝试滚动隐藏地址栏（对不支持 Fullscreen API 的 iOS Safari 等有用）
+  function tryHideAddressBar() {
+    setTimeout(function () {
+      window.scrollTo(0, 1);
+    }, 100);
+  }
+
+  // 页面加载后尝试隐藏地址栏（可选）
+  // 注意：用户主动点击全屏按钮体验更好，这里只做兜底
+  window.addEventListener('load', tryHideAddressBar);
+
+  // 窗口大小变化时重新计算字体
+  var resizeTimer = null;
+  window.addEventListener('resize', function () {
+    if (resizeTimer) clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(function () {
+      if (marqueeTrack) {
+        var stageH = marqueeStage.clientHeight;
+        var fontSize = Math.max(24, Math.floor(stageH * 0.5));
+        marqueeTrack.style.fontSize = fontSize + 'px';
+      }
+    }, 150);
+  });
+
+  // ---- 横竖屏检测（JS 方式，比 CSS 媒体查询更可靠） ----
+  var rotateHint = document.querySelector('.rotate-hint');
+
+  function checkOrientation() {
+    var w = window.innerWidth;
+    var h = window.innerHeight;
+    // 宽 > 高 → 横屏，隐藏提示；否则竖屏，显示提示
+    if (w > h) {
+      rotateHint.classList.remove('visible');
+    } else {
+      rotateHint.classList.add('visible');
+    }
+  }
+
+  // 初次检测
+  checkOrientation();
+
+  // 监听旋转和尺寸变化（部分浏览器 orientationchange 先触发，部分 resize 先触发，两者都监听）
+  window.addEventListener('orientationchange', function () {
+    // orientationchange 触发时尺寸可能尚未更新，延迟检测
+    setTimeout(checkOrientation, 150);
+    setTimeout(checkOrientation, 400);
+  });
+  window.addEventListener('resize', checkOrientation);
+
+  // 初始化：自动播放默认文字
+  setTimeout(function () {
+    createMarquee(textInput.value);
+  }, 200);
+
+})();
+</script>
+</body>
+</html>

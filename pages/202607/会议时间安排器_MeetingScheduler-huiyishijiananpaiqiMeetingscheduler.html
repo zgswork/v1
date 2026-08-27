@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>会议时间安排器 / Meeting Scheduler</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        
+        #container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        #controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        #participant-input {
+            padding: 8px;
+            flex-grow: 1;
+        }
+        
+        button {
+            padding: 8px 16px;
+            cursor: pointer;
+        }
+        
+        #language-switcher {
+            margin-left: auto;
+            background: none;
+            border: 1px solid #ccc;
+        }
+        
+        #schedule {
+            border: 1px solid #ccc;
+            padding: 10px;
+            position: relative;
+            height: 500px;
+            overflow: auto;
+        }
+        
+        .timeline {
+            display: flex;
+            position: relative;
+            height: 100%;
+        }
+        
+        .day {
+            flex: 1;
+            border-right: 1px solid #eee;
+            position: relative;
+            min-width: 150px;
+        }
+        
+        .day-header {
+            text-align: center;
+            padding: 5px;
+            background-color: #f5f5f5;
+            border-bottom: 1px solid #ddd;
+            position: sticky;
+            top: 0;
+        }
+        
+        .time-marker {
+            position: absolute;
+            width: 100%;
+            border-top: 1px dashed #eee;
+            display: flex;
+            align-items: center;
+        }
+        
+        .time-label {
+            font-size: 10px;
+            color: #999;
+            margin-right: 5px;
+        }
+        
+        .participant-time {
+            position: absolute;
+            width: calc(100% - 10px);
+            left: 5px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 12px;
+            z-index: 5;
+            opacity: 0.8;
+        }
+        
+        #participants-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        
+        .participant-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            position: relative;
+        }
+        
+        .participant-badge {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            flex-shrink: 0;
+        }
+        
+        .time-inputs {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            flex-grow: 1;
+        }
+        
+        select {
+            padding: 5px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+        }
+        
+        .overlap-highlight {
+            background-color: rgba(255, 0, 0, 0.3);
+            border: 1px dashed red;
+        }
+        
+        .delete-participant {
+            position: absolute;
+            right: 10px;
+            top: 10px;
+            background: none;
+            border: none;
+            color: #ff4444;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        
+        .participant-name {
+            min-width: 60px;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <h1 data-i18n="title">会议时间安排器</h1>
+        
+        <div id="controls">
+            <input type="text" id="participant-input" placeholder="输入参与者姓名" data-i18n-placeholder="participantPlaceholder">
+            <button id="add-btn" data-i18n="addParticipant">添加参与者</button>
+            <button id="language-switcher">EN/中文</button>
+        </div>
+        
+        <div id="schedule">
+            <div class="timeline" id="timeline"></div>
+        </div>
+        
+        <h3 data-i18n="participantList">参与者列表</h3>
+        <div id="participants-list"></div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const colors = [
+                '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF',
+                '#FF9F40', '#8AC249', '#EA5F89', '#0D98BA', '#9ACD32'
+            ];
+            const daysZh = ['周一', '周二', '周三', '周四', '周五'];
+            const daysEn = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+            let days = daysZh;
+            const hours = 9; // 9am to 5pm (8 hours)
+            const hourHeight = 60; // pixels per hour
+            
+            const timeline = document.getElementById('timeline');
+            const addBtn = document.getElementById('add-btn');
+            const participantInput = document.getElementById('participant-input');
+            const participantsList = document.getElementById('participants-list');
+            const languageSwitcher = document.getElementById('language-switcher');
+            
+            let participants = [];
+            let currentLanguage = 'zh';
+            
+            // 多语言资源
+            const i18n = {
+                zh: {
+                    title: '会议时间安排器',
+                    participantPlaceholder: '输入参与者姓名',
+                    addParticipant: '添加参与者',
+                    participantList: '参与者列表',
+                    selectDay: '选择日期',
+                    selectStartTime: '开始时间',
+                    selectEndTime: '结束时间',
+                    addAvailableTime: '添加可用时间',
+                    confirmDelete: '确定要删除参与者 {name} 吗?',
+                    invalidTime: '请选择有效的日期和时间范围',
+                    dayOptions: daysZh,
+                    timeOptions: Array.from({length: hours}, (_, i) => `${9 + i}:00`)
+                },
+                en: {
+                    title: 'Meeting Scheduler',
+                    participantPlaceholder: 'Enter participant name',
+                    addParticipant: 'Add Participant',
+                    participantList: 'Participants List',
+                    selectDay: 'Select day',
+                    selectStartTime: 'Start time',
+                    selectEndTime: 'End time',
+                    addAvailableTime: 'Add available time',
+                    confirmDelete: 'Are you sure to delete participant {name}?',
+                    invalidTime: 'Please select valid date and time range',
+                    dayOptions: daysEn,
+                    timeOptions: Array.from({length: hours}, (_, i) => `${9 + i}:00`)
+                }
+            };
+            
+            // 切换语言
+            function switchLanguage() {
+                currentLanguage = currentLanguage === 'zh' ? 'en' : 'zh';
+                days = currentLanguage === 'zh' ? daysZh : daysEn;
+                
+                // 更新界面文本
+                document.querySelectorAll('[data-i18n]').forEach(el => {
+                    const key = el.getAttribute('data-i18n');
+                    el.textContent = i18n[currentLanguage][key];
+                });
+                
+                document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+                    const key = el.getAttribute('data-i18n-placeholder');
+                    el.placeholder = i18n[currentLanguage][key];
+                });
+                
+                // 重新初始化时间轴
+                initTimeline();
+                
+                // 更新参与者时间选择器
+                updateAllParticipantTimeSelectors();
+                
+                // 重新渲染时间轴
+                renderSchedule();
+            }
+            
+            // 更新所有参与者的时间选择器
+            function updateAllParticipantTimeSelectors() {
+                participants.forEach(participant => {
+                    const participantItem = document.querySelector(`.participant-item[data-id="${participant.id}"]`);
+                    if (participantItem) {
+                        const daySelect = participantItem.querySelector('select:nth-of-type(1)');
+                        const startHourSelect = participantItem.querySelector('select:nth-of-type(2)');
+                        const endHourSelect = participantItem.querySelector('select:nth-of-type(3)');
+                        const addTimeBtn = participantItem.querySelector('.time-inputs button');
+                        
+                        // 更新日期选择器
+                        daySelect.innerHTML = `<option value="">${i18n[currentLanguage].selectDay}</option>` + 
+                            days.map(day => `<option value="${day}">${day}</option>`).join('');
+                        
+                        // 更新开始时间选择器
+                        startHourSelect.innerHTML = `<option value="">${i18n[currentLanguage].selectStartTime}</option>` + 
+                            Array.from({length: hours}, (_, i) => {
+                                const hour = 9 + i;
+                                return `<option value="${hour}">${hour}:00</option>`;
+                            }).join('');
+                        
+                        // 更新结束时间选择器
+                        endHourSelect.innerHTML = `<option value="">${i18n[currentLanguage].selectEndTime}</option>` + 
+                            Array.from({length: hours}, (_, i) => {
+                                const hour = 9 + i;
+                                return `<option value="${hour}">${hour}:00</option>`;
+                            }).join('');
+                        
+                        // 更新按钮文本
+                        addTimeBtn.textContent = i18n[currentLanguage].addAvailableTime;
+                        
+                        // 更新已添加的时间显示
+                        updateParticipantTimes(participant);
+                    }
+                });
+            }
+            
+            // 初始化时间轴
+            function initTimeline() {
+                timeline.innerHTML = '';
+                
+                // 创建每天的时间轴
+                days.forEach(day => {
+                    const dayEl = document.createElement('div');
+                    dayEl.className = 'day';
+                    dayEl.dataset.day = day;
+                    
+                    const header = document.createElement('div');
+                    header.className = 'day-header';
+                    header.textContent = day;
+                    dayEl.appendChild(header);
+                    
+                    // 添加时间标记
+                    for (let i = 0; i < hours; i++) {
+                        const time = 9 + i;
+                        const timeMarker = document.createElement('div');
+                        timeMarker.className = 'time-marker';
+                        timeMarker.style.top = `${i * hourHeight}px`;
+                        
+                        const timeLabel = document.createElement('span');
+                        timeLabel.className = 'time-label';
+                        timeLabel.textContent = `${time}:00`;
+                        
+                        timeMarker.appendChild(timeLabel);
+                        dayEl.appendChild(timeMarker);
+                    }
+                    
+                    timeline.appendChild(dayEl);
+                });
+            }
+            
+            // 添加参与者
+            function addParticipant(name) {
+                if (!name.trim()) return;
+                
+                const color = colors[participants.length % colors.length];
+                const id = Date.now();
+                
+                const participant = {
+                    id,
+                    name,
+                    color,
+                    availableTimes: []
+                };
+                
+                participants.push(participant);
+                
+                // 创建参与者项
+                const participantItem = document.createElement('div');
+                participantItem.className = 'participant-item';
+                participantItem.dataset.id = id;
+                
+                const badge = document.createElement('div');
+                badge.className = 'participant-badge';
+                badge.textContent = name[0].toUpperCase();
+                badge.style.backgroundColor = color;
+                
+                const nameSpan = document.createElement('span');
+                nameSpan.className = 'participant-name';
+                nameSpan.textContent = name;
+                
+                const timeInputs = document.createElement('div');
+                timeInputs.className = 'time-inputs';
+                
+                // 添加时间选择器
+                const daySelect = document.createElement('select');
+                daySelect.innerHTML = `<option value="">${i18n[currentLanguage].selectDay}</option>` + 
+                    days.map(day => `<option value="${day}">${day}</option>`).join('');
+                
+                const startHourSelect = document.createElement('select');
+                startHourSelect.innerHTML = `<option value="">${i18n[currentLanguage].selectStartTime}</option>` + 
+                    Array.from({length: hours}, (_, i) => {
+                        const hour = 9 + i;
+                        return `<option value="${hour}">${hour}:00</option>`;
+                    }).join('');
+                
+                const endHourSelect = document.createElement('select');
+                endHourSelect.innerHTML = `<option value="">${i18n[currentLanguage].selectEndTime}</option>` + 
+                    Array.from({length: hours}, (_, i) => {
+                        const hour = 9 + i;
+                        return `<option value="${hour}">${hour}:00</option>`;
+                    }).join('');
+                
+                const addTimeBtn = document.createElement('button');
+                addTimeBtn.textContent = i18n[currentLanguage].addAvailableTime;
+                addTimeBtn.addEventListener('click', () => {
+                    const day = daySelect.value;
+                    const startHour = parseInt(startHourSelect.value);
+                    const endHour = parseInt(endHourSelect.value);
+                    
+                    if (!day || isNaN(startHour) || isNaN(endHour) || startHour >= endHour) {
+                        alert(i18n[currentLanguage].invalidTime);
+                        return;
+                    }
+                    
+                    participant.availableTimes.push({
+                        day,
+                        startHour,
+                        endHour
+                    });
+                    
+                    updateParticipantTimes(participant);
+                    renderSchedule();
+                });
+                
+                timeInputs.appendChild(daySelect);
+                timeInputs.appendChild(startHourSelect);
+                timeInputs.appendChild(endHourSelect);
+                timeInputs.appendChild(addTimeBtn);
+                
+                // 添加时间显示区域
+                const timesDisplay = document.createElement('div');
+                timesDisplay.className = 'times-display';
+                timesDisplay.style.marginTop = '10px';
+                timesDisplay.style.display = 'flex';
+                timesDisplay.style.flexWrap = 'wrap';
+                timesDisplay.style.gap = '5px';
+                
+                // 添加删除按钮
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'delete-participant';
+                deleteBtn.innerHTML = '&times;';
+                deleteBtn.title = currentLanguage === 'zh' ? '删除此参与者' : 'Delete this participant';
+                deleteBtn.addEventListener('click', () => {
+                    const message = i18n[currentLanguage].confirmDelete.replace('{name}', participant.name);
+                    if (confirm(message)) {
+                        // 从数组中移除
+                        participants = participants.filter(p => p.id !== participant.id);
+                        // 从DOM中移除
+                        participantItem.remove();
+                        // 重新渲染时间轴
+                        renderSchedule();
+                    }
+                });
+                
+                participantItem.appendChild(badge);
+                participantItem.appendChild(nameSpan);
+                participantItem.appendChild(timeInputs);
+                participantItem.appendChild(timesDisplay);
+                participantItem.appendChild(deleteBtn);
+                
+                participantsList.appendChild(participantItem);
+                participantInput.value = '';
+                
+                // 保存时间显示区域的引用
+                participant.timesDisplay = timesDisplay;
+            }
+            
+            // 更新参与者的可用时间显示
+            function updateParticipantTimes(participant) {
+                participant.timesDisplay.innerHTML = '';
+                
+                participant.availableTimes.forEach((time, index) => {
+                    const timeBadge = document.createElement('div');
+                    timeBadge.style.backgroundColor = participant.color;
+                    timeBadge.style.padding = '5px';
+                    timeBadge.style.borderRadius = '3px';
+                    timeBadge.style.color = 'white';
+                    timeBadge.style.fontSize = '12px';
+                    timeBadge.textContent = `${time.day} ${time.startHour}:00-${time.endHour}:00`;
+                    
+                    const removeBtn = document.createElement('button');
+                    removeBtn.textContent = '×';
+                    removeBtn.style.marginLeft = '5px';
+                    removeBtn.style.background = 'none';
+                    removeBtn.style.border = 'none';
+                    removeBtn.style.color = 'white';
+                    removeBtn.style.cursor = 'pointer';
+                    removeBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        participant.availableTimes.splice(index, 1);
+                        updateParticipantTimes(participant);
+                        renderSchedule();
+                    });
+                    
+                    timeBadge.appendChild(removeBtn);
+                    participant.timesDisplay.appendChild(timeBadge);
+                });
+            }
+            
+            // 渲染时间轴上的可用时间
+            function renderSchedule() {
+                // 清除之前的时间块
+                document.querySelectorAll('.participant-time').forEach(el => el.remove());
+                
+                // 找出所有重叠的时间段
+                const overlaps = findOverlappingTimes();
+                
+                // 为每个参与者渲染可用时间
+                participants.forEach(participant => {
+                    participant.availableTimes.forEach(time => {
+                        const dayEl = document.querySelector(`.day[data-day="${time.day}"]`);
+                        if (!dayEl) return;
+                        
+                        const startPos = (time.startHour - 9) * hourHeight;
+                        const duration = (time.endHour - time.startHour) * hourHeight;
+                        
+                        const timeBlock = document.createElement('div');
+                        timeBlock.className = 'participant-time';
+                        timeBlock.textContent = participant.name[0];
+                        timeBlock.style.backgroundColor = participant.color;
+                        timeBlock.style.top = `${startPos}px`;
+                        timeBlock.style.height = `${duration}px`;
+                        
+                        // 检查是否是重叠时间段
+                        const isOverlap = overlaps.some(overlap => 
+                            overlap.day === time.day &&
+                            overlap.start < time.endHour &&
+                            overlap.end > time.startHour
+                        );
+                        
+                        if (isOverlap) {
+                            timeBlock.classList.add('overlap-highlight');
+                        }
+                        
+                        dayEl.appendChild(timeBlock);
+                    });
+                });
+            }
+            
+            // 找出所有重叠的时间段
+            function findOverlappingTimes() {
+                const allTimes = [];
+                const overlaps = [];
+                
+                // 收集所有时间段
+                participants.forEach(participant => {
+                    participant.availableTimes.forEach(time => {
+                        allTimes.push({
+                            day: time.day,
+                            start: time.startHour,
+                            end: time.endHour,
+                            participant: participant.name
+                        });
+                    });
+                });
+                
+                // 检查重叠
+                for (let i = 0; i < allTimes.length; i++) {
+                    for (let j = i + 1; j < allTimes.length; j++) {
+                        const time1 = allTimes[i];
+                        const time2 = allTimes[j];
+                        
+                        if (time1.day === time2.day && 
+                            time1.start < time2.end && 
+                            time1.end > time2.start) {
+                            
+                            overlaps.push({
+                                day: time1.day,
+                                start: Math.max(time1.start, time2.start),
+                                end: Math.min(time1.end, time2.end)
+                            });
+                        }
+                    }
+                }
+                
+                return overlaps;
+            }
+            
+            // 事件监听
+            addBtn.addEventListener('click', () => addParticipant(participantInput.value));
+            participantInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') addParticipant(participantInput.value);
+            });
+            languageSwitcher.addEventListener('click', switchLanguage);
+            
+            // 初始化
+            initTimeline();
+            
+            // 添加示例参与者
+            addParticipant('张三');
+            addParticipant('李四');
+            addParticipant('王五');
+        });
+    </script>
+</body>
+</html>

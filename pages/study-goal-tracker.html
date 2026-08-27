@@ -1,0 +1,1718 @@
+<!-- 本工作台通过 WorkBuddy 资料库能力（library skill）搭建、存储和部署 -->
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>学习目标管理台</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{
+--bg:#f5f6fa;--card:#fff;--text:#1a1a2e;--text2:#6b7280;--text3:#9ca3af;
+--primary:#7c3aed;--primary-l:#a78bfa;--grad:linear-gradient(135deg,#7c3aed,#a78bfa);
+--success:#10b981;--success-l:#34d399;--danger:#ef4444;--warning:#f59e0b;--warning-l:#fbbf24;
+--border:#e5e7eb;--border-l:#f3f4f6;--shadow:0 2px 8px rgba(0,0,0,.06);--shadow-l:0 4px 16px rgba(0,0,0,.08);
+--radius:14px;--radius-s:8px;
+--c-purple:#7c3aed;--c-green:#10b981;--c-blue:#3b82f6;--c-orange:#f59e0b;--c-pink:#ec4899;
+}
+html{font-size:16px}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);line-height:1.5;min-height:100vh;overflow-x:hidden}
+input,select,textarea,button{font-family:inherit;font-size:inherit}
+button{cursor:pointer;border:none;background:none}
+input,select,textarea{outline:none}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:3px}
+
+/* === Layout === */
+#app{min-height:100vh}
+.sync-bar{position:fixed;top:0;left:0;right:0;height:3px;z-index:999;transition:opacity .3s}
+.sync-bar.syncing{background:var(--primary);animation:pulse 1.5s infinite}
+.sync-bar.synced{background:var(--success);opacity:0}
+.sync-bar.offline{background:var(--warning);opacity:1}
+@keyframes pulse{0%,100%{opacity:.4}50%{opacity:1}}
+
+/* Desktop sidebar */
+.nav{display:flex;flex-direction:column;position:fixed;left:0;top:0;bottom:0;width:220px;background:var(--card);border-right:1px solid var(--border);padding:20px 0;z-index:100}
+.nav-brand{padding:0 20px 20px;border-bottom:1px solid var(--border-l);margin-bottom:12px}
+.nav-brand h1{font-size:18px;font-weight:700;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;display:flex;align-items:center;gap:8px}
+.nav-brand p{font-size:12px;color:var(--text3);margin-top:4px}
+.nav-item{display:flex;align-items:center;gap:10px;padding:12px 20px;color:var(--text2);font-size:14px;font-weight:500;transition:all .2s;border-left:3px solid transparent}
+.nav-item.active{color:var(--primary);background:rgba(124,58,237,.06);border-left-color:var(--primary)}
+.nav-item:active{background:rgba(124,58,237,.1)}
+.nav-item svg{width:20px;height:20px;flex-shrink:0}
+.main{margin-left:220px;padding:24px 32px;max-width:1200px;padding-bottom:80px}
+
+/* Tab content */
+.tab-content{display:none}
+.tab-content.active{display:block;animation:fadeIn .3s}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* Cards */
+.card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;margin-bottom:12px}
+.card-hover{transition:box-shadow .2s,transform .2s}
+.card-hover:active{transform:scale(.99)}
+
+/* Section title */
+.section-title{font-size:14px;font-weight:600;color:var(--text2);margin:20px 0 10px;display:flex;align-items:center;gap:6px}
+.section-title svg{width:16px;height:16px}
+
+/* Buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:10px 16px;border-radius:var(--radius-s);font-size:14px;font-weight:500;transition:all .2s;min-height:44px}
+.btn-primary{background:var(--grad);color:#fff}
+.btn-primary:active{transform:scale(.97)}
+.btn-outline{border:1px solid var(--border);color:var(--text);background:var(--card)}
+.btn-outline:active{background:var(--border-l)}
+.btn-danger{color:var(--danger);border:1px solid var(--danger)}
+.btn-danger:active{background:rgba(239,68,68,.06)}
+.btn-success{background:var(--success);color:#fff}
+.btn-sm{padding:6px 12px;min-height:32px;font-size:13px}
+.btn-block{width:100%}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+/* Goal card */
+.goal-card{border-radius:var(--radius);overflow:hidden;margin-bottom:12px;box-shadow:var(--shadow);background:var(--card)}
+.goal-card-header{padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.goal-card-header .gc-title{font-size:16px;font-weight:600;flex:1}
+.goal-card-body{padding:0 16px 14px}
+.goal-progress-bar{height:6px;background:var(--border-l);border-radius:3px;overflow:hidden;margin:8px 0}
+.goal-progress-bar-fill{height:100%;border-radius:3px;transition:width .5s ease}
+.goal-stats{display:flex;gap:16px;margin:10px 0;font-size:13px}
+.goal-stat{display:flex;flex-direction:column;gap:2px}
+.goal-stat .gs-label{color:var(--text3);font-size:11px}
+.goal-stat .gs-value{font-size:15px;font-weight:600}
+.checkin-form{display:flex;gap:8px;align-items:flex-end;margin-top:10px;padding-top:10px;border-top:1px solid var(--border-l)}
+.checkin-form input[type=number]{width:80px}
+.checkin-form input[type=text]{flex:1}
+
+/* Input */
+.input{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-s);font-size:16px;background:var(--card);color:var(--text);transition:border .2s}
+.input:focus{border-color:var(--primary)}
+.input::placeholder{color:var(--text3)}
+label.fl{display:block;font-size:13px;font-weight:500;color:var(--text2);margin-bottom:4px}
+
+/* Alert cards */
+.alert-card{border-radius:var(--radius);padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:10px;font-size:13px}
+.alert-red{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2)}
+.alert-yellow{background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2)}
+.alert-card svg{width:18px;height:18px;flex-shrink:0}
+.alert-card .ac-text{flex:1}
+.alert-card .ac-btn{padding:4px 10px;font-size:12px;border-radius:6px;min-height:28px}
+
+/* Modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:200;display:none;align-items:center;justify-content:center;padding:16px}
+.modal-overlay.show{display:flex;animation:fadeIn .2s}
+.modal{background:var(--card);border-radius:var(--radius);max-width:480px;width:100%;max-height:85vh;overflow-y:auto;padding:20px;animation:slideUp .3s}
+@keyframes slideUp{from{transform:translateY(20px);opacity:0}to{transform:none;opacity:1}}
+.modal-title{font-size:18px;font-weight:700;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between}
+.modal-title span{flex:1}
+.modal-close{width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:50%;color:var(--text3)}
+.modal-close:active{background:var(--border-l)}
+.modal-field{margin-bottom:12px}
+.modal-actions{display:flex;gap:8px;margin-top:16px}
+
+/* Progress ring */
+.ring-wrap{position:relative;width:80px;height:80px;flex-shrink:0}
+.ring-wrap svg{transform:rotate(-90deg)}
+.ring-text{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700}
+
+/* Celebration */
+.celebration{position:fixed;inset:0;z-index:300;pointer-events:none;display:none}
+.celebration.show{display:block}
+.confetti{position:absolute;width:8px;height:14px;top:-20px;animation:confetti-fall 3s linear forwards}
+@keyframes confetti-fall{0%{transform:translateY(-20px) rotate(0);opacity:1}100%{transform:translateY(100vh) rotate(720deg);opacity:0}}
+
+/* Empty state */
+.empty{text-align:center;padding:40px 20px;color:var(--text3)}
+.empty svg{width:48px;height:48px;margin-bottom:8px;opacity:.4}
+
+/* Toast */
+.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.8);color:#fff;padding:10px 20px;border-radius:20px;font-size:14px;z-index:400;animation:toastIn .3s;max-width:90%;text-align:center}
+.toast.error{background:rgba(239,68,68,.9)}
+.toast.success{background:rgba(16,185,129,.9)}
+@keyframes toastIn{from{opacity:0;transform:translate(-50%,10px)}to{opacity:1;transform:translate(-50%,0)}}
+
+/* Record list */
+.record-item{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:var(--radius-s);font-size:13px;margin-bottom:4px;background:var(--border-l)}
+.record-item .ri-date{color:var(--text2);width:80px;flex-shrink:0}
+.record-item .ri-amount{font-weight:600;flex:1}
+.record-item .ri-mins{color:var(--text3);font-size:12px}
+.record-item .ri-tag{font-size:11px;padding:1px 6px;border-radius:4px;background:var(--warning);color:#fff}
+.record-item .ri-del{width:24px;height:24px;display:flex;align-items:center;justify-content:center;color:var(--text3);border-radius:4px}
+.record-item .ri-del:active{background:rgba(239,68,68,.1);color:var(--danger)}
+
+/* Bar chart */
+.chart-container{overflow-x:auto;padding:8px 0}
+.bar-chart{display:flex;align-items:flex-end;gap:3px;height:120px;min-width:280px}
+.bar-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;min-width:16px}
+.bar-stack{width:100%;display:flex;flex-direction:column-reverse;border-radius:3px 3px 0 0;overflow:hidden;min-height:2px}
+.bar-label{font-size:9px;color:var(--text3);white-space:nowrap}
+
+/* Weekly report */
+.week-card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;margin-bottom:12px}
+.week-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}
+.week-stat{text-align:center;padding:8px;border-radius:var(--radius-s);background:var(--border-l)}
+.week-stat .ws-val{font-size:20px;font-weight:700}
+.week-stat .ws-label{font-size:11px;color:var(--text3)}
+.week-compare{display:flex;align-items:center;gap:4px;font-size:13px;justify-content:center;margin:8px 0}
+.week-compare .wc-up{color:var(--success)}
+.week-compare .wc-down{color:var(--danger)}
+.review-grid{display:grid;gap:8px;margin-top:10px}
+.review-item{padding:10px;border-radius:var(--radius-s);background:var(--border-l)}
+.review-item .ri-label{font-size:12px;font-weight:600;color:var(--text2);margin-bottom:4px}
+.review-item textarea{width:100%;border:none;background:transparent;font-size:13px;resize:vertical;min-height:40px;color:var(--text)}
+
+/* Settings */
+.setting-item{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--border-l)}
+.setting-item .si-label{font-size:14px}
+.setting-item .si-desc{font-size:12px;color:var(--text3);margin-top:2px}
+.sync-indicator{display:flex;align-items:center;gap:6px;font-size:13px}
+.sync-dot{width:8px;height:8px;border-radius:50%}
+.sync-dot.synced{background:var(--success)}
+.sync-dot.syncing{background:var(--primary);animation:pulse 1s infinite}
+.sync-dot.offline{background:var(--warning)}
+
+/* Responsive */
+@media(max-width:1023px){
+.nav{flex-direction:row;width:100%;height:56px;bottom:auto;border-right:none;border-bottom:1px solid var(--border);padding:0;justify-content:space-around;overflow-x:auto}
+.nav-brand{display:none}
+.nav-item{flex-direction:column;padding:6px 12px;border-left:none;border-bottom:2px solid transparent;font-size:11px;gap:2px}
+.nav-item.active{border-left:none;border-bottom-color:var(--primary);background:none}
+.nav-item span{font-size:11px}
+.main{margin-left:0;padding:16px;padding-top:72px;padding-bottom:80px}
+}
+@media(max-width:768px){
+.main{padding:12px;padding-top:68px;padding-bottom:90px}
+.goal-stats{flex-wrap:wrap;gap:10px}
+.checkin-form{flex-wrap:wrap}
+.checkin-form input[type=number]{width:100%}
+.week-stats{grid-template-columns:1fr}
+.modal{padding:16px;max-width:100%}
+}
+
+/* Color schemes for goals */
+.cs-purple .goal-progress-bar-fill{background:var(--grad)}
+.cs-green .goal-progress-bar-fill{background:linear-gradient(135deg,#10b981,#34d399)}
+.cs-blue .goal-progress-bar-fill{background:linear-gradient(135deg,#3b82f6,#60a5fa)}
+.cs-orange .goal-progress-bar-fill{background:linear-gradient(135deg,#f59e0b,#fbbf24)}
+.cs-pink .goal-progress-bar-fill{background:linear-gradient(135deg,#ec4899,#f472b6)}
+.cs-purple .goal-card-header{border-top:3px solid var(--c-purple)}
+.cs-green .goal-card-header{border-top:3px solid var(--c-green)}
+.cs-blue .goal-card-header{border-top:3px solid var(--c-blue)}
+.cs-orange .goal-card-header{border-top:3px solid var(--c-orange)}
+.cs-pink .goal-card-header{border-top:3px solid var(--c-pink)}
+
+.tag-sample{font-size:11px;padding:2px 8px;border-radius:10px;background:rgba(124,58,237,.1);color:var(--primary);margin-left:8px}
+.divider{height:1px;background:var(--border-l);margin:10px 0}
+.loading{display:flex;align-items:center;justify-content:center;padding:40px;color:var(--text3)}
+.spinner{width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin 1s linear infinite;margin-right:8px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.retry-box{text-align:center;padding:20px}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+
+<div class="sync-bar synced" id="syncBar"></div>
+
+<div id="app">
+<!-- Navigation -->
+<nav class="nav" id="nav">
+<div class="nav-brand">
+<h1><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>学习目标台</h1>
+<p>有终点·有总量·有节奏</p>
+</div>
+<button class="nav-item active" data-tab="today" onclick="switchTab('today')">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+<span>今日</span>
+</button>
+<button class="nav-item" data-tab="board" onclick="switchTab('board')">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+<span>看板</span>
+</button>
+<button class="nav-item" data-tab="weekly" onclick="switchTab('weekly')">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+<span>周报</span>
+</button>
+<button class="nav-item" data-tab="settings" onclick="switchTab('settings')">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+<span>我的</span>
+</button>
+</nav>
+
+<!-- Main content -->
+<div class="main">
+<!-- Today Tab -->
+<div class="tab-content active" id="tab-today">
+<div id="todayContent">
+<div class="loading"><div class="spinner"></div>加载中...</div>
+</div>
+</div>
+
+<!-- Board Tab -->
+<div class="tab-content" id="tab-board">
+<div id="boardContent">
+<div class="loading"><div class="spinner"></div>加载中...</div>
+</div>
+</div>
+
+<!-- Weekly Tab -->
+<div class="tab-content" id="tab-weekly">
+<div id="weeklyContent">
+<div class="loading"><div class="spinner"></div>加载中...</div>
+</div>
+</div>
+
+<!-- Settings Tab -->
+<div class="tab-content" id="tab-settings">
+<div id="settingsContent"></div>
+</div>
+</div>
+</div>
+
+<!-- Modal container -->
+<div class="modal-overlay" id="modalOverlay">
+<div class="modal" id="modalBox"></div>
+</div>
+
+<!-- Celebration overlay -->
+<div class="celebration" id="celebration"></div>
+
+<!-- Toast container -->
+<div id="toastContainer"></div>
+
+<script>
+// === Database IDs (hardcoded) ===
+var GOALS_DB = 'pERS7QaquwNXwOofyC5tVD';
+var RECORDS_DB = 'P1rItfWQJK4zvFk11I90ED';
+var REVIEWS_DB = '4xatJh4GvJpUuBg5XK8jyW';
+
+// === Color schemes ===
+var COLOR_MAP = {
+'紫色渐变': {cls:'cs-purple', main:'#7c3aed', light:'#a78bfa', grad:'linear-gradient(135deg,#7c3aed,#a78bfa)'},
+'绿色清新': {cls:'cs-green', main:'#10b981', light:'#34d399', grad:'linear-gradient(135deg,#10b981,#34d399)'},
+'蓝色海洋': {cls:'cs-blue', main:'#3b82f6', light:'#60a5fa', grad:'linear-gradient(135deg,#3b82f6,#60a5fa)'},
+'橙色活力': {cls:'cs-orange', main:'#f59e0b', light:'#fbbf24', grad:'linear-gradient(135deg,#f59e0b,#fbbf24)'},
+'粉色温柔': {cls:'cs-pink', main:'#ec4899', light:'#f472b6', grad:'linear-gradient(135deg,#ec4899,#f472b6)'}
+};
+
+// === State ===
+var state = {
+goals: [],
+records: [],
+reviews: [],
+currentTab: 'today',
+syncStatus: 'syncing',
+lastSync: null,
+schemas: {}
+};
+
+// === SDK helper ===
+function getDB() {
+return window.__SMART_PAGE__ && window.__SMART_PAGE__.database;
+}
+
+// === Sync status ===
+function setSync(status) {
+state.syncStatus = status;
+var bar = document.getElementById('syncBar');
+bar.className = 'sync-bar ' + status;
+if (status === 'synced') {
+state.lastSync = new Date();
+}
+renderSyncIndicator();
+}
+
+function renderSyncIndicator() {
+var el = document.getElementById('syncIndicator');
+if (!el) return;
+var dotCls = state.syncStatus;
+var text = '';
+if (state.syncStatus === 'synced') text = '已同步';
+else if (state.syncStatus === 'syncing') text = '同步中...';
+else text = '离线模式';
+var timeStr = state.lastSync ? formatTime(state.lastSync) : '暂无';
+el.innerHTML = '<div class="sync-indicator"><div class="sync-dot ' + dotCls + '"></div><span>' + text + '</span></div><div class="si-desc">最近同步：' + timeStr + '</div>';
+}
+
+// === Date utilities ===
+function todayStr() {
+var d = new Date();
+return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function parseDate(s) {
+if (!s) return null;
+var d = new Date(s);
+if (isNaN(d)) { d = new Date(s + 'T00:00:00Z'); }
+return d;
+}
+function dateStr(d) {
+return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function addDays(d, n) {
+var r = new Date(d);
+r.setDate(r.getDate() + n);
+return r;
+}
+function daysBetween(d1, d2) {
+var ms = d2.getTime() - d1.getTime();
+return Math.ceil(ms / 86400000);
+}
+function formatDateDisplay(s) {
+var d = parseDate(s);
+if (!d) return '';
+return (d.getMonth()+1) + '月' + d.getDate() + '日';
+}
+function formatDateShort(s) {
+var d = parseDate(s);
+if (!d) return '';
+return String(d.getMonth()+1).padStart(2,'0') + '/' + String(d.getDate()).padStart(2,'0');
+}
+function formatTime(d) {
+return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+}
+function getMonday(d) {
+var r = new Date(d);
+var day = r.getDay();
+if (day === 0) day = 7;
+r.setDate(r.getDate() - day + 1);
+r.setHours(0,0,0,0);
+return r;
+}
+function weekKey(d) {
+var mon = getMonday(d);
+return mon.getFullYear() + '-' + String(mon.getMonth()+1).padStart(2,'0') + '-' + String(mon.getDate()).padStart(2,'0');
+}
+
+// === Data loading ===
+function loadAllData() {
+setSync('syncing');
+var db = getDB();
+if (!db) {
+setSync('offline');
+showDataError('资料库 SDK 不可用，请确保在资料库环境中打开此页面');
+return;
+}
+var goalsDone = false, recordsDone = false, reviewsDone = false;
+function checkDone() {
+if (goalsDone && recordsDone && reviewsDone) {
+setSync('synced');
+renderCurrentTab();
+}
+}
+// Load goals
+db.query({ databaseId: GOALS_DB, sorts: [{property:'创建日期',direction:'descending'}], pageSize: 200 }).then(function(res) {
+state.goals = (res.results || []).map(function(r) {
+return {
+id: r._id,
+name: r['目标名称'] || '',
+unit: r['单位'] || '',
+total: r['总量'] || 0,
+deadline: r['截止日'] || '',
+color: r['配色'] || '紫色渐变',
+obstacle: r['障碍'] || '',
+countermeasure: r['对策'] || '',
+tag: r['标签'] || '',
+created: r['创建日期'] || '',
+status: r['状态'] || '进行中'
+};
+});
+goalsDone = true;
+checkDone();
+}).catch(function(err) {
+console.error('load goals error', err);
+goalsDone = true;
+state.goals = [];
+checkDone();
+showToast('目标数据加载失败', 'error');
+});
+// Load records
+db.query({ databaseId: RECORDS_DB, sorts: [{property:'日期',direction:'descending'}], pageSize: 500 }).then(function(res) {
+state.records = (res.results || []).map(function(r) {
+return {
+id: r._id,
+goalName: r['目标名称'] || '',
+date: r['日期'] || '',
+amount: r['数量'] || 0,
+minutes: r['分钟数'] || 0,
+isBackfill: r['是否补记'] || false,
+note: r['备注'] || ''
+};
+});
+recordsDone = true;
+checkDone();
+}).catch(function(err) {
+console.error('load records error', err);
+recordsDone = true;
+state.records = [];
+checkDone();
+showToast('打卡记录加载失败', 'error');
+});
+// Load reviews
+db.query({ databaseId: REVIEWS_DB, sorts: [{property:'周开始日',direction:'descending'}], pageSize: 100 }).then(function(res) {
+state.reviews = (res.results || []).map(function(r) {
+return {
+id: r._id,
+weekStart: r['周开始日'] || '',
+weekEnd: r['周结束日'] || '',
+keep: r['保持'] || '',
+problem: r['问题'] || '',
+try_: r['尝试'] || '',
+plan: r['下周预案'] || ''
+};
+});
+reviewsDone = true;
+checkDone();
+}).catch(function(err) {
+console.error('load reviews error', err);
+reviewsDone = true;
+state.reviews = [];
+checkDone();
+});
+}
+
+function showDataError(msg) {
+var html = '<div class="retry-box"><div style="font-size:14px;color:var(--danger);margin-bottom:12px">' + msg + '</div>';
+html += '<button class="btn btn-outline" onclick="loadAllData()">重试</button></div>';
+document.getElementById('todayContent').innerHTML = html;
+document.getElementById('boardContent').innerHTML = html;
+document.getElementById('weeklyContent').innerHTML = html;
+}
+
+// === Calculations ===
+function getGoalRecords(goalName) {
+return state.records.filter(function(r) { return r.goalName === goalName; });
+}
+
+function getCompletedAmount(goalName) {
+var recs = getGoalRecords(goalName);
+return recs.reduce(function(sum, r) { return sum + (r.amount || 0); }, 0);
+}
+
+function getCompletionRate(goal) {
+var completed = getCompletedAmount(goal.name);
+if (!goal.total) return 0;
+return Math.min(1, completed / goal.total);
+}
+
+function getRemainingAmount(goal) {
+var completed = getCompletedAmount(goal.name);
+return Math.max(0, goal.total - completed);
+}
+
+function getRemainingDays(goal) {
+var today = new Date();
+today.setHours(0,0,0,0);
+var dl = parseDate(goal.deadline);
+if (!dl) return 0;
+dl.setHours(0,0,0,0);
+return daysBetween(today, dl);
+}
+
+function getTodaySuggested(goal) {
+var remaining = getRemainingAmount(goal);
+var days = getRemainingDays(goal);
+if (days <= 0) return remaining > 0 ? remaining : 0;
+return Math.ceil(remaining / days);
+}
+
+function isOverdue(goal) {
+var remaining = getRemainingAmount(goal);
+if (remaining <= 0) return false;
+return getRemainingDays(goal) < 0;
+}
+
+function getStreak(goalName) {
+var recs = getGoalRecords(goalName);
+var recDates = {};
+recs.forEach(function(r) {
+var d = parseDate(r.date);
+if (d) {
+var key = dateStr(d);
+if (!recDates[key] || r.amount > 0) recDates[key] = true;
+}
+});
+var today = new Date();
+today.setHours(0,0,0,0);
+var streak = 0;
+var restUsed = {};
+var cursor = new Date(today);
+// If today has no record, start from yesterday (today not over yet)
+if (!recDates[dateStr(cursor)]) {
+cursor = addDays(cursor, -1);
+}
+while (true) {
+var key = dateStr(cursor);
+if (recDates[key]) {
+streak++;
+cursor = addDays(cursor, -1);
+} else {
+var wk = weekKey(cursor);
+if (!restUsed[wk]) {
+restUsed[wk] = true;
+cursor = addDays(cursor, -1);
+// Don't count rest day in streak
+} else {
+break;
+}
+}
+if (streak > 365) break; // safety
+}
+return streak;
+}
+
+function wasYesterdayMissed(goalName) {
+var recs = getGoalRecords(goalName);
+var yesterday = addDays(new Date(), -1);
+yesterday.setHours(0,0,0,0);
+var yKey = dateStr(yesterday);
+return !recs.some(function(r) {
+var d = parseDate(r.date);
+return d && dateStr(d) === yKey && r.amount > 0;
+});
+}
+
+function isYesterdayRestDay(goalName) {
+// Check if yesterday's miss can be a rest day (first miss in its week)
+var recs = getGoalRecords(goalName);
+var yesterday = addDays(new Date(), -1);
+yesterday.setHours(0,0,0,0);
+var yKey = dateStr(yesterday);
+var wk = weekKey(yesterday);
+// Count misses in that week up to and including yesterday
+var weekStart = getMonday(yesterday);
+var weekEnd = addDays(weekStart, 6);
+var misses = 0;
+for (var d = new Date(weekStart); d <= yesterday && d <= weekEnd; d = addDays(d, 1)) {
+var key = dateStr(d);
+if (!recs.some(function(r) {
+var rd = parseDate(r.date);
+return rd && dateStr(rd) === key && r.amount > 0;
+})) {
+misses++;
+}
+}
+// If yesterday was the first miss, it's a rest day
+return misses === 1;
+}
+
+function getEstimatedCompletion(goal) {
+var recs = getGoalRecords(goal.name);
+var now = new Date();
+var sevenDaysAgo = addDays(now, -7);
+var recentRecs = recs.filter(function(r) {
+var d = parseDate(r.date);
+return d && d >= sevenDaysAgo && d <= now;
+});
+if (recentRecs.length < 3) return null; // Not enough data
+var totalAmount = recentRecs.reduce(function(s, r) { return s + (r.amount || 0); }, 0);
+var daysWithRecords = {};
+recentRecs.forEach(function(r) {
+var d = parseDate(r.date);
+if (d) daysWithRecords[dateStr(d)] = true;
+});
+var dayCount = Object.keys(daysWithRecords).length;
+if (dayCount === 0) return null;
+var avgPerDay = totalAmount / 7; // Average per calendar day (not per active day)
+if (avgPerDay <= 0) return null;
+var remaining = getRemainingAmount(goal);
+if (remaining <= 0) return new Date(); // Already done
+var daysNeeded = Math.ceil(remaining / avgPerDay);
+return addDays(now, daysNeeded);
+}
+
+function getRecentRecords(goalName, limit) {
+var recs = getGoalRecords(goalName);
+recs.sort(function(a, b) {
+var da = parseDate(a.date), db2 = parseDate(b.date);
+return db2 - da;
+});
+return recs.slice(0, limit || 10);
+}
+
+function getTodayRecords(goalName) {
+var today = todayStr();
+return getGoalRecords(goalName).filter(function(r) {
+var d = parseDate(r.date);
+return d && dateStr(d) === today;
+});
+}
+
+// === SVG helpers ===
+function svgIcon(name, size) {
+var s = size || 20;
+var icons = {
+plus: '<path d="M12 5v14M5 12h14"/>',
+check: '<path d="M20 6L9 17l-5-5"/>',
+edit: '<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>',
+trash: '<path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+alert: '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/>',
+target: '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>',
+clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+flame: '<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>',
+calendar: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
+chart: '<path d="M3 3v18h18"/><path d="M7 14l4-4 4 4 5-5"/>',
+refresh: '<path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>',
+close: '<path d="M18 6L6 18M6 6l12 12"/>',
+chevronRight: '<path d="M9 18l6-6-6-6"/>',
+book: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>',
+home: '<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/>'
+};
+return '<svg viewBox="0 0 24 24" width="' + s + '" height="' + s + '" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + (icons[name] || '') + '</svg>';
+}
+
+function progressRingSVG(percent, color, size) {
+var s = size || 80;
+var r = (s - 10) / 2;
+var cx = s / 2, cy = s / 2;
+var circumference = 2 * Math.PI * r;
+var offset = circumference * (1 - percent);
+return '<svg width="' + s + '" height="' + s + '" viewBox="0 0 ' + s + ' ' + s + '">' +
+'<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="#e5e7eb" stroke-width="6"/>' +
+'<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="' + color + '" stroke-width="6" stroke-dasharray="' + circumference + '" stroke-dashoffset="' + offset + '" stroke-linecap="round" transform="rotate(-90 ' + cx + ' ' + cy + ')"/>' +
+'</svg>';
+}
+
+// === Tab switching ===
+function switchTab(name) {
+state.currentTab = name;
+document.querySelectorAll('.tab-content').forEach(function(el) { el.classList.remove('active'); });
+document.getElementById('tab-' + name).classList.add('active');
+document.querySelectorAll('.nav-item').forEach(function(el) { el.classList.remove('active'); });
+document.querySelectorAll('.nav-item[data-tab="' + name + '"]').forEach(function(el) { el.classList.add('active'); });
+renderCurrentTab();
+}
+
+function renderCurrentTab() {
+if (state.currentTab === 'today') renderTodayTab();
+else if (state.currentTab === 'board') renderBoardTab();
+else if (state.currentTab === 'weekly') renderWeeklyTab();
+else if (state.currentTab === 'settings') renderSettingsTab();
+}
+
+// === Today Tab ===
+function renderTodayTab() {
+var container = document.getElementById('todayContent');
+if (!getDB()) {
+container.innerHTML = '<div class="retry-box"><p style="color:var(--danger);margin-bottom:12px">资料库 SDK 不可用</p><button class="btn btn-outline" onclick="loadAllData()">重试</button></div>';
+return;
+}
+var activeGoals = state.goals.filter(function(g) { return g.status === '进行中'; });
+var html = '';
+
+// New goal button
+html += '<button class="btn btn-primary btn-block" style="margin-bottom:16px" onclick="showNewGoalModal()">' + svgIcon('plus',18) + ' 新建学习目标</button>';
+
+// Today's tasks section
+html += '<div class="section-title">' + svgIcon('alert',16) + ' 今天要处理</div>';
+var hasAlerts = false;
+
+// Overdue goals
+activeGoals.forEach(function(g) {
+if (isOverdue(g)) {
+hasAlerts = true;
+var overdueDays = Math.abs(getRemainingDays(g));
+html += '<div class="alert-card alert-red">' + svgIcon('alert',18) +
+'<div class="ac-text"><strong>' + escapeHtml(g.name) + '</strong> 已逾期 ' + overdueDays + ' 天，剩余 ' + getRemainingAmount(g) + ' ' + escapeHtml(g.unit) + '</div>' +
+'<button class="btn btn-danger btn-sm ac-btn" onclick="quickCheckIn(\'' + escapeAttr(g.name) + '\')">立即打卡</button>' +
+'<button class="btn btn-outline btn-sm ac-btn" onclick="showEditGoalModal(\'' + g.id + '\')">调整计划</button>' +
+'</div>';
+}
+});
+
+// Yesterday missed goals
+activeGoals.forEach(function(g) {
+if (wasYesterdayMissed(g.name) && !isOverdue(g)) {
+hasAlerts = true;
+var isRest = isYesterdayRestDay(g.name);
+if (isRest) {
+html += '<div class="alert-card alert-yellow">' + svgIcon('clock',18) +
+'<div class="ac-text"><strong>' + escapeHtml(g.name) + '</strong> 昨日未打卡（本周休息日），今日建议量已滚入</div>' +
+'<button class="btn btn-outline btn-sm ac-btn" onclick="quickCheckIn(\'' + escapeAttr(g.name) + '\')">立即打卡</button>' +
+'</div>';
+} else {
+html += '<div class="alert-card alert-red">' + svgIcon('alert',18) +
+'<div class="ac-text"><strong>' + escapeHtml(g.name) + '</strong> 昨日漏打卡，连续中断，今日重新开始</div>' +
+'<button class="btn btn-danger btn-sm ac-btn" onclick="quickCheckIn(\'' + escapeAttr(g.name) + '\')">立即打卡</button>' +
+'</div>';
+}
+}
+});
+
+// Goals due soon (within 3 days)
+activeGoals.forEach(function(g) {
+var days = getRemainingDays(g);
+if (days >= 0 && days <= 3 && getRemainingAmount(g) > 0 && !wasYesterdayMissed(g.name)) {
+hasAlerts = true;
+html += '<div class="alert-card alert-yellow">' + svgIcon('clock',18) +
+'<div class="ac-text"><strong>' + escapeHtml(g.name) + '</strong> 距截止还有 ' + days + ' 天，剩余 ' + getRemainingAmount(g) + ' ' + escapeHtml(g.unit) + '</div>' +
+'<button class="btn btn-outline btn-sm ac-btn" onclick="quickCheckIn(\'' + escapeAttr(g.name) + '\')">打卡</button>' +
+'</div>';
+}
+});
+
+if (!hasAlerts) {
+html += '<div class="card" style="text-align:center;color:var(--text3);font-size:13px;padding:16px">暂无待处理项，保持节奏！</div>';
+}
+
+// Check-in cards
+html += '<div class="section-title">' + svgIcon('target',16) + ' 今日打卡</div>';
+if (activeGoals.length === 0) {
+html += '<div class="empty">' + svgIcon('target',48) + '<p>还没有进行中的目标</p><p style="font-size:13px;margin-top:4px">点击上方按钮新建一个吧</p></div>';
+} else {
+// Sort: missed yesterday first, then by suggested amount
+activeGoals.sort(function(a, b) {
+var aMissed = wasYesterdayMissed(a.name);
+var bMissed = wasYesterdayMissed(b.name);
+if (aMissed && !bMissed) return -1;
+if (!aMissed && bMissed) return 1;
+return getTodaySuggested(b) - getTodaySuggested(a);
+});
+activeGoals.forEach(function(g) {
+html += renderGoalCardToday(g);
+});
+}
+
+// Bottom new goal button
+html += '<button class="btn btn-outline btn-block" style="margin-top:16px;border-style:dashed" onclick="showNewGoalModal()">' + svgIcon('plus',18) + ' 新建学习目标</button>';
+
+container.innerHTML = html;
+}
+
+function renderGoalCardToday(goal) {
+var cs = COLOR_MAP[goal.color] || COLOR_MAP['紫色渐变'];
+var completed = getCompletedAmount(goal.name);
+var rate = getCompletionRate(goal);
+var suggested = getTodaySuggested(goal);
+var streak = getStreak(goal.name);
+var todayRecs = getTodayRecords(goal.name);
+var remainingDays = getRemainingDays(goal);
+var est = getEstimatedCompletion(goal);
+var deadline = parseDate(goal.deadline);
+var tagHtml = goal.tag ? '<span class="tag-sample">' + escapeHtml(goal.tag) + '</span>' : '';
+
+var html = '<div class="goal-card ' + cs.cls + '">';
+html += '<div class="goal-card-header"><span class="gc-title">' + escapeHtml(goal.name) + tagHtml + '</span>';
+html += '<button class="btn btn-outline btn-sm" onclick="showEditGoalModal(\'' + goal.id + '\')">' + svgIcon('edit',14) + '</button></div>';
+html += '<div class="goal-card-body">';
+
+// Progress bar
+html += '<div class="goal-progress-bar"><div class="goal-progress-bar-fill" style="width:' + (rate * 100) + '%;background:' + cs.grad + '"></div></div>';
+html += '<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text2)"><span>' + completed + ' / ' + goal.total + ' ' + escapeHtml(goal.unit) + '</span><span>' + Math.round(rate * 100) + '%</span></div>';
+
+// Stats
+html += '<div class="goal-stats">';
+html += '<div class="goal-stat"><span class="gs-label">今日建议</span><span class="gs-value" style="color:' + cs.main + '">' + suggested + ' ' + escapeHtml(goal.unit) + '</span></div>';
+html += '<div class="goal-stat"><span class="gs-label">连续天数</span><span class="gs-value">' + streak + ' 天</span></div>';
+var estHtml = '暂无推算';
+if (est) {
+var estDiff = daysBetween(new Date(), est);
+var dlDiff = daysBetween(new Date(), deadline);
+if (estDiff <= dlDiff) {
+estHtml = formatDateDisplay(dateStr(est)) + ' <span style="color:var(--success);font-size:12px">提前' + (dlDiff - estDiff) + '天</span>';
+} else {
+estHtml = formatDateDisplay(dateStr(est)) + ' <span style="color:var(--danger);font-size:12px">拖后' + (estDiff - dlDiff) + '天</span>';
+}
+}
+html += '<div class="goal-stat"><span class="gs-label">预计完成</span><span class="gs-value" style="font-size:13px">' + estHtml + '</span></div>';
+html += '</div>';
+
+// Countermeasure
+if (goal.obstacle || goal.countermeasure) {
+html += '<div style="background:var(--border-l);border-radius:8px;padding:8px 10px;margin:8px 0;font-size:12px">';
+if (goal.obstacle) html += '<div style="color:var(--text2)"><strong>障碍：</strong>' + escapeHtml(goal.obstacle) + '</div>';
+if (goal.countermeasure) html += '<div style="color:var(--primary);margin-top:4px"><strong>如果出现，我就：</strong>' + escapeHtml(goal.countermeasure) + '</div>';
+html += '</div>';
+}
+
+// Deadline
+if (deadline) {
+var dlColor = remainingDays < 0 ? 'var(--danger)' : remainingDays <= 3 ? 'var(--warning)' : 'var(--text3)';
+html += '<div style="font-size:12px;color:' + dlColor + ';margin-bottom:8px">' + svgIcon('calendar',12) + ' 截止：' + formatDateDisplay(goal.deadline) + '（剩' + remainingDays + '天）</div>';
+}
+
+// Today's records
+if (todayRecs.length > 0) {
+html += '<div style="margin-bottom:8px">';
+todayRecs.forEach(function(r) {
+html += '<div class="record-item"><span class="ri-date">今日</span><span class="ri-amount">+' + r.amount + ' ' + escapeHtml(goal.unit) + '</span>';
+if (r.minutes) html += '<span class="ri-mins">' + r.minutes + '分钟</span>';
+if (r.isBackfill) html += '<span class="ri-tag">补</span>';
+html += '<button class="ri-del" onclick="deleteRecord(\'' + r.id + '\')">' + svgIcon('trash',14) + '</button></div>';
+});
+html += '</div>';
+}
+
+// Check-in form
+html += '<div class="checkin-form">';
+html += '<div style="flex:1"><label class="fl">数量</label><input type="number" class="input" id="ci-amount-' + escapeAttr(goal.name) + '" value="' + suggested + '" min="0" step="1"></div>';
+html += '<div style="width:80px"><label class="fl">分钟</label><input type="number" class="input" id="ci-mins-' + escapeAttr(goal.name) + '" placeholder="选填" min="0" step="5"></div>';
+html += '<button class="btn btn-success" onclick="doCheckIn(\'' + escapeAttr(goal.name) + '\')">' + svgIcon('check',18) + ' 打卡</button>';
+html += '</div>';
+
+// Backfill button
+html += '<button class="btn btn-outline btn-sm btn-block" style="margin-top:8px" onclick="showBackfillModal(\'' + escapeAttr(goal.name) + '\')">' + svgIcon('clock',14) + ' 补记最近6天</button>';
+
+html += '</div></div>';
+return html;
+}
+
+// === Board Tab ===
+function renderBoardTab() {
+var container = document.getElementById('boardContent');
+if (!getDB()) {
+container.innerHTML = '<div class="retry-box"><p style="color:var(--danger)">资料库 SDK 不可用</p></div>';
+return;
+}
+var goals = state.goals.filter(function(g) { return g.status === '进行中' || g.status === '已完成'; });
+if (goals.length === 0) {
+container.innerHTML = '<div class="empty">' + svgIcon('chart',48) + '<p>还没有目标，去今日 Tab 创建吧</p></div>';
+return;
+}
+
+var html = '';
+
+// 14-day stacked bar chart
+html += '<div class="section-title">' + svgIcon('chart',16) + ' 近 14 天投入分钟</div>';
+html += '<div class="card">' + renderBarChart() + '</div>';
+
+// Goal cards with progress rings
+html += '<div class="section-title">' + svgIcon('target',16) + ' 目标详情</div>';
+goals.forEach(function(g) {
+html += renderGoalCardBoard(g);
+});
+
+container.innerHTML = html;
+}
+
+function renderBarChart() {
+var now = new Date();
+var days = [];
+for (var i = 13; i >= 0; i--) {
+var d = addDays(now, -i);
+d.setHours(0,0,0,0);
+days.push(d);
+}
+var goalColors = {};
+state.goals.forEach(function(g) {
+var cs = COLOR_MAP[g.color] || COLOR_MAP['紫色渐变'];
+goalColors[g.name] = cs.main;
+});
+var maxMins = 0;
+var dayData = days.map(function(d) {
+var key = dateStr(d);
+var recs = state.records.filter(function(r) {
+var rd = parseDate(r.date);
+return rd && dateStr(rd) === key && r.minutes > 0;
+});
+var byGoal = {};
+recs.forEach(function(r) {
+if (!byGoal[r.goalName]) byGoal[r.goalName] = 0;
+byGoal[r.goalName] += r.minutes;
+});
+var total = Object.keys(byGoal).reduce(function(s, g) { return s + byGoal[g]; }, 0);
+if (total > maxMins) maxMins = total;
+return {date: d, byGoal: byGoal, total: total};
+});
+if (maxMins === 0) maxMins = 60;
+var chartHeight = 120;
+var html = '<div class="chart-container"><div class="bar-chart">';
+dayData.forEach(function(dd) {
+var bars = '';
+Object.keys(dd.byGoal).forEach(function(gn) {
+var h = Math.round((dd.byGoal[gn] / maxMins) * chartHeight);
+var color = goalColors[gn] || '#7c3aed';
+bars += '<div style="height:' + h + 'px;background:' + color + '"></div>';
+});
+var isToday = dateStr(dd.date) === todayStr();
+html += '<div class="bar-col"><div class="bar-stack" style="height:' + chartHeight + 'px">' + bars + '</div>';
+html += '<div class="bar-label" style="' + (isToday ? 'color:var(--primary);font-weight:600' : '') + '">' + (dd.date.getMonth()+1) + '/' + dd.date.getDate() + '</div></div>';
+});
+html += '</div></div>';
+// Legend
+html += '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;font-size:11px">';
+state.goals.filter(function(g){return g.status==='进行中'}).forEach(function(g) {
+var cs = COLOR_MAP[g.color] || COLOR_MAP['紫色渐变'];
+html += '<div style="display:flex;align-items:center;gap:4px"><div style="width:8px;height:8px;border-radius:2px;background:' + cs.main + '"></div>' + escapeHtml(g.name) + '</div>';
+});
+html += '</div>';
+return html;
+}
+
+function renderGoalCardBoard(goal) {
+var cs = COLOR_MAP[goal.color] || COLOR_MAP['紫色渐变'];
+var completed = getCompletedAmount(goal.name);
+var rate = getCompletionRate(goal);
+var streak = getStreak(goal.name);
+var est = getEstimatedCompletion(goal);
+var deadline = parseDate(goal.deadline);
+var recentRecs = getRecentRecords(goal.name, 10);
+var tagHtml = goal.tag ? '<span class="tag-sample">' + escapeHtml(goal.tag) + '</span>' : '';
+
+var html = '<div class="card ' + cs.cls + '">';
+html += '<div style="display:flex;align-items:center;gap:12px">';
+html += '<div class="ring-wrap">' + progressRingSVG(rate, cs.main, 72) + '<div class="ring-text">' + Math.round(rate * 100) + '%</div></div>';
+html += '<div style="flex:1">';
+html += '<div style="font-size:16px;font-weight:600">' + escapeHtml(goal.name) + tagHtml + '</div>';
+html += '<div style="font-size:13px;color:var(--text2);margin-top:2px">' + completed + ' / ' + goal.total + ' ' + escapeHtml(goal.unit) + '</div>';
+if (goal.status === '已完成') html += '<span style="font-size:12px;color:var(--success);font-weight:600">已完成</span>';
+html += '</div></div>';
+
+// Three core numbers
+html += '<div class="goal-stats" style="margin-top:12px">';
+html += '<div class="goal-stat"><span class="gs-label">完成率</span><span class="gs-value" style="color:' + cs.main + '">' + Math.round(rate * 100) + '%</span></div>';
+html += '<div class="goal-stat"><span class="gs-label">连续打卡</span><span class="gs-value">' + streak + ' 天</span></div>';
+var estHtml = '暂无推算';
+if (est) {
+var estDiff = daysBetween(new Date(), est);
+var dlDiff = deadline ? daysBetween(new Date(), deadline) : 0;
+if (estDiff <= dlDiff) {
+estHtml = formatDateDisplay(dateStr(est)) + '<br><span style="font-size:11px;color:var(--success)">提前' + (dlDiff - estDiff) + '天</span>';
+} else {
+estHtml = formatDateDisplay(dateStr(est)) + '<br><span style="font-size:11px;color:var(--danger)">拖后' + (estDiff - dlDiff) + '天</span>';
+}
+}
+html += '<div class="goal-stat"><span class="gs-label">预计完成</span><span class="gs-value" style="font-size:13px">' + estHtml + '</span></div>';
+html += '</div>';
+
+// Countermeasure
+if (goal.obstacle || goal.countermeasure) {
+html += '<div style="background:var(--border-l);border-radius:8px;padding:8px 10px;margin:8px 0;font-size:12px">';
+if (goal.obstacle) html += '<div style="color:var(--text2)"><strong>障碍：</strong>' + escapeHtml(goal.obstacle) + '</div>';
+if (goal.countermeasure) html += '<div style="color:var(--primary);margin-top:4px"><strong>如果出现，我就：</strong>' + escapeHtml(goal.countermeasure) + '</div>';
+html += '</div>';
+}
+
+// Recent records
+html += '<div class="section-title" style="margin-top:12px;margin-bottom:6px">最近 10 条记录</div>';
+if (recentRecs.length === 0) {
+html += '<div style="font-size:13px;color:var(--text3);padding:8px">暂无记录</div>';
+} else {
+recentRecs.forEach(function(r) {
+html += '<div class="record-item"><span class="ri-date">' + formatDateShort(r.date) + '</span>';
+html += '<span class="ri-amount">+' + r.amount + ' ' + escapeHtml(goal.unit) + '</span>';
+if (r.minutes) html += '<span class="ri-mins">' + r.minutes + 'min</span>';
+if (r.isBackfill) html += '<span class="ri-tag">补</span>';
+if (r.note) html += '<span class="ri-mins">' + escapeHtml(r.note) + '</span>';
+html += '<button class="ri-del" onclick="deleteRecord(\'' + r.id + '\')">' + svgIcon('trash',14) + '</button></div>';
+});
+}
+
+html += '</div>';
+return html;
+}
+
+// === Weekly Tab ===
+function renderWeeklyTab() {
+var container = document.getElementById('weeklyContent');
+if (!getDB()) {
+container.innerHTML = '<div class="retry-box"><p style="color:var(--danger)">资料库 SDK 不可用</p></div>';
+return;
+}
+var now = new Date();
+var thisMonday = getMonday(now);
+var lastMonday = addDays(thisMonday, -7);
+
+// Build weeks list (last 8 weeks)
+var weeks = [];
+for (var i = 0; i < 8; i++) {
+var mon = addDays(thisMonday, -i * 7);
+var sun = addDays(mon, 6);
+weeks.push({start: mon, end: sun, isCurrent: i === 0, isLast: i === 1});
+}
+
+var html = '';
+
+// Current week summary
+html += '<div class="section-title">' + svgIcon('calendar',16) + ' 本周概况</div>';
+var thisWeekData = calculateWeekData(thisMonday);
+html += '<div class="card">';
+html += '<div class="week-stats">';
+html += '<div class="week-stat"><div class="ws-val">' + thisWeekData.totalAmount + '</div><div class="ws-label">投入总量</div></div>';
+html += '<div class="week-stat"><div class="ws-val">' + thisWeekData.checkinDays + '</div><div class="ws-label">打卡天数</div></div>';
+html += '<div class="week-stat"><div class="ws-val">' + thisWeekData.totalMinutes + '</div><div class="ws-label">总分钟数</div></div>';
+html += '</div>';
+
+// Week-over-week comparison
+var lastWeekData = calculateWeekData(lastMonday);
+html += '<div class="week-compare">环比上周：';
+if (lastWeekData.totalAmount > 0) {
+var change = ((thisWeekData.totalAmount - lastWeekData.totalAmount) / lastWeekData.totalAmount * 100).toFixed(1);
+if (change > 0) html += '<span class="wc-up">+' + change + '%</span>';
+else if (change < 0) html += '<span class="wc-down">' + change + '%</span>';
+else html += '<span>持平</span>';
+} else {
+html += '<span style="color:var(--text3)">上周无数据</span>';
+}
+html += '</div>';
+html += '</div>';
+
+// Per-goal breakdown for this week
+html += '<div class="card">';
+html += '<div style="font-size:14px;font-weight:600;margin-bottom:8px">分目标本周情况</div>';
+state.goals.filter(function(g){return g.status==='进行中'}).forEach(function(g) {
+var weekRecs = state.records.filter(function(r) {
+return r.goalName === g.name && isInWeek(r.date, thisMonday);
+});
+var amount = weekRecs.reduce(function(s,r){return s+(r.amount||0)},0);
+var mins = weekRecs.reduce(function(s,r){return s+(r.minutes||0)},0);
+var days = {};
+weekRecs.forEach(function(r){ var d=parseDate(r.date); if(d) days[dateStr(d)]=true; });
+var cs = COLOR_MAP[g.color] || COLOR_MAP['紫色渐变'];
+html += '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border-l)">';
+html += '<div style="width:8px;height:8px;border-radius:2px;background:' + cs.main + '"></div>';
+html += '<div style="flex:1;font-size:13px">' + escapeHtml(g.name) + '</div>';
+html += '<div style="font-size:12px;color:var(--text2)">' + amount + ' ' + escapeHtml(g.unit) + ' · ' + Object.keys(days).length + '天 · ' + mins + 'min</div>';
+html += '</div>';
+});
+html += '</div>';
+
+// Review form
+var thisWeekReview = state.reviews.find(function(r) {
+return isInWeek(r.weekStart, thisMonday) || isInWeek(r.weekEnd, thisMonday);
+});
+html += '<div class="card">';
+html += '<div style="font-size:14px;font-weight:600;margin-bottom:10px">本周复盘</div>';
+html += '<div class="review-grid">';
+html += '<div class="review-item"><div class="ri-label">保持</div><textarea class="input" id="rv-keep" placeholder="本周做得好的...">' + escapeHtml(thisWeekReview ? thisWeekReview.keep : '') + '</textarea></div>';
+html += '<div class="review-item"><div class="ri-label">问题</div><textarea class="input" id="rv-problem" placeholder="遇到的问题...">' + escapeHtml(thisWeekReview ? thisWeekReview.problem : '') + '</textarea></div>';
+html += '<div class="review-item"><div class="ri-label">尝试</div><textarea class="input" id="rv-try" placeholder="下周想尝试的...">' + escapeHtml(thisWeekReview ? thisWeekReview.try_ : '') + '</textarea></div>';
+html += '<div class="review-item"><div class="ri-label">下周预案</div><textarea class="input" id="rv-plan" placeholder="下周具体计划...">' + escapeHtml(thisWeekReview ? thisWeekReview.plan : '') + '</textarea></div>';
+html += '</div>';
+html += '<button class="btn btn-primary btn-block" style="margin-top:10px" onclick="saveReview(\'' + dateStr(thisMonday) + '\',\'' + dateStr(addDays(thisMonday,6)) + '\')" >' + (thisWeekReview ? '更新' : '保存') + '复盘</button>';
+html += '</div>';
+
+// One-click report
+html += '<button class="btn btn-outline btn-block" style="margin-top:8px" onclick="generateWeeklyReport()">一键生成周报文本</button>';
+html += '<textarea class="input hidden" id="reportText" style="margin-top:8px;min-height:200px" readonly></textarea>';
+html += '<button class="btn btn-outline btn-sm btn-block hidden" id="copyReportBtn" style="margin-top:4px" onclick="copyReport()">复制周报</button>';
+
+// Historical weeks
+html += '<div class="section-title">' + svgIcon('clock',16) + ' 历史周报</div>';
+weeks.slice(1).forEach(function(w) {
+var data = calculateWeekData(w.start);
+var review = state.reviews.find(function(r) {
+return isInWeek(r.weekStart, w.start) || isInWeek(r.weekEnd, w.start);
+});
+html += '<div class="card">';
+html += '<div style="display:flex;justify-content:space-between;align-items:center">';
+html += '<div style="font-size:14px;font-weight:600">' + (w.start.getMonth()+1) + '月' + w.start.getDate() + '日 - ' + (w.end.getMonth()+1) + '月' + w.end.getDate() + '日</div>';
+html += '<div style="font-size:12px;color:var(--text3)">' + data.totalAmount + '投入 · ' + data.checkinDays + '天 · ' + data.totalMinutes + 'min</div>';
+html += '</div>';
+if (review) {
+html += '<div style="margin-top:8px;font-size:12px">';
+if (review.keep) html += '<div style="color:var(--text2)"><strong>保持：</strong>' + escapeHtml(review.keep) + '</div>';
+if (review.problem) html += '<div style="color:var(--text2);margin-top:4px"><strong>问题：</strong>' + escapeHtml(review.problem) + '</div>';
+if (review.try_) html += '<div style="color:var(--text2);margin-top:4px"><strong>尝试：</strong>' + escapeHtml(review.try_) + '</div>';
+if (review.plan) html += '<div style="color:var(--text2);margin-top:4px"><strong>预案：</strong>' + escapeHtml(review.plan) + '</div>';
+html += '</div>';
+} else {
+html += '<div style="margin-top:8px;font-size:12px;color:var(--text3)">未填写复盘</div>';
+}
+html += '</div>';
+});
+
+container.innerHTML = html;
+}
+
+function calculateWeekData(monday) {
+var weekStart = new Date(monday);
+weekStart.setHours(0,0,0,0);
+var weekEnd = addDays(weekStart, 7);
+var recs = state.records.filter(function(r) {
+var d = parseDate(r.date);
+return d && d >= weekStart && d < weekEnd;
+});
+var totalAmount = recs.reduce(function(s,r){return s+(r.amount||0)},0);
+var totalMinutes = recs.reduce(function(s,r){return s+(r.minutes||0)},0);
+var days = {};
+recs.forEach(function(r){ var d=parseDate(r.date); if(d) days[dateStr(d)]=true; });
+return {totalAmount: totalAmount, totalMinutes: totalMinutes, checkinDays: Object.keys(days).length};
+}
+
+function isInWeek(dateStr, monday) {
+var d = parseDate(dateStr);
+if (!d) return false;
+var mon = new Date(monday);
+mon.setHours(0,0,0,0);
+var sun = addDays(mon, 7);
+d.setHours(0,0,0,0);
+return d >= mon && d < sun;
+}
+
+function generateWeeklyReport() {
+var now = new Date();
+var thisMonday = getMonday(now);
+var thisSunday = addDays(thisMonday, 6);
+var lastMonday = addDays(thisMonday, -7);
+var thisData = calculateWeekData(thisMonday);
+var lastData = calculateWeekData(lastMonday);
+var change = '';
+if (lastData.totalAmount > 0) {
+var pct = ((thisData.totalAmount - lastData.totalAmount) / lastData.totalAmount * 100).toFixed(1);
+change = pct > 0 ? '+' + pct + '%' : pct + '%';
+} else {
+change = '上周无数据';
+}
+var keep = document.getElementById('rv-keep') ? document.getElementById('rv-keep').value : '';
+var problem = document.getElementById('rv-problem') ? document.getElementById('rv-problem').value : '';
+var try_ = document.getElementById('rv-try') ? document.getElementById('rv-try').value : '';
+var plan = document.getElementById('rv-plan') ? document.getElementById('rv-plan').value : '';
+
+var report = '【学习周报】\n';
+report += '时间：' + (thisMonday.getMonth()+1) + '月' + thisMonday.getDate() + '日 - ' + (thisSunday.getMonth()+1) + '月' + thisSunday.getDate() + '日\n\n';
+report += '一、本周数据\n';
+report += '投入总量：' + thisData.totalAmount + '\n';
+report += '打卡天数：' + thisData.checkinDays + '天\n';
+report += '总分钟数：' + thisData.totalMinutes + 'min\n';
+report += '环比上周：' + change + '\n\n';
+report += '二、分目标情况\n';
+state.goals.filter(function(g){return g.status==='进行中'}).forEach(function(g) {
+var weekRecs = state.records.filter(function(r){return r.goalName===g.name && isInWeek(r.date, thisMonday)});
+var amount = weekRecs.reduce(function(s,r){return s+(r.amount||0)},0);
+var mins = weekRecs.reduce(function(s,r){return s+(r.minutes||0)},0);
+var days = {};
+weekRecs.forEach(function(r){var d=parseDate(r.date);if(d)days[dateStr(d)]=true});
+report += '· ' + g.name + '：' + amount + ' ' + g.unit + '，' + Object.keys(days).length + '天，' + mins + 'min\n';
+});
+report += '\n三、复盘\n';
+report += '【保持】' + keep + '\n';
+report += '【问题】' + problem + '\n';
+report += '【尝试】' + try_ + '\n';
+report += '【下周预案】' + plan + '\n';
+
+var el = document.getElementById('reportText');
+el.value = report;
+el.classList.remove('hidden');
+document.getElementById('copyReportBtn').classList.remove('hidden');
+showToast('周报已生成', 'success');
+}
+
+function copyReport() {
+var el = document.getElementById('reportText');
+el.select();
+try {
+document.execCommand('copy');
+showToast('已复制到剪贴板', 'success');
+} catch(e) {
+showToast('复制失败，请手动选择复制', 'error');
+}
+}
+
+// === Settings Tab ===
+function renderSettingsTab() {
+var container = document.getElementById('settingsContent');
+var html = '';
+
+// Sync status
+html += '<div class="card">';
+html += '<div style="font-size:14px;font-weight:600;margin-bottom:10px">' + svgIcon('refresh',16) + ' 在线同步</div>';
+html += '<div class="setting-item" style="padding:0;border:none">';
+html += '<div id="syncIndicator"></div>';
+html += '<button class="btn btn-outline btn-sm" onclick="loadAllData()">' + svgIcon('refresh',14) + ' 重新同步</button>';
+html += '</div>';
+html += '</div>';
+
+// Data management
+html += '<div class="card">';
+html += '<div style="font-size:14px;font-weight:600;margin-bottom:10px">数据管理</div>';
+html += '<div class="setting-item"><div><div class="si-label">清空示例数据</div><div class="si-desc">删除标签为"示例"的目标及其记录</div></div><button class="btn btn-outline btn-sm" onclick="clearSampleData()">清空</button></div>';
+html += '<div class="setting-item"><div><div class="si-label" style="color:var(--danger)">清空全部数据</div><div class="si-desc">删除所有目标、记录和复盘，不可恢复</div></div><button class="btn btn-danger btn-sm" onclick="showClearAllModal()">清空全部</button></div>';
+html += '</div>';
+
+// Add to home screen
+html += '<div class="card">';
+html += '<div style="font-size:14px;font-weight:600;margin-bottom:10px">' + svgIcon('home',16) + ' 添加到手机主屏幕</div>';
+html += '<div style="font-size:13px;color:var(--text2);line-height:1.8">';
+html += '<div style="margin-bottom:8px"><strong>步骤 1：</strong>在手机浏览器中打开本页面链接</div>';
+html += '<div style="margin-bottom:8px"><strong>步骤 2：</strong>点击浏览器底部菜单栏的「分享」按钮</div>';
+html += '<div><strong>步骤 3：</strong>选择「添加到主屏幕」，确认即可像 APP 一样使用</div>';
+html += '</div>';
+html += '</div>';
+
+// About
+html += '<div class="card" style="text-align:center;color:var(--text3);font-size:12px">';
+html += '<p>学习目标管理台</p>';
+html += '<p style="margin-top:4px">数据通过资料库在线存储，多设备自动同步</p>';
+html += '</div>';
+
+container.innerHTML = html;
+renderSyncIndicator();
+}
+
+// === Modals ===
+function showModal(html) {
+document.getElementById('modalBox').innerHTML = html;
+document.getElementById('modalOverlay').classList.add('show');
+}
+function closeModal() {
+document.getElementById('modalOverlay').classList.remove('show');
+}
+document.getElementById('modalOverlay').addEventListener('click', function(e) {
+if (e.target === this) closeModal();
+});
+
+function showNewGoalModal() {
+var colorOpts = Object.keys(COLOR_MAP).map(function(c) {
+var cs = COLOR_MAP[c];
+return '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px"><input type="radio" name="goal-color" value="' + c + '" style="width:16px;height:16px"><span style="width:16px;height:16px;border-radius:4px;background:' + cs.grad + '"></span>' + c + '</label>';
+}).join('');
+var html = '<div class="modal-title"><span>新建学习目标</span><button class="modal-close" onclick="closeModal()">' + svgIcon('close',20) + '</button></div>';
+html += '<div class="modal-field"><label class="fl">目标名称</label><input type="text" class="input" id="ng-name" placeholder="如：背完2000个单词"></div>';
+html += '<div style="display:flex;gap:8px"><div class="modal-field" style="flex:1"><label class="fl">单位</label><input type="text" class="input" id="ng-unit" placeholder="如：个/页/节"></div>';
+html += '<div class="modal-field" style="width:100px"><label class="fl">总量</label><input type="number" class="input" id="ng-total" placeholder="2000" min="1"></div></div>';
+html += '<div class="modal-field"><label class="fl">截止日期</label><input type="date" class="input" id="ng-deadline"></div>';
+html += '<div class="modal-field"><label class="fl">配色</label><div style="display:flex;flex-wrap:wrap;gap:8px">' + colorOpts + '</div></div>';
+html += '<div class="divider"></div>';
+html += '<div class="modal-field"><label class="fl">最容易拦住你的障碍（选填）</label><input type="text" class="input" id="ng-obstacle" placeholder="如：工作太忙没整块时间"></div>';
+html += '<div class="modal-field"><label class="fl">如果它出现，我就……（选填）</label><input type="text" class="input" id="ng-countermeasure" placeholder="如：用通勤碎片时间背20个"></div>';
+html += '<div class="modal-actions"><button class="btn btn-outline" style="flex:1" onclick="closeModal()">取消</button><button class="btn btn-primary" style="flex:1" onclick="createGoal()">创建</button></div>';
+showModal(html);
+// Default color
+var firstRadio = document.querySelector('input[name="goal-color"]');
+if (firstRadio) firstRadio.checked = true;
+// Default deadline = today + 30 days
+var dl = addDays(new Date(), 30);
+document.getElementById('ng-deadline').value = dateStr(dl);
+}
+
+function createGoal() {
+var name = document.getElementById('ng-name').value.trim();
+var unit = document.getElementById('ng-unit').value.trim();
+var total = parseInt(document.getElementById('ng-total').value);
+var deadline = document.getElementById('ng-deadline').value;
+var colorEl = document.querySelector('input[name="goal-color"]:checked');
+var color = colorEl ? colorEl.value : '紫色渐变';
+var obstacle = document.getElementById('ng-obstacle').value.trim();
+var countermeasure = document.getElementById('ng-countermeasure').value.trim();
+if (!name || !unit || !total || !deadline) {
+showToast('请填写目标名称、单位、总量和截止日期', 'error');
+return;
+}
+setSync('syncing');
+var db = getDB();
+var today = todayStr();
+db.addRecord({
+databaseId: GOALS_DB,
+properties: {
+'目标名称': { text: name },
+'单位': { text: unit },
+'总量': { number: total },
+'截止日': { date: deadline },
+'配色': { select: color },
+'障碍': { text: obstacle },
+'对策': { text: countermeasure },
+'标签': { text: '' },
+'创建日期': { date: today },
+'状态': { select: '进行中' }
+}
+}).then(function() {
+closeModal();
+showToast('目标创建成功', 'success');
+loadAllData();
+}).catch(function(err) {
+console.error('create goal error', err);
+setSync('offline');
+showToast('创建失败，请重试', 'error');
+});
+}
+
+function showEditGoalModal(goalId) {
+var goal = state.goals.find(function(g) { return g.id === goalId; });
+if (!goal) return;
+var colorOpts = Object.keys(COLOR_MAP).map(function(c) {
+var cs = COLOR_MAP[c];
+var checked = c === goal.color ? 'checked' : '';
+return '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px"><input type="radio" name="eg-color" value="' + c + '" ' + checked + ' style="width:16px;height:16px"><span style="width:16px;height:16px;border-radius:4px;background:' + cs.grad + '"></span>' + c + '</label>';
+}).join('');
+var dl = parseDate(goal.deadline);
+var html = '<div class="modal-title"><span>编辑目标</span><button class="modal-close" onclick="closeModal()">' + svgIcon('close',20) + '</button></div>';
+html += '<div class="modal-field"><label class="fl">目标名称</label><input type="text" class="input" id="eg-name" value="' + escapeAttr(goal.name) + '"></div>';
+html += '<div style="display:flex;gap:8px"><div class="modal-field" style="flex:1"><label class="fl">单位</label><input type="text" class="input" id="eg-unit" value="' + escapeAttr(goal.unit) + '"></div>';
+html += '<div class="modal-field" style="width:100px"><label class="fl">总量</label><input type="number" class="input" id="eg-total" value="' + goal.total + '" min="1"></div></div>';
+html += '<div class="modal-field"><label class="fl">截止日期</label><input type="date" class="input" id="eg-deadline" value="' + (dl ? dateStr(dl) : '') + '"></div>';
+html += '<div class="modal-field"><label class="fl">配色</label><div style="display:flex;flex-wrap:wrap;gap:8px">' + colorOpts + '</div></div>';
+html += '<div class="divider"></div>';
+html += '<div class="modal-field"><label class="fl">障碍（选填）</label><input type="text" class="input" id="eg-obstacle" value="' + escapeAttr(goal.obstacle) + '"></div>';
+html += '<div class="modal-field"><label class="fl">对策（选填）</label><input type="text" class="input" id="eg-countermeasure" value="' + escapeAttr(goal.countermeasure) + '"></div>';
+html += '<div class="modal-field"><label class="fl">状态</label><select class="input" id="eg-status"><option value="进行中"' + (goal.status==='进行中'?' selected':'') + '>进行中</option><option value="已完成"' + (goal.status==='已完成'?' selected':'') + '>已完成</option></select></div>';
+html += '<div class="modal-actions"><button class="btn btn-danger" style="flex:1" onclick="deleteGoal(\'' + goalId + '\')">' + svgIcon('trash',16) + ' 删除</button><button class="btn btn-outline" style="flex:1" onclick="closeModal()">取消</button><button class="btn btn-primary" style="flex:1" onclick="updateGoal(\'' + goalId + '\')">保存</button></div>';
+showModal(html);
+}
+
+function updateGoal(goalId) {
+var goal = state.goals.find(function(g) { return g.id === goalId; });
+if (!goal) return;
+var name = document.getElementById('eg-name').value.trim();
+var unit = document.getElementById('eg-unit').value.trim();
+var total = parseInt(document.getElementById('eg-total').value);
+var deadline = document.getElementById('eg-deadline').value;
+var colorEl = document.querySelector('input[name="eg-color"]:checked');
+var color = colorEl ? colorEl.value : '紫色渐变';
+var obstacle = document.getElementById('eg-obstacle').value.trim();
+var countermeasure = document.getElementById('eg-countermeasure').value.trim();
+var status = document.getElementById('eg-status').value;
+if (!name || !unit || !total || !deadline) {
+showToast('请填写必填项', 'error');
+return;
+}
+setSync('syncing');
+var db = getDB();
+db.updateRecord({
+databaseId: GOALS_DB,
+recordId: goalId,
+properties: {
+'目标名称': { text: name },
+'单位': { text: unit },
+'总量': { number: total },
+'截止日': { date: deadline },
+'配色': { select: color },
+'障碍': { text: obstacle },
+'对策': { text: countermeasure },
+'状态': { select: status }
+}
+}).then(function() {
+// If name changed, update all related records
+if (name !== goal.name) {
+updateRecordGoalNames(goal.name, name);
+}
+closeModal();
+// Check if goal just completed
+if (status === '已完成' && goal.status !== '已完成') {
+showCelebration();
+}
+showToast('目标已更新', 'success');
+loadAllData();
+}).catch(function(err) {
+console.error('update goal error', err);
+setSync('offline');
+showToast('更新失败，请重试', 'error');
+});
+}
+
+function deleteGoal(goalId) {
+var goal = state.goals.find(function(g) { return g.id === goalId; });
+if (!goal) return;
+var html = '<div class="modal-title"><span>确认删除</span><button class="modal-close" onclick="closeModal()">' + svgIcon('close',20) + '</button></div>';
+html += '<div style="font-size:14px;margin-bottom:16px">确定要删除目标「<strong>' + escapeHtml(goal.name) + '</strong>」吗？<br>该目标的所有打卡记录也将一并删除，此操作不可恢复。</div>';
+html += '<div class="modal-actions"><button class="btn btn-outline" style="flex:1" onclick="closeModal()">取消</button><button class="btn btn-danger" style="flex:1" onclick="doDeleteGoal(\'' + goalId + '\',\'' + escapeAttr(goal.name) + '\')">确认删除</button></div>';
+showModal(html);
+}
+
+function doDeleteGoal(goalId, goalName) {
+setSync('syncing');
+var db = getDB();
+// Delete goal
+db.deleteRecord({ databaseId: GOALS_DB, recordId: goalId }).then(function() {
+// Delete all related records
+var recs = getGoalRecords(goalName);
+var promises = recs.map(function(r) {
+return db.deleteRecord({ databaseId: RECORDS_DB, recordId: r.id });
+});
+return Promise.all(promises);
+}).then(function() {
+closeModal();
+showToast('目标已删除', 'success');
+loadAllData();
+}).catch(function(err) {
+console.error('delete goal error', err);
+setSync('offline');
+showToast('删除失败，请重试', 'error');
+});
+}
+
+function updateRecordGoalNames(oldName, newName) {
+var db = getDB();
+var recs = getGoalRecords(oldName);
+recs.forEach(function(r) {
+db.updateRecord({
+databaseId: RECORDS_DB,
+recordId: r.id,
+properties: { '目标名称': { text: newName } }
+});
+});
+}
+
+// Quick check-in (from alert cards)
+function quickCheckIn(goalName) {
+var suggested = getTodaySuggested(state.goals.find(function(g){return g.name===goalName}));
+doCheckInWith(goalName, suggested, 0, '');
+}
+
+function doCheckIn(goalName) {
+var amountEl = document.getElementById('ci-amount-' + goalName);
+var minsEl = document.getElementById('ci-mins-' + goalName);
+if (!amountEl) return;
+var amount = parseInt(amountEl.value);
+var minutes = parseInt(minsEl.value) || 0;
+if (!amount || amount <= 0) {
+showToast('请输入有效数量', 'error');
+return;
+}
+doCheckInWith(goalName, amount, minutes, '');
+}
+
+function doCheckInWith(goalName, amount, minutes, note) {
+setSync('syncing');
+var db = getDB();
+var today = todayStr();
+db.addRecord({
+databaseId: RECORDS_DB,
+properties: {
+'目标名称': { text: goalName },
+'日期': { date: today },
+'数量': { number: amount },
+'分钟数': { number: minutes },
+'是否补记': { checkbox: false },
+'备注': { text: note }
+}
+}).then(function() {
+// Check if goal completed
+var goal = state.goals.find(function(g){return g.name===goalName});
+if (goal) {
+var newCompleted = getCompletedAmount(goalName) + amount;
+if (newCompleted >= goal.total && goal.status === '进行中') {
+showCelebration();
+// Auto-update goal status
+db.updateRecord({
+databaseId: GOALS_DB,
+recordId: goal.id,
+properties: { '状态': { select: '已完成' } }
+}).catch(function(){});
+}
+}
+showToast('打卡成功 +' + amount, 'success');
+loadAllData();
+}).catch(function(err) {
+console.error('checkin error', err);
+setSync('offline');
+showToast('打卡失败，请重试', 'error');
+});
+}
+
+function showBackfillModal(goalName) {
+var goal = state.goals.find(function(g){return g.name===goalName});
+if (!goal) return;
+var now = new Date();
+var dates = [];
+for (var i = 1; i <= 6; i++) {
+var d = addDays(now, -i);
+dates.push({value: dateStr(d), label: (d.getMonth()+1) + '月' + d.getDate() + '日 (' + '日一二三四五六'[d.getDay()] + ')'});
+}
+var dateOpts = dates.map(function(d) { return '<option value="' + d.value + '">' + d.label + '</option>'; }).join('');
+var suggested = getTodaySuggested(goal);
+var html = '<div class="modal-title"><span>补记 - ' + escapeHtml(goalName) + '</span><button class="modal-close" onclick="closeModal()">' + svgIcon('close',20) + '</button></div>';
+html += '<div class="modal-field"><label class="fl">补记日期</label><select class="input" id="bf-date">' + dateOpts + '</select></div>';
+html += '<div style="display:flex;gap:8px"><div class="modal-field" style="flex:1"><label class="fl">数量</label><input type="number" class="input" id="bf-amount" value="' + suggested + '" min="0"></div>';
+html += '<div class="modal-field" style="width:100px"><label class="fl">分钟</label><input type="number" class="input" id="bf-mins" placeholder="选填" min="0" step="5"></div></div>';
+html += '<div class="modal-field"><label class="fl">备注（选填）</label><input type="text" class="input" id="bf-note" placeholder="如：周末补的"></div>';
+html += '<div style="font-size:12px;color:var(--warning);margin:8px 0">补记记录会标注"补"并按真实日期参与连续天数和推算</div>';
+html += '<div class="modal-actions"><button class="btn btn-outline" style="flex:1" onclick="closeModal()">取消</button><button class="btn btn-primary" style="flex:1" onclick="doBackfill(\'' + escapeAttr(goalName) + '\')">补记</button></div>';
+showModal(html);
+}
+
+function doBackfill(goalName) {
+var date = document.getElementById('bf-date').value;
+var amount = parseInt(document.getElementById('bf-amount').value);
+var minutes = parseInt(document.getElementById('bf-mins').value) || 0;
+var note = document.getElementById('bf-note').value.trim();
+if (!amount || amount <= 0) {
+showToast('请输入有效数量', 'error');
+return;
+}
+setSync('syncing');
+var db = getDB();
+db.addRecord({
+databaseId: RECORDS_DB,
+properties: {
+'目标名称': { text: goalName },
+'日期': { date: date },
+'数量': { number: amount },
+'分钟数': { number: minutes },
+'是否补记': { checkbox: true },
+'备注': { text: note }
+}
+}).then(function() {
+closeModal();
+showToast('补记成功', 'success');
+loadAllData();
+}).catch(function(err) {
+console.error('backfill error', err);
+setSync('offline');
+showToast('补记失败，请重试', 'error');
+});
+}
+
+function deleteRecord(recordId) {
+var html = '<div class="modal-title"><span>确认删除记录</span><button class="modal-close" onclick="closeModal()">' + svgIcon('close',20) + '</button></div>';
+html += '<div style="font-size:14px;margin-bottom:16px">确定要删除这条打卡记录吗？此操作不可恢复。</div>';
+html += '<div class="modal-actions"><button class="btn btn-outline" style="flex:1" onclick="closeModal()">取消</button><button class="btn btn-danger" style="flex:1" onclick="doDeleteRecord(\'' + recordId + '\')">删除</button></div>';
+showModal(html);
+}
+
+function doDeleteRecord(recordId) {
+setSync('syncing');
+var db = getDB();
+db.deleteRecord({ databaseId: RECORDS_DB, recordId: recordId }).then(function() {
+closeModal();
+showToast('记录已删除', 'success');
+loadAllData();
+}).catch(function(err) {
+console.error('delete record error', err);
+setSync('offline');
+showToast('删除失败，请重试', 'error');
+});
+}
+
+function saveReview(weekStart, weekEnd) {
+var keep = document.getElementById('rv-keep').value.trim();
+var problem = document.getElementById('rv-problem').value.trim();
+var try_ = document.getElementById('rv-try').value.trim();
+var plan = document.getElementById('rv-plan').value.trim();
+setSync('syncing');
+var db = getDB();
+// Check if review already exists
+var existing = state.reviews.find(function(r) {
+return isInWeek(r.weekStart, parseDate(weekStart)) || isInWeek(r.weekEnd, parseDate(weekStart));
+});
+if (existing) {
+db.updateRecord({
+databaseId: REVIEWS_DB,
+recordId: existing.id,
+properties: {
+'保持': { text: keep },
+'问题': { text: problem },
+'尝试': { text: try_ },
+'下周预案': { text: plan }
+}
+}).then(function() {
+showToast('复盘已更新', 'success');
+loadAllData();
+}).catch(function(err) {
+console.error('update review error', err);
+setSync('offline');
+showToast('保存失败，请重试', 'error');
+});
+} else {
+db.addRecord({
+databaseId: REVIEWS_DB,
+properties: {
+'周开始日': { date: weekStart },
+'周结束日': { date: weekEnd },
+'保持': { text: keep },
+'问题': { text: problem },
+'尝试': { text: try_ },
+'下周预案': { text: plan }
+}
+}).then(function() {
+showToast('复盘已保存', 'success');
+loadAllData();
+}).catch(function(err) {
+console.error('save review error', err);
+setSync('offline');
+showToast('保存失败，请重试', 'error');
+});
+}
+}
+
+function showClearAllModal() {
+var html = '<div class="modal-title"><span>清空全部数据</span><button class="modal-close" onclick="closeModal()">' + svgIcon('close',20) + '</button></div>';
+html += '<div style="font-size:14px;margin-bottom:12px;color:var(--danger)">⚠️ 此操作将删除所有目标、打卡记录和周复盘，且不可恢复。</div>';
+html += '<div class="modal-field"><label class="fl">请输入"清空"以确认</label><input type="text" class="input" id="clear-confirm" placeholder="清空"></div>';
+html += '<div class="modal-actions"><button class="btn btn-outline" style="flex:1" onclick="closeModal()">取消</button><button class="btn btn-danger" style="flex:1" id="clear-btn" disabled onclick="doClearAll()">清空全部</button></div>';
+showModal(html);
+var input = document.getElementById('clear-confirm');
+var btn = document.getElementById('clear-btn');
+input.addEventListener('input', function() {
+btn.disabled = this.value !== '清空';
+});
+}
+
+function doClearAll() {
+setSync('syncing');
+var db = getDB();
+var promises = [];
+// Delete all goals
+state.goals.forEach(function(g) { promises.push(db.deleteRecord({databaseId: GOALS_DB, recordId: g.id})); });
+// Delete all records
+state.records.forEach(function(r) { promises.push(db.deleteRecord({databaseId: RECORDS_DB, recordId: r.id})); });
+// Delete all reviews
+state.reviews.forEach(function(r) { promises.push(db.deleteRecord({databaseId: REVIEWS_DB, recordId: r.id})); });
+Promise.all(promises).then(function() {
+closeModal();
+showToast('全部数据已清空', 'success');
+loadAllData();
+}).catch(function(err) {
+console.error('clear all error', err);
+setSync('offline');
+showToast('清空失败，请重试', 'error');
+});
+}
+
+function clearSampleData() {
+setSync('syncing');
+var db = getDB();
+var sampleGoals = state.goals.filter(function(g) { return g.tag === '示例'; });
+var sampleGoalNames = sampleGoals.map(function(g) { return g.name; });
+var sampleRecords = state.records.filter(function(r) { return sampleGoalNames.indexOf(r.goalName) >= 0; });
+var promises = [];
+sampleGoals.forEach(function(g) { promises.push(db.deleteRecord({databaseId: GOALS_DB, recordId: g.id})); });
+sampleRecords.forEach(function(r) { promises.push(db.deleteRecord({databaseId: RECORDS_DB, recordId: r.id})); });
+Promise.all(promises).then(function() {
+showToast('示例数据已清空', 'success');
+loadAllData();
+}).catch(function(err) {
+console.error('clear sample error', err);
+setSync('offline');
+showToast('清空失败，请重试', 'error');
+});
+}
+
+// === Celebration ===
+function showCelebration() {
+var el = document.getElementById('celebration');
+el.classList.add('show');
+var colors = ['#7c3aed','#10b981','#3b82f6','#f59e0b','#ec4899'];
+var html = '';
+for (var i = 0; i < 50; i++) {
+var left = Math.random() * 100;
+var delay = Math.random() * 0.5;
+var color = colors[Math.floor(Math.random() * colors.length)];
+html += '<div class="confetti" style="left:' + left + '%;animation-delay:' + delay + 's;background:' + color + '"></div>';
+}
+el.innerHTML = html;
+setTimeout(function() {
+el.classList.remove('show');
+el.innerHTML = '';
+}, 3500);
+}
+
+// === Toast ===
+var toastTimer = null;
+function showToast(msg, type) {
+var container = document.getElementById('toastContainer');
+container.innerHTML = '<div class="toast ' + (type||'') + '">' + escapeHtml(msg) + '</div>';
+if (toastTimer) clearTimeout(toastTimer);
+toastTimer = setTimeout(function() {
+container.innerHTML = '';
+}, 2500);
+}
+
+// === Utilities ===
+function escapeHtml(s) {
+if (!s) return '';
+return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escapeAttr(s) {
+if (!s) return '';
+return String(s).replace(/'/g,"\\'").replace(/"/g,'&quot;');
+}
+
+// === Init ===
+function init() {
+renderSettingsTab(); // Render settings first (no data needed)
+loadAllData(); // Then load data
+}
+init();
+</script>
+</body>
+</html>

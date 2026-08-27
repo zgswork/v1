@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>公平随机分组工具</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Microsoft YaHei', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+            min-height: 100vh;
+            padding: 20px;
+            position: relative;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="25" cy="25" r="1" fill="rgba(255,255,255,0.1)"/><circle cx="75" cy="75" r="1" fill="rgba(255,255,255,0.1)"/><circle cx="50" cy="10" r="0.5" fill="rgba(255,255,255,0.05)"/><circle cx="20" cy="80" r="0.5" fill="rgba(255,255,255,0.05)"/></pattern></defs><rect width="100" height="100" fill="url(%23grain)"/></svg>');
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 3.5em;
+            font-weight: 700;
+            margin-bottom: 15px;
+            text-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            background: linear-gradient(45deg, #fff, #f0f8ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .header .subtitle {
+            font-size: 1.3em;
+            opacity: 0.95;
+            font-weight: 300;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+
+        .main-layout {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 30px;
+            align-items: start;
+        }
+
+        .input-panel {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            position: sticky;
+            top: 20px;
+        }
+
+        .results-panel {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            min-height: 600px;
+        }
+
+        .panel-title {
+            font-size: 1.8em;
+            font-weight: 600;
+            margin-bottom: 25px;
+            color: #2c3e50;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .panel-title::before {
+            content: '';
+            width: 4px;
+            height: 30px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-radius: 2px;
+        }
+
+        .input-group {
+            margin-bottom: 25px;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: 600;
+            color: #34495e;
+            font-size: 1.1em;
+        }
+
+        .input-group input, .input-group textarea {
+            width: 100%;
+            padding: 15px 20px;
+            border: 2px solid #e8ecf4;
+            border-radius: 12px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            background: #fafbfc;
+        }
+
+        .input-group input:focus, .input-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            background: white;
+            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+            transform: translateY(-2px);
+        }
+
+        .input-group textarea {
+            height: 140px;
+            resize: vertical;
+            font-family: 'Consolas', 'Monaco', monospace;
+            line-height: 1.6;
+        }
+
+        .example-hint {
+            background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-left: 4px solid #ff6b6b;
+        }
+
+        .example-hint .title {
+            font-weight: 600;
+            color: #d63031;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .example-code {
+            background: rgba(255,255,255,0.8);
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            color: #2d3748;
+            border: 1px solid rgba(255,255,255,0.3);
+        }
+
+        .button-group {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-top: 30px;
+        }
+
+        .btn {
+            padding: 15px 25px;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: left 0.5s;
+        }
+
+        .btn:hover::before {
+            left: 100%;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 35px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, #74b9ff 0%, #0984e3 100%);
+            color: white;
+            box-shadow: 0 8px 25px rgba(116, 185, 255, 0.3);
+        }
+
+        .btn-secondary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 35px rgba(116, 185, 255, 0.4);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #00b894 0%, #00a085 100%);
+            color: white;
+            box-shadow: 0 8px 25px rgba(0, 184, 148, 0.3);
+        }
+
+        .btn-success:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 35px rgba(0, 184, 148, 0.4);
+        }
+
+        .btn-outline {
+            background: transparent;
+            color: #667eea;
+            border: 2px solid #667eea;
+        }
+
+        .btn-outline:hover {
+            background: #667eea;
+            color: white;
+            transform: translateY(-3px);
+        }
+
+        .algorithm-info {
+            background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 30px;
+            border-left: 5px solid #2196f3;
+            box-shadow: 0 8px 25px rgba(33, 150, 243, 0.1);
+        }
+
+        .algorithm-info h3 {
+            color: #1565c0;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .algorithm-info ol {
+            margin-top: 15px;
+            padding-left: 25px;
+            color: #1976d2;
+        }
+
+        .algorithm-info li {
+            margin-bottom: 8px;
+            line-height: 1.6;
+        }
+
+        .groups-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 25px;
+            margin-bottom: 30px;
+        }
+
+        .group-card {
+            background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+            border-radius: 18px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+            border: 1px solid rgba(255,255,255,0.8);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .group-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #667eea, #764ba2, #f093fb);
+        }
+
+        .group-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.12);
+        }
+
+        .group-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #f1f3f4;
+        }
+
+        .group-title {
+            font-size: 1.4em;
+            font-weight: 700;
+            color: #2c3e50;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .group-title::before {
+            content: '👥';
+            font-size: 1.2em;
+        }
+
+        .group-total {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 25px;
+            font-weight: 700;
+            font-size: 1.1em;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .member-list {
+            list-style: none;
+        }
+
+        .member-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #f1f3f4;
+            transition: all 0.2s ease;
+        }
+
+        .member-item:hover {
+            background: rgba(102, 126, 234, 0.05);
+            margin: 0 -10px;
+            padding: 12px 10px;
+            border-radius: 8px;
+        }
+
+        .member-item:last-child {
+            border-bottom: none;
+        }
+
+        .member-name {
+            font-weight: 600;
+            color: #2c3e50;
+            font-size: 1.05em;
+        }
+
+        .member-ability {
+            background: linear-gradient(135deg, #74b9ff, #0984e3);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: 600;
+            box-shadow: 0 2px 8px rgba(116, 185, 255, 0.3);
+        }
+
+        .stats-section {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border-radius: 18px;
+            padding: 30px;
+            margin-top: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+        }
+
+        .stats-title {
+            font-size: 1.5em;
+            font-weight: 700;
+            margin-bottom: 25px;
+            color: #2c3e50;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+
+        .stat-item {
+            text-align: center;
+            padding: 25px 20px;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.08);
+            transition: all 0.3s ease;
+            border: 1px solid rgba(255,255,255,0.8);
+        }
+
+        .stat-item:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 35px rgba(0,0,0,0.12);
+        }
+
+        .stat-value {
+            font-size: 2.2em;
+            font-weight: 800;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 8px;
+        }
+
+        .stat-label {
+            color: #6c757d;
+            font-size: 1em;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6c757d;
+        }
+
+        .empty-state .icon {
+            font-size: 4em;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+
+        .empty-state h3 {
+            font-size: 1.5em;
+            margin-bottom: 10px;
+            color: #495057;
+        }
+
+        .empty-state p {
+            font-size: 1.1em;
+            line-height: 1.6;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .fade-in {
+            animation: fadeIn 0.6s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { 
+                opacity: 0; 
+                transform: translateY(30px);
+            }
+            to { 
+                opacity: 1; 
+                transform: translateY(0);
+            }
+        }
+
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        @media (max-width: 1200px) {
+            .main-layout {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+            
+            .input-panel {
+                position: static;
+            }
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+            
+            .header h1 {
+                font-size: 2.5em;
+            }
+            
+            .header .subtitle {
+                font-size: 1.1em;
+            }
+            
+            .input-panel, .results-panel {
+                padding: 20px;
+                border-radius: 15px;
+            }
+            
+            .groups-container {
+                grid-template-columns: 1fr;
+                gap: 15px;
+            }
+            
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 15px;
+            }
+            
+            .button-group {
+                gap: 10px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .group-header {
+                flex-direction: column;
+                gap: 10px;
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎯 公平分组工具</h1>
+            <p class="subtitle">基于贪心算法的智能分组系统，确保各组能力值均衡分布</p>
+        </div>
+
+        <div class="main-layout">
+            <!-- 输入面板 -->
+            <div class="input-panel">
+                <h2 class="panel-title">📝 配置参数</h2>
+                
+                <div class="example-hint">
+                    <div class="title">💡 输入格式示例</div>
+                    <div class="example-code">张三,85<br>李四,92<br>王五,78<br>赵六,88</div>
+                    <p style="margin-top: 12px; color: #d63031; font-size: 0.95em;">
+                        每行一个人员，格式：<strong>姓名,能力值</strong>
+                    </p>
+                </div>
+
+                <div class="input-group">
+                    <label for="memberList">👥 人员名单及能力值</label>
+                    <textarea id="memberList" placeholder="请输入人员名单，每行格式：姓名,能力值&#10;例如：&#10;张三,85&#10;李四,92&#10;王五,78"></textarea>
+                </div>
+
+                <div class="input-group">
+                    <label for="groupCount">🔢 分组数量</label>
+                    <input type="number" id="groupCount" min="2" max="20" value="3" placeholder="请输入要分成几组">
+                </div>
+
+                <div class="button-group">
+                    <button class="btn btn-primary" onclick="generateGroups()">
+                        🎲 开始分组
+                    </button>
+                    <button class="btn btn-secondary" onclick="loadExample()">
+                        📋 加载示例
+                    </button>
+                    <button class="btn btn-outline" onclick="clearAll()">
+                        🗑️ 清空重置
+                    </button>
+                </div>
+            </div>
+
+            <!-- 结果面板 -->
+            <div class="results-panel">
+                <h2 class="panel-title">📊 分组结果</h2>
+                
+                <div id="emptyState" class="empty-state">
+                    <div class="icon">🎯</div>
+                    <h3>等待分组</h3>
+                    <p>请在左侧输入人员名单和能力值，<br>然后点击"开始分组"按钮</p>
+                </div>
+
+                <div id="resultsContent" class="hidden">
+                    <div class="algorithm-info">
+                        <h3>🧠 算法说明</h3>
+                        <p>本工具采用<strong>贪心算法</strong>进行分组：</p>
+                        <ol>
+                            <li>将所有成员按能力值从高到低排序</li>
+                            <li>依次将每个成员分配到当前总能力值最小的组</li>
+                            <li>通过这种方式最大化各组间的平衡性</li>
+                        </ol>
+                    </div>
+
+                    <div id="groupsContainer" class="groups-container"></div>
+
+                    <div class="stats-section">
+                        <h3 class="stats-title">📈 统计分析</h3>
+                        <div id="statsContainer" class="stats-grid"></div>
+                    </div>
+
+                    <div class="button-group" style="margin-top: 25px;">
+                        <button class="btn btn-success" onclick="exportResults()">
+                            📥 导出结果
+                        </button>
+                        <button class="btn btn-primary" onclick="regenerateGroups()">
+                            🔄 重新分组
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentMembers = [];
+        let currentGroups = [];
+
+        // 加载示例数据
+        function loadExample() {
+            const exampleData = `张三,85
+李四,92
+王五,78
+赵六,88
+钱七,95
+孙八,82
+周九,76
+吴十,90
+郑十一,84
+王十二,87
+李十三,79
+张十四,93
+刘十五,81
+陈十六,89
+黄十七,77`;
+            document.getElementById('memberList').value = exampleData;
+            document.getElementById('groupCount').value = 4;
+            
+            // 添加脉冲动画提示
+            const generateBtn = document.querySelector('.btn-primary');
+            generateBtn.classList.add('pulse');
+            setTimeout(() => generateBtn.classList.remove('pulse'), 2000);
+        }
+
+        // 解析输入的成员数据
+        function parseMembers(input) {
+            const lines = input.trim().split('\n');
+            const members = [];
+            
+            for (let line of lines) {
+                line = line.trim();
+                if (!line) continue;
+                
+                const parts = line.split(',');
+                if (parts.length !== 2) {
+                    throw new Error(`格式错误：${line}。请使用"姓名,能力值"的格式`);
+                }
+                
+                const name = parts[0].trim();
+                const ability = parseFloat(parts[1].trim());
+                
+                if (!name) {
+                    throw new Error(`姓名不能为空：${line}`);
+                }
+                
+                if (isNaN(ability) || ability < 0) {
+                    throw new Error(`能力值必须是非负数字：${line}`);
+                }
+                
+                members.push({ name, ability });
+            }
+            
+            return members;
+        }
+
+        // 贪心算法分组
+        function greedyGrouping(members, groupCount) {
+            // 按能力值降序排序
+            const sortedMembers = [...members].sort((a, b) => b.ability - a.ability);
+            
+            // 初始化组
+            const groups = Array.from({ length: groupCount }, (_, i) => ({
+                id: i + 1,
+                members: [],
+                totalAbility: 0
+            }));
+            
+            // 贪心分配
+            for (const member of sortedMembers) {
+                // 找到当前总能力值最小的组
+                const targetGroup = groups.reduce((min, group) => 
+                    group.totalAbility < min.totalAbility ? group : min
+                );
+                
+                targetGroup.members.push(member);
+                targetGroup.totalAbility += member.ability;
+            }
+            
+            return groups;
+        }
+
+        // 计算统计信息
+        function calculateStats(groups) {
+            const totals = groups.map(g => g.totalAbility);
+            const max = Math.max(...totals);
+            const min = Math.min(...totals);
+            const avg = totals.reduce((sum, val) => sum + val, 0) / totals.length;
+            const variance = totals.reduce((sum, val) => sum + Math.pow(val - avg, 2), 0) / totals.length;
+            const stdDev = Math.sqrt(variance);
+            
+            return {
+                maxTotal: max,
+                minTotal: min,
+                avgTotal: avg,
+                difference: max - min,
+                stdDev: stdDev,
+                balanceScore: Math.max(0, 100 - (stdDev / avg * 100))
+            };
+        }
+
+        // 生成分组
+        function generateGroups() {
+            try {
+                const memberInput = document.getElementById('memberList').value;
+                const groupCount = parseInt(document.getElementById('groupCount').value);
+                
+                if (!memberInput.trim()) {
+                    alert('请输入人员名单！');
+                    return;
+                }
+                
+                if (!groupCount || groupCount < 2) {
+                    alert('分组数量必须大于等于2！');
+                    return;
+                }
+                
+                currentMembers = parseMembers(memberInput);
+                
+                if (currentMembers.length < groupCount) {
+                    alert(`人员数量(${currentMembers.length})不能少于分组数量(${groupCount})！`);
+                    return;
+                }
+                
+                currentGroups = greedyGrouping(currentMembers, groupCount);
+                displayResults();
+                
+            } catch (error) {
+                alert('输入错误：' + error.message);
+            }
+        }
+
+        // 重新分组（添加随机性）
+        function regenerateGroups() {
+            if (currentMembers.length === 0) {
+                alert('请先输入人员名单！');
+                return;
+            }
+            
+            // 添加轻微随机扰动
+            const shuffledMembers = [...currentMembers];
+            for (let i = shuffledMembers.length - 1; i > 0; i--) {
+                if (Math.random() < 0.3) { // 30%概率交换
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [shuffledMembers[i], shuffledMembers[j]] = [shuffledMembers[j], shuffledMembers[i]];
+                }
+            }
+            
+            const groupCount = currentGroups.length;
+            currentGroups = greedyGrouping(shuffledMembers, groupCount);
+            displayResults();
+        }
+
+        // 显示结果
+        function displayResults() {
+            const emptyState = document.getElementById('emptyState');
+            const resultsContent = document.getElementById('resultsContent');
+            const groupsContainer = document.getElementById('groupsContainer');
+            const statsContainer = document.getElementById('statsContainer');
+            
+            // 隐藏空状态，显示结果
+            emptyState.classList.add('hidden');
+            resultsContent.classList.remove('hidden');
+            resultsContent.classList.add('fade-in');
+            
+            // 显示分组结果
+            groupsContainer.innerHTML = '';
+            currentGroups.forEach((group, index) => {
+                const groupCard = document.createElement('div');
+                groupCard.className = 'group-card fade-in';
+                groupCard.style.animationDelay = `${index * 0.1}s`;
+                
+                const membersList = group.members.map(member => 
+                    `<li class="member-item">
+                        <span class="member-name">${member.name}</span>
+                        <span class="member-ability">${member.ability}</span>
+                    </li>`
+                ).join('');
+                
+                groupCard.innerHTML = `
+                    <div class="group-header">
+                        <div class="group-title">第${group.id}组</div>
+                        <div class="group-total">${group.totalAbility.toFixed(1)}</div>
+                    </div>
+                    <ul class="member-list">${membersList}</ul>
+                `;
+                
+                groupsContainer.appendChild(groupCard);
+            });
+            
+            // 显示统计信息
+            const stats = calculateStats(currentGroups);
+            statsContainer.innerHTML = `
+                <div class="stat-item">
+                    <div class="stat-value">${stats.maxTotal.toFixed(1)}</div>
+                    <div class="stat-label">最高总分</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">${stats.minTotal.toFixed(1)}</div>
+                    <div class="stat-label">最低总分</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">${stats.difference.toFixed(1)}</div>
+                    <div class="stat-label">分差</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">${stats.balanceScore.toFixed(1)}%</div>
+                    <div class="stat-label">平衡度</div>
+                </div>
+            `;
+            
+            // 滚动到结果区域
+            resultsContent.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        // 导出结果
+        function exportResults() {
+            if (currentGroups.length === 0) {
+                alert('没有分组结果可导出！');
+                return;
+            }
+            
+            const stats = calculateStats(currentGroups);
+            const timestamp = new Date().toLocaleString('zh-CN');
+            
+            let exportText = `🎯 公平分组结果导出\n`;
+            exportText += `${'='.repeat(50)}\n`;
+            exportText += `导出时间：${timestamp}\n`;
+            exportText += `算法类型：贪心算法\n`;
+            exportText += `总人数：${currentMembers.length}人\n`;
+            exportText += `分组数：${currentGroups.length}组\n\n`;
+            
+            exportText += `📊 分组详情\n`;
+            exportText += `${'-'.repeat(30)}\n`;
+            currentGroups.forEach(group => {
+                exportText += `\n第${group.id}组（总分：${group.totalAbility.toFixed(1)}）：\n`;
+                group.members.forEach((member, index) => {
+                    exportText += `  ${index + 1}. ${member.name}（${member.ability}）\n`;
+                });
+            });
+            
+            exportText += `\n📈 统计信息\n`;
+            exportText += `${'-'.repeat(30)}\n`;
+            exportText += `最高总分：${stats.maxTotal.toFixed(1)}\n`;
+            exportText += `最低总分：${stats.minTotal.toFixed(1)}\n`;
+            exportText += `平均总分：${stats.avgTotal.toFixed(1)}\n`;
+            exportText += `最大分差：${stats.difference.toFixed(1)}\n`;
+            exportText += `标准差：${stats.stdDev.toFixed(2)}\n`;
+            exportText += `平衡度：${stats.balanceScore.toFixed(1)}%\n`;
+            exportText += `\n${'-'.repeat(50)}\n`;
+            exportText += `由公平分组工具生成 - 基于贪心算法`;
+            
+            // 创建下载链接
+            const blob = new Blob([exportText], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `分组结果_${new Date().toISOString().slice(0, 10)}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // 清空所有内容
+        function clearAll() {
+            document.getElementById('memberList').value = '';
+            document.getElementById('groupCount').value = '3';
+            document.getElementById('emptyState').classList.remove('hidden');
+            document.getElementById('resultsContent').classList.add('hidden');
+            currentMembers = [];
+            currentGroups = [];
+        }
+
+        // 页面加载完成后的初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🎯 公平分组工具已加载完成');
+            
+            // 添加输入验证
+            const memberListInput = document.getElementById('memberList');
+            const groupCountInput = document.getElementById('groupCount');
+            
+            memberListInput.addEventListener('input', function() {
+                if (this.value.trim()) {
+                    document.querySelector('.btn-primary').style.opacity = '1';
+                } else {
+                    document.querySelector('.btn-primary').style.opacity = '0.7';
+                }
+            });
+            
+            // 回车键快捷操作
+            memberListInput.addEventListener('keydown', function(e) {
+                if (e.ctrlKey && e.key === 'Enter') {
+                    generateGroups();
+                }
+            });
+        });
+    </script>
+</body>
+</html>

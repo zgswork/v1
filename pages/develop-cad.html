@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="zh">
+
+    <head>
+        <meta charset="utf-8">
+        <title>选项卡版</title>
+        <style>
+            body {
+                font-family: system-ui;
+                margin: 0;
+                background: #fafafa;
+                color: #222
+            }
+
+            .tabs {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 4px;
+                padding: 10px 12px;
+                background: #222;
+                position: sticky;
+                top: 0;
+                z-index: 5
+            }
+
+            .tab {
+                border: none;
+                background: #3a3a3a;
+                color: #ddd;
+                padding: 8px 14px;
+                border-radius: 6px 6px 0 0;
+                cursor: pointer;
+                font-size: 14px
+            }
+
+            .tab.active {
+                background: #fff;
+                color: #111;
+                font-weight: 600
+            }
+
+            .pane {
+                display: none;
+                padding: 20px
+            }
+
+            .pane.active {
+                display: block
+            }
+
+            .help {
+                max-width: 460px;
+                margin: 0 auto
+            }
+
+            /* 功能选项卡：fields 用「行」分组，每行最多4组，宽度不够自动减少，最少1组 */
+            .fields {
+                max-width: 1100px;
+                margin: 0 auto
+            }
+
+            .fields.active {
+                display: flex;
+                flex-direction: column;
+                gap: 14px;
+                align-items: stretch
+            }
+
+            .row {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 10px 14px;
+                align-items: flex-end
+            }
+
+            .field {
+                flex: 1 1 23%;
+                min-width: 200px;
+                box-sizing: border-box
+            }
+
+            label {
+                display: block;
+                margin: 6px 0 3px;
+                font-size: 13px;
+                color: #555
+            }
+
+            .field label {
+                margin: 0 0 3px;
+                font-size: 12px;
+                color: #555;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis
+            }
+
+            input,
+            select,
+            textarea {
+                width: 100%;
+                padding: 7px;
+                box-sizing: border-box;
+                border: 1px solid #ccc;
+                border-radius: 5px;
+                font-family: inherit;
+                font-size: 13px
+            }
+
+            textarea {
+                resize: vertical
+            }
+
+            #genbar {
+                position: sticky;
+                bottom: 0;
+                background: #fff;
+                border-top: 1px solid #ddd;
+                padding: 12px 20px;
+                max-width: 460px;
+                margin: 0 auto
+            }
+
+            #gen {
+                width: 100%;
+                padding: 12px;
+                font-size: 15px;
+                background: #1a73e8;
+                color: #fff;
+                border: none;
+                border-radius: 6px;
+                cursor: pointer
+            }
+
+            #s {
+                margin-top: 10px;
+                padding: 8px;
+                background: #f0f0f0;
+                border-radius: 5px;
+                white-space: pre-wrap;
+                font-size: 13px
+            }
+
+            pre {
+                background: #1e1e1e;
+                color: #d4d4d4;
+                padding: 12px;
+                overflow: auto;
+                max-height: 300px;
+                border-radius: 6px;
+                font-size: 12px
+            }
+
+            .help h3 {
+                margin-top: 0
+            }
+
+            .help li {
+                margin: 6px 0
+            }
+
+            code {
+                background: #eee;
+                padding: 1px 5px;
+                border-radius: 3px
+            }
+
+            .dl {
+                margin: 14px 0
+            }
+
+            .dl button {
+                background: #34a853;
+                color: #fff;
+                border: none;
+                padding: 10px 16px;
+                border-radius: 6px;
+                cursor: pointer;
+                font-size: 14px
+            }
+        </style>
+    </head>
+
+    <body>
+        <!-- ============ 选项卡头 ============ -->
+        <div class="tabs" id="tabs"></div>
+        <!-- ============ 说明选项卡 ============ -->
+        <div class="pane help active" id="pane-help">
+            <h3>使用说明：</h3>
+            <p>1、点下方按钮下载 <code>loadwj.lsp</code>。</p>
+            <p>2、在 CAD 命令行输入 <code>APPLOAD</code>，选中该 lsp 加载（或加入<code>acaddoc.lsp</code> 自动加载）。命令行出现「加载器就绪」即加载成功。</p>
+            <p>3、切到任意功能选项卡，填参数，点底部「计算」。</p>
+            <p>4、回到 CAD，命令行输入 <code>loadwj</code> 回车 → 按提示在模型空间点选 → 出图。</p>
+            <p>5、兼容<code>AutoCAD/ZWCAD/BricsCAD/GstarCAD。</code></p>
+            <div class="dl"><button onclick="downloadLoader()">⬇ 下载 loadwj.lsp</button></div>
+        </div>
+        <!-- ============ 功能选项卡（由 JS 动态生成）============ -->
+        <!-- 按钮区（说明页隐藏）-->
+        <div id="genbar" style="display:none"> <button id="gen" onclick="gen()">计算</button>
+            <div id="s">填好参数后点上方计算按钮，再回 CAD 输入 loadwj。</div>
+        </div>
+        <!-- loader 源码（纯原生明文版，供下载/预览）-->
+        <script type="text/plain" id="loaderLsp">(defun c:loadwj (/ c getclipboardtext html x) (defun GetClipBoardText (/ html result) (setq html (vlax-create-object "htmlfile")) (setq result (vlax-invoke (vlax-get (vlax-get html 'ParentWindow) 'ClipBoardData) 'GetData "Text")) (vlax-release-object html) result) (if (and (setq c (GetClipBoardText))(setq x (read c))(= (type x) 'LIST)(= (car x) 'ZWGEN-PAYLOAD)(= (type (cadr x)) 'LIST))(eval (cadr x)))(princ))(princ "\nReady, execute: loadwj")(princ)
+        </script>
+        <script src="../static/js/develop-cad/program_001.js"></script>
+        <script src="../static/js/develop-cad/program_002.js"></script>
+        <script src="../static/js/develop-cad/program_003.js"></script>
+        <script src="../static/js/develop-cad/program_004.js"></script>
+        <script src="../static/js/develop-cad/program_005.js"></script>
+        <script src="../static/js/develop-cad/program_006.js"></script>
+        <script src="../static/js/develop-cad/program_007.js"></script>
+        <script src="../static/js/develop-cad/program_008.js"></script>
+        <script src="../static/js/develop-cad/program_009.js"></script>
+        <script>
+            /* ============================================================
+               通用工具
+               ============================================================ */
+            function copyText(t) {
+                if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(t);
+                return new Promise(r => { const ta = document.createElement('textarea'); ta.value = t; ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); } catch (e) { } document.body.removeChild(ta); r(); });
+            }
+            const q = s => String(s).replace(/"/g, '\\"');// LISP 字符串转义
+            const num = (v, d, n = 6) => { let x = parseFloat(v); if (!isFinite(x)) x = d; return Math.round(x * Math.pow(10, n)) / Math.pow(10, n); }; // 去脏浮点
+            /* ============================================================
+               功能模块：每个选项卡 = 一个独立 JS 对象，可单独复制/拆分文件
+                 - title : 选项卡标题
+                 - fields: 字段按「行」分组，每行一个子数组 [[{...},{...}],[{...}]]（每行最多4组，宽度不够自动减到1组）
+                 - buildLisp(v): 返回 LISP 源码字符串（v 为已读取的字段值）
+               新增功能 = 复制下面任意一个对象改一改即可。
+               ============================================================ */
+            /* 模块注册表：增删功能只动这里 */
+            const MODULES = { row: program_001, line: program_002, rect: program_003, pline: program_004, text: program_005, block: program_006, dim: program_007, array: program_008, led: program_009 };
+            /* ============================================================
+               选项卡动态生成 + 字段渲染（fields 用行分组：每行一个子数组）
+               ============================================================ */
+            let activeMod = null;
+            /* 把行分组的 fields 扁平化为字段列表 */
+            function flatFields(m) {
+                const out = [];
+                m.fields.forEach(row => { if (Array.isArray(row)) row.forEach(f => out.push(f)); else out.push(row); });
+                return out;
+            }
+            function buildUI() {
+                const tabs = document.getElementById('tabs');
+                // 说明选项卡按钮
+                const helpBtn = document.createElement('button');
+                helpBtn.className = 'tab active'; helpBtn.textContent = '帮助'; helpBtn.dataset.tab = 'help';
+                tabs.appendChild(helpBtn);
+                // 功能选项卡按钮 + 面板
+                for (const id in MODULES) {
+                    const m = MODULES[id];
+                    const btn = document.createElement('button');
+                    btn.className = 'tab'; btn.textContent = m.title; btn.dataset.tab = id;
+                    tabs.appendChild(btn);
+                    const pane = document.createElement('div');
+                    pane.className = 'pane fields'; pane.id = 'pane-' + id;
+                    // 每行 = 一个 .row，行内字段按 4 个一组自适应换行
+                    m.fields.forEach(row => {
+                        const list = Array.isArray(row) ? row : [row];
+                        const rowEl = document.createElement('div'); rowEl.className = 'row';
+                        list.forEach(f => {
+                            const wrap = document.createElement('div'); wrap.className = 'field';
+                            const lab = document.createElement('label'); lab.textContent = f.label; lab.title = f.label;
+                            let inp;
+                            if (f.type === 'popup') {
+                                inp = document.createElement('select');
+                                // id 与数据源 LED_DATA 关联：有数组则用数据源，否则用字段自带 options
+                                let src = (f.options || ['']);
+                                if (Array.isArray(LED_DATA[f.id])) src = LED_DATA[f.id];
+                                src.forEach(o => { const op = document.createElement('option'); op.value = o; op.textContent = o; inp.appendChild(op); });
+                            } else if (f.type === 'textarea') {
+                                inp = document.createElement('textarea'); inp.rows = 3;
+                            } else {
+                                inp = document.createElement('input'); inp.type = f.type || 'text';
+                            }
+                            inp.id = `f_${id}_${f.id}`;
+                            if (f.def != null && f.type !== 'popup') inp.value = f.def;
+                            if (f.type === 'popup' && f.def != null) inp.value = f.def;
+                            wrap.appendChild(lab); wrap.appendChild(inp);
+                            rowEl.appendChild(wrap);
+                        });
+                        pane.appendChild(rowEl);
+                    });
+                    document.body.insertBefore(pane, document.getElementById('genbar'));
+                    if (id === 'led') setupLedCascade(id);   // 级联：室内户外→产品系列→产品型号
+                }
+            }
+            function getVals(id) {
+                const m = MODULES[id], v = {};
+                flatFields(m).forEach(f => { v[f.id] = document.getElementById(`f_${id}_${f.id}`).value; });
+                return v;
+            }
+            /* 选项卡切换 */
+            document.getElementById('tabs').addEventListener('click', e => {
+                const btn = e.target.closest('.tab'); if (!btn) return;
+                const tab = btn.dataset.tab;
+                document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b === btn));
+                document.querySelectorAll('.pane').forEach(p => p.classList.toggle('active', p.id === 'pane-' + tab));
+                activeMod = (tab === 'help') ? null : tab;
+                document.getElementById('genbar').style.display = (tab === 'help') ? 'none' : 'block';
+            });
+            /* 共用生成按钮（明文，不压缩）*/
+            function gen() {
+                if (!activeMod) return;
+                const m = MODULES[activeMod];
+                const lisp = m.buildLisp(getVals(activeMod));
+                const payload = '(ZWGEN-PAYLOAD ' + lisp + ')';
+                copyText(payload)
+                    .then(() => setStatus('已复制 ' + payload.length + ' 字符，回 CAD 输入 loadwj'))
+                    .catch(() => setStatus('复制失败！', 'err'));
+            }
+            function setStatus(msg, cls) {
+                const e = document.getElementById('s'); e.textContent = msg; e.className = cls || '';
+            }
+            /* 下载 loader */
+            function downloadLoader() {
+                const src = document.getElementById('loaderLsp').textContent;
+                const blob = new Blob([src], { type: 'text/plain;charset=utf-8' });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = 'loadwj.lsp';
+                a.click();
+                URL.revokeObjectURL(a.href);
+            }
+            buildUI();
+        </script>
+    </body>
+
+</html>

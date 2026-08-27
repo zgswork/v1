@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChemView Lite - 化学分子3D渲染器</title>
+    <script src="https://unpkg.com/three@0.132.2/build/three.min.js"></script>
+    <script src="https://unpkg.com/three@0.132.2/examples/js/controls/OrbitControls.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #1a2a6c, #2c3e50);
+            color: #fff;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            text-align: center;
+            padding: 20px 0;
+            margin-bottom: 30px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        header h1 {
+            font-size: 2.8rem;
+            margin-bottom: 10px;
+            background: linear-gradient(to right, #4facfe, #00f2fe);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        }
+        
+        header p {
+            font-size: 1.2rem;
+            color: #a0d2eb;
+            max-width: 800px;
+            margin: 0 auto;
+            line-height: 1.6;
+        }
+        
+        .main-content {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 30px;
+        }
+        
+        .render-section {
+            flex: 1;
+            min-width: 300px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .control-section {
+            width: 300px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .section-title {
+            font-size: 1.4rem;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #4facfe;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .section-title i {
+            color: #4facfe;
+        }
+        
+        #molecule-container {
+            width: 100%;
+            height: 500px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .loading {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid rgba(255, 255, 255, 0.1);
+            border-top: 5px solid #4facfe;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .molecule-info {
+            background: rgba(255, 255, 255, 0.08);
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .molecule-name {
+            font-size: 1.3rem;
+            font-weight: bold;
+        }
+        
+        .molecule-formula {
+            background: #4facfe;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-weight: bold;
+        }
+        
+        .control-group {
+            margin-bottom: 25px;
+        }
+        
+        .control-label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #a0d2eb;
+        }
+        
+        .molecule-selector {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+        
+        .molecule-btn {
+            background: rgba(79, 172, 254, 0.15);
+            border: 1px solid rgba(79, 172, 254, 0.3);
+            color: white;
+            padding: 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+            font-weight: 500;
+        }
+        
+        .molecule-btn:hover {
+            background: rgba(79, 172, 254, 0.3);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(79, 172, 254, 0.2);
+        }
+        
+        .molecule-btn.active {
+            background: rgba(79, 172, 254, 0.4);
+            border: 1px solid #4facfe;
+            box-shadow: 0 0 15px rgba(79, 172, 254, 0.4);
+        }
+        
+        .view-controls {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .view-btn {
+            flex: 1;
+            min-width: 120px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        
+        .view-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        
+        .view-btn.active {
+            background: rgba(0, 242, 254, 0.2);
+            border: 1px solid #00f2fe;
+            color: #00f2fe;
+        }
+        
+        .instructions {
+            background: rgba(255, 255, 255, 0.08);
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+        
+        .instructions h3 {
+            margin-bottom: 10px;
+            color: #00f2fe;
+        }
+        
+        .instructions ul {
+            padding-left: 20px;
+        }
+        
+        .instructions li {
+            margin-bottom: 8px;
+        }
+        
+        .instructions li i {
+            color: #4facfe;
+            margin-right: 8px;
+        }
+        
+        footer {
+            text-align: center;
+            margin-top: 40px;
+            padding: 20px;
+            color: #a0d2eb;
+            font-size: 0.9rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        @media (max-width: 768px) {
+            .main-content {
+                flex-direction: column;
+            }
+            
+            .control-section {
+                width: 100%;
+            }
+            
+            #molecule-container {
+                height: 400px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>ChemView Lite</h1>
+            <p>交互式化学分子3D渲染器</p>
+        </header>
+        
+        <div class="main-content">
+            <div class="render-section">
+                <h2 class="section-title"><i class="fas fa-atom"></i> 分子结构3D视图</h2>
+                <div id="molecule-container">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <p>正在加载分子模型...</p>
+                    </div>
+                </div>
+                <div class="molecule-info">
+                    <div class="molecule-name">水分子 (H₂O)</div>
+                    <div class="molecule-formula">H₂O</div>
+                </div>
+            </div>
+            
+            <div class="control-section">
+                <h2 class="section-title"><i class="fas fa-sliders-h"></i> 控制面板</h2>
+                
+                <div class="control-group">
+                    <label class="control-label">选择分子结构</label>
+                    <div class="molecule-selector">
+                        <div class="molecule-btn active" data-molecule="water">水分子</div>
+                        <div class="molecule-btn" data-molecule="methane">甲烷</div>
+                        <div class="molecule-btn" data-molecule="benzene">苯环</div>
+                        <div class="molecule-btn" data-molecule="glucose">葡萄糖</div>
+                    </div>
+                </div>
+                
+                <div class="control-group">
+                    <label class="control-label">显示模式</label>
+                    <div class="view-controls">
+                        <div class="view-btn active" data-view="ball-and-stick">
+                            <i class="fas fa-circle"></i> 球棍模型
+                        </div>
+                        <div class="view-btn" data-view="space-filling">
+                            <i class="fas fa-circle-notch"></i> 空间填充
+                        </div>
+                    </div>
+                </div>
+                
+
+                
+                <div class="control-group">
+                    <label class="control-label">视图控制</label>
+                    <div class="view-controls">
+                        <div class="view-btn" id="reset-view">
+                            <i class="fas fa-sync"></i> 重置视图
+                        </div>
+                        <div class="view-btn" id="toggle-rotation">
+                            <i class="fas fa-redo"></i> 旋转切换
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="instructions">
+                    <h3><i class="fas fa-info-circle"></i> 操作指南</h3>
+                    <ul>
+                        <li><i class="fas fa-mouse"></i> 拖拽旋转，滚轮缩放</li>
+                        <li><i class="fas fa-touchpad"></i> 触屏：单指旋转，双指缩放</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        
+        <footer>
+            <p>ChemView Lite | 基于Three.js构建</p>
+        </footer>
+    </div>
+
+    <script>
+        // 初始化Three.js场景
+        let scene, camera, renderer, controls;
+        let moleculeGroup = new THREE.Group();
+        let rotationEnabled = true;
+        
+        // 原子颜色映射 (CPK配色)
+        const atomColors = {
+            'H': 0xFFFFFF,  // 白色
+            'C': 0x808080,  // 灰色
+            'O': 0xFF0000,  // 红色
+            'N': 0x0000FF,  // 蓝色
+            'S': 0xFFFF00   // 黄色
+        };
+        
+        // 原子半径 (相对大小)
+        const atomRadius = {
+            'H': 0.3,
+            'C': 0.7,
+            'O': 0.66,
+            'N': 0.65,
+            'S': 1.0
+        };
+        
+        // 分子数据
+        const molecules = {
+            water: {
+                name: "水分子",
+                formula: "H₂O",
+                atoms: [
+                    { element: 'O', x: 0, y: 0, z: 0 },
+                    { element: 'H', x: 0.76, y: 0.58, z: 0 },
+                    { element: 'H', x: -0.76, y: 0.58, z: 0 }
+                ],
+                bonds: [
+                    { from: 0, to: 1 },
+                    { from: 0, to: 2 }
+                ]
+            },
+            methane: {
+                name: "甲烷",
+                formula: "CH₄",
+                atoms: [
+                    { element: 'C', x: 0, y: 0, z: 0 },
+                    { element: 'H', x: 0.63, y: 0.63, z: 0.63 },
+                    { element: 'H', x: -0.63, y: -0.63, z: 0.63 },
+                    { element: 'H', x: -0.63, y: 0.63, z: -0.63 },
+                    { element: 'H', x: 0.63, y: -0.63, z: -0.63 }
+                ],
+                bonds: [
+                    { from: 0, to: 1 },
+                    { from: 0, to: 2 },
+                    { from: 0, to: 3 },
+                    { from: 0, to: 4 }
+                ]
+            },
+            benzene: {
+                name: "苯环",
+                formula: "C₆H₆",
+                atoms: [
+                    { element: 'C', x: 0, y: 0, z: 1.4 },
+                    { element: 'C', x: 1.212, y: 0, z: 0.7 },
+                    { element: 'C', x: 1.212, y: 0, z: -0.7 },
+                    { element: 'C', x: 0, y: 0, z: -1.4 },
+                    { element: 'C', x: -1.212, y: 0, z: -0.7 },
+                    { element: 'C', x: -1.212, y: 0, z: 0.7 },
+                    { element: 'H', x: 0, y: 0, z: 2.5 },
+                    { element: 'H', x: 2.1, y: 0, z: 1.2 },
+                    { element: 'H', x: 2.1, y: 0, z: -1.2 },
+                    { element: 'H', x: 0, y: 0, z: -2.5 },
+                    { element: 'H', x: -2.1, y: 0, z: -1.2 },
+                    { element: 'H', x: -2.1, y: 0, z: 1.2 }
+                ],
+                bonds: [
+                    // 碳环
+                    { from: 0, to: 1 }, { from: 1, to: 2 }, { from: 2, to: 3 },
+                    { from: 3, to: 4 }, { from: 4, to: 5 }, { from: 5, to: 0 },
+                    // 双键（简化表示）
+                    { from: 0, to: 1, double: true }, { from: 2, to: 3, double: true }, { from: 4, to: 5, double: true },
+                    // 氢键
+                    { from: 0, to: 6 }, { from: 1, to: 7 }, { from: 2, to: 8 },
+                    { from: 3, to: 9 }, { from: 4, to: 10 }, { from: 5, to: 11 }
+                ]
+            },
+            glucose: {
+                name: "葡萄糖",
+                formula: "C₆H₁₂O₆",
+                atoms: [
+                    // 碳原子 (C1-C6)
+                    { element: 'C', x: 1.2, y: 0.7, z: 0 },     // C1
+                    { element: 'C', x: 0, y: 1.4, z: 0 },       // C2
+                    { element: 'C', x: -1.2, y: 0.7, z: 0 },    // C3
+                    { element: 'C', x: -1.2, y: -0.7, z: 0 },   // C4
+                    { element: 'C', x: 0, y: -1.4, z: 0 },      // C5
+                    { element: 'C', x: 0, y: -2.8, z: 0 },      // C6 (CH2OH)
+                    // 氧原子
+                    { element: 'O', x: 2.4, y: 0, z: 0 },       // O1 (环内氧)
+                    { element: 'O', x: 0, y: 2.8, z: 0 },       // O2 (OH)
+                    { element: 'O', x: -2.4, y: 1.4, z: 0 },    // O3 (OH)
+                    { element: 'O', x: -2.4, y: -1.4, z: 0 },   // O4 (OH)
+                    { element: 'O', x: 1.2, y: -2.1, z: 0 },    // O5 (环内氧)
+                    { element: 'O', x: 0, y: -4.2, z: 0 },      // O6 (OH)
+                    // 氢原子 (简化显示部分氢)
+                    { element: 'H', x: 1.2, y: 0.7, z: 1.1 },   // H1
+                    { element: 'H', x: 0, y: 1.4, z: 1.1 },     // H2
+                    { element: 'H', x: -1.2, y: 0.7, z: 1.1 },  // H3
+                    { element: 'H', x: -1.2, y: -0.7, z: 1.1 }, // H4
+                    { element: 'H', x: 0, y: -1.4, z: 1.1 },    // H5
+                    { element: 'H', x: -1.2, y: -2.8, z: 0 },   // H6a
+                    { element: 'H', x: 1.2, y: -2.8, z: 0 },    // H6b
+                    // OH基团的氢
+                    { element: 'H', x: 0, y: 3.6, z: 0 },       // HO2
+                    { element: 'H', x: -3.2, y: 1.4, z: 0 },    // HO3
+                    { element: 'H', x: -3.2, y: -1.4, z: 0 },   // HO4
+                    { element: 'H', x: 0, y: -5.0, z: 0 }       // HO6
+                ],
+                bonds: [
+                    // 环结构 C1-C2-C3-C4-C5-O5-C1
+                    { from: 0, to: 1 }, { from: 1, to: 2 }, { from: 2, to: 3 },
+                    { from: 3, to: 4 }, { from: 4, to: 10 }, { from: 10, to: 0 },
+                    // C6连接
+                    { from: 4, to: 5 },
+                    // 环内氧O1连接
+                    { from: 0, to: 6 }, { from: 6, to: 10 },
+                    // OH基团连接
+                    { from: 1, to: 7 }, { from: 2, to: 8 }, { from: 3, to: 9 }, { from: 5, to: 11 },
+                    // 碳氢键
+                    { from: 0, to: 12 }, { from: 1, to: 13 }, { from: 2, to: 14 },
+                    { from: 3, to: 15 }, { from: 4, to: 16 }, { from: 5, to: 17 }, { from: 5, to: 18 },
+                    // OH基团氢键
+                    { from: 7, to: 19 }, { from: 8, to: 20 }, { from: 9, to: 21 }, { from: 11, to: 22 }
+                ]
+            }
+        };
+        
+        function init() {
+            // 创建场景
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0a192f);
+            
+            // 创建相机
+            camera = new THREE.PerspectiveCamera(75, 
+                document.getElementById('molecule-container').clientWidth / 
+                document.getElementById('molecule-container').clientHeight, 
+                0.1, 1000);
+            camera.position.z = 5;
+            
+            // 创建渲染器
+            const container = document.getElementById('molecule-container');
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            container.appendChild(renderer.domElement);
+            
+            // 添加光源
+            const ambientLight = new THREE.AmbientLight(0x404040, 1.5);
+            scene.add(ambientLight);
+            
+            const directionalLight1 = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight1.position.set(1, 1, 1);
+            scene.add(directionalLight1);
+            
+            const directionalLight2 = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight2.position.set(-1, -1, -1);
+            scene.add(directionalLight2);
+            
+            // 添加轨道控制
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            
+            // 添加分子组
+            scene.add(moleculeGroup);
+            
+            // 初始加载水分子
+            loadMolecule('water');
+            
+            // 隐藏加载界面
+            setTimeout(() => {
+                document.querySelector('.loading').style.display = 'none';
+            }, 1500);
+            
+            // 窗口大小调整
+            window.addEventListener('resize', onWindowResize);
+            
+            // 开始动画循环
+            animate();
+        }
+        
+        function loadMolecule(moleculeKey) {
+            // 清除现有分子
+            while(moleculeGroup.children.length > 0) { 
+                moleculeGroup.remove(moleculeGroup.children[0]); 
+            }
+            
+            const molecule = molecules[moleculeKey];
+            if (!molecule) return;
+            
+            // 更新分子信息
+            document.querySelector('.molecule-name').textContent = molecule.name;
+            document.querySelector('.molecule-formula').textContent = molecule.formula;
+            
+            // 创建原子和键
+            createAtoms(molecule.atoms);
+            createBonds(molecule.bonds, molecule.atoms);
+            
+            // 更新UI
+            document.querySelectorAll('.molecule-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelector(`.molecule-btn[data-molecule="${moleculeKey}"]`).classList.add('active');
+        }
+        
+        function createAtoms(atoms) {
+            const viewMode = document.querySelector('.view-btn.active[data-view]').dataset.view;
+            
+            atoms.forEach(atom => {
+                const radius = atomRadius[atom.element] * (viewMode === 'space-filling' ? 1.2 : 0.5);
+                const geometry = new THREE.SphereGeometry(radius, 32, 32);
+                const material = new THREE.MeshPhongMaterial({ 
+                    color: atomColors[atom.element] || 0x00FF00,
+                    shininess: 100,
+                    emissive: 0x000000,
+                    specular: 0x222222
+                });
+                
+                const sphere = new THREE.Mesh(geometry, material);
+                sphere.position.set(atom.x, atom.y, atom.z);
+                moleculeGroup.add(sphere);
+            });
+        }
+        
+        function createBonds(bonds, atoms) {
+            const viewMode = document.querySelector('.view-btn.active[data-view]').dataset.view;
+            
+            if (viewMode === 'space-filling') return; // 空间填充模式不显示键
+            
+            bonds.forEach(bond => {
+                const fromAtom = atoms[bond.from];
+                const toAtom = atoms[bond.to];
+                
+                const from = new THREE.Vector3(fromAtom.x, fromAtom.y, fromAtom.z);
+                const to = new THREE.Vector3(toAtom.x, toAtom.y, toAtom.z);
+                
+                // 计算中点
+                const middle = new THREE.Vector3().lerpVectors(from, to, 0.5);
+                
+                // 计算键的方向和长度
+                const direction = new THREE.Vector3().subVectors(to, from);
+                const length = direction.length();
+                
+                // 创建键（圆柱体）
+                const bondRadius = 0.1;
+                const geometry = new THREE.CylinderGeometry(bondRadius, bondRadius, length, 8);
+                geometry.rotateZ(Math.PI/2); // 初始圆柱体是Y轴向上，需要旋转
+                
+                const material = new THREE.MeshPhongMaterial({ 
+                    color: 0xCCCCCC,
+                    shininess: 30
+                });
+                
+                const cylinder = new THREE.Mesh(geometry, material);
+                cylinder.position.copy(middle);
+                cylinder.lookAt(to);
+                
+                moleculeGroup.add(cylinder);
+                
+                // 如果是双键，创建第二个键
+                if (bond.double) {
+                    const offset = 0.2;
+                    const perpendicular = new THREE.Vector3()
+                        .crossVectors(direction, new THREE.Vector3(0, 1, 0))
+                        .normalize()
+                        .multiplyScalar(offset);
+                    
+                    const pos1 = new THREE.Vector3().copy(middle).add(perpendicular);
+                    const cylinder1 = new THREE.Mesh(geometry, material);
+                    cylinder1.position.copy(pos1);
+                    cylinder1.lookAt(to);
+                    moleculeGroup.add(cylinder1);
+                    
+                    const pos2 = new THREE.Vector3().copy(middle).sub(perpendicular);
+                    const cylinder2 = new THREE.Mesh(geometry, material);
+                    cylinder2.position.copy(pos2);
+                    cylinder2.lookAt(to);
+                    moleculeGroup.add(cylinder2);
+                }
+            });
+        }
+        
+        function onWindowResize() {
+            const container = document.getElementById('molecule-container');
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        }
+        
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            if (rotationEnabled) {
+                moleculeGroup.rotation.y += 0.005;
+            }
+            
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        
+        // UI事件监听
+        document.querySelectorAll('.molecule-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                loadMolecule(btn.dataset.molecule);
+            });
+        });
+        
+        document.querySelectorAll('.view-btn[data-view]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.view-btn[data-view]').forEach(b => {
+                    b.classList.remove('active');
+                });
+                btn.classList.add('active');
+                
+                // 重新加载当前分子以应用新的显示模式
+                const activeMolecule = document.querySelector('.molecule-btn.active').dataset.molecule;
+                loadMolecule(activeMolecule);
+            });
+        });
+        
+
+        
+        document.getElementById('reset-view').addEventListener('click', () => {
+            controls.reset();
+            moleculeGroup.rotation.set(0, 0, 0);
+        });
+        
+        document.getElementById('toggle-rotation').addEventListener('click', () => {
+            rotationEnabled = !rotationEnabled;
+            document.getElementById('toggle-rotation').innerHTML = 
+                rotationEnabled ? 
+                '<i class="fas fa-redo"></i> 旋转开启' : 
+                '<i class="fas fa-pause"></i> 旋转暂停';
+        });
+        
+        // 初始化应用
+        init();
+    </script>
+</body>
+</html>

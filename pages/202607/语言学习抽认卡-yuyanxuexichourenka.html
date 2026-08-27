@@ -1,0 +1,239 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>语言学习抽认卡</title><style>
+:root{--bg:#f7f8fa;--text:#111827;--muted:#6b7280;--accent:#3b82f6;--card:#fff;--border:#e5e7eb}
+html[data-theme=dark]{--bg:#0b1220;--text:#e5e7eb;--muted:#9aa3af;--accent:#60a5fa;--card:#111827;--border:#1f2937}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Arial;background:var(--bg);color:var(--text)}
+.container{max-width:960px;margin:0 auto;padding:14px}
+.header{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.title{font-weight:700;font-size:18px}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap}
+button,input,select{font:inherit;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:10px;padding:8px 12px}
+button.accent{background:var(--accent);border-color:var(--accent);color:#fff}
+.tabs{display:flex;gap:8px;margin-top:10px}
+.tab-btn{padding:6px 12px;border-radius:999px}
+.tab-btn.active{background:var(--accent);color:#fff;border-color:transparent}
+.main{display:grid;grid-template-columns:1fr;gap:12px;margin-top:12px}
+@media(min-width:820px){.main{grid-template-columns:1.2fr .8fr}}
+.card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:20px;min-height:280px;display:flex;align-items:center;justify-content:center;text-align:center;position:relative}
+.card .tag{position:absolute;top:10px;left:12px;font-size:12px;color:var(--muted)}
+.front,.back{font-size:clamp(24px,6vw,40px);line-height:1.3;word-break:break-word}
+.back{display:none}.card.flipped .front{display:none}.card.flipped .back{display:block}
+.actions{display:flex;justify-content:center;flex-wrap:wrap;gap:8px;margin-top:8px}
+.panel{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:12px}
+.small{font-size:12px;color:var(--muted)}
+.progress{height:8px;background:var(--border);border-radius:999px;overflow:hidden}
+.progress>div{height:100%;width:0%;background:var(--accent)}
+.list{display:flex;flex-direction:column;gap:6px;max-height:320px;overflow:auto}
+.item{display:flex;gap:8px;align-items:center;justify-content:space-between}
+.item span{flex:1}.item button{padding:6px 10px}.del{color:#ef4444}
+.hide{display:none}
+</style></head><body>
+<div class="container">
+  <div class="header">
+    <div class="title">语言学习抽认卡</div>
+    <div class="toolbar">
+      <select id="groupSelect" title="选择卡组"></select>
+      <button id="theme">浅/深主题</button>
+      <button id="shuffle" class="accent">随机</button>
+      <button id="reset">重置进度</button>
+    </div>
+  </div>
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="study">学习</button>
+    <button class="tab-btn" data-tab="manage">编辑卡片</button>
+  </div>
+  <div class="main">
+    <div id="study">
+      <div class="card" id="card">
+        <div class="tag" id="tag">正面</div>
+        <div class="front" id="front">apple</div>
+        <div class="back" id="back">苹果</div>
+      </div>
+      <div class="actions">
+        <button id="prev">上一张</button>
+        <button id="flip" class="accent">翻转</button>
+        <button id="next">下一张</button>
+        <button id="known">认识</button>
+        <button id="unknown">不认识</button>
+      </div>
+      <div class="panel">
+        <div class="progress"><div id="bar"></div></div>
+        <div class="small" id="prog">进度：0/0（认识：0）</div>
+      </div>
+    </div>
+    <div id="manage" class="hide">
+      <div class="panel">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <div class="small">当前卡组：</div>
+          <strong id="groupName"></strong>
+          <button id="newGroup" class="accent">新增卡组</button>
+          <button id="renGroup">重命名卡组</button>
+          <button id="delGroup" class="del">删除卡组</button>
+          <button id="exportAll">导出全部卡组</button>
+        </div>
+      </div>
+      <div class="panel">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <input id="term" placeholder="正面（术语/词汇）">
+          <input id="def" placeholder="反面（释义/翻译）">
+        </div>
+        <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+          <button id="add" class="accent">添加卡片</button>
+          <button id="clear">清空全部卡片</button>
+          <input id="importFile" type="file" accept="application/json" style="display:none">
+          <button id="import">导入JSON</button>
+          <button id="export">导出JSON</button>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="small">卡片列表（点击项可编辑）：</div>
+        <div class="list" id="list"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(()=>{const key='langcards:data',tkey='langcards:theme',gkey='langcards:groups',ckey='langcards:currentGroup';let groups={},current='',deck=[],idx=0;const knownMap={};
+const d=id=>document.getElementById(id),card=d('card'),front=d('front'),back=d('back'),tag=d('tag'),bar=d('bar'),prog=d('prog');
+const defDeck=[
+ {term:'apple',def:'苹果'},
+ {term:'banana',def:'香蕉'},
+ {term:'book',def:'书'},
+ {term:'pen',def:'笔'},
+ {term:'pencil',def:'铅笔'},
+ {term:'notebook',def:'笔记本'},
+ {term:'table',def:'桌子'},
+ {term:'chair',def:'椅子'},
+ {term:'computer',def:'电脑'},
+ {term:'phone',def:'手机'},
+ {term:'school',def:'学校'},
+ {term:'teacher',def:'老师'},
+ {term:'student',def:'学生'},
+ {term:'class',def:'课程'},
+ {term:'homework',def:'作业'},
+ {term:'exam',def:'考试'},
+ {term:'library',def:'图书馆'},
+ {term:'room',def:'房间'},
+ {term:'door',def:'门'},
+ {term:'window',def:'窗户'},
+ {term:'car',def:'汽车'},
+ {term:'bus',def:'公交车'},
+ {term:'train',def:'火车'},
+ {term:'airplane',def:'飞机'},
+ {term:'city',def:'城市'},
+ {term:'country',def:'国家'},
+ {term:'water',def:'水'},
+ {term:'tea',def:'茶'},
+ {term:'coffee',def:'咖啡'},
+ {term:'bread',def:'面包'},
+ {term:'milk',def:'牛奶'},
+ {term:'rice',def:'米饭'},
+ {term:'egg',def:'鸡蛋'},
+ {term:'fish',def:'鱼'},
+ {term:'meat',def:'肉'},
+ {term:'vegetable',def:'蔬菜'},
+ {term:'fruit',def:'水果'},
+ {term:'morning',def:'早上'},
+ {term:'afternoon',def:'下午'},
+ {term:'evening',def:'傍晚'},
+ {term:'night',def:'夜晚'},
+ {term:'today',def:'今天'},
+ {term:'yesterday',def:'昨天'},
+ {term:'tomorrow',def:'明天'},
+ {term:'Monday',def:'星期一'},
+ {term:'Tuesday',def:'星期二'},
+ {term:'Wednesday',def:'星期三'},
+ {term:'Thursday',def:'星期四'},
+ {term:'Friday',def:'星期五'},
+ {term:'Saturday',def:'星期六'},
+ {term:'Sunday',def:'星期日'},
+ {term:'red',def:'红色'},
+ {term:'blue',def:'蓝色'},
+ {term:'green',def:'绿色'},
+ {term:'yellow',def:'黄色'},
+ {term:'black',def:'黑色'},
+ {term:'white',def:'白色'},
+ {term:'orange',def:'橙色'},
+ {term:'purple',def:'紫色'},
+ {term:'pink',def:'粉色'},
+ {term:'brown',def:'棕色'},
+ {term:'gray',def:'灰色'},
+ {term:'big',def:'大'},
+ {term:'small',def:'小'},
+ {term:'good',def:'好'},
+ {term:'bad',def:'坏'},
+ {term:'new',def:'新'},
+ {term:'old',def:'旧'},
+ {term:'easy',def:'容易'},
+ {term:'difficult',def:'困难'},
+ {term:'fast',def:'快'},
+ {term:'slow',def:'慢'},
+ {term:'happy',def:'高兴'},
+ {term:'sad',def:'伤心'},
+ {term:'hot',def:'热'},
+ {term:'cold',def:'冷'},
+ {term:'near',def:'近'},
+ {term:'far',def:'远'},
+ {term:'long',def:'长'},
+ {term:'short',def:'短'},
+ {term:'early',def:'早'},
+ {term:'late',def:'晚'},
+ {term:'open',def:'打开'},
+ {term:'close',def:'关闭'},
+ {term:'go',def:'去'},
+ {term:'come',def:'来'},
+ {term:'see',def:'看见'},
+ {term:'look',def:'看'},
+ {term:'watch',def:'观看'},
+ {term:'eat',def:'吃'},
+ {term:'drink',def:'喝'},
+ {term:'read',def:'阅读'},
+ {term:'write',def:'写'},
+ {term:'speak',def:'说'},
+ {term:'listen',def:'听'},
+ {term:'learn',def:'学习'},
+ {term:'teach',def:'教'},
+ {term:'think',def:'思考'},
+ {term:'know',def:'知道'},
+ {term:'understand',def:'理解'},
+ {term:'remember',def:'记住'},
+ {term:'forget',def:'忘记'},
+ {term:'buy',def:'购买'},
+ {term:'sell',def:'销售'},
+ {term:'help',def:'帮助'},
+ {term:'need',def:'需要'},
+ {term:'want',def:'想要'}
+];
+function getKnown(){return knownMap[current]||(knownMap[current]=new Set());}
+function refreshGroupSelect(){const sel=d('groupSelect');if(sel){sel.innerHTML='';Object.keys(groups).forEach(name=>{const o=document.createElement('option');o.value=name;o.textContent=name;sel.appendChild(o)});sel.value=current;}const gn=d('groupName');if(gn)gn.textContent=current;}
+function changeGroup(name){if(!groups[name])return;current=name;localStorage.setItem(ckey,name);deck=(groups[current]||[]).slice();idx=0;card.classList.remove('flipped');tag.textContent='正面';update();render();refreshGroupSelect();}
+function addGroup(){const name=prompt('新卡组名称','新卡组');if(name===null)return;const nm=name.trim();if(!nm)return;if(groups[nm]){alert('已存在同名卡组');return}groups[nm]=[];current=nm;deck=[];idx=0;localStorage.setItem(gkey,JSON.stringify(groups));localStorage.setItem(ckey,current);refreshGroupSelect();update();render();}
+function renameGroup(){const old=current;const name=prompt('重命名卡组',old);if(name===null)return;const nm=name.trim();if(!nm){alert('名称不能为空');return}if(nm===old)return;if(groups[nm]){alert('已存在同名卡组');return}groups[nm]=groups[old]||[];delete groups[old];current=nm;localStorage.setItem(gkey,JSON.stringify(groups));localStorage.setItem(ckey,current);deck=(groups[current]||[]).slice();refreshGroupSelect();idx=0;update();render();}
+function deleteGroup(){const names=Object.keys(groups);if(names.length<=1){alert('至少保留一个卡组');return}if(!confirm(`确定删除卡组「${current}」？此操作不可恢复`))return;delete groups[current];current=Object.keys(groups)[0];deck=(groups[current]||[]).slice();idx=0;localStorage.setItem(gkey,JSON.stringify(groups));localStorage.setItem(ckey,current);refreshGroupSelect();update();render();}
+function save(){groups[current]=deck.slice();localStorage.setItem(key,JSON.stringify(deck));localStorage.setItem(gkey,JSON.stringify(groups));}
+function load(){const rawGroups=localStorage.getItem(gkey);if(rawGroups){groups=JSON.parse(rawGroups)||{};current=localStorage.getItem(ckey)||Object.keys(groups)[0]||'默认卡组';deck=(groups[current]||[]).slice();}else{const raw=localStorage.getItem(key);const initial=raw?JSON.parse(raw):defDeck.slice();groups={'默认卡组':initial};current='默认卡组';deck=initial.slice();localStorage.setItem(gkey,JSON.stringify(groups));localStorage.setItem(ckey,current);}}
+function saveTheme(v){localStorage.setItem(tkey,v)}
+function applyTheme(){const t=localStorage.getItem(tkey)||'light';document.documentElement.setAttribute('data-theme',t);d('theme').textContent=t==='dark'?'切换为浅色':'切换为深色'}
+function toggleTheme(){const cur=document.documentElement.getAttribute('data-theme')||'light';const next=cur==='dark'?'light':'dark';document.documentElement.setAttribute('data-theme',next);saveTheme(next);d('theme').textContent=next==='dark'?'切换为浅色':'切换为深色'}
+function update(){if(!deck.length){front.textContent='暂无卡片，请到“编辑卡片”添加';back.textContent='No cards yet';idx=0;card.classList.remove('flipped');tag.textContent='正面';updateProg();return}
+const c=deck[idx];front.textContent=c.term;back.textContent=c.def;card.classList.remove('flipped');tag.textContent='正面';updateProg()}
+function flip(){const f=card.classList.toggle('flipped');tag.textContent=f?'反面':'正面'}
+function next(){if(!deck.length)return;idx=(idx+1)%deck.length;update()}
+function prev(){if(!deck.length)return;idx=(idx-1+deck.length)%deck.length;update()}
+function mark(k){if(!deck.length)return;const id=idx+'|'+deck[idx].term+'|'+deck[idx].def;const kn=getKnown();if(k)kn.add(id);else kn.delete(id);updateProg();next()}
+function updateProg(){const total=deck.length;const kn=getKnown();const k=[...kn].filter(s=>{const a=s.split('|');const c=deck[+a[0]];return c&&c.term===a[1]&&c.def===a[2]}).length;const pct=total?Math.round(100*k/total):0;bar.style.width=pct+'%';prog.textContent=`进度：${k}/${total}（认识：${k}）`}
+function shuffle(){if(!deck.length)return;const a=deck.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}deck=a;idx=0;getKnown().clear();save();update()}
+function reset(){getKnown().clear();idx=0;update()}
+function render(){const list=d('list');list.innerHTML='';deck.forEach((c,i)=>{const div=document.createElement('div');div.className='item';const left=document.createElement('span');left.textContent=`${c.term} → ${c.def}`;left.title='点击编辑';left.onclick=()=>{const term=prompt('编辑正面',c.term);if(term===null)return;const def=prompt('编辑反面',c.def);if(def===null)return;deck[i]={term:term.trim(),def:def.trim()};save();update();render()};const del=document.createElement('button');del.className='del';del.textContent='删除';del.onclick=()=>{deck.splice(i,1);if(idx>=deck.length)idx=0;save();update();render()};div.appendChild(left);div.appendChild(del);list.appendChild(div)})}
+function add(){const term=d('term').value.trim(),def=d('def').value.trim();if(!term||!def){alert('请填写完整的正面和反面');return}deck.push({term,def});d('term').value='';d('def').value='';save();update();render()}
+function clearAll(){if(!confirm('确定清空所有卡片？此操作不可恢复'))return;deck=[];getKnown().clear();idx=0;save();update();render()}
+function tab(s){d('study').classList.toggle('hide',s!=='study');d('manage').classList.toggle('hide',s!=='manage');document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===s))}
+d('theme').onclick=toggleTheme;d('shuffle').onclick=shuffle;d('reset').onclick=reset;d('flip').onclick=flip;d('next').onclick=next;d('prev').onclick=prev;d('known').onclick=()=>mark(true);d('unknown').onclick=()=>mark(false);d('add').onclick=add;d('clear').onclick=clearAll;
+d('import').onclick=()=>d('importFile').click();
+d('importFile').onchange=(e)=>{const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=()=>{try{const data=JSON.parse(reader.result);if(data&&typeof data==='object'&&!Array.isArray(data)&&data.groups){const ng={};for(const [name,arr] of Object.entries(data.groups)){const cleaned=(Array.isArray(arr)?arr:[]).map(x=>({term:String(x.term||'').trim(),def:String(x.def||'').trim()})).filter(x=>x.term&&x.def);ng[name]=cleaned;}const names=Object.keys(ng);if(!names.length){alert('导入的卡组为空');return;}groups=ng;current=names[0];deck=(groups[current]||[]).slice();idx=0;for(const k in knownMap)delete knownMap[k];localStorage.setItem(gkey,JSON.stringify(groups));localStorage.setItem(ckey,current);refreshGroupSelect();update();render();alert('已导入卡组：'+names.length+'个');}else if(Array.isArray(data)){const cleaned=data.map(x=>({term:String(x.term||'').trim(),def:String(x.def||'').trim()})).filter(x=>x.term&&x.def);if(!cleaned.length){alert('导入内容为空或无效');return;}deck=cleaned;idx=0;getKnown().clear();save();update();render();alert('导入成功：'+cleaned.length+'条');}else{throw new Error('格式错误');}}catch(err){alert('导入失败：'+err.message);}};reader.readAsText(file,'utf-8');e.target.value='';};
+d('export').onclick=()=>{const blob=new Blob([JSON.stringify(deck,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='langcards.json';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);};
+d('exportAll')?.addEventListener('click',()=>{const blob=new Blob([JSON.stringify({groups},null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='langcards-all.json';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);});
+const gs=d('groupSelect');if(gs)gs.onchange=e=>changeGroup(e.target.value);
+document.querySelectorAll('.tab-btn').forEach(b=>b.onclick=()=>tab(b.dataset.tab));
+window.addEventListener('keydown',e=>{const tag=(e.target&&e.target.tagName)||'';if(tag==='INPUT'||tag==='TEXTAREA'||document.activeElement?.isContentEditable)return;switch(e.key){case'ArrowLeft':e.preventDefault();prev();break;case'ArrowRight':e.preventDefault();next();break;case' ':e.preventDefault();flip();break;case's':case'S':e.preventDefault();mark(true);break;case'd':case'D':e.preventDefault();mark(false);break;case'r':case'R':e.preventDefault();shuffle();break;}});
+load();applyTheme();update();render();refreshGroupSelect();
+})();</script></body></html>

@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>Retirement Calculator | 退休计算器</title>
+<!-- 引入 ECharts -->
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.0/dist/echarts.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;background:#f3f4f6;color:#111827;line-height:1.5}
+.container{max-width:1152px;margin:0 auto;padding:0 1rem}
+.grid{display:grid;gap:1rem}
+.grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.md\:grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.md\:grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.bg-white{background:#fff;border-radius:1rem;box-shadow:0 20px 25px -5px rgba(0,0,0,.1);padding:2rem;margin-bottom:3rem}
+.text-3xl{font-size:1.875rem;font-weight:700;margin-bottom:1.5rem}
+.text-center{text-align:center}
+.btn{cursor:pointer;padding:.75rem 1.5rem;border-radius:.5rem;font-weight:600;color:#fff;background:#2563eb;border:none;transition:.3s}
+.btn:hover{background:#1d4ed8}
+.hidden{display:none}
+input,select{width:100%;padding:.75rem 1rem;border:1px solid #d1d5db;border-radius:.5rem;outline:none}
+.countdown-digit{font-size:clamp(3rem,10vw,6rem);font-weight:700;color:#2563eb}
+.gradient-text{background:linear-gradient(135deg,#2563eb,#3b82f6);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+
+/* 表格样式 */
+.overflow-x-auto{overflow-x:auto}
+.min-w-full{min-width:100%}
+.bg-white{background-color:#fff}
+.border{border:1px solid #e5e7eb}
+.border-b{border-bottom:1px solid #e5e7eb}
+.bg-gray-100{background-color:#f3f4f6}
+.py-2{padding-top:.5rem;padding-bottom:.5rem}
+.px-4{padding-left:1rem;padding-right:1rem}
+
+/* Apple风格动画 */
+.section{opacity:0;transform:translateY(50px);transition:opacity .6s ease-out,transform .6s ease-out}
+.section.visible{opacity:1;transform:translateY(0)}
+
+/* 视差效果 */
+.parallax{transform:translateZ(0);transition:transform .1s linear}
+</style>
+</head>
+<body>
+
+<!-- Hero -->
+<section id="hero" class="section" style="min-height:100vh;display:flex;flex-direction:column;justify-content:center;align-items:center;background:linear-gradient(135deg,#f8fafc 0%,#e2e8f0 100%);text-align:center;padding:0 1rem;">
+  <h1 style="font-size:clamp(2.5rem,8vw,4rem);font-weight:700;line-height:1.1;margin-bottom:1.5rem;">退休计算器 <span style="font-size:1.5rem;font-weight:400;color:#6b7280;">Retirement Calculator</span></h1>
+  <p style="max-width:640px;margin-bottom:2rem;font-size:1.25rem;color:#4b5563;">精确计算您的退休年龄，规划美好的未来<br><small style="font-size:.875rem;color:#9ca3af;">Calculate retirement age, plan your future</small></p>
+  <button class="btn" onclick="scrollToCalc()">开始计算 Start</button>
+</section>
+
+<!-- Calculator -->
+<section id="calculator" class="container py-20">
+  <!-- Age Calculator -->
+  <div class="bg-white section">
+    <h2 class="text-3xl">法定退休年龄计算器 <span style="font-size:1.125rem;color:#6b7280;">Legal Retirement Age</span></h2>
+    <div class="grid md:grid-cols-3 gap-6 mb-8">
+      <div>
+        <label class="block text-sm font-semibold mb-2">出生年月 Birth Year/Month</label>
+        <div style="display: flex; gap: 10px;">
+          <select id="birthYear" style="flex: 1;"></select>
+          <select id="birthMonth" style="flex: 1;"></select>
+        </div>
+        <input type="hidden" id="birth">
+      </div>
+      <div>
+        <label class="block text-sm font-semibold mb-2">性别 Gender</label>
+        <select id="gender">
+          <option value="">请选择 Select</option>
+          <option value="male">男职工 Male</option>
+          <option value="f55">原55周岁女职工 Female 55</option>
+          <option value="f50">原50周岁女职工 Female 50</option>
+        </select>
+      </div>
+      <div style="display:flex;align-items:flex-end;"><button class="btn w-full" onclick="calcRetire()">计算 Calculate</button></div>
+    </div>
+    <div id="retireRes" class="hidden">
+      <div style="border-top:1px solid #e5e7eb;padding-top:1.5rem;">
+        <div class="grid md:grid-cols-3 gap-6 text-center">
+          <div><div id="rAge" class="text-4xl gradient-text mb-2">--</div><div class="text-sm text-gray-600">退休年龄 Age</div></div>
+          <div><div id="rDate" class="text-4xl" style="color:#10b981;">--</div><div class="text-sm text-gray-600">退休日期 Date</div></div>
+          <div><div id="rDelay" class="text-4xl" style="color:#f97316;">--</div><div class="text-sm text-gray-600">延迟月数 Delay</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Countdown -->
+  <div id="countSec" class="bg-white hidden">
+    <h3 class="text-2xl font-sc font-bold text-center mb-6">距离退休还有 Until Retirement</h3>
+    <div class="grid md:grid-cols-4 gap-4 text-center">
+      <div><div class="countdown-digit" id="cdY">--</div><div class="text-sm text-gray-600">年 Years</div></div>
+      <div><div class="countdown-digit" id="cdD">--</div><div class="text-sm text-gray-600">天 Days</div></div>
+      <div><div class="countdown-digit" id="cdH">--</div><div class="text-sm text-gray-600">时 Hours</div></div>
+      <div><div class="countdown-digit" id="cdM">--</div><div class="text-sm text-gray-600">分 Minutes</div></div>
+    </div>
+  </div>
+
+  <!-- Savings Calculator -->
+  <div class="bg-white section">
+    <h2 class="text-3xl">退休储蓄计算器 <span style="font-size:1.125rem;color:#6b7280;">Retirement Savings</span></h2>
+    <div class="grid md:grid-cols-2 gap-6 mb-8">
+      <div><label class="block text-sm font-semibold mb-2">当前储蓄 Current Savings (¥)</label><input type="number" id="curSav" placeholder="100000"></div>
+      <div><label class="block text-sm font-semibold mb-2">每月储蓄 Monthly Savings (¥)</label><input type="number" id="monSav" placeholder="3000"></div>
+      <div><label class="block text-sm font-semibold mb-2">年化收益率 Annual Return (%)</label><input type="number" id="annual" placeholder="5" step="0.1"></div>
+      <div style="display:flex;align-items:flex-end;"><button class="btn w-full" onclick="calcSaving()">计算 Calculate</button></div>
+    </div>
+    <div id="savRes" class="hidden text-center">
+      <p class="text-2xl gradient-text mb-4">退休后可每月领取 <span id="monthlyPension" class="font-bold">--</span> 元</p>
+      
+      <!-- 图表显示区域 -->
+      <div id="chartContainer" class="mt-8">
+        <!-- 折线图 -->
+        <div id="savingsChart" style="width: 100%; height: 400px;"></div>
+        
+        <!-- 储蓄年金列表 -->
+        <div id="savingsTable" class="mt-8">
+          <h3 class="text-xl font-bold mb-4">储蓄明细 Savings Details</h3>
+          <div class="overflow-x-auto">
+            <table class="min-w-full bg-white border border-gray-200">
+              <thead>
+                <tr class="bg-gray-100">
+                  <th class="py-2 px-4 border-b">年份 Year</th>
+                  <th class="py-2 px-4 border-b">年龄 Age</th>
+                  <th class="py-2 px-4 border-b">当年储蓄 Annual Savings</th>
+                  <th class="py-2 px-4 border-b">账户总金额 Total Amount</th>
+                  <th class="py-2 px-4 border-b">当年收益 Annual Return</th>
+                </tr>
+              </thead>
+              <tbody id="savingsTableBody">
+                <!-- 表格内容将通过JavaScript动态生成 -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+/* ---- 滚动 ---- */
+function scrollToCalc(){
+  document.getElementById('calculator').scrollIntoView({behavior:'smooth'});
+}
+
+/* ---- 初始化出生年月选择器 ---- */
+window.addEventListener('DOMContentLoaded', function() {
+  const yearSelect = document.getElementById('birthYear');
+  const monthSelect = document.getElementById('birthMonth');
+  const hiddenInput = document.getElementById('birth');
+  
+  // 生成年份选项 (从1900到2025)
+  for (let year = 1900; year <= 2025; year++) {
+    const option = document.createElement('option');
+    option.value = year;
+    option.textContent = year + '年';
+    yearSelect.appendChild(option);
+  }
+  
+  // 生成月份选项
+  for (let month = 1; month <= 12; month++) {
+    const option = document.createElement('option');
+    option.value = month.toString().padStart(2, '0');
+    option.textContent = month + '月';
+    monthSelect.appendChild(option);
+  }
+  
+  // 设置默认年份和月份
+  yearSelect.value = '1980';
+  monthSelect.value = '01';
+  
+  // 更新隐藏输入框的值
+  function updateHiddenInput() {
+    hiddenInput.value = yearSelect.value + '-' + monthSelect.value;
+  }
+  
+  // 初始化隐藏输入框的值
+  updateHiddenInput();
+  
+  // 监听年份和月份选择的变化
+  yearSelect.addEventListener('change', updateHiddenInput);
+  monthSelect.addEventListener('change', updateHiddenInput);
+}); // 修复缺少的右括号
+
+/* 全局变量：保存最近一次计算的年龄结果 */
+let g_retireDate = null;
+
+/* ---- 退休计算（完全对照表逻辑） ---- */
+function calcRetire(){
+  const birth=new Date(document.getElementById('birth').value+'-01');
+  const g=document.getElementById('gender').value;
+  if(!birth || !g){alert('请完整填写信息');return;}
+
+  /* 根据性别和出生日期查找对应的退休年龄和延迟月数 */
+  let retireAge, delayMonths;
+  const birthYear = birth.getFullYear();
+  const birthMonth = birth.getMonth() + 1; // 月份从0开始，需要加1
+  
+  // 查找男职工的退休年龄
+  if(g === 'male') {
+    if(birthYear < 1965 || (birthYear === 1965 && birthMonth === 1)) {
+      retireAge = 60;
+      delayMonths = 0;
+    } else if(birthYear === 1965 && birthMonth >= 2 && birthMonth <= 4) {
+      retireAge = 60 + 1/12;
+      delayMonths = 1;
+    } else if(birthYear === 1965 && birthMonth >= 5 && birthMonth <= 8) {
+      retireAge = 60 + 2/12;
+      delayMonths = 2;
+    } else if(birthYear === 1965 && birthMonth >= 9 && birthMonth <= 12) {
+      retireAge = 60 + 3/12;
+      delayMonths = 3;
+    } else if(birthYear === 1966 && birthMonth >= 1 && birthMonth <= 4) {
+      retireAge = 60 + 4/12;
+      delayMonths = 4;
+    } else if(birthYear === 1966 && birthMonth >= 5 && birthMonth <= 8) {
+      retireAge = 60 + 5/12;
+      delayMonths = 5;
+    } else if(birthYear === 1966 && birthMonth >= 9 && birthMonth <= 12) {
+      retireAge = 60 + 6/12;
+      delayMonths = 6;
+    } else if(birthYear === 1967 && birthMonth >= 1 && birthMonth <= 4) {
+      retireAge = 60 + 7/12;
+      delayMonths = 7;
+    } else if(birthYear === 1967 && birthMonth >= 5 && birthMonth <= 8) {
+      retireAge = 60 + 8/12;
+      delayMonths = 8;
+    } else if(birthYear === 1967 && birthMonth >= 9 && birthMonth <= 12) {
+      retireAge = 60 + 9/12;
+      delayMonths = 9;
+    } else if(birthYear === 1968 && birthMonth >= 1 && birthMonth <= 4) {
+      retireAge = 60 + 10/12;
+      delayMonths = 10;
+    } else if(birthYear === 1968 && birthMonth >= 5 && birthMonth <= 9) {
+      retireAge = 60 + 11/12;
+      delayMonths = 11;
+    } else if(birthYear === 1968 && birthMonth >= 10 && birthMonth <= 12) {
+      retireAge = 61;
+      delayMonths = 12;
+    } else if(birthYear === 1969 && birthMonth >= 1 && birthMonth <= 4) {
+      retireAge = 61 + 1/12;
+      delayMonths = 13;
+    } else if(birthYear === 1969 && birthMonth >= 5 && birthMonth <= 8) {
+      retireAge = 61 + 2/12;
+      delayMonths = 14;
+    } else if(birthYear === 1969 && birthMonth >= 9 && birthMonth <= 12) {
+      retireAge = 61 + 3/12;
+      delayMonths = 15;
+    } else if(birthYear === 1970 && birthMonth >= 1 && birthMonth <= 4) {
+      retireAge = 61 + 4/12;
+      delayMonths = 16;
+    } else if(birthYear === 1970 && birthMonth >= 5 && birthMonth <= 8) {
+      retireAge = 61 + 5/12;
+      delayMonths = 17;
+    } else if(birthYear === 1970 && birthMonth >= 9 && birthMonth <= 12) {
+      retireAge = 61 + 6/12;
+      delayMonths = 18;
+    } else if(birthYear === 1971 && birthMonth >= 1 && birthMonth <= 4) {
+      retireAge = 61 + 7/12;
+      delayMonths = 19;
+    } else if(birthYear === 1971 && birthMonth >= 5 && birthMonth <= 8) {
+      retireAge = 61 + 8/12;
+      delayMonths = 20;
+    } else if(birthYear === 1971 && birthMonth >= 9 && birthMonth <= 12) {
+      retireAge = 61 + 9/12;
+      delayMonths = 21;
+    } else if(birthYear === 1972 && birthMonth >= 1 && birthMonth <= 4) {
+      retireAge = 61 + 10/12;
+      delayMonths = 22;
+    } else if(birthYear === 1972 && birthMonth >= 5 && birthMonth <= 8) {
+      retireAge = 61 + 11/12;
+      delayMonths = 23;
+    } else if(birthYear === 1972 && birthMonth >= 9 && birthMonth <= 12) {
+      retireAge = 62;
+      delayMonths = 24;
+    } else if(birthYear === 1973 && birthMonth >= 1 && birthMonth <= 4) {
+      retireAge = 62 + 1/12;
+      delayMonths = 25;
+    } else if(birthYear === 1973 && birthMonth >= 5 && birthMonth <= 8) {
+      retireAge = 62 + 2/12;
+      delayMonths = 26;
+    } else if(birthYear === 1973 && birthMonth >= 9 && birthMonth <= 12) {
+      retireAge = 62 + 3/12;
+      delayMonths = 27;
+    } else if(birthYear === 1974 && birthMonth >= 1 && birthMonth <= 4) {
+      retireAge = 62 + 4/12;
+      delayMonths = 28;
+    } else if(birthYear === 1974 && birthMonth >= 5 && birthMonth <= 8) {
+      retireAge = 62 + 5/12;
+      delayMonths = 29;
+    } else if(birthYear === 1974 && birthMonth >= 9 && birthMonth <= 12) {
+      retireAge = 62 + 6/12;
+      delayMonths = 30;
+    } else if(birthYear === 1975 && birthMonth >= 1 && birthMonth <= 4) {
+      retireAge = 62 + 7/12;
+      delayMonths = 31;
+    } else if(birthYear === 1975 && birthMonth >= 5 && birthMonth <= 8) {
+      retireAge = 62 + 8/12;
+      delayMonths = 32;
+    } else if(birthYear === 1975 && birthMonth >= 9 && birthMonth <= 12) {
+      retireAge = 62 + 9/12;
+      delayMonths = 33;
+    } else if(birthYear === 1976 && birthMonth >= 1 && birthMonth <= 4) {
+      retireAge = 62 + 10/12;
+      delayMonths = 34;
+    } else if(birthYear === 1976 && birthMonth >= 5 && birthMonth <= 8) {
+      retireAge = 62 + 11/12;
+      delayMonths = 35;
+    } else if(birthYear >= 1976 && birthMonth >= 9) {
+      retireAge = 63;
+      delayMonths = 36;
+    } else {
+      // 对于不在表中的出生年月，按照规则计算
+      // 男性每4个月延迟1个月，最大延迟36个月
+      const monthsPassed = Math.max(0, (birthYear - 1965) * 12 + birthMonth - 1);
+      delayMonths = Math.min(Math.floor(monthsPassed / 4), 36);
+      retireAge = 60 + delayMonths / 12;
+    }
+  } 
+  // 查找原法定退休年龄五十五周岁的女职工的退休年龄
+  else if(g === 'f55') {
+    if(birthYear < 1970 || (birthYear === 1970 && birthMonth === 1)) {
+      retireAge = 55;
+      delayMonths = 0;
+    } else if(birthYear === 1970 && birthMonth >= 2 && birthMonth <= 4) {
+      retireAge = 55 + 1/12;
+      delayMonths = 1;
+    } else if(birthYear === 1970 && birthMonth >= 5 && birthMonth <= 8) {
+      retireAge = 55 + 2/12;
+      delayMonths = 2;
+    } else if(birthYear === 1970 && birthMonth >= 9 && birthMonth <= 12) {
+      retireAge = 55 + 3/12;
+      delayMonths = 3;
+    } else if(birthYear === 1971 && birthMonth >= 1 && birthMonth <= 4) {
+      retireAge = 55 + 4/12;
+      delayMonths = 4;
+    } else if(birthYear === 1971 && birthMonth >= 5 && birthMonth <= 8) {
+      retireAge = 55 + 5/12;
+      delayMonths = 5;
+    } else if(birthYear === 1971 && birthMonth >= 9 && birthMonth <= 12) {
+      retireAge = 55 + 6/12;
+      delayMonths = 6;
+    } else if(birthYear === 1972 && birthMonth >= 1 && birthMonth <= 4) {
+      retireAge = 55 + 7/12;
+      delayMonths = 7;
+    } else if(birthYear === 1972 && birthMonth >= 5 && birthMonth <= 8) {
+      retireAge = 55 + 8/12;
+      delayMonths = 8;
+    } else if(birthYear === 1972 && birthMonth >= 9 && birthMonth <= 12) {
+      retireAge = 55 + 9/12;
+      delayMonths = 9;
+    } else if(birthYear === 1973 && birthMonth >= 1 && birthMonth <= 4) {
+      retireAge = 55 + 10/12;
+      delayMonths = 10;
+    } else if(birthYear === 1973 && birthMonth >= 5 && birthMonth <= 8) {
+      retireAge = 55 + 11/12;
+      delayMonths = 11;
+    } else if(birthYear === 1973 && birthMonth >= 9 && birthMonth <= 12) {
+      retireAge = 56;
+      delayMonths = 12;
+    } else if(birthYear === 1974 && birthMonth >= 1 && birthMonth <= 4) {
+      retireAge = 56 + 1/12;
+      delayMonths = 13;
+    } else if(birthYear === 1974 && birthMonth >= 5 && birthMonth <= 8) {
+      retireAge = 56 + 2/12;
+      delayMonths = 14;
+    } else if(birthYear === 1974 && birthMonth >= 9 && birthMonth <= 12) {
+      retireAge = 56 + 3/12;
+      delayMonths = 15;
+    } else if(birthYear === 1975 && birthMonth >= 1 && birthMonth <= 4) {
+      retireAge = 56 + 4/12;
+      delayMonths = 16;
+    } else if(birthYear === 1975 && birthMonth >= 5 && birthMonth <= 8) {
+      retireAge = 56 + 5/12;
+      delayMonths = 17;
+    } else if(birthYear === 1975 && birthMonth >= 9 && birthMonth <= 12) {
+      retireAge = 56 + 6/12;
+      delayMonths = 18;
+    } else if(birthYear === 1976 && birthMonth >= 1 && birthMonth <= 4) {
+      retireAge = 56 + 7/12;
+      delayMonths = 19;
+    } else if(birthYear === 1976 && birthMonth >= 5 && birthMonth <= 8) {
+      retireAge = 56 + 8/12;
+      delayMonths = 20;
+    } else if(birthYear === 1976 && birthMonth >= 9 && birthMonth <= 12) {
+      retireAge = 56 + 9/12;
+      delayMonths = 21;
+    } else if(birthYear === 1977 && birthMonth >= 1 && birthMonth <= 4) {
+      retireAge = 56 + 10/12;
+      delayMonths = 22;
+    } else if(birthYear === 1977 && birthMonth >= 5 && birthMonth <= 8) {
+      retireAge = 56 + 11/12;
+      delayMonths = 23;
+    } else if(birthYear === 1977 && birthMonth >= 9 && birthMonth <= 12) {
+      retireAge = 57;
+      delayMonths = 24;
+    } else if(birthYear === 1978 && birthMonth >= 1 && birthMonth <= 4) {
+      retireAge = 57 + 1/12;
+      delayMonths = 25;
+    } else if(birthYear === 1978 && birthMonth >= 5 && birthMonth <= 8) {
+      retireAge = 57 + 2/12;
+      delayMonths = 26;
+    } else if(birthYear === 1978 && birthMonth >= 9 && birthMonth <= 12) {
+      retireAge = 57 + 3/12;
+      delayMonths = 27;
+    } else if(birthYear === 1979 && birthMonth >= 1 && birthMonth <= 4) {
+      retireAge = 57 + 4/12;
+      delayMonths = 28;
+    } else if(birthYear === 1979 && birthMonth >= 5 && birthMonth <= 8) {
+      retireAge = 57 + 5/12;
+      delayMonths = 29;
+    } else if(birthYear === 1979 && birthMonth >= 9 && birthMonth <= 12) {
+      retireAge = 57 + 6/12;
+      delayMonths = 30;
+    } else if(birthYear === 1980 && birthMonth >= 1 && birthMonth <= 4) {
+      retireAge = 57 + 7/12;
+      delayMonths = 31;
+    } else if(birthYear === 1980 && birthMonth >= 5 && birthMonth <= 8) {
+      retireAge = 57 + 8/12;
+      delayMonths = 32;
+    } else if(birthYear === 1980 && birthMonth >= 9 && birthMonth <= 12) {
+      retireAge = 57 + 9/12;
+      delayMonths = 33;
+    } else if(birthYear === 1981 && birthMonth >= 1 && birthMonth <= 4) {
+      retireAge = 57 + 10/12;
+      delayMonths = 34;
+    } else if(birthYear === 1981 && birthMonth >= 5 && birthMonth <= 8) {
+      retireAge = 57 + 11/12;
+      delayMonths = 35;
+    } else if(birthYear >= 1981 && birthMonth >= 9) {
+      retireAge = 58;
+      delayMonths = 36;
+    } else {
+      // 对于不在表中的出生年月，按照规则计算
+      // 原法定退休年龄五十五周岁的女职工每4个月延迟1个月，最大延迟36个月
+      const monthsPassed = Math.max(0, (birthYear - 1970) * 12 + birthMonth - 1);
+      delayMonths = Math.min(Math.floor(monthsPassed / 4), 36);
+      retireAge = 55 + delayMonths / 12;
+    }
+  }
+  // 查找原法定退休年龄五十周岁的女职工的退休年龄
+  else if(g === 'f50') {
+    if(birthYear < 1975 || (birthYear === 1975 && birthMonth === 1)) {
+      retireAge = 50;
+      delayMonths = 0;
+    } else if(birthYear === 1975 && birthMonth >= 2 && birthMonth <= 3) {
+      retireAge = 50 + 1/12;
+      delayMonths = 1;
+    } else if(birthYear === 1975 && birthMonth >= 4 && birthMonth <= 5) {
+      retireAge = 50 + 2/12;
+      delayMonths = 2;
+    } else if(birthYear === 1975 && birthMonth >= 6 && birthMonth <= 7) {
+      retireAge = 50 + 3/12;
+      delayMonths = 3;
+    } else if(birthYear === 1975 && birthMonth >= 8 && birthMonth <= 9) {
+      retireAge = 50 + 4/12;
+      delayMonths = 4;
+    } else if(birthYear === 1975 && birthMonth >= 10 && birthMonth <= 11) {
+      retireAge = 50 + 5/12;
+      delayMonths = 5;
+    } else if(birthYear === 1975 && birthMonth === 12) {
+      retireAge = 50 + 6/12;
+      delayMonths = 6;
+    } else if(birthYear === 1976 && birthMonth >= 1 && birthMonth <= 2) {
+      retireAge = 50 + 7/12;
+      delayMonths = 7;
+    } else if(birthYear === 1976 && birthMonth >= 3 && birthMonth <= 4) {
+      retireAge = 50 + 8/12;
+      delayMonths = 8;
+    } else if(birthYear === 1976 && birthMonth >= 5 && birthMonth <= 6) {
+      retireAge = 50 + 9/12;
+      delayMonths = 9;
+    } else if(birthYear === 1976 && birthMonth >= 7 && birthMonth <= 8) {
+      retireAge = 50 + 10/12;
+      delayMonths = 10;
+    } else if(birthYear === 1976 && birthMonth >= 9 && birthMonth <= 10) {
+      retireAge = 50 + 11/12;
+      delayMonths = 11;
+    } else if(birthYear === 1976 && birthMonth >= 11 && birthMonth <= 12) {
+      retireAge = 51;
+      delayMonths = 12;
+    } else if(birthYear === 1977 && birthMonth >= 1 && birthMonth <= 2) {
+      retireAge = 51 + 1/12;
+      delayMonths = 13;
+    } else if(birthYear === 1977 && birthMonth >= 3 && birthMonth <= 4) {
+      retireAge = 51 + 2/12;
+      delayMonths = 14;
+    } else if(birthYear === 1977 && birthMonth >= 5 && birthMonth <= 6) {
+      retireAge = 51 + 3/12;
+      delayMonths = 15;
+    } else if(birthYear === 1977 && birthMonth >= 7 && birthMonth <= 8) {
+      retireAge = 51 + 4/12;
+      delayMonths = 16;
+    } else if(birthYear === 1977 && birthMonth >= 9 && birthMonth <= 10) {
+      retireAge = 51 + 5/12;
+      delayMonths = 17;
+    } else if(birthYear === 1977 && birthMonth >= 11 && birthMonth <= 12) {
+      retireAge = 51 + 6/12;
+      delayMonths = 18;
+    } else if(birthYear === 1978 && birthMonth >= 1 && birthMonth <= 2) {
+      retireAge = 51 + 7/12;
+      delayMonths = 19;
+    } else if(birthYear === 1978 && birthMonth >= 3 && birthMonth <= 4) {
+      retireAge = 51 + 8/12;
+      delayMonths = 20;
+    } else if(birthYear === 1978 && birthMonth >= 5 && birthMonth <= 6) {
+      retireAge = 51 + 9/12;
+      delayMonths = 21;
+    } else if(birthYear === 1978 && birthMonth >= 7 && birthMonth <= 8) {
+      retireAge = 51 + 10/12;
+      delayMonths = 22;
+    } else if(birthYear === 1978 && birthMonth >= 9 && birthMonth <= 10) {
+      retireAge = 51 + 11/12;
+      delayMonths = 23;
+    } else if(birthYear === 1978 && birthMonth >= 11 && birthMonth <= 12) {
+      retireAge = 52;
+      delayMonths = 24;
+    } else if(birthYear === 1979 && birthMonth >= 1 && birthMonth <= 2) {
+      retireAge = 52 + 1/12;
+      delayMonths = 25;
+    } else if(birthYear === 1979 && birthMonth >= 3 && birthMonth <= 4) {
+      retireAge = 52 + 2/12;
+      delayMonths = 26;
+    } else if(birthYear === 1979 && birthMonth >= 5 && birthMonth <= 6) {
+      retireAge = 52 + 3/12;
+      delayMonths = 27;
+    } else if(birthYear === 1979 && birthMonth >= 7 && birthMonth <= 8) {
+      retireAge = 52 + 4/12;
+      delayMonths = 28;
+    } else if(birthYear === 1979 && birthMonth >= 9 && birthMonth <= 10) {
+      retireAge = 52 + 5/12;
+      delayMonths = 29;
+    } else if(birthYear === 1979 && birthMonth >= 11 && birthMonth <= 12) {
+      retireAge = 52 + 6/12;
+      delayMonths = 30;
+    } else if(birthYear === 1980 && birthMonth >= 1 && birthMonth <= 2) {
+      retireAge = 52 + 7/12;
+      delayMonths = 31;
+    } else if(birthYear === 1980 && birthMonth >= 3 && birthMonth <= 4) {
+      retireAge = 52 + 8/12;
+      delayMonths = 32;
+    } else if(birthYear === 1980 && birthMonth >= 5 && birthMonth <= 6) {
+      retireAge = 52 + 9/12;
+      delayMonths = 33;
+    } else if(birthYear === 1980 && birthMonth >= 7 && birthMonth <= 8) {
+      retireAge = 52 + 10/12;
+      delayMonths = 34;
+    } else if(birthYear === 1980 && birthMonth >= 9 && birthMonth <= 10) {
+      retireAge = 52 + 11/12;
+      delayMonths = 35;
+    } else if(birthYear === 1980 && birthMonth >= 11 && birthMonth <= 12) {
+      retireAge = 53;
+      delayMonths = 36;
+    } else if(birthYear === 1981 && birthMonth >= 1 && birthMonth <= 2) {
+      retireAge = 53 + 1/12;
+      delayMonths = 37;
+    } else if(birthYear === 1981 && birthMonth >= 3 && birthMonth <= 4) {
+      retireAge = 53 + 2/12;
+      delayMonths = 38;
+    } else if(birthYear === 1981 && birthMonth >= 5 && birthMonth <= 6) {
+      retireAge = 53 + 3/12;
+      delayMonths = 39;
+    } else if(birthYear === 1981 && birthMonth >= 7 && birthMonth <= 8) {
+      retireAge = 53 + 4/12;
+      delayMonths = 40;
+    } else if(birthYear === 1981 && birthMonth >= 9 && birthMonth <= 10) {
+      retireAge = 53 + 5/12;
+      delayMonths = 41;
+    } else if(birthYear === 1981 && birthMonth >= 11 && birthMonth <= 12) {
+      retireAge = 53 + 6/12;
+      delayMonths = 42;
+    } else if(birthYear === 1982 && birthMonth >= 1 && birthMonth <= 2) {
+      retireAge = 53 + 7/12;
+      delayMonths = 43;
+    } else if(birthYear === 1982 && birthMonth >= 3 && birthMonth <= 4) {
+      retireAge = 53 + 8/12;
+      delayMonths = 44;
+    } else if(birthYear === 1982 && birthMonth >= 5 && birthMonth <= 6) {
+      retireAge = 53 + 9/12;
+      delayMonths = 45;
+    } else if(birthYear === 1982 && birthMonth >= 7 && birthMonth <= 8) {
+      retireAge = 53 + 10/12;
+      delayMonths = 46;
+    } else if(birthYear === 1982 && birthMonth >= 9 && birthMonth <= 10) {
+      retireAge = 53 + 11/12;
+      delayMonths = 47;
+    } else if(birthYear === 1982 && birthMonth >= 11 && birthMonth <= 12) {
+      retireAge = 54;
+      delayMonths = 48;
+    } else if(birthYear === 1983 && birthMonth >= 1 && birthMonth <= 2) {
+      retireAge = 54 + 1/12;
+      delayMonths = 49;
+    } else if(birthYear === 1983 && birthMonth >= 3 && birthMonth <= 4) {
+      retireAge = 54 + 2/12;
+      delayMonths = 50;
+    } else if(birthYear === 1983 && birthMonth >= 5 && birthMonth <= 6) {
+      retireAge = 54 + 3/12;
+      delayMonths = 51;
+    } else if(birthYear === 1983 && birthMonth >= 7 && birthMonth <= 8) {
+      retireAge = 54 + 4/12;
+      delayMonths = 52;
+    } else if(birthYear === 1983 && birthMonth >= 9 && birthMonth <= 10) {
+      retireAge = 54 + 5/12;
+      delayMonths = 53;
+    } else if(birthYear === 1983 && birthMonth >= 11 && birthMonth <= 12) {
+      retireAge = 54 + 6/12;
+      delayMonths = 54;
+    } else if(birthYear === 1984 && birthMonth >= 1 && birthMonth <= 2) {
+      retireAge = 54 + 7/12;
+      delayMonths = 55;
+    } else if(birthYear === 1984 && birthMonth >= 3 && birthMonth <= 4) {
+      retireAge = 54 + 8/12;
+      delayMonths = 56;
+    } else if(birthYear === 1984 && birthMonth >= 5 && birthMonth <= 6) {
+      retireAge = 54 + 9/12;
+      delayMonths = 57;
+    } else if(birthYear === 1984 && birthMonth >= 7 && birthMonth <= 8) {
+      retireAge = 54 + 10/12;
+      delayMonths = 58;
+    } else if(birthYear === 1984 && birthMonth >= 9 && birthMonth <= 10) {
+      retireAge = 54 + 11/12;
+      delayMonths = 59;
+    } else if(birthYear >= 1984 && birthMonth >= 11) {
+      retireAge = 55;
+      delayMonths = 60;
+    } else {
+      // 对于不在表中的出生年月，按照规则计算
+      // 原法定退休年龄五十周岁的女职工每2个月延迟1个月，最大延迟60个月
+      const monthsPassed = Math.max(0, (birthYear - 1975) * 12 + birthMonth - 1);
+      delayMonths = Math.min(Math.floor(monthsPassed / 2), 60);
+      retireAge = 50 + delayMonths / 12;
+    }
+  }
+
+  /* 退休日期 */
+  const retireDate=new Date(birth);
+  retireDate.setFullYear(birth.getFullYear()+Math.floor(retireAge));
+  retireDate.setMonth(birth.getMonth()+delayMonths);
+
+  /* 显示 */
+  document.getElementById('rAge').textContent=retireAge.toFixed(1)+' 岁';
+  document.getElementById('rDate').textContent=retireDate.toLocaleDateString('zh-CN');
+  document.getElementById('rDelay').textContent=delayMonths+' 个月';
+  document.getElementById('retireRes').classList.remove('hidden');
+
+  /* 倒计时 */
+  const diff=Math.max(0,retireDate-new Date());
+  const dSec=Math.floor(diff/1000);
+  const dMin=Math.floor(dSec/60);
+  const dHour=Math.floor(dMin/60);
+  const dDay=Math.floor(dHour/24);
+  const dYear=Math.floor(dDay/365);
+  document.getElementById('cdY').textContent=dYear;
+  document.getElementById('cdD').textContent=dDay-dYear*365;
+  document.getElementById('cdH').textContent=dHour%24;
+  document.getElementById('cdM').textContent=dMin%60;
+  document.getElementById('countSec').classList.remove('hidden');
+
+  g_retireDate=retireDate;
+}
+
+/* ---- 储蓄计算 ---- */
+function calcSaving(){
+  const cur=+document.getElementById('curSav').value||0;
+  const mon=+document.getElementById('monSav').value||0;
+  const rate=+document.getElementById('annual').value||0;
+  if(!g_retireDate){alert('请先计算退休年龄');return;}
+
+  const now=new Date();
+  const monthsToGo=(g_retireDate.getFullYear()-now.getFullYear())*12+(g_retireDate.getMonth()-now.getMonth());
+  const yrsToGo=monthsToGo/12;
+  let fv=cur*Math.pow(1+rate/100,yrsToGo);
+  for(let m=1;m<=monthsToGo;m++) fv+=mon*Math.pow(1+rate/100/12,monthsToGo-m+1);
+  const monthly=fv*(((rate/100)/12)/(1-Math.pow(1+(rate/100)/12,-20*12)));
+  document.getElementById('monthlyPension').textContent=monthly.toFixed(0);
+  document.getElementById('savRes').classList.remove('hidden');
+  
+  // 获取出生日期以计算年龄
+  const birthDate = new Date(document.getElementById('birth').value+'-01');
+  
+  // 生成图表和表格数据
+  generateSavingsChartAndTable(cur, mon, rate/100, now, g_retireDate, birthDate);
+}
+
+/* ---- 生成储蓄图表和表格 ---- */
+function generateSavingsChartAndTable(initialSavings, monthlySavings, annualRate, startDate, retireDate, birthDate) {
+  // 计算每年的储蓄数据
+  const savingsData = [];
+  let currentSavings = initialSavings;
+  let currentDate = new Date(startDate);
+  
+  const yearsToRetire = retireDate.getFullYear() - startDate.getFullYear();
+  
+  // 表格数据数组
+  const tableData = [];
+  
+  // 添加起始年份数据
+  tableData.push({
+    year: currentDate.getFullYear(),
+    age: currentDate.getFullYear() - birthDate.getFullYear(),
+    annualSavings: 0,
+    totalAmount: currentSavings,
+    annualReturn: 0
+  });
+  
+  // 计算每年的数据
+  for (let i = 1; i <= yearsToRetire; i++) {
+    currentDate.setFullYear(currentDate.getFullYear() + 1);
+    
+    // 计算当年储蓄（12个月）
+    const annualSavings = monthlySavings * 12;
+    
+    // 计算年初金额
+    const startOfYearAmount = currentSavings;
+    
+    // 计算当年收益
+    const annualReturn = startOfYearAmount * annualRate;
+    
+    // 计算年末总金额
+    currentSavings = startOfYearAmount + annualSavings + annualReturn;
+    
+    // 添加到图表数据
+    savingsData.push({
+      year: currentDate.getFullYear(),
+      amount: currentSavings
+    });
+    
+    // 添加到表格数据
+    tableData.push({
+      year: currentDate.getFullYear(),
+      age: currentDate.getFullYear() - birthDate.getFullYear(),
+      annualSavings: annualSavings,
+      totalAmount: currentSavings,
+      annualReturn: annualReturn
+    });
+  }
+  
+  // 生成折线图
+  generateSavingsChart(savingsData);
+  
+  // 生成表格
+  generateSavingsTable(tableData);
+}
+
+/* ---- 生成折线图 ---- */
+function generateSavingsChart(data) {
+  // 获取图表容器
+  const chartContainer = document.getElementById('savingsChart');
+  
+  // 初始化ECharts实例
+  const myChart = echarts.init(chartContainer);
+  
+  // 将图表实例绑定到DOM元素上，以便在窗口大小改变时能够自适应
+  chartContainer.echartsInstance = myChart;
+  
+  // 指定图表的配置项和数据
+  const option = {
+    title: {
+      text: '储蓄增长趋势 Savings Growth Trend'
+    },
+    tooltip: {
+      trigger: 'axis'
+    },
+    xAxis: {
+      type: 'category',
+      data: data.map(item => item.year)
+    },
+    yAxis: {
+      type: 'value',
+      axisLabel: {
+        formatter: function (value) {
+          return '¥' + (value / 10000).toFixed(1) + '万';
+        }
+      }
+    },
+    series: [
+      {
+        name: '总储蓄 Total Savings',
+        type: 'line',
+        data: data.map(item => item.amount),
+        smooth: true,
+        itemStyle: {
+          color: '#2563eb'
+        },
+        areaStyle: {
+          color: '#2563eb',
+          opacity: 0.1
+        }
+      }
+    ]
+  };
+  
+  // 使用刚指定的配置项和数据显示图表
+  myChart.setOption(option);
+}
+
+/* ---- 生成储蓄表格 ---- */
+function generateSavingsTable(data) {
+  // 获取表格容器
+  const tableBody = document.getElementById('savingsTableBody');
+  
+  // 清空现有内容
+  tableBody.innerHTML = '';
+  
+  // 生成表格行
+data.forEach(item => {
+  const row = document.createElement('tr');
+  
+  // 年份
+  const yearCell = document.createElement('td');
+  yearCell.className = 'py-2 px-4 border-b';
+  yearCell.textContent = item.year;
+  row.appendChild(yearCell);
+  
+  // 年龄
+  const ageCell = document.createElement('td');
+  ageCell.className = 'py-2 px-4 border-b';
+  ageCell.textContent = item.age;
+  row.appendChild(ageCell);
+  
+  // 当年储蓄
+  const annualSavingsCell = document.createElement('td');
+  annualSavingsCell.className = 'py-2 px-4 border-b';
+  annualSavingsCell.textContent = '¥' + item.annualSavings.toFixed(0);
+  row.appendChild(annualSavingsCell);
+  
+  // 账户总金额
+  const totalAmountCell = document.createElement('td');
+  totalAmountCell.className = 'py-2 px-4 border-b';
+  totalAmountCell.textContent = '¥' + item.totalAmount.toFixed(0);
+  row.appendChild(totalAmountCell);
+  
+  // 当年收益
+  const annualReturnCell = document.createElement('td');
+  annualReturnCell.className = 'py-2 px-4 border-b';
+  annualReturnCell.textContent = '¥' + item.annualReturn.toFixed(0);
+  row.appendChild(annualReturnCell);
+  
+  // 添加到表格
+  tableBody.appendChild(row);
+});
+}
+</script>
+
+<!-- Apple风格动画脚本 -->
+<script>
+// 段落切屏效果
+function animateSections() {
+  const sections = document.querySelectorAll('.section');
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+      }
+    });
+  }, { threshold: 0.1 });
+  
+  sections.forEach(section => {
+    observer.observe(section);
+  });
+}
+
+// 视差缩放效果
+function parallaxEffect() {
+  const parallaxElements = document.querySelectorAll('.parallax');
+  window.addEventListener('scroll', () => {
+    const scrollPosition = window.pageYOffset;
+    parallaxElements.forEach(element => {
+      const speed = element.dataset.speed || 0.5;
+      element.style.transform = `translateY(${scrollPosition * speed}px)`;
+    });
+  });
+}
+
+// 页面加载完成后初始化动画效果
+window.addEventListener('DOMContentLoaded', () => {
+  animateSections();
+  parallaxEffect();
+  
+  // 确保图表在窗口大小改变时能够自适应
+  window.addEventListener('resize', () => {
+    const chartElement = document.getElementById('savingsChart');
+    if (chartElement && chartElement.echartsInstance) {
+      chartElement.echartsInstance.resize();
+    }
+  });
+});
+</script>
+</body>
+</html>

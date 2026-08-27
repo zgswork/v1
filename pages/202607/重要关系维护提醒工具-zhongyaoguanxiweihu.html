@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>重要关系维护提醒工具</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3B82F6',
+                        secondary: '#6366F1',
+                        accent: '#F59E0B',
+                        danger: '#EF4444',
+                        success: '#10B981',
+                        neutral: '#64748B',
+                        // 精心调配的5种浅色主题
+                        theme1: {
+                            light: '#FCFCFD',
+                            DEFAULT: '#F9FAFB',
+                            dark: '#F3F4F6'
+                        }, // 纯净白 - 清爽干净的基础主题
+                        theme2: {
+                            light: '#F0FDFA',
+                            DEFAULT: '#ECFDF5',
+                            dark: '#D1FAE5'
+                        }, // 薄荷白 - 带有清新绿色调
+                        theme3: {
+                            light: '#EEF2FF',
+                            DEFAULT: '#E0E7FF',
+                            dark: '#DBEAFE'
+                        }, // 晴空白 - 带有淡雅蓝色调
+                        theme4: {
+                            light: '#FEF3C7',
+                            DEFAULT: '#FDE68A',
+                            dark: '#FCD34D'
+                        }, // 暖阳白 - 带有温暖黄色调
+                        theme5: {
+                            light: '#FAF5FF',
+                            DEFAULT: '#F3E8FF',
+                            dark: '#EDE9FE'
+                        }  // 薰衣草白 - 带有柔和紫色调
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .card-shadow {
+                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.04), 0 2px 4px -1px rgba(0, 0, 0, 0.02);
+            }
+            .hover-lift {
+                transition: transform 0.25s ease, box-shadow 0.25s ease;
+            }
+            .hover-lift:hover {
+                transform: translateY(-3px);
+                box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
+            }
+            .theme-dot {
+                width: 1.5rem;
+                height: 1.5rem;
+                border-radius: 50%;
+                cursor: pointer;
+                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                border: 2px solid transparent;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+                position: relative;
+                overflow: hidden;
+            }
+            .theme-dot::after {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(255,255,255,0.2);
+                transform: scale(0);
+                border-radius: 50%;
+                transition: transform 0.3s ease;
+            }
+            .theme-dot:hover::after {
+                transform: scale(1);
+            }
+            .theme-dot:hover {
+                transform: scale(1.2);
+                box-shadow: 0 3px 6px rgba(0,0,0,0.1);
+            }
+            .theme-dot.active {
+                border-color: #3B82F6;
+                transform: scale(1.2);
+                box-shadow: 0 3px 8px rgba(59, 130, 246, 0.3);
+            }
+            .theme-transition {
+                transition: background-color 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            }
+            .bg-gradient-subtle {
+                background: linear-gradient(180deg, var(--tw-gradient-from) 0%, var(--tw-gradient-to) 100%);
+            }
+        }
+    </style>
+</head>
+<body class="min-h-screen font-sans theme-transition bg-theme1" id="appBody">
+    <!-- 顶部导航栏 -->
+    <header class="bg-gradient-to-r from-primary to-secondary text-white shadow-md">
+        <div class="container mx-auto px-4 py-5 sm:px-6">
+            <div class="flex justify-between items-center">
+                <div class="flex items-center space-x-2">
+                    <i class="fa fa-heart text-2xl" aria-hidden="true"></i>
+                    <h1 class="text-[clamp(1.5rem,3vw,2.5rem)] font-bold">重要关系维护提醒</h1>
+                </div>
+                <div class="hidden md:flex items-center space-x-4">
+                    <!-- 主题切换按钮 -->
+                    <div class="relative group">
+                        <button class="flex items-center space-x-1 px-3 py-2 rounded-md hover:bg-white/20 transition-all duration-300">
+                            <i class="fa fa-paint-brush" aria-hidden="true"></i>
+                            <span>主题</span>
+                        </button>
+                        <div class="absolute right-0 mt-2 w-60 bg-white rounded-lg shadow-lg py-3 px-4 z-10 hidden group-hover:block transition-all duration-300 transform opacity-0 group-hover:opacity-100 origin-top-right scale-95 group-hover:scale-100">
+                            <div class="mb-2 flex justify-between items-center">
+                                <p class="text-xs text-gray-500 font-medium">选择背景主题</p>
+                                <span id="currentThemeName" class="text-xs px-2 py-0.5 bg-primary/10 text-primary rounded-full">纯净白</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <div class="theme-dot bg-theme1" data-theme="theme1" title="纯净白"></div>
+                                <div class="theme-dot bg-theme2" data-theme="theme2" title="薄荷白"></div>
+                                <div class="theme-dot bg-theme3" data-theme="theme3" title="晴空白"></div>
+                                <div class="theme-dot bg-theme4" data-theme="theme4" title="暖阳白"></div>
+                                <div class="theme-dot bg-theme5" data-theme="theme5" title="薰衣草白"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <button id="statsBtn" class="flex items-center space-x-1 px-3 py-2 rounded-md hover:bg-white/20 transition-all duration-300">
+                        <i class="fa fa-bar-chart" aria-hidden="true"></i>
+                        <span>统计</span>
+                    </button>
+                    <button id="helpBtn" class="flex items-center space-x-1 px-3 py-2 rounded-md hover:bg-white/20 transition-all duration-300">
+                        <i class="fa fa-question-circle" aria-hidden="true"></i>
+                        <span>帮助</span>
+                    </button>
+                </div>
+                <button class="md:hidden text-xl" id="mobileMenuBtn">
+                    <i class="fa fa-bars" aria-hidden="true"></i>
+                </button>
+            </div>
+            <!-- 移动端菜单 -->
+            <div id="mobileMenu" class="md:hidden hidden mt-4 pb-2 space-y-3 animate-fadeIn">
+                <!-- 移动端主题切换 -->
+                <div class="px-3 py-3 bg-white/10 rounded-lg">
+                    <p class="text-sm mb-2 font-medium">选择背景主题</p>
+                    <div class="flex justify-between">
+                        <div class="theme-dot bg-theme1" data-theme="theme1" title="纯净白"></div>
+                        <div class="theme-dot bg-theme2" data-theme="theme2" title="薄荷白"></div>
+                        <div class="theme-dot bg-theme3" data-theme="theme3" title="晴空白"></div>
+                        <div class="theme-dot bg-theme4" data-theme="theme4" title="暖阳白"></div>
+                        <div class="theme-dot bg-theme5" data-theme="theme5" title="薰衣草白"></div>
+                    </div>
+                </div>
+                <button id="mobileStatsBtn" class="flex items-center space-x-2 w-full px-3 py-2 rounded-md hover:bg-white/20 transition-all duration-300">
+                    <i class="fa fa-bar-chart" aria-hidden="true"></i>
+                    <span>统计</span>
+                </button>
+                <button id="mobileHelpBtn" class="flex items-center space-x-2 w-full px-3 py-2 rounded-md hover:bg-white/20 transition-all duration-300">
+                    <i class="fa fa-question-circle" aria-hidden="true"></i>
+                    <span>帮助</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-4 py-8 sm:px-6">
+        <!-- 提醒卡片 -->
+        <div id="alertCard" class="mb-8 bg-accent/10 border-l-4 border-accent p-4 rounded-r-lg hidden transform transition-all duration-300 hover:shadow-md">
+            <div class="flex items-start">
+                <div class="flex-shrink-0">
+                    <i class="fa fa-bell text-accent text-xl" aria-hidden="true"></i>
+                </div>
+                <div class="ml-3">
+                    <h3 class="text-lg font-medium text-gray-800">有需要维护的关系</h3>
+                    <div class="mt-2 text-sm text-gray-600">
+                        <p>您有 <span id="overdueCount" class="font-bold text-danger">0</span> 个关系已过期，<span id="upcomingCount" class="font-bold text-accent">0</span> 个关系即将到期。</p>
+                    </div>
+                </div>
+                <button id="closeAlert" class="ml-auto flex-shrink-0 text-gray-400 hover:text-gray-500 transition-colors">
+                    <i class="fa fa-times" aria-hidden="true"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- 添加新关系表单 -->
+        <div class="bg-white rounded-xl shadow-md p-6 mb-8 hover-lift transition-all duration-300">
+            <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                <i class="fa fa-plus-circle text-primary mr-2" aria-hidden="true"></i>
+                添加重要关系
+            </h2>
+            <form id="relationshipForm" class="space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="name" class="block text-sm font-medium text-gray-700 mb-1">姓名</label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">
+                                <i class="fa fa-user" aria-hidden="true"></i>
+                            </span>
+                            <input type="text" id="name" name="name" required
+                                class="pl-10 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary transition-all duration-300">
+                        </div>
+                    </div>
+                    <div>
+                        <label for="relationshipType" class="block text-sm font-medium text-gray-700 mb-1">关系类型</label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">
+                                <i class="fa fa-users" aria-hidden="true"></i>
+                            </span>
+                            <select id="relationshipType" name="relationshipType" required
+                                class="pl-10 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary transition-all duration-300">
+                                <option value="">请选择关系类型</option>
+                                <option value="家人">家人</option>
+                                <option value="挚友">挚友</option>
+                                <option value="导师">导师</option>
+                                <option value="同事">同事</option>
+                                <option value="客户">客户</option>
+                                <option value="合作伙伴">合作伙伴</option>
+                                <option value="其他">其他</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label for="contactFrequency" class="block text-sm font-medium text-gray-700 mb-1">联系频率</label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">
+                                <i class="fa fa-calendar" aria-hidden="true"></i>
+                            </span>
+                            <select id="contactFrequency" name="contactFrequency" required
+                                class="pl-10 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary transition-all duration-300">
+                                <option value="">请选择联系频率</option>
+                                <option value="7">每周一次</option>
+                                <option value="14">每两周一次</option>
+                                <option value="30" selected>每月一次</option>
+                                <option value="60">每两个月一次</option>
+                                <option value="90">每季度一次</option>
+                                <option value="180">每半年一次</option>
+                                <option value="365">每年一次</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label for="lastContactDate" class="block text-sm font-medium text-gray-700 mb-1">上次联系日期</label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">
+                                <i class="fa fa-calendar-check-o" aria-hidden="true"></i>
+                            </span>
+                            <input type="date" id="lastContactDate" name="lastContactDate" required
+                                class="pl-10 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary transition-all duration-300">
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <label for="notes" class="block text-sm font-medium text-gray-700 mb-1">备注（可选）</label>
+                    <div class="relative">
+                        <span class="absolute top-3 left-3 text-gray-500">
+                            <i class="fa fa-sticky-note" aria-hidden="true"></i>
+                        </span>
+                        <textarea id="notes" name="notes" rows="2"
+                            class="pl-10 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary transition-all duration-300"
+                            placeholder="添加一些关于这个关系的备注信息..."></textarea>
+                    </div>
+                </div>
+                <div class="flex justify-end">
+                    <button type="submit" class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-all duration-300 transform hover:scale-105 active:scale-95">
+                        <i class="fa fa-save mr-2" aria-hidden="true"></i>
+                        保存关系
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- 关系列表 -->
+        <div class="mb-8">
+            <div class="flex flex-wrap justify-between items-center mb-4 gap-2">
+                <h2 class="text-xl font-bold text-gray-800 flex items-center">
+                    <i class="fa fa-list-alt text-primary mr-2" aria-hidden="true"></i>
+                    重要关系列表
+                </h2>
+                <div class="flex space-x-2">
+                    <button id="sortByDate" class="inline-flex items-center px-3 py-1.5 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-all duration-300">
+                        <i class="fa fa-sort-calendar-o mr-1" aria-hidden="true"></i>
+                        按到期日排序
+                    </button>
+                    <button id="clearAll" class="inline-flex items-center px-3 py-1.5 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-all duration-300">
+                        <i class="fa fa-trash-o mr-1" aria-hidden="true"></i>
+                        清空列表
+                    </button>
+                </div>
+            </div>
+
+            <!-- 关系列表容器 -->
+            <div id="relationshipList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- 关系卡片会通过JavaScript动态添加 -->
+                <div class="col-span-full text-center py-12 text-gray-500">
+                    <i class="fa fa-address-book-o text-5xl mb-4 opacity-30" aria-hidden="true"></i>
+                    <p>还没有添加任何重要关系</p>
+                    <p class="mt-2">使用上方表单添加您的第一个重要关系吧</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 底部备注信息 -->
+    <footer class="bg-gray-800 text-white py-6">
+        <div class="container mx-auto px-4 text-center">
+            <p class="mb-2">本工具由 邓文涛(AI版) 制作</p>
+            <p class="mb-2">微信：707547441</p>
+            <p>QQ邮箱：<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="360106010302010202077647471855595b">[email&#160;protected]</a></p>
+        </div>
+    </footer>
+
+    <!-- 统计模态框 -->
+    <div id="statsModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-xl shadow-xl max-w-md w-full mx-4 p-6 transform transition-all duration-300 scale-95 opacity-0" id="statsModalContent">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold text-gray-800">关系统计</h3>
+                <button id="closeStatsModal" class="text-gray-400 hover:text-gray-500 transition-colors">
+                    <i class="fa fa-times" aria-hidden="true"></i>
+                </button>
+            </div>
+            <div class="space-y-4">
+                <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                    <span class="text-gray-700">总关系数</span>
+                    <span id="totalCount" class="font-bold text-primary text-xl">0</span>
+                </div>
+                <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                    <span class="text-gray-700">已过期</span>
+                    <span id="statsOverdueCount" class="font-bold text-danger text-xl">0</span>
+                </div>
+                <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                    <span class="text-gray-700">即将到期（7天内）</span>
+                    <span id="statsUpcomingCount" class="font-bold text-accent text-xl">0</span>
+                </div>
+                <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                    <span class="text-gray-700">状态良好</span>
+                    <span id="statsGoodCount" class="font-bold text-success text-xl">0</span>
+                </div>
+                
+                <div class="pt-2">
+                    <h4 class="font-medium text-gray-700 mb-2">关系类型分布</h4>
+                    <div id="relationshipTypeDistribution" class="space-y-2">
+                        <!-- 类型分布会通过JavaScript动态添加 -->
+                    </div>
+                </div>
+            </div>
+            <div class="mt-6">
+                <button id="closeStatsBtn" class="w-full inline-flex justify-center items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-all duration-300 transform hover:scale-105 active:scale-95">
+                    关闭
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 帮助模态框 -->
+    <div id="helpModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-xl shadow-xl max-w-2xl w-full mx-4 p-6 transform transition-all duration-300 scale-95 opacity-0" id="helpModalContent">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold text-gray-800">使用帮助</h3>
+                <button id="closeHelpModal" class="text-gray-400 hover:text-gray-500 transition-colors">
+                    <i class="fa fa-times" aria-hidden="true"></i>
+                </button>
+            </div>
+            <div class="space-y-4 text-gray-700">
+                <div>
+                    <h4 class="font-bold text-lg text-primary mb-2">如何添加重要关系？</h4>
+                    <p>在"添加重要关系"表单中，填写相关信息：</p>
+                    <ul class="list-disc pl-5 mt-1 space-y-1">
+                        <li>姓名：输入对方的姓名</li>
+                        <li>关系类型：选择对方与您的关系</li>
+                        <li>联系频率：选择您希望联系对方的频率</li>
+                        <li>上次联系日期：选择上次与对方联系的日期</li>
+                        <li>备注（可选）：添加一些额外信息</li>
+                    </ul>
+                    <p class="mt-2">填写完成后，点击"保存关系"按钮即可。</p>
+                </div>
+                
+                <div>
+                    <h4 class="font-bold text-lg text-primary mb-2">如何查看到期提醒？</h4>
+                    <p>系统会自动计算下次联系日期，并在关系卡片上显示：</p>
+                    <ul class="list-disc pl-5 mt-1 space-y-1">
+                        <li><span class="text-danger font-medium">已过期</span>：超过了预定联系日期</li>
+                        <li><span class="text-accent font-medium">即将到期</span>：7天内需要联系</li>
+                        <li><span class="text-success font-medium">状态良好</span>：距离下次联系还有一段时间</li>
+                    </ul>
+                </div>
+                
+                <div>
+                    <h4 class="font-bold text-lg text-primary mb-2">如何更新联系记录？</h4>
+                    <p>当您与对方联系后，可以点击关系卡片上的"更新联系日期"按钮，将上次联系日期更新为今天。</p>
+                </div>
+                
+                <div>
+                    <h4 class="font-bold text-lg text-primary mb-2">如何切换背景主题？</h4>
+                    <p>在顶部导航栏的"主题"选项中，可以选择5种不同的浅色背景：</p>
+                    <ul class="list-disc pl-5 mt-1 space-y-1">
+                        <li>纯净白：简洁清爽的默认背景，减少视觉疲劳</li>
+                        <li>薄荷白：带有淡绿色调，营造轻松自然的氛围</li>
+                        <li>晴空白：带有淡蓝色调，带来平静舒适的感觉</li>
+                        <li>暖阳白：带有淡黄色调，增添温暖愉悦的氛围</li>
+                        <li>薰衣草白：带有淡紫色调，展现优雅柔和的风格</li>
+                    </ul>
+                </div>
+                
+                <div>
+                    <h4 class="font-bold text-lg text-primary mb-2">如何删除关系？</h4>
+                    <p>点击关系卡片上的"删除"按钮，可以将该关系从列表中移除。</p>
+                </div>
+            </div>
+            <div class="mt-6">
+                <button id="closeHelpBtn" class="w-full inline-flex justify-center items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-all duration-300 transform hover:scale-105 active:scale-95">
+                    我知道了
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+        // 数据模型
+        let relationships = [];
+        const DEFAULT_THEME = 'theme1'; // 默认主题
+        
+        // DOM 加载完成后执行
+        document.addEventListener('DOMContentLoaded', function() {
+            // 初始化日期选择器为今天
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('lastContactDate').value = today;
+            
+            // 从本地存储加载数据
+            loadFromLocalStorage();
+            
+            // 加载并应用保存的主题
+            loadAndApplyTheme();
+            
+            // 渲染关系列表
+            renderRelationshipList();
+            
+            // 更新提醒
+            updateAlerts();
+            
+            // 绑定事件监听器
+            bindEventListeners();
+        });
+        
+        // 绑定事件监听器
+        function bindEventListeners() {
+            // 表单提交
+            document.getElementById('relationshipForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                addRelationship();
+            });
+            
+            // 关闭提醒
+            document.getElementById('closeAlert').addEventListener('click', function() {
+                document.getElementById('alertCard').classList.add('hidden');
+            });
+            
+            // 排序按钮
+            document.getElementById('sortByDate').addEventListener('click', function() {
+                sortRelationshipsByDueDate();
+                renderRelationshipList();
+            });
+            
+            // 清空按钮
+            document.getElementById('clearAll').addEventListener('click', function() {
+                if (confirm('确定要清空所有关系记录吗？此操作不可恢复。')) {
+                    relationships = [];
+                    saveToLocalStorage();
+                    renderRelationshipList();
+                    updateAlerts();
+                }
+            });
+            
+            // 移动端菜单
+            document.getElementById('mobileMenuBtn').addEventListener('click', function() {
+                const mobileMenu = document.getElementById('mobileMenu');
+                mobileMenu.classList.toggle('hidden');
+            });
+            
+            // 统计相关
+            document.getElementById('statsBtn').addEventListener('click', openStatsModal);
+            document.getElementById('mobileStatsBtn').addEventListener('click', function() {
+                document.getElementById('mobileMenu').classList.add('hidden');
+                openStatsModal();
+            });
+            document.getElementById('closeStatsModal').addEventListener('click', closeStatsModal);
+            document.getElementById('closeStatsBtn').addEventListener('click', closeStatsModal);
+            
+            // 帮助相关
+            document.getElementById('helpBtn').addEventListener('click', openHelpModal);
+            document.getElementById('mobileHelpBtn').addEventListener('click', function() {
+                document.getElementById('mobileMenu').classList.add('hidden');
+                openHelpModal();
+            });
+            document.getElementById('closeHelpModal').addEventListener('click', closeHelpModal);
+            document.getElementById('closeHelpBtn').addEventListener('click', closeHelpModal);
+            
+            // 主题切换
+            document.querySelectorAll('.theme-dot').forEach(dot => {
+                dot.addEventListener('click', function() {
+                    const theme = this.getAttribute('data-theme');
+                    setTheme(theme);
+                });
+            });
+        }
+        
+        // 主题切换功能
+        function setTheme(theme) {
+            const body = document.getElementById('appBody');
+            
+            // 移除所有主题类
+            body.classList.remove('bg-theme1', 'bg-theme2', 'bg-theme3', 'bg-theme4', 'bg-theme5');
+            
+            // 添加选中的主题类
+            body.classList.add(`bg-${theme}`);
+            
+            // 更新选中状态
+            document.querySelectorAll('.theme-dot').forEach(dot => {
+                dot.classList.remove('active');
+                if (dot.getAttribute('data-theme') === theme) {
+                    dot.classList.add('active');
+                }
+            });
+            
+            // 更新当前主题显示名称
+            document.getElementById('currentThemeName').textContent = getThemeName(theme);
+            
+            // 保存主题偏好
+            localStorage.setItem('selectedTheme', theme);
+            
+            // 显示提示
+            showToast(`已切换到${getThemeName(theme)}主题`);
+        }
+        
+        // 获取主题名称
+        function getThemeName(theme) {
+            const themeNames = {
+                'theme1': '纯净白',
+                'theme2': '薄荷白',
+                'theme3': '晴空白',
+                'theme4': '暖阳白',
+                'theme5': '薰衣草白'
+            };
+            return themeNames[theme] || theme;
+        }
+        
+        // 加载并应用保存的主题
+        function loadAndApplyTheme() {
+            const savedTheme = localStorage.getItem('selectedTheme') || DEFAULT_THEME;
+            setTheme(savedTheme);
+        }
+        
+        // 添加新关系
+        function addRelationship() {
+            const name = document.getElementById('name').value.trim();
+            const relationshipType = document.getElementById('relationshipType').value;
+            const contactFrequency = parseInt(document.getElementById('contactFrequency').value);
+            const lastContactDate = document.getElementById('lastContactDate').value;
+            const notes = document.getElementById('notes').value.trim();
+            
+            // 创建新关系对象
+            const newRelationship = {
+                id: Date.now().toString(), // 使用时间戳作为唯一ID
+                name,
+                relationshipType,
+                contactFrequency,
+                lastContactDate,
+                notes,
+                createdAt: new Date().toISOString()
+            };
+            
+            // 添加到数组并保存
+            relationships.unshift(newRelationship); // 添加到开头
+            saveToLocalStorage();
+            
+            // 重新渲染列表
+            renderRelationshipList();
+            
+            // 更新提醒
+            updateAlerts();
+            
+            // 重置表单
+            document.getElementById('relationshipForm').reset();
+            document.getElementById('lastContactDate').value = new Date().toISOString().split('T')[0];
+            
+            // 显示成功提示
+            showToast('关系添加成功！');
+        }
+        
+        // 计算下次联系日期
+        function calculateNextContactDate(lastContactDate, frequency) {
+            const lastDate = new Date(lastContactDate);
+            const nextDate = new Date(lastDate);
+            nextDate.setDate(lastDate.getDate() + frequency);
+            return nextDate;
+        }
+        
+        // 计算距离下次联系还有多少天
+        function daysUntilNextContact(lastContactDate, frequency) {
+            const nextDate = calculateNextContactDate(lastContactDate, frequency);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            const diffTime = nextDate - today;
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            
+            return diffDays;
+        }
+        
+        // 获取状态类名
+        function getStatusClass(daysUntilNext) {
+            if (daysUntilNext < 0) {
+                return { 
+                    class: 'bg-danger/10 border-danger text-danger',
+                    text: '已过期',
+                    icon: 'fa-exclamation-circle'
+                };
+            } else if (daysUntilNext <= 7) {
+                return { 
+                    class: 'bg-accent/10 border-accent text-accent',
+                    text: '即将到期',
+                    icon: 'fa-clock-o'
+                };
+            } else {
+                return { 
+                    class: 'bg-success/10 border-success text-success',
+                    text: '状态良好',
+                    icon: 'fa-check-circle'
+                };
+            }
+        }
+        
+        // 格式化日期
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
+        }
+        
+        // 格式化频率
+        function formatFrequency(days) {
+            if (days === 7) return '每周一次';
+            if (days === 14) return '每两周一次';
+            if (days === 30) return '每月一次';
+            if (days === 60) return '每两个月一次';
+            if (days === 90) return '每季度一次';
+            if (days === 180) return '每半年一次';
+            if (days === 365) return '每年一次';
+            return `${days}天一次`;
+        }
+        
+        // 渲染关系列表
+        function renderRelationshipList() {
+            const listContainer = document.getElementById('relationshipList');
+            
+            // 如果没有关系，显示提示信息
+            if (relationships.length === 0) {
+                listContainer.innerHTML = `
+                    <div class="col-span-full text-center py-12 text-gray-500">
+                        <i class="fa fa-address-book-o text-5xl mb-4 opacity-30" aria-hidden="true"></i>
+                        <p>还没有添加任何重要关系</p>
+                        <p class="mt-2">使用上方表单添加您的第一个重要关系吧</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            // 生成关系卡片
+            listContainer.innerHTML = '';
+            relationships.forEach(relationship => {
+                const daysUntilNext = daysUntilNextContact(relationship.lastContactDate, relationship.contactFrequency);
+                const nextContactDate = calculateNextContactDate(relationship.lastContactDate, relationship.contactFrequency);
+                const status = getStatusClass(daysUntilNext);
+                
+                const card = document.createElement('div');
+                card.className = 'bg-white rounded-xl shadow-md overflow-hidden hover-lift card-shadow transition-all duration-300';
+                card.innerHTML = `
+                    <div class="p-5">
+                        <div class="flex justify-between items-start mb-3">
+                            <div>
+                                <h3 class="text-lg font-bold text-gray-800">${relationship.name}</h3>
+                                <p class="text-sm text-gray-500">${relationship.relationshipType}</p>
+                            </div>
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${status.class} border">
+                                <i class="fa ${status.icon} mr-1" aria-hidden="true"></i>
+                                ${status.text}
+                            </span>
+                        </div>
+                        
+                        <div class="space-y-2 text-sm mb-4">
+                            <div class="flex justify-between">
+                                <span class="text-gray-500">联系频率:</span>
+                                <span class="font-medium">${formatFrequency(relationship.contactFrequency)}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-500">上次联系:</span>
+                                <span>${formatDate(relationship.lastContactDate)}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-500">下次联系:</span>
+                                <span class="${daysUntilNext < 0 ? 'text-danger font-medium' : daysUntilNext <= 7 ? 'text-accent font-medium' : ''}">
+                                    ${formatDate(nextContactDate)}
+                                </span>
+                            </div>
+                            ${daysUntilNext < 0 ? `
+                                <div class="flex justify-between text-danger">
+                                    <span>已逾期:</span>
+                                    <span class="font-medium">${Math.abs(daysUntilNext)}天</span>
+                                </div>
+                            ` : daysUntilNext <= 7 ? `
+                                <div class="flex justify-between text-accent">
+                                    <span>剩余天数:</span>
+                                    <span class="font-medium">${daysUntilNext}天</span>
+                                </div>
+                            ` : ''}
+                        </div>
+                        
+                        ${relationship.notes ? `
+                            <div class="bg-gray-50 p-3 rounded-lg text-sm text-gray-600 mb-4">
+                                <p class="font-medium text-gray-700 mb-1">备注:</p>
+                                <p>${relationship.notes}</p>
+                            </div>
+                        ` : ''}
+                        
+                        <div class="flex space-x-2">
+                            <button data-id="${relationship.id}" class="update-contact-btn flex-1 inline-flex justify-center items-center px-3 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-all duration-300 transform hover:scale-105 active:scale-95">
+                                <i class="fa fa-refresh mr-1" aria-hidden="true"></i>
+                                更新联系日期
+                            </button>
+                            <button data-id="${relationship.id}" class="delete-btn inline-flex justify-center items-center px-3 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-all duration-300 transform hover:scale-105 active:scale-95">
+                                <i class="fa fa-trash-o" aria-hidden="true"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+                
+                listContainer.appendChild(card);
+            });
+            
+            // 绑定卡片上的按钮事件
+            document.querySelectorAll('.update-contact-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const id = this.getAttribute('data-id');
+                    updateContactDate(id);
+                });
+            });
+            
+            document.querySelectorAll('.delete-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const id = this.getAttribute('data-id');
+                    deleteRelationship(id);
+                });
+            });
+        }
+        
+        // 更新联系日期为今天
+        function updateContactDate(id) {
+            const relationship = relationships.find(r => r.id === id);
+            if (relationship) {
+                relationship.lastContactDate = new Date().toISOString().split('T')[0];
+                saveToLocalStorage();
+                renderRelationshipList();
+                updateAlerts();
+                showToast(`已更新与 ${relationship.name} 的联系日期！`);
+            }
+        }
+        
+        // 删除关系
+        function deleteRelationship(id) {
+            const relationship = relationships.find(r => r.id === id);
+            if (relationship && confirm(`确定要删除 ${relationship.name} 吗？`)) {
+                relationships = relationships.filter(r => r.id !== id);
+                saveToLocalStorage();
+                renderRelationshipList();
+                updateAlerts();
+                showToast(`已删除 ${relationship.name} 的记录`);
+            }
+        }
+        
+        // 按到期日期排序
+        function sortRelationshipsByDueDate() {
+            relationships.sort((a, b) => {
+                const daysA = daysUntilNextContact(a.lastContactDate, a.contactFrequency);
+                const daysB = daysUntilNextContact(b.lastContactDate, b.contactFrequency);
+                return daysA - daysB;
+            });
+        }
+        
+        // 更新提醒
+        function updateAlerts() {
+            let overdueCount = 0;
+            let upcomingCount = 0;
+            
+            relationships.forEach(relationship => {
+                const daysUntilNext = daysUntilNextContact(relationship.lastContactDate, relationship.contactFrequency);
+                if (daysUntilNext < 0) {
+                    overdueCount++;
+                } else if (daysUntilNext <= 7) {
+                    upcomingCount++;
+                }
+            });
+            
+            // 更新提醒卡片
+            document.getElementById('overdueCount').textContent = overdueCount;
+            document.getElementById('upcomingCount').textContent = upcomingCount;
+            
+            if (overdueCount > 0 || upcomingCount > 0) {
+                document.getElementById('alertCard').classList.remove('hidden');
+            } else {
+                document.getElementById('alertCard').classList.add('hidden');
+            }
+        }
+        
+        // 打开统计模态框
+        function openStatsModal() {
+            // 计算统计数据
+            const totalCount = relationships.length;
+            
+            let overdueCount = 0;
+            let upcomingCount = 0;
+            let goodCount = 0;
+            
+            const typeDistribution = {};
+            
+            relationships.forEach(relationship => {
+                // 计算状态统计
+                const daysUntilNext = daysUntilNextContact(relationship.lastContactDate, relationship.contactFrequency);
+                if (daysUntilNext < 0) {
+                    overdueCount++;
+                } else if (daysUntilNext <= 7) {
+                    upcomingCount++;
+                } else {
+                    goodCount++;
+                }
+                
+                // 计算类型分布
+                if (typeDistribution[relationship.relationshipType]) {
+                    typeDistribution[relationship.relationshipType]++;
+                } else {
+                    typeDistribution[relationship.relationshipType] = 1;
+                }
+            });
+            
+            // 更新统计数据
+            document.getElementById('totalCount').textContent = totalCount;
+            document.getElementById('statsOverdueCount').textContent = overdueCount;
+            document.getElementById('statsUpcomingCount').textContent = upcomingCount;
+            document.getElementById('statsGoodCount').textContent = goodCount;
+            
+            // 更新类型分布
+            const distributionContainer = document.getElementById('relationshipTypeDistribution');
+            distributionContainer.innerHTML = '';
+            
+            Object.keys(typeDistribution).forEach(type => {
+                const percentage = Math.round((typeDistribution[type] / totalCount) * 100);
+                
+                const typeElement = document.createElement('div');
+                typeElement.className = 'flex flex-col';
+                
+                typeElement.innerHTML = `
+                    <div class="flex justify-between mb-1">
+                        <span class="text-sm">${type}</span>
+                        <span class="text-sm font-medium">${typeDistribution[type]} (${percentage}%)</span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-2">
+                        <div class="bg-primary h-2 rounded-full" style="width: ${percentage}%"></div>
+                    </div>
+                `;
+                
+                distributionContainer.appendChild(typeElement);
+            });
+            
+            // 显示模态框并添加动画
+            const modal = document.getElementById('statsModal');
+            const modalContent = document.getElementById('statsModalContent');
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modalContent.classList.remove('scale-95', 'opacity-0');
+                modalContent.classList.add('scale-100', 'opacity-100');
+            }, 10);
+        }
+        
+        // 关闭统计模态框
+        function closeStatsModal() {
+            const modal = document.getElementById('statsModal');
+            const modalContent = document.getElementById('statsModalContent');
+            
+            // 添加关闭动画
+            modalContent.classList.remove('scale-100', 'opacity-100');
+            modalContent.classList.add('scale-95', 'opacity-0');
+            
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300);
+        }
+        
+        // 打开帮助模态框
+        function openHelpModal() {
+            const modal = document.getElementById('helpModal');
+            const modalContent = document.getElementById('helpModalContent');
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modalContent.classList.remove('scale-95', 'opacity-0');
+                modalContent.classList.add('scale-100', 'opacity-100');
+            }, 10);
+        }
+        
+        // 关闭帮助模态框
+        function closeHelpModal() {
+            const modal = document.getElementById('helpModal');
+            const modalContent = document.getElementById('helpModalContent');
+            
+            modalContent.classList.remove('scale-100', 'opacity-100');
+            modalContent.classList.add('scale-95', 'opacity-0');
+            
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300);
+        }
+        
+        // 显示提示消息
+        function showToast(message) {
+            // 检查是否已有toast，如有则移除
+            const existingToast = document.querySelector('.toast-notification');
+            if (existingToast) {
+                existingToast.remove();
+            }
+            
+            // 创建新toast
+            const toast = document.createElement('div');
+            toast.className = 'toast-notification fixed bottom-4 right-4 bg-gray-800 text-white px-4 py-2 rounded-lg shadow-lg transform transition-all duration-300 translate-y-10 opacity-0';
+            toast.textContent = message;
+            
+            document.body.appendChild(toast);
+            
+            // 显示toast
+            setTimeout(() => {
+                toast.classList.remove('translate-y-10', 'opacity-0');
+            }, 10);
+            
+            // 3秒后隐藏toast
+            setTimeout(() => {
+                toast.classList.add('translate-y-10', 'opacity-0');
+                setTimeout(() => {
+                    toast.remove();
+                }, 300);
+            }, 3000);
+        }
+        
+        // 保存到本地存储
+        function saveToLocalStorage() {
+            localStorage.setItem('relationships', JSON.stringify(relationships));
+        }
+        
+        // 从本地存储加载
+        function loadFromLocalStorage() {
+            const saved = localStorage.getItem('relationships');
+            if (saved) {
+                relationships = JSON.parse(saved);
+            }
+        }
+    </script>
+</body>
+</html>

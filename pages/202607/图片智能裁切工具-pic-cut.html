@@ -1,0 +1,1561 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图片智能裁切工具</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+:root {
+    --primary-color: #4f46e5;
+    --primary-hover: #4338ca;
+    --secondary-color: #6b7280;
+    --text-color: #1f2937;
+    --bg-color: #f9fafb;
+    --card-bg: #ffffff;
+    --border-color: #e5e7eb;
+    --success-color: #10b981;
+    --error-color: #ef4444;
+    --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    --radius: 8px;
+    --transition: all 0.3s ease;
+}
+
+.dark-mode {
+    --primary-color: #6366f1;
+    --primary-hover: #818cf8;
+    --secondary-color: #9ca3af;
+    --text-color: #f9fafb;
+    --bg-color: #111827;
+    --card-bg: #1f2937;
+    --border-color: #374151;
+    --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    line-height: 1.6;
+    transition: var(--transition);
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.header {
+    text-align: center;
+    margin-bottom: 30px;
+    position: relative;
+}
+
+.header h1 {
+    font-size: 2.2rem;
+    margin-bottom: 10px;
+    color: var(--primary-color);
+}
+
+.header p {
+    font-size: 1.1rem;
+    color: var(--secondary-color);
+}
+
+.theme-toggle {
+    position: absolute;
+    top: 0;
+    right: 0;
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    color: var(--secondary-color);
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.theme-toggle:hover {
+    color: var(--primary-color);
+}
+
+.main-content {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+/* 上传区域 */
+.upload-section {
+    background-color: var(--card-bg);
+    border-radius: var(--radius);
+    padding: 20px;
+    box-shadow: var(--shadow);
+}
+
+.upload-area {
+    border: 2px dashed var(--border-color);
+    border-radius: var(--radius);
+    padding: 40px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.upload-area:hover {
+    border-color: var(--primary-color);
+}
+
+.upload-area.dragover {
+    border-color: var(--primary-color);
+    background-color: rgba(79, 70, 229, 0.05);
+}
+
+.upload-icon {
+    font-size: 3rem;
+    color: var(--primary-color);
+    margin-bottom: 15px;
+}
+
+.upload-text {
+    font-size: 1.2rem;
+    margin-bottom: 10px;
+    font-weight: 500;
+}
+
+.upload-hint {
+    color: var(--secondary-color);
+    font-size: 0.9rem;
+}
+
+input[type="file"] {
+    display: none;
+}
+
+.batch-upload-info {
+    margin-top: 15px;
+    padding: 10px;
+    background-color: rgba(79, 70, 229, 0.1);
+    border-radius: var(--radius);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--primary-color);
+}
+
+/* 工作区域布局 */
+.controls {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.workspace-layout {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+/**
+ * 控制面板 - 固定宽度以保持布局稳定
+ */
+.control-panel {
+    flex: 1;
+    min-width: 300px;
+    max-width: 350px; /* 限制最大宽度 */
+    width: 350px; /* 固定宽度，避免因内容变化导致的宽度调整 */
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.control-group {
+    background-color: var(--card-bg);
+    border-radius: var(--radius);
+    padding: 20px;
+    box-shadow: var(--shadow);
+}
+
+.control-group h3 {
+    margin-bottom: 15px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--primary-color);
+}
+
+/**
+ * 预览面板 - 固定宽度和高度以保持布局稳定
+ */
+.preview-panel {
+    flex: 2;
+    min-width: 400px;
+    max-width: 850px; /* 限制最大宽度，保持布局稳定 */
+    width: 850px; /* 固定宽度，避免因内容变化导致的宽度调整 */
+    display: flex;
+    flex-direction: column;
+}
+
+/**
+ * 预览区域 - 固定高度以保持内容稳定
+ */
+.preview-section {
+    background-color: var(--card-bg);
+    border-radius: var(--radius);
+    padding: 20px;
+    box-shadow: var(--shadow);
+    height: 800px; /* 固定高度，避免因标签切换导致的高度变化 */
+    min-height: 800px;
+    display: flex;
+    flex-direction: column;
+}
+
+.preview-section h3 {
+    margin-bottom: 15px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--primary-color);
+}
+
+/**
+ * 图片容器 - 固定高度以保持预览位置稳定
+ */
+.image-container {
+    flex: 1;
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+    height: 700px; /* 固定高度，避免因标签切换导致的高度变化 */
+    min-height: 700px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+}
+
+.original-image {
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    transition: var(--transition);
+}
+
+.crop-overlay {
+    position: absolute;
+    pointer-events: none;
+    z-index: 10;
+}
+
+/* 裁切线和区域 */
+.crop-line {
+    position: absolute;
+    background-color: rgba(79, 70, 229, 0.7);
+    z-index: 10;
+}
+
+.crop-line.vertical {
+    width: 2px;
+    height: 100%;
+    top: 0;
+}
+
+.crop-line.horizontal {
+    height: 2px;
+    width: 100%;
+    left: 0;
+}
+
+.crop-area {
+    position: absolute;
+    border: 1px dashed rgba(79, 70, 229, 0.3);
+    z-index: 5;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.crop-area-label {
+    background-color: rgba(79, 70, 229, 0.7);
+    color: white;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    opacity: 0.8;
+}
+
+/* 裁切选项 */
+.tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 15px;
+}
+
+.tab {
+    padding: 8px 15px;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: var(--transition);
+}
+
+.tab.active {
+    border-bottom-color: var(--primary-color);
+    color: var(--primary-color);
+    font-weight: 500;
+}
+
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+.crop-options {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 15px;
+}
+
+.crop-option {
+    border: 2px solid var(--border-color);
+    border-radius: var(--radius);
+    padding: 10px;
+    cursor: pointer;
+    transition: var(--transition);
+    text-align: center;
+}
+
+.crop-option:hover {
+    border-color: var(--primary-hover);
+}
+
+.crop-option.active {
+    border-color: var(--primary-color);
+    background-color: rgba(79, 70, 229, 0.1);
+}
+
+.crop-grid {
+    position: relative;
+    width: 60px;
+    height: 60px;
+    margin: 0 auto 5px;
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+.grid-line {
+    position: absolute;
+    background-color: var(--primary-color);
+}
+
+.grid-line.vertical {
+    width: 1px;
+    height: 100%;
+    top: 0;
+}
+
+.grid-line.horizontal {
+    height: 1px;
+    width: 100%;
+    left: 0;
+}
+
+.crop-label {
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+/* 自定义裁切 */
+.custom-crop-controls {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+.custom-crop-input {
+    flex: 1;
+}
+
+.custom-crop-input label {
+    display: block;
+    margin-bottom: 5px;
+    font-size: 0.9rem;
+}
+
+.custom-crop-input input {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    background-color: var(--card-bg);
+    color: var(--text-color);
+    transition: var(--transition);
+}
+
+.custom-crop-input input:focus {
+    border-color: var(--primary-color);
+    outline: none;
+}
+
+/* 图片编辑控件 */
+.rotate-buttons {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+.rotate-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: none;
+    background-color: var(--primary-color);
+    color: white;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.rotate-btn:hover {
+    background-color: var(--primary-hover);
+}
+
+.image-editor-controls {
+    margin-bottom: 15px;
+}
+
+.slider-container {
+    margin-bottom: 10px;
+}
+
+.slider-label {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 5px;
+    font-size: 0.9rem;
+}
+
+.slider {
+    width: 100%;
+    height: 5px;
+    border-radius: 5px;
+    background: var(--border-color);
+    outline: none;
+    -webkit-appearance: none;
+}
+
+.slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    background: var(--primary-color);
+    cursor: pointer;
+}
+
+.zoom-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+
+.zoom-btn {
+    background: none;
+    border: 1px solid var(--border-color);
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.zoom-btn:hover {
+    background-color: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+.zoom-level {
+    font-size: 0.9rem;
+    min-width: 50px;
+    text-align: center;
+}
+
+/* 导出选项 */
+.export-options {
+    margin-bottom: 15px;
+}
+
+.export-option {
+    margin-bottom: 10px;
+}
+
+.export-option label {
+    display: block;
+    margin-bottom: 5px;
+    font-size: 0.9rem;
+}
+
+.export-option select {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    background-color: var(--card-bg);
+    color: var(--text-color);
+    transition: var(--transition);
+}
+
+.export-option select:focus {
+    border-color: var(--primary-color);
+    outline: none;
+}
+
+/* 按钮 */
+.action-buttons {
+    display: flex;
+    gap: 10px;
+}
+
+.btn {
+    padding: 10px 15px;
+    border: none;
+    border-radius: var(--radius);
+    font-weight: 500;
+    cursor: pointer;
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    justify-content: center;
+}
+
+.btn-crop {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+.btn-crop:hover {
+    background-color: var(--primary-hover);
+}
+
+.btn-reset {
+    background-color: var(--secondary-color);
+    color: white;
+}
+
+.btn-reset:hover {
+    background-color: #4b5563;
+}
+
+.btn-download-all {
+    background-color: var(--success-color);
+    color: white;
+    width: 100%;
+}
+
+.btn-download-all:hover {
+    background-color: #059669;
+}
+
+/* 裁切结果区域 */
+.cropped-results {
+    background-color: var(--card-bg);
+    border-radius: var(--radius);
+    padding: 20px;
+    box-shadow: var(--shadow);
+    margin-top: 20px;
+}
+
+.cropped-results h3 {
+    margin-bottom: 15px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--primary-color);
+}
+
+.cropped-images {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 15px;
+}
+
+.cropped-image-container {
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    overflow: hidden;
+    position: relative;
+}
+
+.cropped-image {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+
+.download-btn {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: var(--transition);
+    opacity: 0.8;
+}
+
+.download-btn:hover {
+    opacity: 1;
+    background-color: var(--primary-hover);
+}
+
+/* 加载状态 */
+.loading {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.7);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    color: white;
+}
+
+.spinner {
+    width: 50px;
+    height: 50px;
+    border: 5px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: white;
+    animation: spin 1s linear infinite;
+    margin-bottom: 15px;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* 辅助类 */
+.hidden {
+    display: none !important;
+}
+
+/* 响应式设计 */
+@media (max-width: 992px) {
+    .workspace-layout {
+        flex-direction: column;
+    }
+    
+    .preview-panel {
+        min-width: 100%;
+    }
+    
+    .control-panel {
+        min-width: 100%;
+    }
+    
+    .crop-options {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+@media (max-width: 576px) {
+    .container {
+        padding: 10px;
+    }
+    
+    .header h1 {
+        font-size: 1.8rem;
+    }
+    
+    .crop-options {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .action-buttons {
+        flex-direction: column;
+    }
+    
+    .cropped-images {
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    }
+}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <button class="theme-toggle" onclick="toggleTheme()">
+                <i class="fas fa-moon"></i>
+            </button>
+            <h1><i class="fas fa-cut"></i> 图片智能裁切工具</h1>
+            <p>支持批量上传，智能裁切，一键下载</p>
+        </div>
+
+        <div class="main-content">
+            <!-- 上传区域 -->
+            <div class="upload-section">
+                <div class="upload-area" onclick="document.getElementById('fileInput').click()">
+                    <div class="upload-icon">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                    </div>
+                    <div class="upload-text">点击或拖拽上传图片</div>
+                    <div class="upload-hint">支持 JPG、PNG、GIF 格式，可批量上传</div>
+                </div>
+                <input type="file" id="fileInput" accept="image/*" multiple>
+                <div class="batch-upload-info hidden">
+                    <i class="fas fa-info-circle"></i>
+                    <span>已选择 <span id="fileCount">0</span> 个文件</span>
+                </div>
+            </div>
+
+            <!-- 工作区域 -->
+            <div class="controls hidden">
+                <div class="workspace-layout">
+                    <!-- 控制面板 -->
+                    <div class="control-panel">
+                        <!-- 裁切设置 -->
+                        <div class="control-group">
+                            <h3><i class="fas fa-crop"></i> 裁切设置</h3>
+                            <div class="tabs">
+                                <div class="tab active" data-tab="preset">预设</div>
+                                <div class="tab" data-tab="custom">自定义</div>
+                            </div>
+                            
+                            <!-- 预设裁切选项 -->
+                            <div class="tab-content active" id="preset-tab">
+                                <div class="crop-options">
+                                    <div class="crop-option active" data-crop="1x2">
+                                        <div class="crop-grid">
+                                            <div class="grid-line horizontal" style="top: 50%;"></div>
+                                        </div>
+                                        <div class="crop-label">1×2</div>
+                                    </div>
+                                    <div class="crop-option" data-crop="2x1">
+                                        <div class="crop-grid">
+                                            <div class="grid-line vertical" style="left: 50%;"></div>
+                                        </div>
+                                        <div class="crop-label">2×1</div>
+                                    </div>
+                                    <div class="crop-option" data-crop="2x2">
+                                        <div class="crop-grid">
+                                            <div class="grid-line vertical" style="left: 50%;"></div>
+                                            <div class="grid-line horizontal" style="top: 50%;"></div>
+                                        </div>
+                                        <div class="crop-label">2×2</div>
+                                    </div>
+                                    <div class="crop-option" data-crop="2x3">
+                                        <div class="crop-grid">
+                                            <div class="grid-line vertical" style="left: 50%;"></div>
+                                            <div class="grid-line horizontal" style="top: 33.33%;"></div>
+                                            <div class="grid-line horizontal" style="top: 66.66%;"></div>
+                                        </div>
+                                        <div class="crop-label">2×3</div>
+                                    </div>
+                                    <div class="crop-option" data-crop="3x2">
+                                        <div class="crop-grid">
+                                            <div class="grid-line vertical" style="left: 33.33%;"></div>
+                                            <div class="grid-line vertical" style="left: 66.66%;"></div>
+                                            <div class="grid-line horizontal" style="top: 50%;"></div>
+                                        </div>
+                                        <div class="crop-label">3×2</div>
+                                    </div>
+                                    <div class="crop-option" data-crop="3x3">
+                                        <div class="crop-grid">
+                                            <div class="grid-line vertical" style="left: 33.33%;"></div>
+                                            <div class="grid-line vertical" style="left: 66.66%;"></div>
+                                            <div class="grid-line horizontal" style="top: 33.33%;"></div>
+                                            <div class="grid-line horizontal" style="top: 66.66%;"></div>
+                                        </div>
+                                        <div class="crop-label">3×3</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 自定义裁切选项 -->
+                            <div class="tab-content" id="custom-tab">
+                                <div class="custom-crop-controls">
+                                    <div class="custom-crop-input">
+                                        <label for="customRows">行数</label>
+                                        <input type="number" id="customRows" min="1" max="10" value="2">
+                                    </div>
+                                    <div class="custom-crop-input">
+                                        <label for="customCols">列数</label>
+                                        <input type="number" id="customCols" min="1" max="10" value="2">
+                                    </div>
+                                </div>
+                                <button class="btn btn-crop" onclick="applyCustomCrop()">
+                                    <i class="fas fa-check"></i> 应用
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 图片编辑 -->
+                        <div class="control-group">
+                            <h3><i class="fas fa-edit"></i> 图片编辑</h3>
+                            <div class="tabs">
+                                <div class="tab active" data-tab="basic">基本编辑</div>
+                                <div class="tab" data-tab="export">导出选项</div>
+                            </div>
+
+                            <!-- 基本编辑 -->
+                            <div class="tab-content active" id="basic-tab">
+                                <div class="rotate-buttons">
+                                    <button class="rotate-btn" onclick="rotateImage(-90)" title="逆时针旋转90°">
+                                        <i class="fas fa-undo"></i>
+                                    </button>
+                                    <button class="rotate-btn" onclick="rotateImage(90)" title="顺时针旋转90°">
+                                        <i class="fas fa-redo"></i>
+                                    </button>
+                                </div>
+
+                                <div class="image-editor-controls">
+                                    <div class="slider-container">
+                                        <div class="slider-label">
+                                            <span>亮度</span>
+                                            <span id="brightnessValue">100%</span>
+                                        </div>
+                                        <input type="range" class="slider" id="brightness" min="0" max="200" value="100">
+                                    </div>
+                                    
+                                    <div class="slider-container">
+                                        <div class="slider-label">
+                                            <span>对比度</span>
+                                            <span id="contrastValue">100%</span>
+                                        </div>
+                                        <input type="range" class="slider" id="contrast" min="0" max="200" value="100">
+                                    </div>
+                                </div>
+
+                                <div class="zoom-controls">
+                                    <button class="zoom-btn" onclick="zoomImage(-0.1)">
+                                        <i class="fas fa-minus"></i>
+                                    </button>
+                                    <span class="zoom-level" id="zoomLevel">100%</span>
+                                    <button class="zoom-btn" onclick="zoomImage(0.1)">
+                                        <i class="fas fa-plus"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- 导出选项 -->
+                            <div class="tab-content" id="export-tab">
+                                <div class="export-options">
+                                    <div class="export-option">
+                                        <label for="exportFormat">导出格式</label>
+                                        <select id="exportFormat">
+                                            <option value="png">PNG</option>
+                                            <option value="jpeg">JPEG</option>
+                                            <option value="webp">WebP</option>
+                                        </select>
+                                    </div>
+                                    <div class="export-option">
+                                        <label for="exportQuality">图片质量</label>
+                                        <select id="exportQuality">
+                                            <option value="0.9">高质量 (90%)</option>
+                                            <option value="0.8" selected>标准质量 (80%)</option>
+                                            <option value="0.6">压缩质量 (60%)</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 操作按钮 -->
+                        <div class="control-group">
+                            <div class="action-buttons">
+                                <button class="btn btn-crop" onclick="cropImages()">
+                                    <i class="fas fa-cut"></i> 裁切
+                                </button>
+                                <button class="btn btn-reset" onclick="resetAll()">
+                                    <i class="fas fa-refresh"></i> 重置
+                                </button>
+                            </div>
+                            <button class="btn btn-download-all hidden" id="downloadAllBtn" onclick="downloadAll()">
+                                <i class="fas fa-download"></i> 打包下载
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 预览面板 -->
+                    <div class="preview-panel">
+                        <div class="preview-section">
+                            <h3><i class="fas fa-eye"></i> 预览</h3>
+                            <div class="image-container">
+                                <img id="originalImage" class="original-image" style="display: none;">
+                                <div class="crop-overlay" id="cropOverlay"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 裁切结果 -->
+            <div class="cropped-results hidden" id="croppedResults">
+                <h3><i class="fas fa-images"></i> 裁切结果</h3>
+                <div class="cropped-images" id="croppedImages"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 加载状态 -->
+    <div class="loading hidden" id="loading">
+        <div class="spinner"></div>
+        <div>处理中...</div>
+    </div>
+
+    <script>
+// 全局变量
+let currentFiles = [];
+let currentCropMode = '1x1';
+let currentRotation = 0;
+let currentZoom = 1;
+let currentBrightness = 100;
+let currentContrast = 100;
+let croppedImages = [];
+
+// 初始化事件监听器
+document.addEventListener('DOMContentLoaded', function() {
+    initializeEventListeners();
+});
+
+/**
+ * 初始化所有事件监听器
+ */
+function initializeEventListeners() {
+    const fileInput = document.getElementById('fileInput');
+    const uploadArea = document.querySelector('.upload-area');
+    
+    // 文件输入事件
+    fileInput.addEventListener('change', handleFileSelect);
+    
+    // 拖拽事件
+    uploadArea.addEventListener('dragover', handleDragOver);
+    uploadArea.addEventListener('dragleave', handleDragLeave);
+    uploadArea.addEventListener('drop', handleDrop);
+    
+    // 裁切选项点击事件
+    document.querySelectorAll('.crop-option').forEach(option => {
+        option.addEventListener('click', function() {
+            selectCropOption(this);
+        });
+    });
+    
+    // 标签页切换事件
+    document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', function() {
+            handleTabClick(this);
+        });
+    });
+    
+    // 滑块事件
+    const brightnessSlider = document.getElementById('brightness');
+    const contrastSlider = document.getElementById('contrast');
+    
+    brightnessSlider.addEventListener('input', function() {
+        currentBrightness = this.value;
+        document.getElementById('brightnessValue').textContent = this.value + '%';
+        applyImageFilters();
+    });
+    
+    contrastSlider.addEventListener('input', function() {
+        currentContrast = this.value;
+        document.getElementById('contrastValue').textContent = this.value + '%';
+        applyImageFilters();
+    });
+}
+
+/**
+ * 处理拖拽悬停事件
+ */
+function handleDragOver(e) {
+    e.preventDefault();
+    e.currentTarget.classList.add('dragover');
+}
+
+/**
+ * 处理拖拽离开事件
+ */
+function handleDragLeave(e) {
+    e.preventDefault();
+    e.currentTarget.classList.remove('dragover');
+}
+
+/**
+ * 处理拖拽放置事件
+ */
+function handleDrop(e) {
+    e.preventDefault();
+    e.currentTarget.classList.remove('dragover');
+    
+    const files = Array.from(e.dataTransfer.files).filter(file => 
+        file.type.startsWith('image/')
+    );
+    
+    if (files.length > 0) {
+        handleFiles(files);
+    }
+}
+
+/**
+ * 处理文件选择事件
+ */
+function handleFileSelect(e) {
+    const files = Array.from(e.target.files);
+    handleFiles(files);
+}
+
+/**
+ * 处理文件上传
+ */
+function handleFiles(files) {
+    currentFiles = files;
+    
+    // 显示文件数量
+    const fileCount = document.getElementById('fileCount');
+    const batchInfo = document.querySelector('.batch-upload-info');
+    
+    fileCount.textContent = files.length;
+    batchInfo.classList.remove('hidden');
+    
+    // 显示控制区域
+    document.querySelector('.controls').classList.remove('hidden');
+    
+    // 显示第一张图片的预览
+    if (files.length > 0) {
+        displayImagePreview(files[0]);
+    }
+}
+
+/**
+ * 显示图片预览
+ */
+function displayImagePreview(file) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const img = document.getElementById('originalImage');
+        img.src = e.target.result;
+        img.style.display = 'block';
+        
+        // 等待图片加载完成后更新裁切预览
+        img.onload = function() {
+            // 强制重绘以确保图片尺寸正确
+            img.style.display = 'none';
+            img.offsetHeight; // 触发重绘
+            img.style.display = 'block';
+            
+            // 延迟更新裁切预览，确保图片完全渲染
+            setTimeout(() => {
+                updateCropPreview();
+            }, 100);
+        };
+    };
+    reader.readAsDataURL(file);
+}
+
+/**
+ * 选择裁切选项
+ */
+function selectCropOption(option) {
+    // 移除其他选项的激活状态
+    document.querySelectorAll('.crop-option').forEach(opt => {
+        opt.classList.remove('active');
+    });
+    
+    // 激活当前选项
+    option.classList.add('active');
+    currentCropMode = option.dataset.crop;
+    
+    // 更新预览
+    updateCropPreview();
+}
+
+/**
+ * 更新裁切预览
+ */
+function updateCropPreview() {
+    const overlay = document.getElementById('cropOverlay');
+    const originalImage = document.getElementById('originalImage');
+    const imageContainer = document.getElementById('originalImage').parentElement;
+    
+    if (!originalImage.src || !originalImage.complete) {
+        // 确保图片已完全加载
+        originalImage.onload = updateCropPreview;
+        return;
+    }
+    
+    overlay.innerHTML = '';
+    
+    // 解析当前裁切模式
+    const [cols, rows] = currentCropMode.split('x').map(Number);
+    
+    // 获取图片实际显示尺寸和位置
+    const imageRect = originalImage.getBoundingClientRect();
+    const containerRect = imageContainer.getBoundingClientRect();
+    
+    // 计算图片在容器中的相对位置
+    const imageLeft = imageRect.left - containerRect.left;
+    const imageTop = imageRect.top - containerRect.top;
+    const displayWidth = imageRect.width;
+    const displayHeight = imageRect.height;
+    
+    // 设置overlay的位置和尺寸与图片完全匹配，确保完全对齐
+    overlay.style.left = imageLeft + 'px';
+    overlay.style.top = imageTop + 'px';
+    overlay.style.width = displayWidth + 'px';
+    overlay.style.height = displayHeight + 'px';
+    
+    // 计算裁切区域尺寸
+    const pieceWidth = displayWidth / cols;
+    const pieceHeight = displayHeight / rows;
+    
+    // 绘制垂直线
+    for (let col = 1; col < cols; col++) {
+        const line = document.createElement('div');
+        line.className = 'crop-line vertical';
+        line.style.left = (col * pieceWidth) + 'px';
+        overlay.appendChild(line);
+    }
+    
+    // 绘制水平线
+    for (let row = 1; row < rows; row++) {
+        const line = document.createElement('div');
+        line.className = 'crop-line horizontal';
+        line.style.top = (row * pieceHeight) + 'px';
+        overlay.appendChild(line);
+    }
+    
+    // 绘制裁切区域
+    for (let row = 0; row < rows; row++) {
+        for (let col = 0; col < cols; col++) {
+            const area = document.createElement('div');
+            area.className = 'crop-area';
+            area.style.left = (col * pieceWidth) + 'px';
+            area.style.top = (row * pieceHeight) + 'px';
+            area.style.width = pieceWidth + 'px';
+            area.style.height = pieceHeight + 'px';
+            
+            const label = document.createElement('div');
+            label.className = 'crop-area-label';
+            label.textContent = `${row + 1}-${col + 1}`;
+            area.appendChild(label);
+            
+            overlay.appendChild(area);
+        }
+    }
+    
+    // 强制重绘，确保位置更新生效
+    overlay.offsetHeight;
+}
+
+/**
+ * 处理标签页切换
+ */
+function handleTabClick(tab) {
+    const tabGroup = tab.parentElement;
+    const tabContent = tabGroup.nextElementSibling;
+    
+    // 移除所有标签的激活状态
+    tabGroup.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    
+    // 激活当前标签
+    tab.classList.add('active');
+    
+    // 显示对应的内容
+    const targetTab = tab.dataset.tab;
+    const allTabContents = tabContent.parentElement.querySelectorAll('.tab-content');
+    
+    allTabContents.forEach(content => {
+        content.classList.remove('active');
+    });
+    
+    const targetContent = document.getElementById(targetTab + '-tab');
+    if (targetContent) {
+        targetContent.classList.add('active');
+    }
+    
+    // 延迟更新裁切预览，确保标签切换动画完成
+    setTimeout(() => {
+        updateCropPreview();
+    }, 100);
+}
+
+/**
+ * 应用自定义裁切
+ */
+function applyCustomCrop() {
+    const rows = document.getElementById('customRows').value;
+    const cols = document.getElementById('customCols').value;
+    
+    currentCropMode = `${cols}x${rows}`;
+    updateCropPreview();
+}
+
+/**
+ * 旋转图片
+ */
+function rotateImage(degrees) {
+    currentRotation += degrees;
+    const img = document.getElementById('originalImage');
+    img.style.transform = `rotate(${currentRotation}deg) scale(${currentZoom})`;
+    
+    // 延迟更新裁切预览
+    setTimeout(() => {
+        updateCropPreview();
+    }, 300);
+}
+
+/**
+ * 缩放图片
+ */
+function zoomImage(delta) {
+    currentZoom = Math.max(0.1, Math.min(3, currentZoom + delta));
+    const img = document.getElementById('originalImage');
+    img.style.transform = `rotate(${currentRotation}deg) scale(${currentZoom})`;
+    
+    document.getElementById('zoomLevel').textContent = Math.round(currentZoom * 100) + '%';
+    
+    // 延迟更新裁切预览
+    setTimeout(() => {
+        updateCropPreview();
+    }, 100);
+}
+
+/**
+ * 应用图片滤镜
+ */
+function applyImageFilters() {
+    const img = document.getElementById('originalImage');
+    img.style.filter = `brightness(${currentBrightness}%) contrast(${currentContrast}%)`;
+}
+
+/**
+ * 裁切图片
+ */
+async function cropImages() {
+    if (currentFiles.length === 0) {
+        alert('请先上传图片');
+        return;
+    }
+    
+    showLoading(true);
+    croppedImages = [];
+    
+    try {
+        const [cols, rows] = currentCropMode.split('x').map(Number);
+        
+        for (let fileIndex = 0; fileIndex < currentFiles.length; fileIndex++) {
+            const file = currentFiles[fileIndex];
+            const croppedParts = await cropSingleImage(file, cols, rows);
+            croppedImages.push(...croppedParts);
+        }
+        
+        displayCroppedResults();
+        
+    } catch (error) {
+        console.error('裁切过程中出现错误:', error);
+        alert('裁切失败，请重试');
+    } finally {
+        showLoading(false);
+    }
+}
+
+/**
+ * 裁切单张图片
+ */
+function cropSingleImage(file, cols, rows) {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = function() {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            // 应用旋转和滤镜
+            const rotatedCanvas = document.createElement('canvas');
+            const rotatedCtx = rotatedCanvas.getContext('2d');
+            
+            // 计算缩放后的实际尺寸
+            const scaledWidth = img.width * currentZoom;
+            const scaledHeight = img.height * currentZoom;
+            
+            if (currentRotation % 180 === 0) {
+                rotatedCanvas.width = Math.ceil(scaledWidth);
+                rotatedCanvas.height = Math.ceil(scaledHeight);
+            } else {
+                rotatedCanvas.width = Math.ceil(scaledHeight);
+                rotatedCanvas.height = Math.ceil(scaledWidth);
+            }
+            
+            // 清除canvas背景为白色
+            rotatedCtx.fillStyle = '#FFFFFF';
+            rotatedCtx.fillRect(0, 0, rotatedCanvas.width, rotatedCanvas.height);
+            
+            rotatedCtx.translate(rotatedCanvas.width / 2, rotatedCanvas.height / 2);
+            rotatedCtx.rotate((currentRotation * Math.PI) / 180);
+            
+            // 应用滤镜
+            rotatedCtx.filter = `brightness(${currentBrightness}%) contrast(${currentContrast}%)`;
+            
+            // 绘制缩放后的图片
+            rotatedCtx.drawImage(
+                img, 
+                -scaledWidth / 2, -scaledHeight / 2, 
+                scaledWidth, scaledHeight
+            );
+            
+            // 计算裁切尺寸
+            const cellWidth = Math.floor(rotatedCanvas.width / cols);
+            const cellHeight = Math.floor(rotatedCanvas.height / rows);
+            
+            const croppedParts = [];
+            
+            for (let row = 0; row < rows; row++) {
+                for (let col = 0; col < cols; col++) {
+                    canvas.width = cellWidth;
+                    canvas.height = cellHeight;
+                    
+                    // 清除canvas背景为白色，避免透明部分
+                    ctx.fillStyle = '#FFFFFF';
+                    ctx.fillRect(0, 0, cellWidth, cellHeight);
+                    
+                    const sourceX = col * cellWidth;
+                    const sourceY = row * cellHeight;
+                    
+                    ctx.drawImage(
+                        rotatedCanvas,
+                        sourceX, sourceY, cellWidth, cellHeight,
+                        0, 0, cellWidth, cellHeight
+                    );
+                    
+                    const format = document.getElementById('exportFormat').value;
+                    const quality = parseFloat(document.getElementById('exportQuality').value);
+                    
+                    const dataUrl = canvas.toDataURL(`image/${format}`, quality);
+                    
+                    croppedParts.push({
+                        dataUrl: dataUrl,
+                        filename: `${file.name.split('.')[0]}_${row + 1}-${col + 1}.${format}`,
+                        originalFile: file.name
+                    });
+                }
+            }
+            
+            resolve(croppedParts);
+        };
+        
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+    });
+}
+
+/**
+ * 显示裁切结果
+ */
+function displayCroppedResults() {
+    const resultsContainer = document.getElementById('croppedResults');
+    const imagesContainer = document.getElementById('croppedImages');
+    const downloadAllBtn = document.getElementById('downloadAllBtn');
+    
+    // 清空现有结果
+    imagesContainer.innerHTML = '';
+    
+    // 显示裁切结果
+    croppedImages.forEach((imageData, index) => {
+        const container = document.createElement('div');
+        container.className = 'cropped-image-container';
+        
+        const img = document.createElement('img');
+        img.className = 'cropped-image';
+        img.src = imageData.dataUrl;
+        img.alt = imageData.filename;
+        
+        const downloadBtn = document.createElement('button');
+        downloadBtn.className = 'download-btn';
+        downloadBtn.innerHTML = '<i class="fas fa-download"></i>';
+        downloadBtn.onclick = () => downloadSingleImage(imageData);
+        
+        container.appendChild(img);
+        container.appendChild(downloadBtn);
+        imagesContainer.appendChild(container);
+    });
+    
+    // 显示结果区域和下载按钮
+    resultsContainer.classList.remove('hidden');
+    downloadAllBtn.classList.remove('hidden');
+}
+
+/**
+ * 下载单张图片
+ */
+function downloadSingleImage(imageData) {
+    const link = document.createElement('a');
+    link.download = imageData.filename;
+    link.href = imageData.dataUrl;
+    link.click();
+}
+
+/**
+ * 打包下载所有图片
+ */
+async function downloadAll() {
+    if (croppedImages.length === 0) {
+        alert('没有可下载的图片');
+        return;
+    }
+    
+    showLoading(true);
+    
+    try {
+        const zip = new JSZip();
+        
+        // 将所有裁切图片添加到ZIP
+        croppedImages.forEach((imageData) => {
+            const base64Data = imageData.dataUrl.split(',')[1];
+            zip.file(imageData.filename, base64Data, { base64: true });
+        });
+        
+        // 生成ZIP文件
+        const content = await zip.generateAsync({ type: 'blob' });
+        
+        // 创建下载链接
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(content);
+        link.download = `cropped_images_${new Date().getTime()}.zip`;
+        link.click();
+        
+        // 清理URL对象
+        URL.revokeObjectURL(link.href);
+        
+    } catch (error) {
+        console.error('打包下载失败:', error);
+        alert('打包下载失败，请重试');
+    } finally {
+        showLoading(false);
+    }
+}
+
+/**
+ * 显示/隐藏加载状态
+ */
+function showLoading(show) {
+    const loading = document.getElementById('loading');
+    if (show) {
+        loading.classList.remove('hidden');
+    } else {
+        loading.classList.add('hidden');
+    }
+}
+
+/**
+ * 重置所有功能
+ */
+function resetAll() {
+    // 重置变量
+    currentFiles = [];
+    currentCropMode = '1x1';
+    currentRotation = 0;
+    currentZoom = 1;
+    currentBrightness = 100;
+    currentContrast = 100;
+    croppedImages = [];
+    
+    // 重置图片编辑状态
+    const img = document.getElementById('originalImage');
+    img.style.transform = 'none';
+    img.style.filter = 'none';
+    img.src = '';
+    img.style.display = 'none';
+    
+    // 重置HTML元素
+    document.getElementById('fileInput').value = '';
+    document.getElementById('brightness').value = 100;
+    document.getElementById('contrast').value = 100;
+    document.getElementById('brightnessValue').textContent = '100%';
+    document.getElementById('contrastValue').textContent = '100%';
+    document.getElementById('zoomLevel').textContent = '100%';
+    document.getElementById('customRows').value = 2;
+    document.getElementById('customCols').value = 2;
+    
+    // 隐藏相关区域
+    document.querySelector('.batch-upload-info').classList.add('hidden');
+    document.querySelector('.controls').classList.add('hidden');
+    document.getElementById('croppedResults').classList.add('hidden');
+    document.getElementById('downloadAllBtn').classList.add('hidden');
+    
+    // 清空覆盖层和结果
+    document.getElementById('cropOverlay').innerHTML = '';
+    document.getElementById('croppedImages').innerHTML = '';
+    
+    // 重置标签页
+    document.querySelectorAll('.tab').forEach(tab => {
+        tab.classList.remove('active');
+    });
+    document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.remove('active');
+    });
+    
+    // 激活默认标签页
+    document.querySelector('.tab[data-tab="preset"]').classList.add('active');
+    document.getElementById('preset-tab').classList.add('active');
+    document.querySelector('.tab[data-tab="basic"]').classList.add('active');
+    document.getElementById('basic-tab').classList.add('active');
+    
+    // 重置裁切选项
+    document.querySelectorAll('.crop-option').forEach(option => {
+        option.classList.remove('active');
+    });
+    document.querySelector('.crop-option[data-crop="1x2"]').classList.add('active');
+}
+
+/**
+ * 切换主题
+ */
+function toggleTheme() {
+    document.body.classList.toggle('dark-mode');
+    const themeIcon = document.querySelector('.theme-toggle i');
+    
+    if (document.body.classList.contains('dark-mode')) {
+        themeIcon.className = 'fas fa-sun';
+    } else {
+        themeIcon.className = 'fas fa-moon';
+    }
+}
+    </script>
+</body>
+</html>

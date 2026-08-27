@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>躲避球 - Dodge Ball</title>
+    <style>
+        /* 
+        游戏介绍：霓虹风格的躲避球游戏
+        游戏规则：控制小球躲避从各个方向飞来的危险球体
+        详细玩法：
+        1. 使用鼠标或触摸控制蓝色小球移动
+        2. 躲避红色的危险球体
+        3. 随着时间推移，危险球速度和数量会增加
+        4. 碰到红球游戏结束
+        5. 霓虹炫酷的视觉效果和粒子系统
+        */
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #000011;
+            font-family: 'Arial', sans-serif;
+            color: #00ffff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            min-height: 100vh;
+            padding: 10px 10px 102px 10px;
+            overflow-x: hidden;
+        }
+
+        .game-container {
+            background: radial-gradient(circle at center, #001122 0%, #000011 100%);
+            border: 2px solid #00ffff;
+            border-radius: 15px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 
+                0 0 20px #00ffff,
+                inset 0 0 20px rgba(0, 255, 255, 0.1);
+            width: 90vw;
+            max-width: 432px;
+            margin-top: 10px;
+            margin-bottom: 12px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .title {
+            font-size: 2.5em;
+            text-align: center;
+            margin-bottom: 10px;
+            background: linear-gradient(45deg, #ff00ff, #00ffff, #ffff00);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-shadow: 0 0 30px rgba(0, 255, 255, 0.8);
+            animation: neonPulse 2s infinite alternate;
+        }
+
+        @keyframes neonPulse {
+            0% { 
+                filter: brightness(1);
+                text-shadow: 0 0 20px rgba(0, 255, 255, 0.8);
+            }
+            100% { 
+                filter: brightness(1.2);
+                text-shadow: 0 0 40px rgba(0, 255, 255, 1);
+            }
+        }
+
+        .score {
+            font-size: 1.5em;
+            text-align: center;
+            margin-bottom: 10px;
+            color: #00ffff;
+            text-shadow: 0 0 10px #00ffff;
+        }
+
+        #gameCanvas {
+            display: block;
+            border: 1px solid #ff00ff;
+            cursor: none;
+            background: radial-gradient(circle at 30% 30%, rgba(0, 255, 255, 0.1) 0%, transparent 50%),
+                        radial-gradient(circle at 70% 70%, rgba(255, 0, 255, 0.1) 0%, transparent 50%);
+        }
+
+        .controls {
+            margin-top: 10px;
+            text-align: center;
+            font-size: 1em;
+            color: #00ffff;
+            text-shadow: 0 0 5px #00ffff;
+            width: 100%;
+            max-width: 400px;
+            align-self: stretch;
+        }
+
+        .game-over {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            color: #ff00ff;
+            padding: 30px 40px;
+            border: 2px solid #ff00ff;
+            border-radius: 15px;
+            text-align: center;
+            display: none;
+            box-shadow: 
+                0 0 30px #ff00ff,
+                inset 0 0 30px rgba(255, 0, 255, 0.2);
+            min-width: 280px;
+        }
+
+        .restart-btn {
+            background: linear-gradient(45deg, #ff00ff, #00ffff);
+            color: #000;
+            border: none;
+            padding: 12px 24px;
+            font-family: 'Arial', sans-serif;
+            font-size: 1em;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 15px;
+            border-radius: 25px;
+            transition: all 0.3s;
+            box-shadow: 0 0 15px rgba(255, 0, 255, 0.5);
+        }
+
+        .restart-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 25px rgba(255, 0, 255, 0.8);
+        }
+
+        .stats {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            font-size: 0.9em;
+            color: #00ffff;
+            text-shadow: 0 0 5px #00ffff;
+            width: 100%;
+            max-width: 400px;
+            align-self: stretch;
+            flex-wrap: wrap;
+            gap: 5px;
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 5px 5px 97px 5px;
+            }
+            
+            .game-container {
+                width: 95vw;
+                max-width: 392px;
+                padding: 12px;
+            }
+            
+            .title {
+                font-size: 1.8em;
+                margin-bottom: 5px;
+            }
+            
+            .stats {
+                max-width: 360px;
+            }
+            
+            .controls {
+                max-width: 360px;
+                font-size: 0.9em;
+            }
+            
+            #gameCanvas {
+                cursor: default;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="title">⚡ 激情躲避球 ⚡</div>
+        <div class="stats">
+            <span>得分: <span id="score">0</span></span>
+            <span>时间: <span id="time">0</span>s</span>
+            <span>等级: <span id="level">1</span></span>
+            <span>最长: <span id="bestTime">0</span>s</span>
+        </div>
+        <canvas id="gameCanvas" width="400" height="500"></canvas>
+        <div class="controls">
+            鼠标/触摸控制 | 躲避红球获得分数！
+        </div>
+        
+        <div class="game-over" id="gameOver">
+            <h2>💥 游戏结束 💥</h2>
+            <p>生存时间: <span id="finalTime">0</span>秒</p>
+            <p>最终得分: <span id="finalScore">0</span></p>
+            <button class="restart-btn" onclick="restartGame()">🔄 再来一局</button>
+        </div>
+    </div>
+
+    <template id="site-footer">
+        <style>
+            .footer {
+            position: fixed;
+            bottom: 55px;
+            left: 0;
+            width: 100%;
+            padding: .75rem 1rem;
+            font-size: 14px;
+            background: #fafafa;
+            border-top: 1px solid #eaeaea;
+            display: flex;
+            flex-wrap: wrap;
+            gap: .5rem;
+            justify-content: center;
+            align-items: center;
+            z-index: 999;
+            }
+
+            @media (max-width: 768px) {
+                    .footer {
+                        bottom: 47px;
+                    }
+                }
+            .footer a { color: #0077cc; text-decoration: none; }
+            .footer a:hover { text-decoration: underline; }
+
+            .qr-wrapper { position: relative; display: inline-block; }
+            .qr-img {
+            display: none;
+            position: absolute;
+            bottom: 1.8rem;
+            left: 50%;
+            transform: translateX(-50%);
+            max-width: 140px;
+            border: 1px solid #ddd;
+            background: #fff;
+            padding: 4px;
+            border-radius: 6px;
+            box-shadow: 0 4px 12px rgba(0,0,0,.15);
+            }
+            .qr-wrapper:hover .qr-img { display: block; }
+        </style>
+
+        <div class="footer card">
+            Created&nbsp;by：
+            <span class="qr-wrapper">
+            <a class="qr-link"
+                href="https://mp.weixin.qq.com/mp/profile_ext?action=home&__biz=MzI0MzUzOTEwMw==&scene=124#wechat_redirect"
+                target="_blank"
+                data-img="https://raw.githubusercontent.com/anneeeee/programming_exercise/refs/heads/main/ad_pics/qrcode_for_gh_87351941139e_258%20(2).jpg">系统1与系统2</a>
+            <img class="qr-img" alt="系统1与系统2公众号二维码">
+            </span>
+            &nbsp;||&nbsp;广告位：
+            <span class="qr-wrapper">
+            <a class="qr-link"
+                href="https://t.zsxq.com/SjYuX"
+                target="_blank"
+                data-img="https://raw.githubusercontent.com/anneeeee/programming_exercise/refs/heads/main/ad_pics/AI_programming.pic.jpg">AI编程星球</a>
+            <img class="qr-img" alt="AI编程星球二维码">
+            </span> |
+            <span class="qr-wrapper">
+            <a class="qr-link"
+                href="https://t.zsxq.com/VTCya"
+                target="_blank"
+                data-img="https://raw.githubusercontent.com/anneeeee/programming_exercise/refs/heads/main/ad_pics/laoxu.pic.jpg">副业避坑星球</a>
+            <img class="qr-img" alt="副业避坑星球二维码">
+            </span> |
+            <span class="qr-wrapper">
+            <a class="qr-link"
+                href="https://www.xiaobot.net/p/ai08?refer=a9625ad2-ec04-4cc8-8549-7511079cb3b5"
+                target="_blank"
+                data-img="https://raw.githubusercontent.com/anneeeee/programming_exercise/refs/heads/main/ad_pics/hani-xiaobot-8.png">AI&nbsp;产品日报</a>
+            <img class="qr-img" alt="AI产品日报二维码">
+            </span> |
+            <span class="qr-wrapper">
+            <a class="qr-link"
+                href="https://t.zsxq.com/jcaEa"
+                target="_blank"
+                data-img="https://raw.githubusercontent.com/anneeeee/programming_exercise/refs/heads/main/ad_pics/aipm.pic.jpg">AI&nbsp;产品经理大本营</a>
+            <img class="qr-img" alt="AI产品经理大本营二维码">
+            </span>
+        </div>
+    </template>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreElement = document.getElementById('score');
+        const timeElement = document.getElementById('time');
+        const levelElement = document.getElementById('level');
+        const bestTimeElement = document.getElementById('bestTime');
+        const gameOverElement = document.getElementById('gameOver');
+        const finalScoreElement = document.getElementById('finalScore');
+        const finalTimeElement = document.getElementById('finalTime');
+
+        // 游戏状态
+        let gameRunning = true;
+        let score = 0;
+        let gameTime = 0;
+        let level = 1;
+        let frameCount = 0;
+        let bestTime = parseInt(localStorage.getItem('dodgeBallBestTime')) || 0;
+
+        // 玩家球
+        let player = {
+            x: canvas.width / 2,
+            y: canvas.height / 2,
+            radius: 15,
+            color: '#00ffff',
+            trail: []
+        };
+
+        // 敌人球数组
+        let enemies = [];
+        
+        // 粒子系统
+        let particles = [];
+
+        // 鼠标/触摸位置
+        let mouseX = canvas.width / 2;
+        let mouseY = canvas.height / 2;
+
+        // 创建敌人球
+        function createEnemy() {
+            const side = Math.floor(Math.random() * 4);
+            let enemy = {
+                radius: 8 + Math.random() * 12,
+                speed: 1 + level * 0.3 + Math.random() * 2,
+                color: '#ff0040',
+                trail: []
+            };
+
+            // 从屏幕边缘生成
+            switch(side) {
+                case 0: // 上边
+                    enemy.x = Math.random() * canvas.width;
+                    enemy.y = -enemy.radius;
+                    enemy.vx = (player.x - enemy.x) * 0.01;
+                    enemy.vy = enemy.speed;
+                    break;
+                case 1: // 右边
+                    enemy.x = canvas.width + enemy.radius;
+                    enemy.y = Math.random() * canvas.height;
+                    enemy.vx = -enemy.speed;
+                    enemy.vy = (player.y - enemy.y) * 0.01;
+                    break;
+                case 2: // 下边
+                    enemy.x = Math.random() * canvas.width;
+                    enemy.y = canvas.height + enemy.radius;
+                    enemy.vx = (player.x - enemy.x) * 0.01;
+                    enemy.vy = -enemy.speed;
+                    break;
+                case 3: // 左边
+                    enemy.x = -enemy.radius;
+                    enemy.y = Math.random() * canvas.height;
+                    enemy.vx = enemy.speed;
+                    enemy.vy = (player.y - enemy.y) * 0.01;
+                    break;
+            }
+
+            enemies.push(enemy);
+        }
+
+        // 创建粒子
+        function createParticle(x, y, color, count = 5) {
+            for(let i = 0; i < count; i++) {
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: (Math.random() - 0.5) * 8,
+                    vy: (Math.random() - 0.5) * 8,
+                    life: 1,
+                    decay: 0.02,
+                    color: color,
+                    size: Math.random() * 3 + 1
+                });
+            }
+        }
+
+        // 绘制发光效果的圆
+        function drawGlowCircle(x, y, radius, color, glowSize = 20) {
+            const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius + glowSize);
+            gradient.addColorStop(0, color);
+            gradient.addColorStop(0.7, color + '80');
+            gradient.addColorStop(1, 'transparent');
+            
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(x, y, radius + glowSize, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // 内核
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(x, y, radius, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // 绘制拖尾效果
+        function drawTrail(obj) {
+            obj.trail.forEach((point, index) => {
+                const alpha = index / obj.trail.length;
+                ctx.fillStyle = obj.color + Math.floor(alpha * 255).toString(16).padStart(2, '0');
+                ctx.beginPath();
+                ctx.arc(point.x, point.y, obj.radius * alpha, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+
+        // 更新游戏逻辑
+        function update() {
+            if (!gameRunning) return;
+
+            frameCount++;
+            
+            // 更新游戏时间
+            if (frameCount % 60 === 0) {
+                gameTime++;
+                timeElement.textContent = gameTime;
+                score += 1;
+                scoreElement.textContent = score;
+                
+                // 每30秒升级
+                if (gameTime % 30 === 0) {
+                    level++;
+                    levelElement.textContent = level;
+                }
+            }
+
+            // 平滑移动玩家到鼠标位置
+            const dx = mouseX - player.x;
+            const dy = mouseY - player.y;
+            player.x += dx * 0.1;
+            player.y += dy * 0.1;
+
+            // 更新玩家拖尾
+            player.trail.push({x: player.x, y: player.y});
+            if (player.trail.length > 10) {
+                player.trail.shift();
+            }
+
+            // 生成敌人
+            if (frameCount % Math.max(60 - level * 5, 20) === 0) {
+                createEnemy();
+            }
+
+            // 更新敌人
+            enemies.forEach((enemy, index) => {
+                enemy.x += enemy.vx;
+                enemy.y += enemy.vy;
+
+                // 更新敌人拖尾
+                enemy.trail.push({x: enemy.x, y: enemy.y});
+                if (enemy.trail.length > 8) {
+                    enemy.trail.shift();
+                }
+
+                // 轻微追踪玩家
+                const playerDx = player.x - enemy.x;
+                const playerDy = player.y - enemy.y;
+                const distance = Math.sqrt(playerDx * playerDx + playerDy * playerDy);
+                
+                if (distance > 0) {
+                    enemy.vx += (playerDx / distance) * 0.05;
+                    enemy.vy += (playerDy / distance) * 0.05;
+                }
+
+                // 删除离开屏幕的敌人
+                if (enemy.x < -50 || enemy.x > canvas.width + 50 || 
+                    enemy.y < -50 || enemy.y > canvas.height + 50) {
+                    enemies.splice(index, 1);
+                }
+
+                // 碰撞检测
+                const dist = Math.sqrt((player.x - enemy.x) ** 2 + (player.y - enemy.y) ** 2);
+                if (dist < player.radius + enemy.radius) {
+                    createParticle(player.x, player.y, '#ff0040', 15);
+                    gameOver();
+                }
+            });
+
+            // 更新粒子
+            particles = particles.filter(particle => {
+                particle.x += particle.vx;
+                particle.y += particle.vy;
+                particle.vx *= 0.98;
+                particle.vy *= 0.98;
+                particle.life -= particle.decay;
+                return particle.life > 0;
+            });
+        }
+
+        // 绘制游戏画面
+        function draw() {
+            // 清空画布并绘制背景
+            ctx.fillStyle = 'rgba(0, 0, 17, 0.3)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // 绘制网格背景
+            ctx.strokeStyle = 'rgba(0, 255, 255, 0.1)';
+            ctx.lineWidth = 1;
+            for (let i = 0; i < canvas.width; i += 20) {
+                ctx.beginPath();
+                ctx.moveTo(i, 0);
+                ctx.lineTo(i, canvas.height);
+                ctx.stroke();
+            }
+            for (let i = 0; i < canvas.height; i += 20) {
+                ctx.beginPath();
+                ctx.moveTo(0, i);
+                ctx.lineTo(canvas.width, i);
+                ctx.stroke();
+            }
+
+            if (gameRunning) {
+                // 绘制粒子
+                particles.forEach(particle => {
+                    ctx.fillStyle = particle.color + Math.floor(particle.life * 255).toString(16).padStart(2, '0');
+                    ctx.beginPath();
+                    ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+
+                // 绘制敌人拖尾
+                enemies.forEach(enemy => {
+                    drawTrail(enemy);
+                });
+
+                // 绘制敌人
+                enemies.forEach(enemy => {
+                    drawGlowCircle(enemy.x, enemy.y, enemy.radius, enemy.color, 10);
+                });
+
+                // 绘制玩家拖尾
+                drawTrail(player);
+
+                // 绘制玩家
+                drawGlowCircle(player.x, player.y, player.radius, player.color, 15);
+
+                // 绘制连接线（从玩家到鼠标）
+                ctx.strokeStyle = 'rgba(0, 255, 255, 0.3)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(player.x, player.y);
+                ctx.lineTo(mouseX, mouseY);
+                ctx.stroke();
+            }
+        }
+
+        // 游戏循环
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // 游戏结束
+        function gameOver() {
+            gameRunning = false;
+            
+            // 更新最长时间记录
+            if (gameTime > bestTime) {
+                bestTime = gameTime;
+                localStorage.setItem('dodgeBallBestTime', bestTime.toString());
+                bestTimeElement.textContent = bestTime;
+            }
+            
+            finalScoreElement.textContent = score;
+            finalTimeElement.textContent = gameTime;
+            gameOverElement.style.display = 'block';
+        }
+
+        // 重新开始游戏
+        function restartGame() {
+            gameRunning = true;
+            score = 0;
+            gameTime = 0;
+            level = 1;
+            frameCount = 0;
+            
+            scoreElement.textContent = score;
+            timeElement.textContent = gameTime;
+            levelElement.textContent = level;
+            gameOverElement.style.display = 'none';
+            
+            // 重置玩家
+            player.x = canvas.width / 2;
+            player.y = canvas.height / 2;
+            player.trail = [];
+            
+            // 清空敌人和粒子
+            enemies = [];
+            particles = [];
+        }
+
+        // 鼠标事件
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            mouseX = e.clientX - rect.left;
+            mouseY = e.clientY - rect.top;
+        });
+
+        // 触摸事件
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            mouseX = e.touches[0].clientX - rect.left;
+            mouseY = e.touches[0].clientY - rect.top;
+        });
+
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            mouseX = e.touches[0].clientX - rect.left;
+            mouseY = e.touches[0].clientY - rect.top;
+        });
+
+        // 响应式画布
+        function resizeCanvas() {
+            const maxHeight = window.innerHeight - 250; // 为title、stats、controls和footer预留空间
+            
+            if (window.innerWidth <= 768) {
+                canvas.width = Math.min(360, window.innerWidth - 56); // 考虑容器padding和边框
+                canvas.height = Math.min(420, maxHeight);
+            } else {
+                canvas.width = 400;
+                canvas.height = Math.min(480, maxHeight);
+            }
+            player.x = canvas.width / 2;
+            player.y = canvas.height / 2;
+            mouseX = canvas.width / 2;
+            mouseY = canvas.height / 2;
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+        
+        // 初始化最长时间显示
+        bestTimeElement.textContent = bestTime;
+
+        // 开始游戏循环
+        gameLoop();
+
+        // Footer 脚本
+        document.addEventListener('DOMContentLoaded', () => {
+            const tpl = document.getElementById('site-footer');
+            if (tpl && 'content' in tpl) {
+                document.body.appendChild(tpl.content.cloneNode(true));
+            }
+
+            document.querySelectorAll('.qr-wrapper').forEach(w => {
+                const link = w.querySelector('.qr-link');
+                const img = w.querySelector('.qr-img');
+                if (link && img && link.dataset.img) {
+                    img.src = link.dataset.img.trim();
+                }
+            });
+        });
+    </script>
+</body>
+</html>

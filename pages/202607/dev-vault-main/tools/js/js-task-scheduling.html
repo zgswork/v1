@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html tk="title_js_task_scheduling_visual" lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JS Task Scheduling Visualizer</title>
+<meta name="description" content="Interactive visualizer for browser task scheduling APIs: scheduler.postTask(), requestIdleCallback(), requestAnimationFrame(), setTimeout(). Priority queues and execution order.">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0a1a;color:#e0e0e0;min-height:100vh}
+.header{background:linear-gradient(135deg,#1a1a3e,#2a1a4e);padding:20px 24px;border-bottom:1px solid #333}
+.header h1{font-size:1.4rem;color:#a78bfa}
+.header p{font-size:.85rem;color:#888;margin-top:4px}
+.container{display:grid;grid-template-columns:220px 1fr 280px;height:calc(100vh - 80px)}
+.sidebar{background:#111;border-right:1px solid #222;padding:12px;overflow-y:auto}
+.sidebar h3{font-size:.75rem;text-transform:uppercase;color:#666;margin-bottom:8px;letter-spacing:1px}
+.preset-btn{display:block;width:100%;text-align:left;background:#1a1a2e;border:1px solid #333;color:#ccc;padding:8px 10px;margin-bottom:4px;border-radius:6px;cursor:pointer;font-size:.8rem;transition:.2s}
+.preset-btn:hover{border-color:#7c3aed;color:#fff}
+.preset-btn.active{background:#2d1b69;border-color:#7c3aed;color:#a78bfa}
+.main{padding:16px;display:flex;flex-direction:column;gap:12px;overflow-y:auto}
+.section{background:#111;border-radius:8px;border:1px solid #222;padding:16px}
+.section h3{font-size:.85rem;color:#888;margin-bottom:12px}
+.controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.btn{background:#1a1a2e;border:1px solid #333;color:#ccc;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:.8rem;transition:.2s}
+.btn:hover{border-color:#7c3aed;color:#fff}
+.btn.primary{background:#7c3aed;border-color:#7c3aed;color:#fff}
+.btn.primary:hover{background:#6d28d9}
+.timeline{position:relative;padding:8px 0}
+.timeline-track{position:relative;height:40px;background:#1a1a2e;border-radius:6px;margin-bottom:6px;display:flex;align-items:center;overflow:hidden}
+.timeline-label{position:absolute;left:8px;top:50%;transform:translateY(-50%);font-size:.7rem;color:#888;z-index:1;white-space:nowrap}
+.task-block{position:absolute;height:28px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:.65rem;color:#fff;font-weight:600;transition:left .3s,width .3s,opacity .3s;overflow:hidden;white-space:nowrap;padding:0 4px}
+.task-block.user-blocking{background:#ef4444}
+.task-block.user-visible{background:#f59e0b}
+.task-block.background{background:#22c55e}
+.task-block.raf{background:#3b82f6}
+.task-block.idle{background:#8b5cf6}
+.task-block.timeout{background:#64748b}
+.task-block.microtask{background:#ec4899}
+.queue-display{display:flex;gap:4px;flex-wrap:wrap;min-height:30px;padding:4px}
+.queue-item{padding:4px 8px;border-radius:4px;font-size:.7rem;font-weight:600;color:#fff;opacity:.9}
+.queue-item.user-blocking{background:#ef4444}
+.queue-item.user-visible{background:#f59e0b}
+.queue-item.background{background:#22c55e}
+.queue-item.raf{background:#3b82f6}
+.queue-item.idle{background:#8b5cf6}
+.queue-item.timeout{background:#64748b}
+.queue-item.microtask{background:#ec4899}
+.queue-item.done{opacity:.3;text-decoration:line-through}
+.log-area{max-height:200px;overflow-y:auto;font-size:.75rem}
+.log-entry{padding:4px 0;border-bottom:1px solid #1a1a2e;display:flex;gap:8px}
+.log-entry .log-order{color:#555;min-width:24px}
+.log-entry .log-api{min-width:90px;font-weight:600}
+.log-entry .log-api.user-blocking{color:#ef4444}
+.log-entry .log-api.user-visible{color:#f59e0b}
+.log-entry .log-api.background{color:#22c55e}
+.log-entry .log-api.raf{color:#3b82f6}
+.log-entry .log-api.idle{color:#8b5cf6}
+.log-entry .log-api.timeout{color:#64748b}
+.log-entry .log-api.microtask{color:#ec4899}
+.log-entry .log-msg{color:#ccc}
+.step-info{font-size:.75rem;color:#666;margin-left:8px}
+.legend{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.legend-item{display:flex;align-items:center;gap:4px;font-size:.7rem;color:#888}
+.legend-dot{width:10px;height:10px;border-radius:2px}
+.ref-panel{background:#111;border-left:1px solid #222;padding:12px;overflow-y:auto;font-size:.8rem}
+.ref-panel h3{font-size:.75rem;text-transform:uppercase;color:#666;margin-bottom:8px;letter-spacing:1px}
+.ref-section{margin-bottom:16px}
+.ref-section h4{color:#a78bfa;font-size:.8rem;margin-bottom:6px}
+.ref-section p{color:#888;line-height:1.5;font-size:.75rem;margin-bottom:4px}
+.code-block{background:#0a0a1a;border:1px solid #222;border-radius:6px;padding:10px;font-family:'Fira Code',monospace;font-size:.72rem;color:#e0e0e0;overflow-x:auto;margin:8px 0;line-height:1.5;white-space:pre}
+.kw{color:#c084fc}.str{color:#22c55e}.cm{color:#555}.fn{color:#60a5fa}.op{color:#f59e0b}.num{color:#fb923c}
+.compat-note{background:#1a1a0a;border:1px solid #333;border-radius:6px;padding:8px 10px;font-size:.72rem;color:#f59e0b;margin-top:8px}
+.priority-table{width:100%;border-collapse:collapse;margin:8px 0}
+.priority-table th{text-align:left;font-size:.7rem;text-transform:uppercase;color:#666;padding:4px 6px;border-bottom:1px solid #333}
+.priority-table td{font-size:.75rem;padding:4px 6px;border-bottom:1px solid #1a1a2e}
+.priority-table td:first-child{font-weight:600}
+</style>
+</head>
+<body>
+
+
+<div class="header">
+<h1 ti="title_js_task_scheduling_visual" ti="h1_js_task_scheduling_visual">JS Task Scheduling Visualizer</h1>
+<p>scheduler.postTask() · requestIdleCallback() · requestAnimationFrame() · setTimeout()</p>
+</div>
+<div class="container" style="position:relative">
+<div class="sidebar">
+<h3 ti="h3_scenarios">Scenarios</h3>
+<div id="presets"></div>
+</div>
+<div class="main">
+<div class="controls">
+<button class="btn primary" id="playBtn" onclick="play()">&#9654; Play</button>
+<button class="btn" id="stepBtn" onclick="step()">Step &rarr;</button>
+<button class="btn" onclick="resetScenario()" ti="btn_reset">Reset</button>
+<span class="step-info" id="stepInfo">Step 0 / 0</span>
+</div>
+<div class="legend">
+<div class="legend-item"><div class="legend-dot" style="background:#ef4444"></div>user-blocking</div>
+<div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div>user-visible</div>
+<div class="legend-item"><div class="legend-dot" style="background:#22c55e"></div>background</div>
+<div class="legend-item"><div class="legend-dot" style="background:#3b82f6"></div>rAF</div>
+<div class="legend-item"><div class="legend-dot" style="background:#8b5cf6"></div>idle</div>
+<div class="legend-item"><div class="legend-dot" style="background:#64748b"></div>setTimeout</div>
+<div class="legend-item"><div class="legend-dot" style="background:#ec4899"></div>microtask</div>
+</div>
+<div class="section">
+<h3 ti="h3_task_queue">Task Queue</h3>
+<div class="queue-display" id="queueDisplay"></div>
+</div>
+<div class="section">
+<h3 ti="h3_execution_timeline">Execution Timeline</h3>
+<div class="timeline" id="timeline"></div>
+</div>
+<div class="section">
+<h3 ti="h3_execution_log">Execution Log</h3>
+<div class="log-area" id="logArea"></div>
+</div>
+</div>
+<div class="ref-panel">
+<h3 ti="h3_reference">Reference</h3>
+<div id="refContent"></div>
+</div>
+</div>
+
+<script>var _LANG={'title_js_task_scheduling_visual':["JS Task Scheduling Visualizer", "JS 任务调度可视化工具"],'metadesc_interactive_visualizer_fo':["Interactive visualizer for browser task scheduling APIs: scheduler.postTask(), requestIdleCallback(), requestAnimationFrame(), setTimeout(). Priority queues and execution order.", "浏览器任务调度 API 的交互式可视化工具：scheduler.postTask()、requestIdleCallback()、requestAnimationFrame()、setTimeout()。优先级队列和执行顺序。"],'h1_js_task_scheduling_visual':["JS Task Scheduling Visualizer", "JS 任务调度可视化工具"],'h3_scenarios':["Scenarios", "场景"],'h3_task_queue':["Task Queue", "任务队列"],'h3_execution_timeline':["Execution Timeline", "执行时间表"],'h3_execution_log':["Execution Log", "执行日志"],'h3_reference':["Reference", "参考"],'btn_play':["▶ Play", "▶ 播放"],'btn_step':["Step →", "步骤 →"],'btn_reset':["Reset", "重置"],'strong_microtasks':["Microtasks", "微任务"],'strong_posttask_user_blocking':["postTask(user-blocking)", "postTask(用户阻塞)"],'strong_posttask_background':["postTask(background)", "postTask(background)"],'strong_settimeout_0':["setTimeout(0)", "设置超时(0)"],'strong_raf':["rAF", "rAF"],'strong_requestidlecallback':["requestIdleCallback", "请求空闲回调"],'th_priority':["Priority", "优先事项"],'th_use_case':["Use Case", "用例"],'jtlword_code':["Code", "代码"],'jtlword_posttask':["postTask", "任务后"],'jtlword_requestanimationframe':["requestAnimationFrame", "请求动画帧"],'jtlword_requestidlecallback':["requestIdleCallback", "请求空闲回调"],'jtlword_const':["const", "常量"],'jtlword_new':["new", "新的"],'jtlword_taskcontroller':["TaskController", "任务控制器"],'jtlword_setpriority':["setPriority", "设置优先级"],'jtlword_abort':["abort", "中止"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>
+const PRESETS = [
+  {
+    name: 'Priority Ordering',
+    desc: 'postTask with 3 priority levels',
+    tasks: [
+      {api:'postTask',priority:'background',label:'BG-1',delay:0},
+      {api:'postTask',priority:'user-visible',label:'UV-1',delay:0},
+      {api:'postTask',priority:'user-blocking',label:'UB-1',delay:0},
+      {api:'postTask',priority:'background',label:'BG-2',delay:0},
+      {api:'postTask',priority:'user-blocking',label:'UB-2',delay:0},
+      {api:'postTask',priority:'user-visible',label:'UV-2',delay:0},
+    ],
+    order: ['UB-1','UB-2','UV-1','UV-2','BG-1','BG-2'],
+    code: `<span class="cm">// All posted at the same time</span>
+scheduler.<span class="fn">postTask</span>(bg1, {priority:<span class="str">"background"</span>});
+scheduler.<span class="fn">postTask</span>(uv1, {priority:<span class="str">"user-visible"</span>});
+scheduler.<span class="fn">postTask</span>(ub1, {priority:<span class="str">"user-blocking"</span>});
+
+<span class="cm">// Execution order:</span>
+<span class="cm">// 1. user-blocking (highest)</span>
+<span class="cm">// 2. user-visible (default)</span>
+<span class="cm">// 3. background (lowest)</span>`,
+    ref: '<p><code>scheduler.postTask()</code> has three priority levels. Tasks of the same priority execute in FIFO order.</p><table class="priority-table"><tr><th ti="th_priority">Priority</th><th ti="th_use_case">Use Case</th></tr><tr><td style="color:#ef4444">user-blocking</td><td>Input handling, critical UI updates</td></tr><tr><td style="color:#f59e0b">user-visible</td><td>Default. Rendering updates, data fetch</td></tr><tr><td style="color:#22c55e">background</td><td>Analytics, prefetching, logging</td></tr></table>'
+  },
+  {
+    name: 'API Comparison',
+    desc: 'postTask vs setTimeout vs rAF vs idle',
+    tasks: [
+      {api:'setTimeout',priority:'timeout',label:'timeout-0',delay:0},
+      {api:'postTask',priority:'background',label:'BG',delay:0},
+      {api:'rAF',priority:'raf',label:'rAF',delay:0},
+      {api:'idle',priority:'idle',label:'idle',delay:0},
+      {api:'postTask',priority:'user-blocking',label:'UB',delay:0},
+      {api:'microtask',priority:'microtask',label:'micro',delay:0},
+    ],
+    order: ['micro','UB','BG','timeout-0','rAF','idle'],
+    code: `<span class="cm">// All scheduled at once — what runs first?</span>
+<span class="fn">setTimeout</span>(fn, <span class="num">0</span>);
+scheduler.<span class="fn">postTask</span>(fn, {priority:<span class="str">"background"</span>});
+<span class="fn">requestAnimationFrame</span>(fn);
+<span class="fn">requestIdleCallback</span>(fn);
+scheduler.<span class="fn">postTask</span>(fn, {priority:<span class="str">"user-blocking"</span>});
+Promise.<span class="fn">resolve</span>().<span class="fn">then</span>(fn); <span class="cm">// microtask</span>
+
+<span class="cm">// Order: micro → UB → BG → timeout → rAF → idle</span>`,
+    ref: '<p>Different scheduling APIs have different execution priorities in the event loop:</p><p>1. <strong ti="strong_microtasks">Microtasks</strong> (Promise.then) run before any macro task</p><p>2. <strong ti="strong_posttask_user_blocking">postTask(user-blocking)</strong> is highest priority macro task</p><p>3. <strong ti="strong_posttask_background">postTask(background)</strong> still runs before setTimeout(0)</p><p>4. <strong ti="strong_settimeout_0">setTimeout(0)</strong> runs in the task queue</p><p>5. <strong ti="strong_raf">rAF</strong> runs before paint</p><p>6. <strong ti="strong_requestidlecallback">requestIdleCallback</strong> runs when browser is idle</p>'
+  },
+  {
+    name: 'Delayed Tasks',
+    desc: 'postTask with delay parameter',
+    tasks: [
+      {api:'postTask',priority:'user-blocking',label:'UB (no delay)',delay:0},
+      {api:'postTask',priority:'background',label:'BG (50ms)',delay:50},
+      {api:'postTask',priority:'user-blocking',label:'UB (100ms)',delay:100},
+      {api:'setTimeout',priority:'timeout',label:'timeout(50ms)',delay:50},
+    ],
+    order: ['UB (no delay)','BG (50ms)','timeout(50ms)','UB (100ms)'],
+    code: `scheduler.<span class="fn">postTask</span>(fn, {
+  priority: <span class="str">"user-blocking"</span>
+}); <span class="cm">// runs first (no delay)</span>
+
+scheduler.<span class="fn">postTask</span>(fn, {
+  priority: <span class="str">"background"</span>,
+  delay: <span class="num">50</span>  <span class="cm">// minimum delay in ms</span>
+}); <span class="cm">// runs ~50ms later</span>
+
+scheduler.<span class="fn">postTask</span>(fn, {
+  priority: <span class="str">"user-blocking"</span>,
+  delay: <span class="num">100</span>
+}); <span class="cm">// despite high priority, delay pushes it back</span>`,
+    ref: '<p>The <code>delay</code> option specifies a minimum time before the task is eligible to run. After the delay expires, the task enters the priority queue.</p><p>A delayed user-blocking task runs after an immediate background task.</p>'
+  },
+  {
+    name: 'AbortController',
+    desc: 'Cancel scheduled tasks',
+    tasks: [
+      {api:'postTask',priority:'user-visible',label:'Task A',delay:0},
+      {api:'postTask',priority:'user-visible',label:'Task B',delay:0,abort:true},
+      {api:'postTask',priority:'user-visible',label:'Task C',delay:0},
+    ],
+    order: ['Task A','Task B ✕ ABORTED','Task C'],
+    code: `<span class="kw">const</span> ctrl = <span class="kw">new</span> <span class="fn">AbortController</span>();
+
+scheduler.<span class="fn">postTask</span>(taskA, {signal: ctrl.signal});
+scheduler.<span class="fn">postTask</span>(taskB, {signal: ctrl.signal});
+scheduler.<span class="fn">postTask</span>(taskC); <span class="cm">// no signal</span>
+
+<span class="cm">// Cancel tasks with that signal</span>
+ctrl.<span class="fn">abort</span>();
+
+<span class="cm">// taskA and taskB reject with AbortError</span>
+<span class="cm">// taskC still runs</span>`,
+    ref: '<p>Pass an <code>AbortSignal</code> to <code>postTask()</code> to make tasks cancellable. When <code>abort()</code> is called, pending tasks with that signal reject with <code>AbortError</code>.</p><p>This is essential for cleaning up when a component unmounts or when a newer request supersedes an older one.</p>'
+  },
+  {
+    name: 'Priority Change',
+    desc: 'Dynamic priority with TaskController',
+    tasks: [
+      {api:'postTask',priority:'background',label:'Starts BG',delay:0,changeTo:'user-blocking'},
+      {api:'postTask',priority:'user-visible',label:'UV-1',delay:0},
+      {api:'postTask',priority:'user-visible',label:'UV-2',delay:0},
+    ],
+    order: ['Starts BG → UB','UV-1','UV-2'],
+    code: `<span class="kw">const</span> ctrl = <span class="kw">new</span> <span class="fn">TaskController</span>({
+  priority: <span class="str">"background"</span>
+});
+
+scheduler.<span class="fn">postTask</span>(fn, {signal: ctrl.signal});
+
+<span class="cm">// Upgrade priority before execution</span>
+ctrl.<span class="fn">setPriority</span>(<span class="str">"user-blocking"</span>);
+<span class="cm">// Task now runs with user-blocking priority!</span>`,
+    ref: '<p><code>TaskController</code> extends <code>AbortController</code> with a <code>setPriority()</code> method. This allows dynamic reprioritization of pending tasks.</p><p>Use case: A background prefetch becomes urgent when the user scrolls to that content.</p>'
+  },
+  {
+    name: 'Idle Callback',
+    desc: 'requestIdleCallback with deadline',
+    tasks: [
+      {api:'postTask',priority:'user-blocking',label:'UB work',delay:0},
+      {api:'idle',priority:'idle',label:'Idle work',delay:0},
+      {api:'idle',priority:'idle',label:'Idle timeout',delay:0,timeout:true},
+    ],
+    order: ['UB work','Idle work (has time)','Idle timeout (forced)'],
+    code: `<span class="fn">requestIdleCallback</span>((deadline) <span class="op">=></span> {
+  <span class="cm">// deadline.timeRemaining() → ms left</span>
+  <span class="kw">while</span> (deadline.<span class="fn">timeRemaining</span>() > <span class="num">0</span>) {
+    doSmallChunk();
+  }
+});
+
+<span class="cm">// With timeout — force after N ms</span>
+<span class="fn">requestIdleCallback</span>(fn, {
+  timeout: <span class="num">2000</span>  <span class="cm">// must run within 2s</span>
+});
+<span class="cm">// deadline.didTimeout → true if forced</span>`,
+    ref: '<p><code>requestIdleCallback</code> runs callbacks during idle periods — when the browser has finished rendering and has no pending tasks.</p><p>The <code>deadline</code> object tells you how much time remains (<code>timeRemaining()</code>) and whether the callback was forced by timeout (<code>didTimeout</code>).</p><p>Best for: analytics, prefetching, non-critical DOM updates.</p>'
+  },
+];
+
+let currentPreset = 0;
+let currentStep = 0;
+let playing = false;
+let playTimer = null;
+
+function renderPresets() {
+  document.getElementById('presets').innerHTML = PRESETS.map((p, i) => `
+    <button class="preset-btn ${i === currentPreset ? 'active' : ''}" onclick="selectPreset(${i})">
+      <div style="font-weight:600">${p.name}</div>
+      <div style="font-size:.7rem;color:#666;margin-top:2px">${p.desc}</div>
+    </button>
+  `).join('');
+}
+
+function selectPreset(i) {
+  currentPreset = i;
+  currentStep = 0;
+  playing = false;
+  clearTimeout(playTimer);
+  document.getElementById('playBtn').innerHTML = '▶ Play';
+  renderPresets();
+  renderScenario();
+}
+
+function renderScenario() {
+  const p = PRESETS[currentPreset];
+  renderQueue(p);
+  renderTimeline(p);
+  renderLog(p);
+  updateStepInfo(p);
+  renderRef(p);
+}
+
+function renderQueue(p) {
+  const el = document.getElementById('queueDisplay');
+  el.innerHTML = p.tasks.map((t, i) => {
+    const done = i < currentStep;
+    const aborted = t.abort && i < currentStep;
+    return `<div class="queue-item ${t.priority} ${done ? 'done' : ''}">${t.label}${aborted ? ' ✕' : ''}</div>`;
+  }).join('');
+}
+
+function renderTimeline(p) {
+  const el = document.getElementById('timeline');
+  const totalSlots = p.order.length;
+  const w = 100 / Math.max(totalSlots, 1);
+  el.innerHTML = '<div class="timeline-track" style="height:50px">' +
+    p.order.map((label, i) => {
+      const visible = i < currentStep;
+      const task = p.tasks.find(t => label.startsWith(t.label));
+      const prio = task ? task.priority : 'timeout';
+      const isAbort = label.includes('ABORTED');
+      return `<div class="task-block ${prio}" style="left:${i * w}%;width:${w - 0.5}%;opacity:${visible ? 1 : 0.15};${isAbort ? 'background:repeating-linear-gradient(45deg,#ef444480,#ef444480 4px,#ef444440 4px,#ef444440 8px)' : ''}">${label}</div>`;
+    }).join('') +
+    '</div>';
+}
+
+function renderLog(p) {
+  const el = document.getElementById('logArea');
+  let html = '';
+  for (let i = 0; i < currentStep && i < p.order.length; i++) {
+    const label = p.order[i];
+    const task = p.tasks.find(t => label.startsWith(t.label));
+    const prio = task ? task.priority : 'timeout';
+    const api = task ? task.api : '?';
+    const isAbort = label.includes('ABORTED');
+    html += `<div class="log-entry">
+      <span class="log-order">${i + 1}.</span>
+      <span class="log-api ${prio}">${api}${task?.delay ? ` (${task.delay}ms)` : ''}</span>
+      <span class="log-msg">${label}${isAbort ? ' — rejected with AbortError' : ''}</span>
+    </div>`;
+  }
+  el.innerHTML = html;
+  el.scrollTop = el.scrollHeight;
+}
+
+function updateStepInfo(p) {
+  document.getElementById('stepInfo').textContent = `Step ${currentStep} / ${p.order.length}`;
+}
+
+function step() {
+  const p = PRESETS[currentPreset];
+  if (currentStep >= p.order.length) return;
+  currentStep++;
+  renderScenario();
+}
+
+function play() {
+  const p = PRESETS[currentPreset];
+  if (currentStep >= p.order.length) {
+    currentStep = 0;
+    renderScenario();
+  }
+  playing = !playing;
+  document.getElementById('playBtn').innerHTML = playing ? '⏸ Pause' : '▶ Play';
+  if (playing) autoStep();
+}
+
+function autoStep() {
+  if (!playing) return;
+  const p = PRESETS[currentPreset];
+  if (currentStep >= p.order.length) {
+    playing = false;
+    document.getElementById('playBtn').innerHTML = '▶ Play';
+    return;
+  }
+  step();
+  playTimer = setTimeout(autoStep, 700);
+}
+
+function resetScenario() {
+  playing = false;
+  clearTimeout(playTimer);
+  document.getElementById('playBtn').innerHTML = '▶ Play';
+  currentStep = 0;
+  renderScenario();
+}
+
+function renderRef(p) {
+  document.getElementById('refContent').innerHTML = `
+    <div class="ref-section">
+      <h4>${p.name}</h4>
+      ${p.ref}
+    </div>
+    <div class="ref-section">
+      <h4>Code</h4>
+      <div class="code-block">${p.code}</div>
+    </div>
+    <div class="ref-section">
+      <h4>API Summary</h4>
+      <div class="code-block"><span class="cm">// Prioritized scheduling</span>
+scheduler.<span class="fn">postTask</span>(callback, {
+  priority: <span class="str">"user-blocking"</span>,
+  delay: <span class="num">0</span>,
+  signal: abortSignal
+});
+
+<span class="cm">// Animation frame</span>
+<span class="fn">requestAnimationFrame</span>(callback);
+
+<span class="cm">// Idle callback</span>
+<span class="fn">requestIdleCallback</span>(callback, {
+  timeout: <span class="num">2000</span>
+});
+
+<span class="cm">// Dynamic priority</span>
+<span class="kw">const</span> ctrl = <span class="kw">new</span> <span class="fn">TaskController</span>({
+  priority: <span class="str">"background"</span>
+});
+ctrl.<span class="fn">setPriority</span>(<span class="str">"user-blocking"</span>);
+ctrl.<span class="fn">abort</span>();</div>
+    </div>
+    <div class="compat-note">
+      scheduler.postTask: Chrome 94+ · Firefox ✕ · Safari ✕<br>
+      requestIdleCallback: Chrome 47+ · Firefox 55+ · Safari 16.4+<br>
+      requestAnimationFrame: All browsers ✅
+    </div>
+  `;
+}
+
+renderPresets();
+selectPreset(0);
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+</body>
+</html>

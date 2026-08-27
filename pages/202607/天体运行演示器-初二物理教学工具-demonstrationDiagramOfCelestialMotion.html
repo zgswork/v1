@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>天体运行演示器 - 初二物理教学工具</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+            color: #f0f8ff;
+            overflow: hidden;
+            height: 100vh;
+        }
+        
+        .container {
+            display: flex;
+            height: 100vh;
+            padding: 20px;
+        }
+        
+        .header {
+            text-align: center;
+            padding: 15px;
+            background: rgba(0, 20, 40, 0.8);
+            border-bottom: 2px solid #4fc3dc;
+        }
+        
+        .header h1 {
+            font-size: 2.2rem;
+            margin-bottom: 8px;
+            color: #4fc3dc;
+            text-shadow: 0 0 10px rgba(79, 195, 220, 0.7);
+        }
+        
+        .header p {
+            font-size: 1.1rem;
+            max-width: 800px;
+            margin: 0 auto;
+            line-height: 1.6;
+        }
+        
+        /* 3D视图区域 */
+        #scene-container {
+            flex: 1;
+            position: relative;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 0 30px rgba(0, 100, 200, 0.4);
+            background: rgba(5, 15, 30, 0.9);
+            border: 1px solid #2a5a7a;
+        }
+        
+        /* 控制面板 */
+        .control-panel {
+            width: 320px;
+            background: rgba(10, 30, 50, 0.85);
+            border-radius: 12px;
+            margin-left: 20px;
+            padding: 20px;
+            box-shadow: 0 0 25px rgba(0, 60, 120, 0.5);
+            border: 1px solid #3a7a9a;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+        
+        .panel-section {
+            margin-bottom: 25px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #2a5a7a;
+        }
+        
+        .panel-section:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+        
+        .panel-title {
+            font-size: 1.3rem;
+            margin-bottom: 15px;
+            color: #4fc3dc;
+            display: flex;
+            align-items: center;
+        }
+        
+        .panel-title i {
+            margin-right: 10px;
+            font-size: 1.4rem;
+        }
+        
+        .btn-group {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin-bottom: 15px;
+        }
+        
+        .btn {
+            background: linear-gradient(to bottom, #2a7aaa, #1a5a8a);
+            color: white;
+            border: none;
+            padding: 12px 15px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+            text-align: center;
+        }
+        
+        .btn:hover {
+            background: linear-gradient(to bottom, #3a8aba, #2a6a9a);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 8px rgba(0, 0, 0, 0.3);
+        }
+        
+        .btn.active {
+            background: linear-gradient(to bottom, #4fc3dc, #3aa3bc);
+            box-shadow: 0 0 15px rgba(79, 195, 220, 0.5);
+        }
+        
+        .btn-large {
+            grid-column: span 2;
+            padding: 14px;
+            font-size: 1.1rem;
+        }
+        
+        .slider-container {
+            margin: 15px 0;
+        }
+        
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 0.95rem;
+        }
+        
+        input[type="range"] {
+            width: 100%;
+            height: 8px;
+            border-radius: 4px;
+            background: #1a3a5a;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #4fc3dc;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(79, 195, 220, 0.7);
+        }
+        
+        .checkbox-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+        }
+        
+        .checkbox-item input {
+            margin-right: 10px;
+            width: 18px;
+            height: 18px;
+        }
+        
+        .scene-indicator {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 20, 40, 0.8);
+            padding: 10px 15px;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            border: 1px solid #4fc3dc;
+            box-shadow: 0 0 15px rgba(79, 195, 220, 0.4);
+        }
+        
+        .info-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0, 20, 40, 0.8);
+            padding: 15px;
+            border-radius: 8px;
+            max-width: 350px;
+            border: 1px solid #4fc3dc;
+            box-shadow: 0 0 15px rgba(79, 195, 220, 0.4);
+        }
+        
+        .info-title {
+            color: #4fc3dc;
+            margin-bottom: 10px;
+            font-size: 1.2rem;
+        }
+        
+        .info-content {
+            line-height: 1.5;
+            font-size: 0.95rem;
+        }
+        
+        .key-indicator {
+            display: flex;
+            margin-top: 10px;
+            padding: 8px;
+            background: rgba(20, 50, 80, 0.6);
+            border-radius: 6px;
+        }
+        
+        .key-item {
+            display: flex;
+            align-items: center;
+            margin-right: 15px;
+        }
+        
+        .key-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            margin-right: 6px;
+        }
+        
+        .sun-color { background: #ffaa33; }
+        .earth-color { background: #3399ff; }
+        .moon-color { background: #dddddd; }
+        
+        .legend {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 15px;
+            padding: 10px;
+            background: rgba(20, 50, 80, 0.6);
+            border-radius: 8px;
+        }
+        
+        .legend-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .legend-dot {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            margin-bottom: 5px;
+        }
+        
+        .footer {
+            text-align: center;
+            padding: 15px;
+            font-size: 0.9rem;
+            color: #88aacc;
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            background: rgba(0, 15, 30, 0.7);
+        }
+        
+        /* 响应式设计 */
+        @media (max-width: 1000px) {
+            .container {
+                flex-direction: column;
+                height: auto;
+            }
+            
+            #scene-container {
+                height: 60vh;
+                margin-bottom: 20px;
+            }
+            
+            .control-panel {
+                width: 100%;
+                margin-left: 0;
+                max-height: 40vh;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>天体运行演示器</h1>
+        <p>专为初二物理教学设计的交互式天体运行可视化工具 | MVP版本 1.0 | 地月日系统</p>
+    </div>
+    
+    <div class="container">
+        <div id="scene-container">
+            <div class="scene-indicator">当前视角: 上帝视角</div>
+            <div class="info-panel">
+                <div class="info-title">教学说明</div>
+                <div class="info-content">
+                    此演示器展示了地球围绕太阳的公转运动、地球自转以及月球围绕地球的运动关系。
+                    通过控制面板可以调整演示速度、切换视角、显示/隐藏标记，以及使用预设教学场景。
+                </div>
+                <div class="key-indicator">
+                    <div class="key-item"><div class="key-color sun-color"></div>太阳</div>
+                    <div class="key-item"><div class="key-color earth-color"></div>地球</div>
+                    <div class="key-item"><div class="key-color moon-color"></div>月球</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="control-panel">
+            <div class="panel-section">
+                <div class="panel-title">控制面板</div>
+                <div class="btn-group">
+                    <button id="play-btn" class="btn active">▶️ 运行</button>
+                    <button id="pause-btn" class="btn">⏸️ 暂停</button>
+                    <button id="reset-btn" class="btn btn-large">↺ 重置场景</button>
+                </div>
+                
+                <div class="slider-container">
+                    <div class="slider-label">
+                        <span>演示速度</span>
+                        <span id="speed-value">1x</span>
+                    </div>
+                    <input type="range" id="speed-slider" min="0.1" max="5" step="0.1" value="1">
+                </div>
+            </div>
+            
+            <div class="panel-section">
+                <div class="panel-title">视角控制</div>
+                <div class="btn-group">
+                    <button id="god-view" class="btn active">🌌 上帝视角</button>
+                    <button id="earth-view" class="btn">🌍 地球视角</button>
+                    <button id="moon-view" class="btn">🌑 月球视角</button>
+                    <button id="sun-view" class="btn">☀️ 太阳视角</button>
+                </div>
+            </div>
+            
+            <div class="panel-section">
+                <div class="panel-title">教学场景</div>
+                <div class="btn-group">
+                    <button id="seasons-scene" class="btn">🍂 四季形成</button>
+                    <button id="moon-phases" class="btn">🌓 月相变化</button>
+                    <button id="day-night" class="btn">🌗 昼夜交替</button>
+                    <button id="eclipse" class="btn">🌑 日食/月食</button>
+                </div>
+            </div>
+            
+            <div class="panel-section">
+                <div class="panel-title">显示标记</div>
+                <div class="checkbox-group">
+                    <label class="checkbox-item">
+                        <input type="checkbox" id="show-orbit" checked>
+                        显示公转轨道
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="checkbox" id="show-axis">
+                        显示自转轴
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="checkbox" id="show-sunlight" checked>
+                        显示太阳光线
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="checkbox" id="show-terminator">
+                        显示晨昏线
+                    </label>
+                </div>
+            </div>
+            
+            <div class="legend">
+                <div class="legend-item">
+                    <div class="legend-dot sun-color"></div>
+                    <div>太阳</div>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-dot earth-color"></div>
+                    <div>地球</div>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-dot moon-color"></div>
+                    <div>月球</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="footer">
+        MVP版本 1.0 | 设计用于初二物理教学 | 简化模型仅用于教学演示 | © 2023 天体运行演示器
+    </div>
+
+    <script>
+        // 初始化Three.js场景
+        let scene, camera, renderer;
+        let sun, earth, moon;
+        let earthOrbit, moonOrbit;
+        let sunlight;
+        let animationId;
+        let speed = 1;
+        let isPlaying = true;
+        let currentView = 'god';
+        
+        // 初始化场景
+        function init() {
+            // 创建场景
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0a1520);
+            
+            // 创建相机
+            camera = new THREE.PerspectiveCamera(45, 
+                document.getElementById('scene-container').clientWidth / 
+                document.getElementById('scene-container').clientHeight, 
+                0.1, 2000);
+            camera.position.set(0, 30, 80);
+            
+            // 创建渲染器
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(
+                document.getElementById('scene-container').clientWidth,
+                document.getElementById('scene-container').clientHeight
+            );
+            renderer.shadowMap.enabled = true;
+            document.getElementById('scene-container').appendChild(renderer.domElement);
+            
+            // 添加光源
+            const ambientLight = new THREE.AmbientLight(0x333333);
+            scene.add(ambientLight);
+            
+            sunlight = new THREE.PointLight(0xffffff, 1.5, 300);
+            sunlight.position.set(0, 0, 0);
+            sunlight.castShadow = true;
+            scene.add(sunlight);
+            
+            // 创建天体
+            createCelestialBodies();
+            
+            // 创建轨道
+            createOrbits();
+            
+            // 添加事件监听
+            setupEventListeners();
+            
+            // 开始动画
+            animate();
+            
+            // 窗口大小调整处理
+            window.addEventListener('resize', onWindowResize);
+        }
+        
+        // 创建天体
+        function createCelestialBodies() {
+            // 创建太阳
+            const sunGeometry = new THREE.SphereGeometry(8, 32, 32);
+            const sunMaterial = new THREE.MeshBasicMaterial({ 
+                color: 0xffaa33,
+                emissive: 0xff5500,
+                emissiveIntensity: 0.8
+            });
+            sun = new THREE.Mesh(sunGeometry, sunMaterial);
+            scene.add(sun);
+            
+            // 创建地球
+            const earthGeometry = new THREE.SphereGeometry(4, 32, 32);
+            const earthMaterial = new THREE.MeshLambertMaterial({ 
+                color: 0x3399ff,
+                emissive: 0x114477,
+                emissiveIntensity: 0.2
+            });
+            earth = new THREE.Mesh(earthGeometry, earthMaterial);
+            earth.position.set(40, 0, 0);
+            scene.add(earth);
+            
+            // 创建月球
+            const moonGeometry = new THREE.SphereGeometry(1.5, 24, 24);
+            const moonMaterial = new THREE.MeshLambertMaterial({ 
+                color: 0xdddddd,
+                emissive: 0x666666,
+                emissiveIntensity: 0.1
+            });
+            moon = new THREE.Mesh(moonGeometry, moonMaterial);
+            moon.position.set(8, 0, 0);
+            earth.add(moon);
+            
+            // 设置地球自转轴倾斜（黄赤交角23.5度）
+            earth.rotation.x = 23.5 * Math.PI / 180;
+        }
+        
+        // 创建轨道
+        function createOrbits() {
+            // 地球公转轨道
+            const earthOrbitGeometry = new THREE.RingGeometry(39, 40, 128);
+            const earthOrbitMaterial = new THREE.MeshBasicMaterial({ 
+                color: 0x3399ff, 
+                side: THREE.DoubleSide,
+                transparent: true,
+                opacity: 0.3
+            });
+            earthOrbit = new THREE.Mesh(earthOrbitGeometry, earthOrbitMaterial);
+            earthOrbit.rotation.x = Math.PI / 2;
+            scene.add(earthOrbit);
+            
+            // 月球公转轨道
+            const moonOrbitGeometry = new THREE.RingGeometry(7.5, 8, 64);
+            const moonOrbitMaterial = new THREE.MeshBasicMaterial({ 
+                color: 0xdddddd, 
+                side: THREE.DoubleSide,
+                transparent: true,
+                opacity: 0.3
+            });
+            moonOrbit = new THREE.Mesh(moonOrbitGeometry, moonOrbitMaterial);
+            moonOrbit.rotation.x = Math.PI / 2;
+            earth.add(moonOrbit);
+        }
+        
+        // 设置事件监听
+        function setupEventListeners() {
+            // 播放/暂停控制
+            document.getElementById('play-btn').addEventListener('click', () => {
+                isPlaying = true;
+                document.getElementById('play-btn').classList.add('active');
+                document.getElementById('pause-btn').classList.remove('active');
+            });
+            
+            document.getElementById('pause-btn').addEventListener('click', () => {
+                isPlaying = false;
+                document.getElementById('pause-btn').classList.add('active');
+                document.getElementById('play-btn').classList.remove('active');
+            });
+            
+            // 重置按钮
+            document.getElementById('reset-btn').addEventListener('click', resetScene);
+            
+            // 速度控制
+            const speedSlider = document.getElementById('speed-slider');
+            const speedValue = document.getElementById('speed-value');
+            
+            speedSlider.addEventListener('input', () => {
+                speed = parseFloat(speedSlider.value);
+                speedValue.textContent = speed.toFixed(1) + 'x';
+            });
+            
+            // 视角控制
+            document.getElementById('god-view').addEventListener('click', () => {
+                setView('god');
+                updateViewButtons('god-view');
+            });
+            
+            document.getElementById('earth-view').addEventListener('click', () => {
+                setView('earth');
+                updateViewButtons('earth-view');
+            });
+            
+            document.getElementById('moon-view').addEventListener('click', () => {
+                setView('moon');
+                updateViewButtons('moon-view');
+            });
+            
+            document.getElementById('sun-view').addEventListener('click', () => {
+                setView('sun');
+                updateViewButtons('sun-view');
+            });
+            
+            // 教学场景
+            document.getElementById('seasons-scene').addEventListener('click', () => {
+                alert('四季形成场景已激活：\n地球公转轨道平面显示，黄赤交角标记，太阳直射点动态变化');
+            });
+            
+            document.getElementById('moon-phases').addEventListener('click', () => {
+                alert('月相变化场景已激活：\n月球公转加速，地球视角显示月相变化过程');
+            });
+            
+            document.getElementById('day-night').addEventListener('click', () => {
+                alert('昼夜交替场景已激活：\n地球自转加速，晨昏线标记，地表视角显示昼夜变化');
+            });
+            
+            document.getElementById('eclipse').addEventListener('click', () => {
+                alert('日食/月食场景已激活：\n地球、月球和太阳对齐，显示日食和月食形成原理');
+            });
+            
+            // 显示标记
+            document.getElementById('show-orbit').addEventListener('change', function() {
+                earthOrbit.visible = this.checked;
+                moonOrbit.visible = this.checked;
+            });
+        }
+        
+        // 设置视角
+        function setView(view) {
+            currentView = view;
+            const indicator = document.querySelector('.scene-indicator');
+            
+            switch(view) {
+                case 'god':
+                    camera.position.set(0, 30, 80);
+                    camera.lookAt(0, 0, 0);
+                    indicator.textContent = "当前视角: 上帝视角";
+                    break;
+                case 'earth':
+                    // 地球视角
+                    const earthPos = earth.getWorldPosition(new THREE.Vector3());
+                    camera.position.set(earthPos.x, earthPos.y + 5, earthPos.z - 15);
+                    camera.lookAt(sun.position);
+                    indicator.textContent = "当前视角: 地球视角";
+                    break;
+                case 'moon':
+                    // 月球视角
+                    const moonPos = moon.getWorldPosition(new THREE.Vector3());
+                    camera.position.set(moonPos.x, moonPos.y + 2, moonPos.z - 10);
+                    camera.lookAt(earth.position);
+                    indicator.textContent = "当前视角: 月球视角";
+                    break;
+                case 'sun':
+                    // 太阳视角
+                    camera.position.set(0, 0, 15);
+                    camera.lookAt(earth.position);
+                    indicator.textContent = "当前视角: 太阳视角";
+                    break;
+            }
+        }
+        
+        // 更新视角按钮状态
+        function updateViewButtons(activeId) {
+            const viewButtons = ['god-view', 'earth-view', 'moon-view', 'sun-view'];
+            viewButtons.forEach(id => {
+                const btn = document.getElementById(id);
+                if (id === activeId) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+        }
+        
+        // 重置场景
+        function resetScene() {
+            // 重置地球位置和旋转
+            earth.position.set(40, 0, 0);
+            earth.rotation.z = 0;
+            
+            // 重置月球位置
+            moon.position.set(8, 0, 0);
+            
+            // 重置相机到默认视角
+            setView('god');
+            updateViewButtons('god-view');
+            
+            // 重置速度
+            document.getElementById('speed-slider').value = 1;
+            speed = 1;
+            document.getElementById('speed-value').textContent = '1x';
+            
+            // 重置播放状态
+            isPlaying = true;
+            document.getElementById('play-btn').classList.add('active');
+            document.getElementById('pause-btn').classList.remove('active');
+            
+            alert("场景已重置到初始状态");
+        }
+        
+        // 动画循环
+        function animate() {
+            animationId = requestAnimationFrame(animate);
+            
+            if (isPlaying) {
+                // 地球公转（绕太阳）
+                earth.position.x = 40 * Math.cos(Date.now() * 0.0001 * speed);
+                earth.position.z = 40 * Math.sin(Date.now() * 0.0001 * speed);
+                
+                // 地球自转
+                earth.rotation.y += 0.01 * speed;
+                
+                // 月球公转（绕地球）
+                moon.position.x = 8 * Math.cos(Date.now() * 0.0005 * speed);
+                moon.position.z = 8 * Math.sin(Date.now() * 0.0005 * speed);
+                
+                // 根据视角更新相机位置
+                if (currentView === 'earth') {
+                    const earthPos = earth.getWorldPosition(new THREE.Vector3());
+                    camera.position.set(earthPos.x, earthPos.y + 5, earthPos.z - 15);
+                    camera.lookAt(sun.position);
+                } else if (currentView === 'moon') {
+                    const moonPos = moon.getWorldPosition(new THREE.Vector3());
+                    camera.position.set(moonPos.x, moonPos.y + 2, moonPos.z - 10);
+                    camera.lookAt(earth.position);
+                }
+            }
+            
+            renderer.render(scene, camera);
+        }
+        
+        // 窗口大小调整处理
+        function onWindowResize() {
+            camera.aspect = document.getElementById('scene-container').clientWidth / 
+                            document.getElementById('scene-container').clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(
+                document.getElementById('scene-container').clientWidth,
+                document.getElementById('scene-container').clientHeight
+            );
+        }
+        
+        // 页面加载完成后初始化
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>

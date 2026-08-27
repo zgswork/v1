@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html tk="title_browser_rendering_pipelin" lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Browser Rendering Pipeline Visualizer</title>
+<meta name="description" content="Interactive browser rendering pipeline visualizer. See which CSS/JS changes trigger Layout, Paint, or Composite. Step through the pipeline: Parse → Style → Layout → Paint → Composite.">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0a0a;color:#e6e6e6;min-height:100vh}
+.container{max-width:1200px;margin:0 auto;padding:16px}
+header{text-align:center;padding:20px 0 16px}
+header h1{font-size:1.6rem;color:#fff;margin-bottom:4px}
+header p{color:#888;font-size:0.85rem}
+.tabs{display:flex;gap:4px;margin-bottom:16px;border-bottom:1px solid #333;padding-bottom:8px}
+.tab{padding:8px 16px;border-radius:8px 8px 0 0;border:1px solid transparent;background:none;color:#888;cursor:pointer;font-size:0.85rem;font-weight:600}
+.tab.active{background:#1a1a2e;color:#4da6ff;border-color:#333;border-bottom-color:#1a1a2e}
+.panel{display:none}.panel.active{display:block}
+
+/* Pipeline visualization */
+.pipeline{display:flex;gap:4px;margin-bottom:20px;padding:16px;background:#111;border:1px solid #333;border-radius:12px;align-items:center;justify-content:center;flex-wrap:wrap}
+.pipe-stage{padding:12px 20px;border-radius:8px;border:2px solid #333;background:#1a1a1a;text-align:center;transition:all 0.4s;min-width:100px;position:relative}
+.pipe-stage .stage-name{font-size:0.85rem;font-weight:700;color:#888;margin-bottom:2px}
+.pipe-stage .stage-time{font-size:0.65rem;color:#555}
+.pipe-arrow{color:#333;font-size:1.2rem}
+.pipe-stage.active{transform:scale(1.05)}
+.pipe-stage.triggered-layout{border-color:#ef4444;background:#ef44440a;box-shadow:0 0 16px #ef444433}
+.pipe-stage.triggered-layout .stage-name{color:#ef4444}
+.pipe-stage.triggered-paint{border-color:#f59e0b;background:#f59e0b0a;box-shadow:0 0 16px #f59e0b33}
+.pipe-stage.triggered-paint .stage-name{color:#f59e0b}
+.pipe-stage.triggered-composite{border-color:#22c55e;background:#22c55e0a;box-shadow:0 0 16px #22c55e33}
+.pipe-stage.triggered-composite .stage-name{color:#22c55e}
+.pipe-stage.skipped{opacity:0.3}
+
+/* Property tester */
+.tester{display:grid;grid-template-columns:1fr 1fr;gap:16px;min-height:400px}
+.prop-panel{background:#111;border:1px solid #333;border-radius:12px;padding:16px}
+.prop-panel h3{font-size:0.9rem;color:#aaa;margin-bottom:12px}
+.prop-list{display:grid;grid-template-columns:1fr 1fr;gap:6px;max-height:380px;overflow-y:auto}
+.prop-item{padding:8px 10px;border-radius:6px;border:1px solid #222;background:#0a0a0a;cursor:pointer;transition:all 0.2s;font-size:0.8rem;display:flex;justify-content:space-between;align-items:center}
+.prop-item:hover{border-color:#555}
+.prop-item.selected{border-color:#4da6ff;background:#1a1a2e}
+.prop-item .prop-name{font-family:'Fira Code',monospace;color:#4da6ff}
+.trigger-badge{font-size:0.6rem;padding:2px 5px;border-radius:3px;font-weight:700}
+.trigger-layout{background:#ef444433;color:#ef4444}
+.trigger-paint{background:#f59e0b33;color:#f59e0b}
+.trigger-composite{background:#22c55e33;color:#22c55e}
+
+.detail-panel{background:#111;border:1px solid #333;border-radius:12px;padding:16px}
+.detail-panel h3{font-size:0.9rem;color:#aaa;margin-bottom:12px}
+.detail-card{background:#1a1a1a;border:1px solid #333;border-radius:8px;padding:16px;margin-bottom:12px}
+.detail-card h4{color:#fff;font-size:0.9rem;margin-bottom:8px}
+.detail-card p{color:#888;font-size:0.82rem;line-height:1.5}
+.pipeline-path{display:flex;gap:4px;align-items:center;margin:12px 0}
+.path-step{padding:4px 10px;border-radius:4px;font-size:0.75rem;font-weight:600}
+.path-step.hit{color:#fff}
+.path-step.skip{opacity:0.3;color:#555;text-decoration:line-through}
+.tip-box{background:#f59e0b0a;border:1px solid #f59e0b33;border-radius:8px;padding:10px;margin-top:8px}
+.tip-box h5{color:#f59e0b;font-size:0.8rem;margin-bottom:4px}
+.tip-box p{color:#aaa;font-size:0.78rem;line-height:1.5}
+
+/* Filter controls */
+.filter-row{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+.filter-btn{padding:5px 12px;border-radius:6px;border:1px solid #333;background:none;color:#888;cursor:pointer;font-size:0.75rem;font-weight:600}
+.filter-btn.active{color:#fff}
+.filter-btn.active.f-layout{background:#ef444433;border-color:#ef4444;color:#ef4444}
+.filter-btn.active.f-paint{background:#f59e0b33;border-color:#f59e0b;color:#f59e0b}
+.filter-btn.active.f-composite{background:#22c55e33;border-color:#22c55e;color:#22c55e}
+
+/* Presets */
+.preset-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+.preset-card{background:#161616;border:1px solid #222;border-radius:12px;padding:16px;cursor:pointer;transition:border-color 0.2s}
+.preset-card:hover{border-color:#4da6ff}
+.preset-card h4{color:#fff;font-size:0.9rem;margin-bottom:6px}
+.preset-card p{color:#888;font-size:0.8rem;line-height:1.4}
+
+/* Reference */
+.ref-section{margin-bottom:20px}
+.ref-section h3{color:#4da6ff;font-size:1rem;margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid #222}
+.ref-section p,.ref-section li{color:#bbb;font-size:0.85rem;line-height:1.6}
+.ref-section ul{padding-left:20px}
+.ref-section code{background:#1a1a2e;padding:2px 6px;border-radius:4px;color:#4da6ff;font-size:0.8rem}
+
+.search-input{width:100%;padding:8px 12px;border-radius:8px;border:1px solid #333;background:#0a0a0a;color:#e6e6e6;font-size:0.85rem;margin-bottom:12px}
+.search-input:focus{border-color:#4da6ff;outline:none}
+</style>
+</head>
+<body>
+
+
+
+
+<div class="container" style="position:relative">
+<header>
+<h1 ti="title_browser_rendering_pipelin" ti="h1_browser_rendering_pipelin" ti="title_browser_rendering_pipelin" ti="h1_browser_rendering_pipelin">Browser Rendering Pipeline Visualizer</h1>
+<p>See which CSS properties trigger Layout, Paint, or Composite-only changes</p>
+</header>
+
+<div class="pipeline" id="pipeline">
+<div class="pipe-stage" data-stage="js"><div class="stage-name">JavaScript</div><div class="stage-time">Parse & Execute</div></div>
+<div class="pipe-arrow">→</div>
+<div class="pipe-stage" data-stage="style"><div class="stage-name">Style</div><div class="stage-time">Recalculate</div></div>
+<div class="pipe-arrow">→</div>
+<div class="pipe-stage" data-stage="layout"><div class="stage-name">Layout</div><div class="stage-time">Reflow</div></div>
+<div class="pipe-arrow">→</div>
+<div class="pipe-stage" data-stage="paint"><div class="stage-name">Paint</div><div class="stage-time">Rasterize</div></div>
+<div class="pipe-arrow">→</div>
+<div class="pipe-stage" data-stage="composite"><div class="stage-name">Composite</div><div class="stage-time">GPU layers</div></div>
+</div>
+
+<div class="tabs">
+<button class="tab active" data-tab="tester" ti="btn_property_tester" ti="btn_property_tester">Property Tester</button>
+<button class="tab" data-tab="presets" ti="btn_scenarios" ti="btn_scenarios">Scenarios</button>
+<button class="tab" data-tab="reference" ti="btn_reference" ti="btn_reference">Reference</button>
+</div>
+
+<div class="panel active" id="tester">
+<input type="text" class="search-input" id="searchProp" tp="placeholder_search_css_properties_e_g" tp="placeholder_search_css_properties_e_g" placeholder="Search CSS properties... (e.g., transform, width, color)">
+<div class="filter-row">
+<button class="filter-btn active f-layout" data-filter="layout" ti="btn_layout_expensive" ti="btn_layout_expensive">Layout (expensive)</button>
+<button class="filter-btn active f-paint" data-filter="paint" ti="btn_paint_moderate" ti="btn_paint_moderate">Paint (moderate)</button>
+<button class="filter-btn active f-composite" data-filter="composite" ti="btn_composite_cheap" ti="btn_composite_cheap">Composite (cheap)</button>
+</div>
+<div class="tester">
+<div class="prop-panel">
+<h3 ti="h3_css_properties" ti="h3_css_properties">CSS Properties</h3>
+<div class="prop-list" id="propList"></div>
+</div>
+<div class="detail-panel" id="detailPanel">
+<h3 ti="h3_property_details" ti="h3_property_details">Property Details</h3>
+<div id="propDetail">
+<div style="color:#555;padding:20px;text-align:center">Select a property to see its rendering cost</div>
+</div>
+</div>
+</div>
+</div>
+
+<div class="panel" id="presets">
+<div class="preset-grid" id="presetGrid"></div>
+</div>
+
+<div class="panel" id="reference">
+<div class="ref-section">
+<h3 ti="h3_the_rendering_pipeline" ti="h3_the_rendering_pipeline">The Rendering Pipeline</h3>
+<p>Every frame the browser displays goes through up to 5 stages:</p>
+<ul>
+<li><strong ti="strong_javascript" ti="strong_javascript">JavaScript</strong>: Code that changes the DOM or CSSOM runs first</li>
+<li><strong ti="strong_style" ti="strong_style">Style</strong>: Matched rules are recalculated (always happens if anything changed)</li>
+<li><strong ti="strong_layout_reflow" ti="strong_layout_reflow">Layout (Reflow)</strong>: Geometry changes. Width, height, position, margin, padding. Most expensive step.</li>
+<li><strong ti="strong_paint_repaint" ti="strong_paint_repaint">Paint (Repaint)</strong>: Visual changes. Color, background, shadow, border-style. Fills in pixels.</li>
+<li><strong ti="strong_composite" ti="strong_composite">Composite</strong>: Layer composition. Transform, opacity. GPU-accelerated. Cheapest step.</li>
+</ul>
+</div>
+<div class="ref-section">
+<h3 ti="h3_performance_tips" ti="h3_performance_tips">Performance Tips</h3>
+<ul>
+<li>Prefer <code>transform</code> and <code>opacity</code> for animations — they skip Layout and Paint entirely</li>
+<li>Avoid animating <code>width</code>, <code>height</code>, <code>top</code>, <code>left</code> — they trigger Layout on every frame</li>
+<li>Use <code>will-change</code> to promote elements to their own compositor layer (use sparingly)</li>
+<li><code>contain: layout paint</code> limits the scope of Layout and Paint to the element's subtree</li>
+<li>Reading layout properties (<code>offsetWidth</code>, <code>getBoundingClientRect()</code>) after writing forces synchronous layout</li>
+</ul>
+</div>
+<div class="ref-section">
+<h3 ti="h3_forced_synchronous_layout" ti="h3_forced_synchronous_layout">Forced Synchronous Layout</h3>
+<p>The browser batches style/layout changes. But if you read a layout property after writing, the browser must calculate layout immediately:</p>
+<ul>
+<li><code>elem.style.width = '100px'; const w = elem.offsetWidth;</code> — forces layout between these two lines</li>
+<li>This is called "layout thrashing" and is a common performance bottleneck</li>
+<li>Solution: batch all reads first, then batch all writes</li>
+</ul>
+</div>
+</div>
+</div>
+
+
+
+<script>var _LANG={'title_browser_rendering_pipelin':["Browser Rendering Pipeline Visualizer", "浏览器渲染管线可视化工具"],'metadesc_interactive_browser_rende':["Interactive browser rendering pipeline visualizer. See which CSS/JS changes trigger Layout, Paint, or Composite. Step through the pipeline: Parse → Style → Layout → Paint → Composite.", "交互式浏览器渲染管线可视化工具。查看哪些 CSS/JS 更改触发了布局、绘制或合成。逐步查看管线：解析 → 样式 → 布局 → 绘制 → 合成。"],'h1_browser_rendering_pipelin':["Browser Rendering Pipeline Visualizer", "浏览器渲染管线可视化工具"],'h3_css_properties':["CSS Properties", "CSS属性"],'h3_property_details':["Property Details", "房产详情"],'h3_the_rendering_pipeline':["The Rendering Pipeline", "渲染管线"],'h3_performance_tips':["Performance Tips", "性能提示"],'h3_forced_synchronous_layout':["Forced Synchronous Layout", "强制同步布局"],'btn_property_tester':["Property Tester", "属性测试器"],'btn_scenarios':["Scenarios", "场景"],'btn_reference':["Reference", "参考"],'btn_layout_expensive':["Layout (expensive)", "布局（昂贵）"],'btn_paint_moderate':["Paint (moderate)", "油漆（中等）"],'btn_composite_cheap':["Composite (cheap)", "复合材料（廉价）"],'placeholder_search_css_properties_e_g':["Search CSS properties... (e.g., transform, width, color)", "搜索 CSS 属性……（例如，transform、width、color）"],'strong_javascript':["JavaScript", "JavaScript"],'strong_style':["Style", "风格"],'strong_layout_reflow':["Layout (Reflow)", "布局（重排）"],'strong_paint_repaint':["Paint (Repaint)", "油漆（重新粉刷）"],'strong_composite':["Composite", "合成的"],'strong_costlabel':["${costLabel}", "${costLabel}"],'strong_skipped':["${skipped}", "${已跳过}"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>var _LANG={'title_browser_rendering_pipelin':["Browser Rendering Pipeline Visualizer", "浏览器渲染管线可视化工具"],'metadesc_interactive_browser_rende':["Interactive browser rendering pipeline visualizer. See which CSS/JS changes trigger Layout, Paint, or Composite. Step through the pipeline: Parse → Style → Layout → Paint → Composite.", "交互式浏览器渲染管线可视化工具。查看哪些 CSS/JS 更改触发了布局、绘制或合成。逐步查看管线：解析 → 样式 → 布局 → 绘制 → 合成。"],'h1_browser_rendering_pipelin':["Browser Rendering Pipeline Visualizer", "浏览器渲染管线可视化工具"],'h3_css_properties':["CSS Properties", "CSS属性"],'h3_property_details':["Property Details", "房产详情"],'h3_the_rendering_pipeline':["The Rendering Pipeline", "渲染管线"],'h3_performance_tips':["Performance Tips", "性能提示"],'h3_forced_synchronous_layout':["Forced Synchronous Layout", "强制同步布局"],'btn_property_tester':["Property Tester", "属性测试器"],'btn_scenarios':["Scenarios", "场景"],'btn_reference':["Reference", "参考"],'btn_layout_expensive':["Layout (expensive)", "布局（昂贵）"],'btn_paint_moderate':["Paint (moderate)", "油漆（中等）"],'btn_composite_cheap':["Composite (cheap)", "复合材料（廉价）"],'placeholder_search_css_properties_e_g':["Search CSS properties... (e.g., transform, width, color)", "搜索 CSS 属性……（例如，transform、width、color）"],'strong_javascript':["JavaScript", "JavaScript"],'strong_style':["Style", "风格"],'strong_layout_reflow':["Layout (Reflow)", "布局（重排）"],'strong_paint_repaint':["Paint (Repaint)", "油漆（重新粉刷）"],'strong_composite':["Composite", "合成的"],'strong_costlabel':["${costLabel}", "${costLabel}"],'strong_skipped':["${skipped}", "${已跳过}"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>
+// CSS property → trigger data
+// Sources: https://csstriggers.com (archived), Chrome DevTools documentation
+const PROPERTIES = [
+  // Layout triggers
+  {name:'width',trigger:'layout',desc:'Changes element geometry. Triggers full layout recalculation of the element and potentially its siblings/children.',tip:'Use transform: scaleX() for animations instead.'},
+  {name:'height',trigger:'layout',desc:'Changes element geometry. Triggers layout of the element and potentially cascades to parent/siblings.',tip:'Use transform: scaleY() for animations instead.'},
+  {name:'top',trigger:'layout',desc:'Changes positioned element offset. Triggers layout if element is in normal flow.',tip:'Use transform: translateY() for animations instead.'},
+  {name:'left',trigger:'layout',desc:'Changes positioned element offset. Triggers layout.',tip:'Use transform: translateX() for animations instead.'},
+  {name:'bottom',trigger:'layout',desc:'Changes positioned element offset. Triggers layout.',tip:'Use transform: translateY() for animations instead.'},
+  {name:'right',trigger:'layout',desc:'Changes positioned element offset. Triggers layout.',tip:'Use transform: translateX() for animations instead.'},
+  {name:'margin',trigger:'layout',desc:'Changes spacing around element. Triggers layout of surrounding elements.',tip:'Avoid animating margins. Use transform: translate() instead.'},
+  {name:'padding',trigger:'layout',desc:'Changes inner spacing. Triggers layout of the element and its children.',tip:'Avoid animating padding.'},
+  {name:'border-width',trigger:'layout',desc:'Changes border size which affects element dimensions. Triggers layout.',tip:'Use box-shadow for visual borders that don\'t trigger layout.'},
+  {name:'display',trigger:'layout',desc:'Changes box model completely. One of the most expensive property changes.',tip:'Use visibility or opacity to hide elements without layout cost.'},
+  {name:'position',trigger:'layout',desc:'Changes how element participates in flow. Triggers layout of surrounding elements.',tip:'Set position once, animate with transform.'},
+  {name:'float',trigger:'layout',desc:'Changes flow model. Triggers layout of surrounding inline content.',tip:'Use flexbox or grid instead of float.'},
+  {name:'font-size',trigger:'layout',desc:'Changes text metrics. Triggers layout of all text content in the element.',tip:'Avoid animating font-size. Use transform: scale() instead.'},
+  {name:'font-weight',trigger:'layout',desc:'May change text metrics. Triggers layout.',tip:'Preload both weights and toggle classes instead of animating.'},
+  {name:'line-height',trigger:'layout',desc:'Changes vertical spacing of text. Triggers layout.',tip:'Set once, avoid animating.'},
+  {name:'text-align',trigger:'layout',desc:'Changes inline content positioning. Triggers layout.',tip:'Set once.'},
+  {name:'overflow',trigger:'layout',desc:'Changes how content overflow is handled. May trigger layout.',tip:'Set once.'},
+  {name:'flex',trigger:'layout',desc:'Changes flex item sizing. Triggers layout of flex container and siblings.',tip:'Minimize flex changes during animation.'},
+  {name:'grid-template',trigger:'layout',desc:'Changes grid track definitions. Triggers layout of entire grid.',tip:'Avoid animating grid definitions.'},
+  {name:'min-width',trigger:'layout',desc:'Constrains element width. Triggers layout.',tip:'Set once.'},
+  {name:'max-width',trigger:'layout',desc:'Constrains element width. Triggers layout.',tip:'Set once.'},
+
+  // Paint triggers
+  {name:'color',trigger:'paint',desc:'Changes text color. Triggers paint but not layout (no geometry change).',tip:'Composite-only alternative: none. But paint-only is still fast.'},
+  {name:'background',trigger:'paint',desc:'Changes background color/image. Triggers paint.',tip:'For color transitions, this is acceptable. Avoid during scroll.'},
+  {name:'background-color',trigger:'paint',desc:'Changes background color. Triggers paint only.',tip:'Acceptable for hover states and transitions.'},
+  {name:'background-image',trigger:'paint',desc:'Changes background image. Triggers paint and may be expensive for gradients.',tip:'Prefer simple colors over gradients for animated elements.'},
+  {name:'box-shadow',trigger:'paint',desc:'Changes shadow rendering. Triggers paint. Complex shadows are expensive to paint.',tip:'Use simpler shadows or pseudo-element tricks for animated shadows.'},
+  {name:'border-color',trigger:'paint',desc:'Changes border color. Triggers paint only (not layout — border size doesn\'t change).',tip:'Acceptable for hover transitions.'},
+  {name:'border-style',trigger:'paint',desc:'Changes border rendering style. Triggers paint.',tip:'Set once.'},
+  {name:'border-radius',trigger:'paint',desc:'Changes corner rounding. Triggers paint.',tip:'Set once. Avoid animating.'},
+  {name:'outline',trigger:'paint',desc:'Changes outline. Paint only — outlines don\'t affect layout.',tip:'Good for focus indicators.'},
+  {name:'visibility',trigger:'paint',desc:'Shows/hides element without layout change. Triggers paint only.',tip:'Use opacity for fade animations (composite-only).'},
+  {name:'text-decoration',trigger:'paint',desc:'Changes text decorations. Triggers paint.',tip:'Set once.'},
+  {name:'background-position',trigger:'paint',desc:'Changes background image position. Triggers paint.',tip:'Avoid during scroll animations.'},
+  {name:'text-shadow',trigger:'paint',desc:'Changes text shadow. Triggers paint.',tip:'Keep simple.'},
+  {name:'filter',trigger:'paint',desc:'Applies visual filters (blur, brightness, etc.). Triggers paint. Can be expensive.',tip:'Use will-change: filter to promote to compositor layer.'},
+
+  // Composite-only triggers
+  {name:'transform',trigger:'composite',desc:'Applies 2D/3D transformations. Skips Layout and Paint entirely. GPU-accelerated.',tip:'Best choice for animations: translate, rotate, scale. Zero layout cost.'},
+  {name:'opacity',trigger:'composite',desc:'Changes element transparency. Skips Layout and Paint. GPU-accelerated.',tip:'Perfect for fade animations. Combine with transform for smooth animations.'},
+  {name:'will-change',trigger:'composite',desc:'Hints the browser to promote the element to its own compositor layer.',tip:'Use sparingly — each layer costs GPU memory. Remove when no longer needed.'},
+  {name:'z-index',trigger:'composite',desc:'Changes stacking order. If element is already composited, this is composite-only.',tip:'Works best on already-composited elements (with transform or opacity).'},
+  {name:'perspective',trigger:'composite',desc:'Sets 3D perspective for child transforms. Composite-only.',tip:'Set on parent for 3D effects.'},
+  {name:'backface-visibility',trigger:'composite',desc:'Controls visibility of element backface during 3D transforms. Composite-only.',tip:'Set to hidden for 3D card flip effects.'},
+];
+
+const SCENARIOS = [
+  {
+    name: 'Smooth Animation',
+    desc: 'Move an element with transform instead of top/left. Compare the pipeline cost.',
+    props: ['transform', 'top', 'left'],
+    explanation: 'transform skips Layout and Paint, going straight to Composite. top/left trigger full Layout → Paint → Composite on every frame.'
+  },
+  {
+    name: 'Fade In/Out',
+    desc: 'Compare opacity (composite) vs visibility (paint) vs display:none (layout) for hiding elements.',
+    props: ['opacity', 'visibility', 'display'],
+    explanation: 'opacity is composite-only (cheapest). visibility triggers Paint. display triggers full Layout (most expensive).'
+  },
+  {
+    name: 'Hover Effect',
+    desc: 'Color and shadow changes on hover. Both trigger Paint but not Layout.',
+    props: ['background-color', 'box-shadow', 'color'],
+    explanation: 'All three are Paint-only. For hover states this is fine — hover isn\'t 60fps animation.'
+  },
+  {
+    name: 'Resize Animation',
+    desc: 'Animating width/height vs using transform: scale(). Dramatic performance difference.',
+    props: ['width', 'height', 'transform'],
+    explanation: 'width/height trigger Layout on every frame — the most expensive pipeline path. transform: scale() is composite-only.'
+  },
+  {
+    name: 'Layout Thrashing',
+    desc: 'Properties that trigger Layout. Reading offsetWidth after changing these forces synchronous layout.',
+    props: ['width', 'margin', 'padding', 'font-size', 'flex'],
+    explanation: 'All trigger Layout. If you read layout properties (offsetWidth) between writes, the browser can\'t batch — it must calculate layout immediately.'
+  },
+  {
+    name: 'Expensive Filters',
+    desc: 'CSS filter effects like blur. Paint-triggering and computationally expensive.',
+    props: ['filter', 'box-shadow', 'text-shadow'],
+    explanation: 'All trigger Paint. blur() is especially expensive. Use will-change: filter to promote to compositor layer for smoother animation.'
+  }
+];
+
+let selectedProp = null;
+let activeFilters = new Set(['layout', 'paint', 'composite']);
+
+function renderPropList() {
+  const list = document.getElementById('propList');
+  const search = document.getElementById('searchProp').value.toLowerCase();
+  list.innerHTML = '';
+
+  PROPERTIES
+    .filter(p => activeFilters.has(p.trigger))
+    .filter(p => p.name.includes(search))
+    .forEach(p => {
+      const item = document.createElement('div');
+      item.className = `prop-item ${selectedProp === p.name ? 'selected' : ''}`;
+      item.innerHTML = `<span class="prop-name">${p.name}</span><span class="trigger-badge trigger-${p.trigger}">${p.trigger}</span>`;
+      item.addEventListener('click', () => selectProp(p));
+      list.appendChild(item);
+    });
+}
+
+function selectProp(prop) {
+  selectedProp = prop.name;
+  renderPropList();
+  renderDetail(prop);
+  animatePipeline(prop.trigger);
+}
+
+function renderDetail(prop) {
+  const container = document.getElementById('propDetail');
+  const stages = ['JavaScript', 'Style', 'Layout', 'Paint', 'Composite'];
+  const triggerIdx = prop.trigger === 'layout' ? 2 : prop.trigger === 'paint' ? 3 : 4;
+
+  const pathHTML = stages.map((s, i) => {
+    const hit = i <= 1 || i >= triggerIdx; // JS and Style always run; trigger stage and after
+    const cls = hit ? `hit trigger-${prop.trigger}` : 'skip';
+    const bg = hit ? (i >= triggerIdx ? (prop.trigger === 'layout' ? '#ef444433' : prop.trigger === 'paint' ? '#f59e0b33' : '#22c55e33') : '#ffffff11') : '';
+    return `<span class="path-step ${cls}" style="background:${bg || '#1a1a1a'}">${s}</span>`;
+  }).join('<span style="color:#555">→</span>');
+
+  const costLabel = prop.trigger === 'layout' ? '🔴 Most Expensive' : prop.trigger === 'paint' ? '🟡 Moderate' : '🟢 Cheapest';
+  const skipped = prop.trigger === 'composite' ? 'Layout, Paint' : prop.trigger === 'paint' ? 'Layout' : 'None';
+
+  container.innerHTML = `
+    <div class="detail-card">
+      <h4 style="font-family:'Fira Code',monospace;color:#4da6ff">${prop.name}</h4>
+      <p>${prop.desc}</p>
+      <div style="margin:12px 0">
+        <div style="font-size:0.8rem;color:#888;margin-bottom:4px">Pipeline path:</div>
+        <div class="pipeline-path">${pathHTML}</div>
+      </div>
+      <div style="display:flex;gap:16px;font-size:0.8rem;margin-top:8px">
+        <div><span style="color:#888">Cost:</span> <strong ti="strong_costlabel" ti="strong_costlabel">${costLabel}</strong></div>
+        <div><span style="color:#888">Skips:</span> <strong ti="strong_skipped" ti="strong_skipped">${skipped}</strong></div>
+      </div>
+    </div>
+    ${prop.tip ? `<div class="tip-box"><h5>💡 Performance Tip</h5><p>${prop.tip}</p></div>` : ''}
+  `;
+}
+
+function animatePipeline(trigger) {
+  const stages = document.querySelectorAll('.pipe-stage');
+  stages.forEach(s => s.className = 'pipe-stage');
+
+  const stageNames = ['js', 'style', 'layout', 'paint', 'composite'];
+  const triggerIdx = trigger === 'layout' ? 2 : trigger === 'paint' ? 3 : 4;
+
+  stageNames.forEach((name, i) => {
+    const stage = document.querySelector(`.pipe-stage[data-stage="${name}"]`);
+    setTimeout(() => {
+      if (i <= 1) {
+        stage.classList.add('active', 'triggered-composite');
+      } else if (i >= triggerIdx) {
+        stage.classList.add('active', `triggered-${trigger}`);
+      } else {
+        stage.classList.add('skipped');
+      }
+    }, i * 150);
+  });
+}
+
+// Event handlers
+document.getElementById('searchProp').addEventListener('input', renderPropList);
+
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const filter = btn.dataset.filter;
+    if (activeFilters.has(filter)) {
+      activeFilters.delete(filter);
+      btn.classList.remove('active');
+    } else {
+      activeFilters.add(filter);
+      btn.classList.add('active');
+    }
+    renderPropList();
+  });
+});
+
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById(tab.dataset.tab).classList.add('active');
+  });
+});
+
+// Scenarios
+const presetGrid = document.getElementById('presetGrid');
+SCENARIOS.forEach(s => {
+  const card = document.createElement('div');
+  card.className = 'preset-card';
+  card.innerHTML = `<h4>${s.name}</h4><p>${s.desc}</p>`;
+  card.addEventListener('click', () => {
+    // Switch to tester tab
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.querySelector('[data-tab="tester"]').classList.add('active');
+    document.getElementById('tester').classList.add('active');
+
+    // Show comparison
+    const container = document.getElementById('propDetail');
+    let html = `<div class="detail-card"><h4>${s.name}</h4><p style="margin-bottom:12px">${s.explanation}</p>`;
+
+    s.props.forEach(propName => {
+      const prop = PROPERTIES.find(p => p.name === propName);
+      if (!prop) return;
+      const stages = ['JS', 'Style', 'Layout', 'Paint', 'Composite'];
+      const triggerIdx = prop.trigger === 'layout' ? 2 : prop.trigger === 'paint' ? 3 : 4;
+      const path = stages.map((st, i) => {
+        const hit = i <= 1 || i >= triggerIdx;
+        const color = !hit ? '#333' : i >= triggerIdx ? (prop.trigger === 'layout' ? '#ef4444' : prop.trigger === 'paint' ? '#f59e0b' : '#22c55e') : '#888';
+        return `<span style="color:${color};font-weight:${hit?700:400};${hit?'':'text-decoration:line-through'}">${st}</span>`;
+      }).join(' → ');
+
+      html += `<div style="padding:8px;background:#0a0a0a;border-radius:6px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center">
+        <span style="font-family:'Fira Code',monospace;color:#4da6ff;font-size:0.85rem;min-width:120px">${prop.name}</span>
+        <span style="font-size:0.75rem">${path}</span>
+        <span class="trigger-badge trigger-${prop.trigger}">${prop.trigger}</span>
+      </div>`;
+    });
+
+    html += '</div>';
+    container.innerHTML = html;
+
+    // Highlight first prop in pipeline
+    const firstProp = PROPERTIES.find(p => p.name === s.props[0]);
+    if (firstProp) animatePipeline(firstProp.trigger);
+  });
+  presetGrid.appendChild(card);
+});
+
+// Init
+renderPropList();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+</body>
+</html>

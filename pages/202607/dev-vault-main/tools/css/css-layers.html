@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html tk="title_css_layer_playground_dev" lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CSS @layer Playground — Dev Vault</title>
+<meta name="description" content="Visualize CSS Cascade Layers. Reorder layers, see which rules win. Interactive @layer builder.">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0a0a0a;--bg2:#141414;--bg3:#1e1e1e;--bg4:#282828;--text:#e6e6e6;--text2:#999;--accent:#3b82f6;--accent2:#2563eb;--green:#22c55e;--red:#ef4444;--orange:#f59e0b;--purple:#a855f7;--border:#333;--radius:8px}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);line-height:1.6;min-height:100vh}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit;font-size:inherit}
+input,select,textarea{font-family:inherit;font-size:inherit;color:var(--text);background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:6px 10px}
+textarea{resize:vertical}
+
+header{padding:20px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+header h1{font-size:1.3rem;font-weight:700}
+header h1 span{color:var(--accent)}
+.presets{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap}
+.presets button{padding:6px 14px;border-radius:var(--radius);background:var(--bg3);border:1px solid var(--border);font-size:.82rem;transition:all .15s}
+.presets button:hover,.presets button.active{background:var(--accent);border-color:var(--accent);color:#fff}
+
+.app{display:grid;grid-template-columns:320px 1fr 320px;gap:0;min-height:calc(100vh - 70px)}
+@media(max-width:1100px){.app{grid-template-columns:1fr;}}
+
+.panel{border-right:1px solid var(--border);padding:16px;overflow-y:auto}
+.panel:last-child{border-right:none;border-left:1px solid var(--border)}
+.panel-title{font-size:.85rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text2);margin-bottom:12px;display:flex;align-items:center;justify-content:space-between}
+.panel-title button{font-size:.78rem;padding:4px 10px;border-radius:4px;background:var(--accent);color:#fff}
+.panel-title button:hover{background:var(--accent2)}
+
+.layer-item{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:10px;overflow:hidden;transition:border-color .2s}
+.layer-item.winner{border-color:var(--green);box-shadow:0 0 12px rgba(34,197,94,.15)}
+.layer-header{display:flex;align-items:center;gap:8px;padding:10px 12px;cursor:grab;user-select:none}
+.layer-header:active{cursor:grabbing}
+.drag-handle{color:var(--text2);font-size:1.1rem;line-height:1}
+.layer-name{font-weight:600;font-size:.9rem;flex:1}
+.layer-name input{background:transparent;border:none;color:var(--text);font-weight:600;font-size:.9rem;padding:0;width:100%}
+.layer-name input:focus{outline:none;border-bottom:1px solid var(--accent)}
+.layer-badge{font-size:.7rem;padding:2px 8px;border-radius:10px;background:var(--bg4);color:var(--text2)}
+.layer-badge.win{background:var(--green);color:#000;font-weight:700}
+.layer-remove{color:var(--text2);font-size:1.1rem;padding:2px 6px;border-radius:4px;transition:all .15s}
+.layer-remove:hover{color:var(--red);background:rgba(239,68,68,.1)}
+.layer-body{padding:0 12px 12px}
+.layer-body textarea{width:100%;min-height:60px;font-family:'SF Mono',Monaco,'Cascadia Code',monospace;font-size:.8rem;line-height:1.5;border-radius:4px;padding:8px}
+.layer-body .add-rule{font-size:.78rem;color:var(--accent);margin-top:6px;padding:2px 0}
+.layer-body .add-rule:hover{text-decoration:underline}
+
+.center-panel{padding:16px;display:flex;flex-direction:column;gap:16px;overflow-y:auto}
+
+.preview-section{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:16px;flex-shrink:0}
+.preview-section h3{font-size:.85rem;color:var(--text2);margin-bottom:12px;text-transform:uppercase;letter-spacing:.06em}
+.preview-box{border:2px dashed var(--border);border-radius:var(--radius);padding:24px;min-height:120px;display:flex;align-items:center;justify-content:center;position:relative}
+#preview-frame{border:none;width:100%;min-height:120px;background:transparent;border-radius:4px}
+
+.cascade-diagram{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:16px;flex:1;min-height:200px}
+.cascade-diagram h3{font-size:.85rem;color:var(--text2);margin-bottom:12px;text-transform:uppercase;letter-spacing:.06em}
+.cascade-flow{display:flex;flex-direction:column;gap:0}
+.cascade-row{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:6px;transition:all .2s;position:relative}
+.cascade-row.winner{background:rgba(34,197,94,.08)}
+.cascade-arrow{width:24px;display:flex;justify-content:center;color:var(--text2);font-size:.9rem;flex-shrink:0}
+.cascade-label{font-weight:600;font-size:.88rem;min-width:100px}
+.cascade-rules{font-size:.78rem;color:var(--text2);flex:1;font-family:monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cascade-win-badge{font-size:.7rem;padding:2px 8px;border-radius:10px;background:var(--green);color:#000;font-weight:700;flex-shrink:0}
+.cascade-priority{font-size:.7rem;color:var(--text2);min-width:50px;text-align:right;flex-shrink:0}
+.cascade-connector{width:24px;display:flex;justify-content:center;padding:2px 0}
+.cascade-connector svg{width:2px;height:16px}
+.cascade-connector svg line{stroke:var(--text2);stroke-width:2;stroke-dasharray:4,3}
+
+.output-panel .css-output{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:12px;font-family:'SF Mono',Monaco,'Cascadia Code',monospace;font-size:.8rem;line-height:1.6;white-space:pre-wrap;word-break:break-all;max-height:calc(100vh - 200px);overflow-y:auto;tab-size:2}
+.copy-btn{padding:6px 14px;border-radius:var(--radius);background:var(--accent);color:#fff;font-size:.82rem;transition:all .15s}
+.copy-btn:hover{background:var(--accent2)}
+.copy-btn.copied{background:var(--green)}
+
+.prop-row{display:flex;gap:8px;align-items:center;margin-bottom:6px;font-size:.82rem}
+.prop-row label{min-width:70px;color:var(--text2)}
+.prop-row select,.prop-row input{flex:1}
+.target-selector{margin-bottom:12px}
+.target-selector label{font-size:.82rem;color:var(--text2);margin-right:8px}
+.target-selector select{font-size:.82rem}
+
+.info-bar{font-size:.78rem;color:var(--text2);padding:8px 12px;background:var(--bg3);border-radius:6px;margin-top:8px;line-height:1.5}
+.info-bar strong{color:var(--orange)}
+
+.unlayered-note{font-size:.75rem;color:var(--orange);padding:4px 8px;background:rgba(245,158,11,.08);border-radius:4px;margin-top:8px;line-height:1.4}
+</style>
+</head>
+<body>
+
+
+
+<header>
+  <h1>CSS <span>@layer</span> Playground</h1>
+  <div class="presets">
+    <button onclick="loadPreset('tailwind')" ti="btn_tailwind_like">Tailwind-like</button>
+    <button onclick="loadPreset('theme')" ti="btn_theme_override">Theme Override</button>
+    <button onclick="loadPreset('vendor')" ti="btn_third_party_css">Third-party CSS</button>
+    <button onclick="loadPreset('specificity')" ti="btn_specificity_vs_layers">Specificity vs Layers</button>
+  </div>
+</header>
+
+<div class="app">
+  <div class="panel" id="layers-panel">
+    <div class="panel-title">
+      Layers (drag to reorder)
+      <button onclick="addLayer()" ti="btn_add_layer">+ Add Layer</button>
+    </div>
+    <div id="layers-list"></div>
+    <div class="unlayered-note">
+      Unlayered styles always beat layered styles in the cascade, regardless of layer order.
+    </div>
+  </div>
+
+  <div class="center-panel">
+    <div class="preview-section">
+      <h3 ti="h3_live_preview">Live Preview</h3>
+      <div class="target-selector">
+        <label ti="label_target_element">Target element:</label>
+        <select id="target-select" onchange="render()">
+          <option value=".box">div.box</option>
+          <option value=".box.special">div.box.special</option>
+          <option value="#main">#main</option>
+          <option value="p">p</option>
+          <option value="a">a</option>
+          <option value="button">button</option>
+        </select>
+      </div>
+      <div class="preview-box">
+        <iframe id="preview-frame" sandbox="allow-same-origin"></iframe>
+      </div>
+      <div class="info-bar" id="info-bar"></div>
+    </div>
+
+    <div class="cascade-diagram">
+      <h3 ti="h3_cascade_layer_diagram">Cascade Layer Diagram</h3>
+      <div id="cascade-flow" class="cascade-flow"></div>
+    </div>
+  </div>
+
+  <div class="panel output-panel">
+    <div class="panel-title">
+      Generated CSS
+      <button class="copy-btn" id="copy-btn" onclick="copyCSS()" ti="btn_copy_css">Copy CSS</button>
+    </div>
+    <div class="css-output" id="css-output"></div>
+  </div>
+</div>
+
+
+<script>var _LANG={'title_css_layer_playground_dev':["CSS @layer Playground — Dev Vault", "CSS @layer Playground — 开发仓库"],'metadesc_visualize_css_cascade_lay':["Visualize CSS Cascade Layers. Reorder layers, see which rules win. Interactive @layer builder.", "可视化 CSS 层叠图层。重新排列图层顺序，查看哪些规则生效。交互式 @layer 构建器。"],'h3_live_preview':["Live Preview", "实时预览"],'h3_cascade_layer_diagram':["Cascade Layer Diagram", "级联层图"],'btn_tailwind_like':["Tailwind-like", "顺风"],'btn_theme_override':["Theme Override", "主题覆盖"],'btn_third_party_css':["Third-party CSS", "第三方 CSS"],'btn_specificity_vs_layers':["Specificity vs Layers", "特异性与层级"],'btn_add_layer':["+ Add Layer", "+ 添加图层"],'btn_copy_css':["Copy CSS", "复制 CSS"],'btn_i_am_a_button':["I am a button", "我是一个按钮"],'label_esc_l_name':["${esc(l.name)}", "${esc(l.name)}"],'strong_esc_target':["${esc(target)}", "${esc(target)}"],'strong_esc_winner_name':["${esc(winner.name)}", "${esc(winner.name)}"],'strong_esc_target_2':["${esc(target)}", "${esc(target)}"],'label_target_element':["Target element:", "目标元素："],'footer_css_layer_playground_dev':["CSS @layer Playground — Dev Vault", "CSS @layer Playground — 开发仓库"],'jtc_copied':["Copied!", "已复制！"],'jtc_copy_css':["Copy CSS", "复制 CSS"],'jtc_wins':["WINS", "胜利"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>
+/* --- State --- */
+let layers = [];
+let dragSrc = null;
+let idCounter = 0;
+
+/* --- Presets --- */
+const PRESETS = {
+  tailwind: {
+    name: 'Tailwind-like',
+    layers: [
+      { name: 'reset', rules: '*, *::before, *::after {\n  margin: 0;\n  padding: 0;\n  box-sizing: border-box;\n}' },
+      { name: 'base', rules: '.box {\n  padding: 16px;\n  font-size: 16px;\n  color: #333;\n  background: #f0f0f0;\n  border-radius: 8px;\n}' },
+      { name: 'components', rules: '.box {\n  background: #dbeafe;\n  border: 2px solid #3b82f6;\n  color: #1e3a5f;\n  font-weight: 600;\n}' },
+      { name: 'utilities', rules: '.box {\n  background: #fecaca;\n  color: #991b1b;\n  padding: 24px;\n  font-size: 20px;\n}' }
+    ]
+  },
+  theme: {
+    name: 'Theme Override',
+    layers: [
+      { name: 'base', rules: '.box {\n  background: #e2e8f0;\n  color: #1e293b;\n  padding: 20px;\n  border-radius: 8px;\n  font-size: 16px;\n}\n\na {\n  color: #2563eb;\n  text-decoration: underline;\n}\n\nbutton {\n  background: #3b82f6;\n  color: white;\n  padding: 8px 16px;\n  border: none;\n  border-radius: 4px;\n}' },
+      { name: 'theme', rules: '.box {\n  background: #1e1b4b;\n  color: #c7d2fe;\n  border: 2px solid #6366f1;\n}\n\na {\n  color: #a5b4fc;\n}\n\nbutton {\n  background: #6366f1;\n  color: #e0e7ff;\n}' }
+    ]
+  },
+  vendor: {
+    name: 'Third-party CSS',
+    layers: [
+      { name: 'vendor', rules: '.box {\n  background: #fee2e2;\n  color: #991b1b;\n  padding: 12px;\n  border: 3px solid #f87171;\n  font-family: serif;\n  font-size: 14px;\n}\n\n/* Vendor styles are hard to override\n   with normal CSS specificity */\n.box.special {\n  background: #fecaca;\n  font-weight: 700;\n}' },
+      { name: 'custom', rules: '.box {\n  background: #dcfce7;\n  color: #166534;\n  border-color: #22c55e;\n  font-family: sans-serif;\n  font-size: 16px;\n}\n\n/* With layers, custom always wins\n   over vendor regardless of\n   specificity or source order */' }
+    ]
+  },
+  specificity: {
+    name: 'Specificity vs Layers',
+    layers: [
+      { name: 'high-specificity', rules: '#main.box.special {\n  background: #fef3c7;\n  color: #92400e;\n  padding: 20px;\n  font-size: 18px;\n  font-weight: 800;\n  border: 3px solid #f59e0b;\n}\n\n/* This has VERY high specificity\n   (1-2-0) but it is in an\n   earlier layer... */\n\n.box {\n  background: #fde68a;\n}' },
+      { name: 'low-specificity', rules: '.box {\n  background: #dbeafe;\n  color: #1e40af;\n  padding: 16px;\n  font-size: 14px;\n  font-weight: 400;\n  border: 1px solid #93c5fd;\n}\n\n/* This has LOW specificity (0-1-0)\n   but it is in a LATER layer,\n   so it WINS the cascade! \n   Layers > Specificity */'}
+    ]
+  }
+};
+
+/* --- Layer Management --- */
+function makeLayer(name, rules) {
+  return { id: ++idCounter, name, rules };
+}
+
+function addLayer(name, rules) {
+  const n = name || 'layer-' + (layers.length + 1);
+  const r = rules || '.box {\n  \n}';
+  layers.push(makeLayer(n, r));
+  renderLayers();
+  render();
+}
+
+function removeLayer(id) {
+  layers = layers.filter(l => l.id !== id);
+  renderLayers();
+  render();
+}
+
+/* --- Drag & Drop --- */
+function onDragStart(e, id) {
+  dragSrc = id;
+  e.dataTransfer.effectAllowed = 'move';
+  e.target.closest('.layer-item').style.opacity = '0.4';
+}
+function onDragEnd(e) {
+  dragSrc = null;
+  e.target.closest('.layer-item').style.opacity = '1';
+}
+function onDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+}
+function onDrop(e, targetId) {
+  e.preventDefault();
+  if (dragSrc === null || dragSrc === targetId) return;
+  const srcIdx = layers.findIndex(l => l.id === dragSrc);
+  const tgtIdx = layers.findIndex(l => l.id === targetId);
+  const [item] = layers.splice(srcIdx, 1);
+  layers.splice(tgtIdx, 0, item);
+  renderLayers();
+  render();
+}
+
+/* --- Render Layers Panel --- */
+function renderLayers() {
+  const list = document.getElementById('layers-list');
+  const winId = getWinningLayerId();
+  list.innerHTML = layers.map((l, i) => `
+    <div class="layer-item${l.id === winId ? ' winner' : ''}"
+         draggable="true"
+         ondragstart="onDragStart(event,${l.id})"
+         ondragend="onDragEnd(event)"
+         ondragover="onDragOver(event)"
+         ondrop="onDrop(event,${l.id})"
+         data-id="${l.id}">
+      <div class="layer-header">
+        <span class="drag-handle">&#x2630;</span>
+        <span class="layer-name">
+          <input value="${esc(l.name)}" onchange="renameLayer(${l.id},this.value)" onclick="event.stopPropagation()" />
+        </span>
+        <span class="layer-badge">#${i + 1}</span>
+        ${l.id === winId ? '<span class="layer-badge win">WINS</span>' : ''}
+        <button class="layer-remove" onclick="removeLayer(${l.id})" title="Remove layer">&times;</button>
+      </div>
+      <div class="layer-body">
+        <textarea rows="4" oninput="updateRules(${l.id},this.value)">${esc(l.rules)}</textarea>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renameLayer(id, name) {
+  const l = layers.find(x => x.id === id);
+  if (l) { l.name = name.replace(/[^a-zA-Z0-9_-]/g, '-'); render(); }
+}
+
+function updateRules(id, val) {
+  const l = layers.find(x => x.id === id);
+  if (l) { l.rules = val; render(); }
+}
+
+/* --- Determine Winning Layer --- */
+function getWinningLayerId() {
+  const target = document.getElementById('target-select').value;
+  // Last layer with a matching rule wins (later layers have higher priority)
+  for (let i = layers.length - 1; i >= 0; i--) {
+    if (rulesMatchTarget(layers[i].rules, target)) {
+      return layers[i].id;
+    }
+  }
+  return null;
+}
+
+function rulesMatchTarget(css, target) {
+  // Simple check: does the CSS text contain a selector that could match the target
+  const selectorParts = target.replace(/[#.]/g, m => '\\' + m);
+  // Extract selectors from CSS (lines before {)
+  const selectorRegex = /([^{}\/]+)\{/g;
+  let m;
+  while ((m = selectorRegex.exec(css)) !== null) {
+    const sel = m[1].trim();
+    if (sel.startsWith('/*') || sel.startsWith('*')) continue;
+    if (selectorCouldMatch(sel, target)) return true;
+  }
+  return false;
+}
+
+function selectorCouldMatch(selector, target) {
+  // Normalize: .box matches .box, .box.special, #main, p, a, button
+  const s = selector.replace(/\s+/g, '');
+  const t = target.replace(/\s+/g, '');
+
+  // Exact match
+  if (s === t) return true;
+
+  // .box matches .box.special (target has the class)
+  if (t.includes(s)) return true;
+
+  // .box.special in selector matches target .box.special
+  if (s.includes(t)) return true;
+
+  // Element-only selectors
+  const tTag = t.replace(/[#.][^#.]*/g, '');
+  const sTag = s.replace(/[#.][^#.]*/g, '');
+
+  // Universal or element match
+  if (s === '*') return true;
+  if (sTag && tTag && sTag === tTag) return true;
+
+  // Extract classes/ids from both
+  const sClasses = (s.match(/\.[a-zA-Z0-9_-]+/g) || []);
+  const tClasses = (t.match(/\.[a-zA-Z0-9_-]+/g) || []);
+  const sIds = (s.match(/#[a-zA-Z0-9_-]+/g) || []);
+  const tIds = (t.match(/#[a-zA-Z0-9_-]+/g) || []);
+
+  // If selector uses only classes, check if target has all of them
+  if (sClasses.length > 0 && sIds.length === 0) {
+    return sClasses.every(c => tClasses.includes(c));
+  }
+  // If selector uses an id, check target
+  if (sIds.length > 0) {
+    return sIds.every(id => tIds.includes(id));
+  }
+
+  return false;
+}
+
+/* --- Build CSS Output --- */
+function buildCSS() {
+  if (layers.length === 0) return '/* Add layers to generate CSS */';
+
+  let out = '';
+  // Layer order declaration
+  out += '@layer ' + layers.map(l => l.name).join(', ') + ';\n\n';
+
+  // Each layer block
+  layers.forEach(l => {
+    out += '@layer ' + l.name + ' {\n';
+    const lines = l.rules.split('\n');
+    lines.forEach(line => { out += '  ' + line + '\n'; });
+    out += '}\n\n';
+  });
+
+  return out.trimEnd();
+}
+
+/* --- Render Cascade Diagram --- */
+function renderDiagram() {
+  const flow = document.getElementById('cascade-flow');
+  const target = document.getElementById('target-select').value;
+  const winId = getWinningLayerId();
+
+  if (layers.length === 0) {
+    flow.innerHTML = '<div style="color:var(--text2);font-size:.85rem;padding:20px;text-align:center">Add layers to see the cascade diagram</div>';
+    return;
+  }
+
+  let html = '';
+
+  // Show layer order: first = lowest priority, last = highest
+  html += '<div style="font-size:.75rem;color:var(--text2);margin-bottom:12px;padding:4px 8px;background:var(--bg3);border-radius:4px">Cascade priority: first declared = lowest priority, last = highest. Later layers always win.</div>';
+
+  layers.forEach((l, i) => {
+    const matches = rulesMatchTarget(l.rules, target);
+    const isWin = l.id === winId;
+    const rulePreview = extractMatchingProperties(l.rules, target);
+
+    html += `<div class="cascade-row${isWin ? ' winner' : ''}" style="opacity:${matches ? 1 : 0.4}">
+      <span class="cascade-priority">${ordinal(i + 1)}</span>
+      <span class="cascade-arrow" style="font-size:1.2rem;color:${isWin ? 'var(--green)' : 'var(--text2)'}">
+        ${isWin ? '&#9654;' : '&#9654;'}
+      </span>
+      <span class="cascade-label" style="color:${isWin ? 'var(--green)' : 'var(--text)'}" ti="label_esc_l_name">${esc(l.name)}</span>
+      <span class="cascade-rules">${matches ? esc(rulePreview) : '<em>no match</em>'}</span>
+      ${isWin ? '<span class="cascade-win-badge">WINNER</span>' : ''}
+    </div>`;
+
+    if (i < layers.length - 1) {
+      html += `<div class="cascade-connector">
+        <svg viewBox="0 0 2 16"><line x1="1" y1="0" x2="1" y2="16"/></svg>
+      </div>`;
+    }
+  });
+
+  // Arrow showing priority direction
+  html += '<div style="display:flex;align-items:center;gap:8px;margin-top:12px;padding:8px;font-size:.78rem;color:var(--text2)">';
+  html += '<span style="font-size:1rem">&#8593;</span> Higher priority (wins cascade)';
+  html += '</div>';
+
+  flow.innerHTML = html;
+}
+
+function extractMatchingProperties(css, target) {
+  // Extract property:value pairs from matching rules
+  const props = [];
+  const regex = /([^{}]+)\{([^}]*)\}/gs;
+  let m;
+  while ((m = regex.exec(css)) !== null) {
+    const sel = m[1].trim();
+    if (sel.startsWith('/*')) continue;
+    if (selectorCouldMatch(sel, target)) {
+      const body = m[2].trim();
+      const declarations = body.split(';').map(d => d.trim()).filter(d => d && !d.startsWith('/*'));
+      props.push(...declarations);
+    }
+  }
+  if (props.length === 0) return '';
+  const preview = props.slice(0, 3).join('; ');
+  return props.length > 3 ? preview + '; ...' : preview;
+}
+
+function ordinal(n) {
+  const s = ['th','st','nd','rd'];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
+
+/* --- Render Preview --- */
+function renderPreview() {
+  const frame = document.getElementById('preview-frame');
+  const target = document.getElementById('target-select').value;
+  const css = buildCSS();
+
+  // Build preview element
+  let elemHTML = '';
+  switch (target) {
+    case '.box': elemHTML = '<div class="box">Hello, I am a .box element</div>'; break;
+    case '.box.special': elemHTML = '<div class="box special">I am .box.special</div>'; break;
+    case '#main': elemHTML = '<div id="main" class="box">I am #main</div>'; break;
+    case 'p': elemHTML = '<p class="box">I am a paragraph</p>'; break;
+    case 'a': elemHTML = '<a href="#" class="box" onclick="return false">I am a link</a>'; break;
+    case 'button': elemHTML = '<button class="box" ti="btn_i_am_a_button">I am a button</button>'; break;
+    default: elemHTML = '<div class="box">Preview element</div>';
+  }
+
+  const doc = `<!DOCTYPE html>
+<html><head><style>
+body { margin: 0; padding: 16px; background: transparent; font-family: -apple-system, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 80px; }
+${css}
+</style></head><body>${elemHTML}</body></html>`;
+
+  frame.srcdoc = doc;
+}
+
+/* --- Info Bar --- */
+function renderInfo() {
+  const bar = document.getElementById('info-bar');
+  const target = document.getElementById('target-select').value;
+  const winId = getWinningLayerId();
+
+  if (layers.length === 0) {
+    bar.innerHTML = 'No layers defined. Add a layer or load a preset to begin.';
+    return;
+  }
+
+  const winner = layers.find(l => l.id === winId);
+  if (winner) {
+    const idx = layers.indexOf(winner) + 1;
+    bar.innerHTML = `Target: <strong ti="strong_esc_target" ti="strong_esc_target_2">${esc(target)}</strong> &mdash; Winner: <strong ti="strong_esc_winner_name">${esc(winner.name)}</strong> (layer #${idx} of ${layers.length}). Later layers override earlier ones regardless of specificity.`;
+  } else {
+    bar.innerHTML = `Target: <strong>${esc(target)}</strong> &mdash; No layer has rules matching this selector.`;
+  }
+}
+
+/* --- Render CSS Output --- */
+function renderOutput() {
+  const out = document.getElementById('css-output');
+  const css = buildCSS();
+  out.textContent = css;
+}
+
+/* --- Copy --- */
+function copyCSS() {
+  const css = buildCSS();
+  navigator.clipboard.writeText(css).then(() => {
+    const btn = document.getElementById('copy-btn');
+    btn.textContent=T("jtc_copied");
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent=T("jtc_copy_css"); btn.classList.remove('copied'); }, 1500);
+  });
+}
+
+/* --- Master Render --- */
+function render() {
+  renderDiagram();
+  renderPreview();
+  renderInfo();
+  renderOutput();
+  // Update winner badges in layer list
+  const winId = getWinningLayerId();
+  document.querySelectorAll('.layer-item').forEach(el => {
+    const id = parseInt(el.dataset.id);
+    el.classList.toggle('winner', id === winId);
+    const badges = el.querySelectorAll('.layer-badge.win');
+    const hasBadge = badges.length > 0;
+    if (id === winId && !hasBadge) {
+      const header = el.querySelector('.layer-header');
+      const badge = document.createElement('span');
+      badge.className = 'layer-badge win';
+      badge.textContent=T("jtc_wins");
+      header.insertBefore(badge, header.querySelector('.layer-remove'));
+    } else if (id !== winId && hasBadge) {
+      badges.forEach(b => b.remove());
+    }
+  });
+}
+
+/* --- Preset Loader --- */
+function loadPreset(key) {
+  const preset = PRESETS[key];
+  if (!preset) return;
+
+  // Highlight active preset button
+  document.querySelectorAll('.presets button').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+
+  layers = preset.layers.map(l => makeLayer(l.name, l.rules));
+  renderLayers();
+  render();
+}
+
+/* --- Util --- */
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+/* --- Init --- */
+loadPreset('tailwind');
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文件格式转换器</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #4361ee;
+            --secondary: #3f37c9;
+            --accent: #4895ef;
+            --light: #f8f9fa;
+            --dark: #212529;
+        }
+        
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+            width: 90%;
+            max-width: 1000px;
+        }
+        
+        h1 {
+            color: var(--primary);
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .upload-area {
+            border: 3px dashed var(--accent);
+            border-radius: 10px;
+            padding: 40px;
+            text-align: center;
+            margin-bottom: 30px;
+            cursor: pointer;
+            transition: all 0.3s;
+            background-color: rgba(72, 149, 239, 0.05);
+        }
+        
+        .upload-area:hover {
+            background-color: rgba(72, 149, 239, 0.1);
+        }
+        
+        .upload-area.highlight {
+            background-color: rgba(72, 149, 239, 0.2);
+        }
+        
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-bottom: 20px;
+            justify-content: center;
+        }
+        
+        select {
+            padding: 10px 15px;
+            border-radius: 8px;
+            border: 2px solid var(--accent);
+            font-size: 16px;
+            min-width: 200px;
+        }
+        
+        button {
+            padding: 12px 25px;
+            border: none;
+            border-radius: 8px;
+            background-color: var(--primary);
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 16px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        button:hover {
+            background-color: var(--secondary);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 8px rgba(0, 0, 0, 0.15);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        textarea {
+            width: 100%;
+            min-height: 300px;
+            border-radius: 10px;
+            border: 2px solid var(--accent);
+            padding: 15px;
+            font-family: monospace;
+            resize: vertical;
+            background-color: var(--light);
+        }
+        
+        .file-info {
+            margin-top: 10px;
+            color: var(--secondary);
+            font-weight: 600;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        
+        .pulse {
+            animation: pulse 0.5s ease-in-out;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>文件格式转换器</h1>
+        
+        <div class="upload-area" id="uploadArea">
+            <svg width="50" height="50" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="17 8 12 3 7 8"></polyline>
+                <line x1="12" y1="3" x2="12" y2="15"></line>
+            </svg>
+            <h2>拖拽文件到此处或点击上传</h2>
+            <p>支持多种文件格式转换</p>
+            <input type="file" id="fileInput" style="display: none;">
+            <div class="file-info" id="fileInfo"></div>
+        </div>
+        
+        <div class="controls">
+            <select id="formatSelect">
+                <option value="text">纯文本 (.txt)</option>
+                <option value="json">JSON (.json)</option>
+                <option value="csv">CSV (.csv)</option>
+                <option value="html">HTML (.html)</option>
+                <option value="xml">XML (.xml)</option>
+                <option value="yaml">YAML (.yaml)</option>
+                <option value="markdown">Markdown (.md)</option>
+                <option value="base64">Base64 编码</option>
+            </select>
+            
+            <button onclick="convertFile()">转换</button>
+            <button onclick="saveFile()">保存</button>
+            <button onclick="clearAll()">清除</button>
+        </div>
+        
+        <h2>转换结果</h2>
+        <textarea id="resultArea" readonly></textarea>
+    </div>
+
+    <script>
+        let fileContent = '';
+        let currentFileName = '';
+        
+        // 拖拽上传功能
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const fileInfo = document.getElementById('fileInfo');
+        
+        uploadArea.addEventListener('click', () => fileInput.click());
+        
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('highlight');
+        });
+        
+        ['dragleave', 'dragend'].forEach(type => {
+            uploadArea.addEventListener(type, () => {
+                uploadArea.classList.remove('highlight');
+            });
+        });
+        
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('highlight');
+            
+            if (e.dataTransfer.files.length) {
+                fileInput.files = e.dataTransfer.files;
+                handleFileUpload(e.dataTransfer.files[0]);
+            }
+        });
+        
+        fileInput.addEventListener('change', function(e) {
+            if (e.target.files.length) {
+                handleFileUpload(e.target.files[0]);
+            }
+        });
+        
+        function handleFileUpload(file) {
+            currentFileName = file.name;
+            fileInfo.textContent = `已选择: ${file.name}`;
+            uploadArea.classList.add('pulse');
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                fileContent = e.target.result;
+                document.getElementById('resultArea').value = fileContent;
+                setTimeout(() => uploadArea.classList.remove('pulse'), 500);
+            };
+            reader.readAsText(file);
+        }
+        
+        function convertFile() {
+            if (!fileContent) {
+                alert('请先上传文件');
+                return;
+            }
+            
+            const format = document.getElementById('formatSelect').value;
+            let converted = '';
+            
+            switch(format) {
+                case 'json':
+                    converted = JSON.stringify({ content: fileContent }, null, 2);
+                    break;
+                case 'csv':
+                    converted = `"Content"
+"${fileContent.replace(/\n/g, '","')}"`;
+                    break;
+                case 'html':
+                    converted = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>${currentFileName || '转换结果'}</title>
+</head>
+<body>
+    <pre>${fileContent}</pre>
+</body>
+</html>`;
+                    break;
+                case 'xml':
+                    converted = `<?xml version="1.0" encoding="UTF-8"?>
+<content>
+    <![CDATA[
+${fileContent}
+    ]]>
+</content>`;
+                    break;
+                case 'yaml':
+                    converted = `content: |
+  ${fileContent.replace(/\n/g, '\n  ')}`;
+                    break;
+                case 'markdown':
+                    converted = `# 文件内容
+
+\`\`\`
+${fileContent}
+\`\`\``;
+                    break;
+                case 'base64':
+                    converted = btoa(unescape(encodeURIComponent(fileContent)));
+                    break;
+                default:
+                    converted = fileContent;
+            }
+            
+            document.getElementById('resultArea').value = converted;
+        }
+        
+        function saveFile() {
+            const content = document.getElementById('resultArea').value;
+            if (!content) {
+                alert('没有内容可保存');
+                return;
+            }
+            
+            const format = document.getElementById('formatSelect').value;
+            const extensionMap = {
+                'text': 'txt',
+                'json': 'json',
+                'csv': 'csv',
+                'html': 'html',
+                'xml': 'xml',
+                'yaml': 'yaml',
+                'markdown': 'md',
+                'base64': 'txt'
+            };
+            
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `converted_${currentFileName || 'file'}.${extensionMap[format] || 'txt'}`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+        
+        function clearAll() {
+            fileInput.value = '';
+            document.getElementById('resultArea').value = '';
+            fileContent = '';
+            currentFileName = '';
+            fileInfo.textContent = '';
+        }
+    </script>
+</body>
+</html>

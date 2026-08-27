@@ -1,0 +1,926 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小红书封面生成器</title>
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #FF2E4D;
+            --primary-light: #FF5C75;
+            --dark: #333333;
+            --gray: #666666;
+            --light-gray: #F5F5F5;
+            --white: #FFFFFF;
+            --shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background-color: #FAFAFA;
+            color: var(--dark);
+            line-height: 1.6;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+        
+        .header {
+            grid-column: 1 / -1;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        
+        h1 {
+            color: var(--primary);
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+        
+        .subtitle {
+            color: var(--gray);
+            font-size: 16px;
+            font-weight: 400;
+        }
+        
+        .panel {
+            background: var(--white);
+            border-radius: 16px;
+            padding: 25px;
+            box-shadow: var(--shadow);
+            height: fit-content;
+        }
+        
+        .controls-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+        }
+        
+        .preview-panel {
+            position: sticky;
+            top: 20px;
+        }
+        
+        .section-title {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 15px;
+            color: var(--dark);
+            display: flex;
+            align-items: center;
+        }
+        
+        .section-title svg {
+            margin-right: 8px;
+            width: 18px;
+            height: 18px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: var(--gray);
+        }
+        
+        input[type="text"], textarea, select {
+            width: 100%;
+            padding: 12px 15px;
+            border: 1px solid #E0E0E0;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 14px;
+            transition: border 0.2s;
+        }
+        
+        input[type="text"]:focus, textarea:focus, select:focus {
+            outline: none;
+            border-color: var(--primary-light);
+        }
+        
+        textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+        
+        .btn {
+            background-color: var(--primary);
+            color: var(--white);
+            border: none;
+            padding: 14px 20px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            width: 100%;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .btn:hover {
+            background-color: var(--primary-light);
+            transform: translateY(-1px);
+        }
+        
+        .btn svg {
+            margin-right: 8px;
+            width: 16px;
+            height: 16px;
+        }
+        
+        .btn-secondary {
+            background-color: #F0F0F0;
+            color: var(--gray);
+        }
+        
+        .btn-secondary:hover {
+            background-color: #E0E0E0;
+        }
+        
+        .cover-container {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 3/4;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: var(--shadow);
+        }
+        
+        .cover {
+            width: 100%;
+            height: 100%;
+            background-size: cover;
+            background-position: center;
+            position: relative;
+        }
+        
+        .cover.whiteboard {
+            background-color: var(--white);
+            background-image: none;
+        }
+        
+        .cover-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.3);
+        }
+        
+        .text-element {
+            position: absolute;
+            max-width: 80%;
+            cursor: move;
+            user-select: none;
+        }
+        
+        .title-element {
+            font-size: 24px;
+            font-weight: 700;
+            line-height: 1.4;
+            color: white;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        
+        .subtitle-element {
+            font-size: 16px;
+            font-weight: 500;
+            color: white;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+            margin-top: 10px;
+        }
+        
+        .username-element {
+            font-size: 14px;
+            color: white;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+            display: flex;
+            align-items: center;
+        }
+        
+        .avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background-color: var(--white);
+            margin-right: 10px;
+            background-size: cover;
+        }
+        
+        .color-options {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .color-option {
+            width: 100%;
+            aspect-ratio: 1;
+            border-radius: 6px;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: transform 0.2s;
+        }
+        
+        .color-option:hover {
+            transform: scale(1.05);
+        }
+        
+        .color-option.selected {
+            border-color: var(--primary);
+            transform: scale(1.05);
+        }
+        
+        .upload-area {
+            border: 2px dashed #E0E0E0;
+            border-radius: 8px;
+            padding: 30px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-bottom: 15px;
+        }
+        
+        .upload-area:hover {
+            border-color: var(--primary-light);
+            background-color: rgba(255, 46, 77, 0.05);
+        }
+        
+        .upload-area svg {
+            width: 40px;
+            height: 40px;
+            margin-bottom: 10px;
+            color: var(--gray);
+        }
+        
+        .upload-area p {
+            font-size: 14px;
+            color: var(--gray);
+        }
+        
+        .upload-area strong {
+            color: var(--primary);
+            font-weight: 500;
+        }
+        
+        #image-upload {
+            display: none;
+        }
+        
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .slider {
+            flex: 1;
+            -webkit-appearance: none;
+            height: 6px;
+            border-radius: 3px;
+            background: #E0E0E0;
+            outline: none;
+        }
+        
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: var(--primary);
+            cursor: pointer;
+        }
+        
+        .slider-value {
+            width: 40px;
+            text-align: center;
+            font-size: 14px;
+        }
+        
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 24px;
+        }
+        
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #E0E0E0;
+            transition: .4s;
+            border-radius: 24px;
+        }
+        
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        
+        input:checked + .toggle-slider {
+            background-color: var(--primary);
+        }
+        
+        input:checked + .toggle-slider:before {
+            transform: translateX(26px);
+        }
+        
+        .toggle-label {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        
+        .loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            color: white;
+            font-size: 18px;
+            display: none;
+        }
+        
+        .loading.active {
+            display: flex;
+        }
+        
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: var(--primary);
+            animation: spin 1s ease-in-out infinite;
+            margin-bottom: 20px;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .position-controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .drag-hint {
+            font-size: 12px;
+            color: var(--gray);
+            margin-top: 5px;
+            font-style: italic;
+        }
+        
+        .btn-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        
+        .custom-color-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .custom-color-picker {
+            width: 30px;
+            height: 30px;
+            border-radius: 6px;
+            border: 1px solid #E0E0E0;
+            cursor: pointer;
+        }
+        
+        #custom-color-input {
+            opacity: 0;
+            position: absolute;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+            
+            .preview-panel {
+                order: -1;
+                margin-bottom: 20px;
+            }
+            
+            .btn-group {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>小红书封面生成器</h1>
+            <p class="subtitle">轻松制作高点击率的精美封面</p>
+        </div>
+        
+        <div class="panel controls-panel">
+            <div>
+                <h2 class="section-title">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    背景设置
+                </h2>
+                
+                <div class="upload-area" id="upload-area">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                    <p>拖放图片到此处或<strong>点击上传</strong></p>
+                    <p style="font-size: 12px; margin-top: 5px;">支持 JPG, PNG 格式</p>
+                </div>
+                <input type="file" id="image-upload" accept="image/*">
+                
+                <div class="toggle-label">
+                    <span>使用白板背景</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="whiteboard-toggle">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                
+                <div class="form-group" id="overlay-control">
+                    <label>背景覆盖层透明度</label>
+                    <div class="slider-container">
+                        <input type="range" min="0" max="100" value="30" class="slider" id="overlay-slider">
+                        <span class="slider-value" id="overlay-value">30%</span>
+                    </div>
+                </div>
+                
+                <button class="btn btn-secondary" id="clear-btn">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    清空封面
+                </button>
+            </div>
+            
+            <div>
+                <h2 class="section-title">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                    文字内容
+                </h2>
+                
+                <div class="form-group">
+                    <label for="title">主标题</label>
+                    <input type="text" id="title" placeholder="输入吸引人的主标题..." value="5分钟快手早餐 | 营养又美味">
+                    <p class="drag-hint">你可以在右侧预览中拖动文字调整位置</p>
+                </div>
+                
+                <div class="form-group">
+                    <label for="subtitle">副标题 (可选)</label>
+                    <input type="text" id="subtitle" placeholder="输入副标题..." value="上班族必备，一周不重样">
+                </div>
+                
+                <div class="form-group">
+                    <label for="username">用户名</label>
+                    <input type="text" id="username" placeholder="输入你的用户名..." value="美食小当家">
+                </div>
+            </div>
+            
+            <div>
+                <h2 class="section-title">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+                    </svg>
+                    文字样式
+                </h2>
+                
+                <div class="form-group">
+                    <label>文字颜色</label>
+                    <div class="color-options">
+                        <div class="color-option selected" style="background-color: #FFFFFF;" data-color="#FFFFFF"></div>
+                        <div class="color-option" style="background-color: #FFEB3B;" data-color="#FFEB3B"></div>
+                        <div class="color-option" style="background-color: #FF9800;" data-color="#FF9800"></div>
+                        <div class="color-option" style="background-color: #8BC34A;" data-color="#8BC34A"></div>
+                        <div class="color-option" style="background-color: #00BCD4;" data-color="#00BCD4"></div>
+                        <div class="color-option" style="background-color: #9C27B0;" data-color="#9C27B0"></div>
+                        <div class="color-option" style="background-color: #FF2E4D;" data-color="#FF2E4D"></div>
+                        <div class="color-option" style="background-color: #3F51B5;" data-color="#3F51B5"></div>
+                        <div class="color-option" style="background-color: #4CAF50;" data-color="#4CAF50"></div>
+                        <div class="color-option" style="background-color: #E91E63;" data-color="#E91E63"></div>
+                        <div class="color-option" style="background-color: #00BFA5;" data-color="#00BFA5"></div>
+                        <div class="color-option" style="background-color: #FFC107;" data-color="#FFC107"></div>
+                    </div>
+                    
+                    <div class="custom-color-container">
+                        <label for="custom-color-input">自定义颜色:</label>
+                        <div class="custom-color-picker" id="custom-color-display" style="background-color: #FFFFFF;"></div>
+                        <input type="color" id="custom-color-input" value="#FFFFFF">
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="text-shadow">文字阴影</label>
+                    <select id="text-shadow">
+                        <option value="0 2px 4px rgba(0, 0, 0, 0.3)">默认阴影</option>
+                        <option value="none">无阴影</option>
+                        <option value="0 2px 8px rgba(0, 0, 0, 0.5)">强阴影</option>
+                        <option value="0 0 8px rgba(0, 0, 0, 0.8)">发光效果</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="title-size">主标题大小</label>
+                    <div class="slider-container">
+                        <input type="range" min="16" max="36" value="24" class="slider" id="title-size">
+                        <span class="slider-value" id="title-size-value">24px</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="btn-group">
+                <button class="btn btn-secondary" id="reset-btn">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    重置位置
+                </button>
+                
+                <button class="btn" id="download-btn">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    下载封面
+                </button>
+            </div>
+        </div>
+        
+        <div class="panel preview-panel">
+            <h2 class="section-title">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+                封面预览
+            </h2>
+            
+            <div class="cover-container">
+                <div class="cover whiteboard" id="cover">
+                    <div class="cover-overlay" id="cover-overlay"></div>
+                    
+                    <div class="text-element title-element" id="title-element" style="top: 20%; left: 10%;">
+                        5分钟快手早餐 | 营养又美味
+                    </div>
+                    
+                    <div class="text-element subtitle-element" id="subtitle-element" style="top: 35%; left: 10%;">
+                        上班族必备，一周不重样
+                    </div>
+                    
+                    <div class="text-element username-element" id="username-element" style="bottom: 10%; left: 10%;">
+                        <div class="avatar"></div>
+                        <div class="username">美食小当家</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="loading" id="loading">
+        <div class="spinner"></div>
+        正在生成封面，请稍候...
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // DOM 元素
+            const cover = document.getElementById('cover');
+            const overlay = document.getElementById('cover-overlay');
+            const titleElement = document.getElementById('title-element');
+            const subtitleElement = document.getElementById('subtitle-element');
+            const usernameElement = document.getElementById('username-element');
+            const uploadArea = document.getElementById('upload-area');
+            const imageUpload = document.getElementById('image-upload');
+            const whiteboardToggle = document.getElementById('whiteboard-toggle');
+            const overlaySlider = document.getElementById('overlay-slider');
+            const overlayValue = document.getElementById('overlay-value');
+            const titleInput = document.getElementById('title');
+            const subtitleInput = document.getElementById('subtitle');
+            const usernameInput = document.getElementById('username');
+            const colorOptions = document.querySelectorAll('.color-option');
+            const customColorDisplay = document.getElementById('custom-color-display');
+            const customColorInput = document.getElementById('custom-color-input');
+            const textShadowSelect = document.getElementById('text-shadow');
+            const titleSizeSlider = document.getElementById('title-size');
+            const titleSizeValue = document.getElementById('title-size-value');
+            const downloadBtn = document.getElementById('download-btn');
+            const clearBtn = document.getElementById('clear-btn');
+            const resetBtn = document.getElementById('reset-btn');
+            const loading = document.getElementById('loading');
+            
+            // 初始文字位置
+            const initialPositions = {
+                title: { top: '20%', left: '10%' },
+                subtitle: { top: '35%', left: '10%' },
+                username: { bottom: '10%', left: '10%' }
+            };
+            
+            // 拖放上传
+            uploadArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                uploadArea.style.borderColor = 'var(--primary)';
+                uploadArea.style.backgroundColor = 'rgba(255, 46, 77, 0.05)';
+            });
+            
+            uploadArea.addEventListener('dragleave', () => {
+                uploadArea.style.borderColor = '#E0E0E0';
+                uploadArea.style.backgroundColor = 'transparent';
+            });
+            
+            uploadArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadArea.style.borderColor = '#E0E0E0';
+                uploadArea.style.backgroundColor = 'transparent';
+                
+                if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                    handleImageUpload(e.dataTransfer.files[0]);
+                }
+            });
+            
+            uploadArea.addEventListener('click', () => {
+                imageUpload.click();
+            });
+            
+            imageUpload.addEventListener('change', (e) => {
+                if (e.target.files && e.target.files[0]) {
+                    handleImageUpload(e.target.files[0]);
+                }
+            });
+            
+            // 处理图片上传
+            function handleImageUpload(file) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    cover.style.backgroundImage = `url('${event.target.result}')`;
+                    cover.classList.remove('whiteboard');
+                    whiteboardToggle.checked = false;
+                };
+                reader.readAsDataURL(file);
+            }
+            
+            // 白板背景切换
+            whiteboardToggle.addEventListener('change', function() {
+                if (this.checked) {
+                    cover.style.backgroundImage = 'none';
+                    cover.classList.add('whiteboard');
+                } else {
+                    cover.classList.remove('whiteboard');
+                }
+            });
+            
+            // 覆盖层透明度
+            overlaySlider.addEventListener('input', function() {
+                const value = this.value;
+                overlayValue.textContent = `${value}%`;
+                overlay.style.opacity = value / 100;
+            });
+            
+            // 文字内容更新
+            titleInput.addEventListener('input', function() {
+                titleElement.textContent = this.value;
+            });
+            
+            subtitleInput.addEventListener('input', function() {
+                subtitleElement.textContent = this.value;
+            });
+            
+            usernameInput.addEventListener('input', function() {
+                usernameElement.querySelector('.username').textContent = this.value;
+            });
+            
+            // 颜色选择
+            colorOptions.forEach(option => {
+                option.addEventListener('click', function() {
+                    colorOptions.forEach(opt => opt.classList.remove('selected'));
+                    this.classList.add('selected');
+                    
+                    const color = this.dataset.color;
+                    applyTextColor(color);
+                    customColorDisplay.style.backgroundColor = color;
+                    customColorInput.value = color;
+                });
+            });
+            
+            // 自定义颜色选择
+            customColorInput.addEventListener('input', function() {
+                const color = this.value;
+                customColorDisplay.style.backgroundColor = color;
+                applyTextColor(color);
+                
+                // 取消选择预设颜色
+                colorOptions.forEach(opt => opt.classList.remove('selected'));
+            });
+            
+            customColorDisplay.addEventListener('click', function() {
+                customColorInput.click();
+            });
+            
+            function applyTextColor(color) {
+                titleElement.style.color = color;
+                subtitleElement.style.color = color;
+                usernameElement.style.color = color;
+            }
+            
+            // 文字阴影
+            textShadowSelect.addEventListener('change', function() {
+                const shadow = this.value;
+                titleElement.style.textShadow = shadow;
+                subtitleElement.style.textShadow = shadow;
+                usernameElement.style.textShadow = shadow;
+            });
+            
+            // 标题大小
+            titleSizeSlider.addEventListener('input', function() {
+                const size = this.value;
+                titleSizeValue.textContent = `${size}px`;
+                titleElement.style.fontSize = `${size}px`;
+            });
+            
+            // 文字拖拽功能
+            const textElements = [titleElement, subtitleElement, usernameElement];
+            let activeElement = null;
+            let offsetX, offsetY;
+            
+            textElements.forEach(element => {
+                element.addEventListener('mousedown', startDrag);
+            });
+            
+            function startDrag(e) {
+                activeElement = e.target.closest('.text-element');
+                const rect = activeElement.getBoundingClientRect();
+                offsetX = e.clientX - rect.left;
+                offsetY = e.clientY - rect.top;
+                
+                document.addEventListener('mousemove', dragElement);
+                document.addEventListener('mouseup', stopDrag);
+                
+                e.preventDefault();
+            }
+            
+            function dragElement(e) {
+                if (!activeElement) return;
+                
+                const containerRect = cover.getBoundingClientRect();
+                let x = e.clientX - containerRect.left - offsetX;
+                let y = e.clientY - containerRect.top - offsetY;
+                
+                // 限制在容器内
+                x = Math.max(10, Math.min(containerRect.width - activeElement.offsetWidth - 10, x));
+                y = Math.max(10, Math.min(containerRect.height - activeElement.offsetHeight - 10, y));
+                
+                activeElement.style.left = `${x}px`;
+                activeElement.style.top = `${y}px`;
+                activeElement.style.right = '';
+                activeElement.style.bottom = '';
+            }
+            
+            function stopDrag() {
+                document.removeEventListener('mousemove', dragElement);
+                document.removeEventListener('mouseup', stopDrag);
+                activeElement = null;
+            }
+            
+            // 清空封面
+            clearBtn.addEventListener('click', function() {
+                cover.style.backgroundImage = 'none';
+                cover.classList.add('whiteboard');
+                whiteboardToggle.checked = true;
+                imageUpload.value = '';
+                
+                // 重置文字内容
+                titleInput.value = '';
+                subtitleInput.value = '';
+                usernameInput.value = '';
+                
+                titleElement.textContent = '';
+                subtitleElement.textContent = '';
+                usernameElement.querySelector('.username').textContent = '';
+            });
+            
+            // 重置文字位置
+            resetBtn.addEventListener('click', function() {
+                titleElement.style.top = initialPositions.title.top;
+                titleElement.style.left = initialPositions.title.left;
+                titleElement.style.bottom = '';
+                titleElement.style.right = '';
+                
+                subtitleElement.style.top = initialPositions.subtitle.top;
+                subtitleElement.style.left = initialPositions.subtitle.left;
+                subtitleElement.style.bottom = '';
+                subtitleElement.style.right = '';
+                
+                usernameElement.style.bottom = initialPositions.username.bottom;
+                usernameElement.style.left = initialPositions.username.left;
+                usernameElement.style.top = '';
+                usernameElement.style.right = '';
+            });
+            
+            // 下载封面
+            downloadBtn.addEventListener('click', function() {
+                loading.classList.add('active');
+                
+                // 隐藏控制元素
+                const originalStyles = {
+                    titleElement: titleElement.style.cursor,
+                    subtitleElement: subtitleElement.style.cursor,
+                    usernameElement: usernameElement.style.cursor
+                };
+                
+                titleElement.style.cursor = 'default';
+                subtitleElement.style.cursor = 'default';
+                usernameElement.style.cursor = 'default';
+                
+                // 使用html2canvas生成图片
+                html2canvas(cover, {
+                    scale: 2,
+                    logging: false,
+                    useCORS: true,
+                    allowTaint: true,
+                    backgroundColor: cover.classList.contains('whiteboard') ? '#FFFFFF' : null
+                }).then(canvas => {
+                    // 创建下载链接
+                    const link = document.createElement('a');
+                    link.download = `小红书封面_${new Date().getTime()}.png`;
+                    link.href = canvas.toDataURL('image/png');
+                    link.click();
+                    
+                    // 恢复样式
+                    titleElement.style.cursor = originalStyles.titleElement;
+                    subtitleElement.style.cursor = originalStyles.subtitleElement;
+                    usernameElement.style.cursor = originalStyles.usernameElement;
+                    
+                    loading.classList.remove('active');
+                }).catch(err => {
+                    console.error('生成封面失败:', err);
+                    loading.classList.remove('active');
+                    alert('封面生成失败，请重试');
+                });
+            });
+        });
+    </script>
+</body>
+</html>

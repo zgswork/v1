@@ -1,0 +1,1091 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Markdown 转 PDF - 美好人生工具站</title>
+    <meta name="description" content="在线 Markdown 转 PDF 工具，支持上传 zip 包（含图片）或直接粘贴 Markdown 文本，一键生成精美 PDF 文档">
+    <meta name="keywords" content="Markdown, PDF, 转换, 文档, 导出, zip">
+    <meta property="og:title" content="Markdown 转 PDF">
+    <meta property="og:description" content="在线 Markdown 转 PDF 工具，支持图片，一键生成">
+    <meta property="og:type" content="website">
+
+    <!-- 外部库 -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js"></script>
+
+    <style>
+        :root {
+            --bg-color: #f5f5f5;
+            --card-bg: #ffffff;
+            --text-color: #333333;
+            --text-secondary: #666666;
+            --border-color: #e0e0e0;
+            --primary-color: #4a90d9;
+            --primary-hover: #3a7bc8;
+            --success-color: #52c41a;
+            --shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        [data-theme="dark"] {
+            --bg-color: #1a1a2e;
+            --card-bg: #252540;
+            --text-color: #e0e0e0;
+            --text-secondary: #a0a0a0;
+            --border-color: #3a3a5a;
+            --primary-color: #6ba3eb;
+            --primary-hover: #5a92da;
+            --shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: var(--bg-color);
+            color: var(--text-color);
+            min-height: 100vh;
+            padding: 20px;
+            padding-bottom: 80px;
+            transition: background 0.3s, color 0.3s;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        h1 {
+            font-size: 1.8rem;
+            font-weight: 600;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .back-link {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-size: 0.95rem;
+        }
+
+        .back-link:hover {
+            text-decoration: underline;
+        }
+
+        .theme-toggle {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 1.1rem;
+            transition: all 0.2s;
+        }
+
+        .theme-toggle:hover {
+            background: var(--border-color);
+        }
+
+        /* 模式切换 */
+        .mode-tabs {
+            display: flex;
+            gap: 0;
+            margin-bottom: 20px;
+            background: var(--card-bg);
+            border-radius: 10px;
+            padding: 4px;
+            box-shadow: var(--shadow);
+        }
+
+        .mode-tab {
+            flex: 1;
+            padding: 12px 20px;
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
+            font-size: 1rem;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+
+        .mode-tab.active {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .mode-tab:hover:not(.active) {
+            background: var(--border-color);
+        }
+
+        /* 输入区域 */
+        .input-section {
+            display: none;
+        }
+
+        .input-section.active {
+            display: block;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: var(--shadow);
+            margin-bottom: 20px;
+        }
+
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: var(--text-color);
+        }
+
+        /* 上传区域 */
+        .upload-zone {
+            border: 2px dashed var(--border-color);
+            border-radius: 12px;
+            padding: 48px 24px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .upload-zone:hover,
+        .upload-zone.dragover {
+            border-color: var(--primary-color);
+            background: rgba(74, 144, 217, 0.05);
+        }
+
+        .upload-zone input {
+            display: none;
+        }
+
+        .upload-icon {
+            font-size: 3rem;
+            margin-bottom: 16px;
+        }
+
+        .upload-text {
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+
+        .upload-hint {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            opacity: 0.8;
+        }
+
+        .file-info {
+            margin-top: 16px;
+            padding: 12px 16px;
+            background: rgba(82, 196, 26, 0.1);
+            border-radius: 8px;
+            color: var(--success-color);
+            display: none;
+        }
+
+        .file-info.show {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* Markdown 编辑器 */
+        .markdown-editor {
+            width: 100%;
+            min-height: 400px;
+            padding: 16px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--bg-color);
+            color: var(--text-color);
+            font-family: "Monaco", "Menlo", "Ubuntu Mono", monospace;
+            font-size: 0.95rem;
+            line-height: 1.6;
+            resize: vertical;
+        }
+
+        .markdown-editor:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+
+        /* 预览区域 */
+        .preview-section {
+            margin-top: 20px;
+        }
+
+        .preview-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .preview-container {
+            background: white;
+            color: #333;
+            padding: 40px;
+            border-radius: 8px;
+            min-height: 300px;
+            max-height: 600px;
+            overflow-y: auto;
+            border: 1px solid var(--border-color);
+        }
+
+        /* Markdown 渲染样式 */
+        .preview-container > *:first-child {
+            margin-top: 0 !important;
+        }
+
+        .preview-container h1,
+        .preview-container h2,
+        .preview-container h3,
+        .preview-container h4,
+        .preview-container h5,
+        .preview-container h6 {
+            margin-top: 1.2em;
+            margin-bottom: 0.5em;
+            font-weight: 600;
+            line-height: 1.3;
+        }
+
+        .preview-container h1 { font-size: 1.8em; border-bottom: 1px solid #eee; padding-bottom: 0.3em; }
+        .preview-container h2 { font-size: 1.4em; border-bottom: 1px solid #eee; padding-bottom: 0.3em; }
+        .preview-container h3 { font-size: 1.2em; }
+        .preview-container h4 { font-size: 1em; }
+
+        .preview-container p {
+            margin: 0.8em 0;
+            line-height: 1.7;
+        }
+
+        .preview-container img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 4px;
+            margin: 0.8em 0;
+            display: block;
+        }
+
+        .preview-container code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: "Monaco", "Menlo", monospace;
+            font-size: 0.9em;
+        }
+
+        .preview-container pre {
+            background: #f4f4f4;
+            padding: 16px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 1em 0;
+        }
+
+        .preview-container pre code {
+            background: none;
+            padding: 0;
+        }
+
+        .preview-container blockquote {
+            border-left: 4px solid var(--primary-color);
+            padding-left: 16px;
+            margin: 1em 0;
+            color: #666;
+        }
+
+        .preview-container ul,
+        .preview-container ol {
+            margin: 1em 0;
+            padding-left: 2em;
+        }
+
+        .preview-container li {
+            margin: 0.5em 0;
+            line-height: 1.6;
+        }
+
+        .preview-container table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1em 0;
+        }
+
+        .preview-container th,
+        .preview-container td {
+            border: 1px solid #ddd;
+            padding: 8px 12px;
+            text-align: left;
+        }
+
+        .preview-container th {
+            background: #f4f4f4;
+            font-weight: 600;
+        }
+
+        .preview-container hr {
+            border: none;
+            border-top: 1px solid #eee;
+            margin: 2em 0;
+        }
+
+        .preview-container a {
+            color: var(--primary-color);
+        }
+
+        /* 按钮 */
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-hover);
+        }
+
+        .btn-primary:disabled {
+            background: var(--border-color);
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: var(--card-bg);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+        }
+
+        .btn-secondary:hover {
+            background: var(--border-color);
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        /* 加载状态 */
+        .loading {
+            display: none;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-secondary);
+        }
+
+        .loading.show {
+            display: flex;
+        }
+
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--border-color);
+            border-top-color: var(--primary-color);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* 提示信息 */
+        .tips {
+            margin-top: 20px;
+            padding: 16px;
+            background: rgba(74, 144, 217, 0.1);
+            border-radius: 8px;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        .tips h4 {
+            margin-bottom: 8px;
+            color: var(--text-color);
+        }
+
+        .tips ul {
+            padding-left: 20px;
+        }
+
+        .tips li {
+            margin: 4px 0;
+        }
+
+        /* 响应式 */
+        @media (max-width: 768px) {
+            body {
+                padding: 16px;
+                padding-bottom: 80px;
+            }
+
+            h1 {
+                font-size: 1.4rem;
+            }
+
+            .card {
+                padding: 16px;
+            }
+
+            .upload-zone {
+                padding: 32px 16px;
+            }
+
+            .preview-container {
+                padding: 20px;
+            }
+
+            .action-buttons {
+                flex-direction: column;
+            }
+
+            .btn {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📄 Markdown 转 PDF</h1>
+            <div class="header-actions">
+                <a href="../" class="back-link">← 返回首页</a>
+                <button class="theme-toggle" onclick="toggleTheme()" title="切换主题">🌓</button>
+            </div>
+        </header>
+
+        <!-- 模式切换 -->
+        <div class="mode-tabs">
+            <button class="mode-tab active" data-mode="zip">📦 上传 ZIP 包</button>
+            <button class="mode-tab" data-mode="text">📝 粘贴 Markdown</button>
+        </div>
+
+        <!-- ZIP 上传模式 -->
+        <div class="input-section active" id="zip-section">
+            <div class="card">
+                <h3 class="card-title">上传 ZIP 文件</h3>
+                <div class="upload-zone" id="upload-zone">
+                    <input type="file" id="zip-input" accept=".zip">
+                    <div class="upload-icon">📁</div>
+                    <p class="upload-text">点击或拖拽 ZIP 文件到此处</p>
+                    <p class="upload-hint">ZIP 包内应包含 .md 文件和相关图片</p>
+                </div>
+                <div class="file-info" id="file-info">
+                    <span>✅</span>
+                    <span id="file-name"></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 文本输入模式 -->
+        <div class="input-section" id="text-section">
+            <div class="card">
+                <h3 class="card-title">输入 Markdown 内容</h3>
+                <textarea class="markdown-editor" id="markdown-input" placeholder="在此粘贴或输入 Markdown 内容...
+
+# 示例标题
+
+这是一段示例文本。
+
+## 二级标题
+
+- 列表项 1
+- 列表项 2
+
+**粗体** 和 *斜体*
+
+> 引用文本
+
+```
+代码块
+```
+"></textarea>
+            </div>
+        </div>
+
+        <!-- 预览和操作区域 -->
+        <div class="preview-section">
+            <div class="card">
+                <div class="preview-header">
+                    <h3 class="card-title">预览</h3>
+                    <div class="action-buttons">
+                        <button class="btn btn-secondary" onclick="refreshPreview()">🔄 刷新预览</button>
+                        <button class="btn btn-primary" id="export-btn" onclick="exportPDF()" disabled>📥 导出 PDF</button>
+                    </div>
+                </div>
+                <div class="loading" id="loading">
+                    <div class="spinner"></div>
+                    <span>处理中...</span>
+                </div>
+                <div class="preview-container" id="preview">
+                    <p style="color: #999; text-align: center;">上传 ZIP 或输入 Markdown 后显示预览</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 提示信息 -->
+        <div class="tips">
+            <h4>💡 使用提示</h4>
+            <ul>
+                <li><strong>ZIP 模式</strong>：支持包含多个 .md 文件和图片的压缩包，图片路径支持相对路径</li>
+                <li><strong>文本模式</strong>：直接粘贴 Markdown 文本，支持外部图片链接</li>
+                <li>支持标准 Markdown 语法：标题、列表、表格、代码块、引用等</li>
+                <li>导出的 PDF 会保留格式和图片</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- 公共 Footer -->
+    <script>
+        // 状态管理
+        let currentMode = 'zip';
+        let markdownContent = '';
+        let imageMap = new Map(); // 图片名 -> base64
+        let zipFileName = '';
+
+        // 主题切换
+        function toggleTheme() {
+            const body = document.body;
+            const isDark = body.getAttribute('data-theme') === 'dark';
+            body.setAttribute('data-theme', isDark ? 'light' : 'dark');
+            localStorage.setItem('theme', isDark ? 'light' : 'dark');
+        }
+
+        // 初始化主题
+        function initTheme() {
+            const saved = localStorage.getItem('theme');
+            if (saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.body.setAttribute('data-theme', 'dark');
+            }
+        }
+
+        // 模式切换
+        document.querySelectorAll('.mode-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                const mode = tab.dataset.mode;
+                currentMode = mode;
+
+                // 切换 tab 样式
+                document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+
+                // 切换内容区域
+                document.querySelectorAll('.input-section').forEach(s => s.classList.remove('active'));
+                document.getElementById(`${mode}-section`).classList.add('active');
+
+                // 清空预览
+                resetPreview();
+            });
+        });
+
+        // 重置预览
+        function resetPreview() {
+            document.getElementById('preview').innerHTML = '<p style="color: #999; text-align: center;">上传 ZIP 或输入 Markdown 后显示预览</p>';
+            document.getElementById('export-btn').disabled = true;
+        }
+
+        // 上传区域交互
+        const uploadZone = document.getElementById('upload-zone');
+        const zipInput = document.getElementById('zip-input');
+
+        uploadZone.addEventListener('click', () => zipInput.click());
+
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.classList.add('dragover');
+        });
+
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.classList.remove('dragover');
+        });
+
+        uploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file && file.name.endsWith('.zip')) {
+                handleZipFile(file);
+            } else {
+                alert('请上传 .zip 文件');
+            }
+        });
+
+        zipInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                handleZipFile(file);
+            }
+        });
+
+        // 处理 ZIP 文件
+        async function handleZipFile(file) {
+            showLoading(true);
+            zipFileName = file.name.replace('.zip', '');
+
+            try {
+                const zip = await JSZip.loadAsync(file);
+                markdownContent = '';
+                imageMap.clear();
+
+                // 遍历 ZIP 内容
+                const files = Object.keys(zip.files);
+
+                // 查找 markdown 文件
+                const mdFiles = files.filter(f => f.endsWith('.md') && !zip.files[f].dir);
+
+                if (mdFiles.length === 0) {
+                    throw new Error('ZIP 包中没有找到 .md 文件');
+                }
+
+                // 读取所有图片
+                const imageFiles = files.filter(f => {
+                    const lower = f.toLowerCase();
+                    return (lower.endsWith('.png') || lower.endsWith('.jpg') ||
+                            lower.endsWith('.jpeg') || lower.endsWith('.gif') ||
+                            lower.endsWith('.webp') || lower.endsWith('.svg')) &&
+                           !zip.files[f].dir;
+                });
+
+                for (const imgPath of imageFiles) {
+                    const imgData = await zip.files[imgPath].async('base64');
+                    const ext = imgPath.split('.').pop().toLowerCase();
+                    const mimeType = ext === 'svg' ? 'image/svg+xml' : `image/${ext === 'jpg' ? 'jpeg' : ext}`;
+                    const base64 = `data:${mimeType};base64,${imgData}`;
+
+                    // 存储多种可能的路径格式
+                    const fileName = imgPath.split('/').pop();
+                    const fileNameDecoded = decodeURIComponent(fileName);
+
+                    // 原始路径
+                    imageMap.set(imgPath, base64);
+                    imageMap.set(fileName, base64);
+                    imageMap.set(fileNameDecoded, base64);
+
+                    // 带前缀的路径
+                    imageMap.set('./' + imgPath, base64);
+                    imageMap.set('./' + fileName, base64);
+                    imageMap.set('../' + imgPath, base64);
+
+                    // URL 编码版本
+                    imageMap.set(encodeURIComponent(fileName), base64);
+
+                    // 处理可能的子目录情况
+                    const parts = imgPath.split('/');
+                    if (parts.length > 1) {
+                        imageMap.set(parts.slice(1).join('/'), base64);
+                        // 常见的 assets/images 等目录
+                        for (let i = 0; i < parts.length; i++) {
+                            imageMap.set(parts.slice(i).join('/'), base64);
+                        }
+                    }
+
+                    console.log('已加载图片:', fileName);
+                }
+
+                // 读取并合并所有 markdown 文件
+                const mdContents = [];
+                for (const mdPath of mdFiles) {
+                    const content = await zip.files[mdPath].async('string');
+                    mdContents.push(content);
+                }
+                markdownContent = mdContents.join('\n\n---\n\n');
+
+                // 显示文件信息
+                document.getElementById('file-name').textContent = `${file.name} (${mdFiles.length} 个 MD 文件, ${imageFiles.length} 张图片)`;
+                document.getElementById('file-info').classList.add('show');
+
+                // 更新预览
+                updatePreview();
+
+            } catch (error) {
+                console.error('处理 ZIP 失败:', error);
+                alert('处理 ZIP 文件失败: ' + error.message);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // 文本输入监听
+        const markdownInput = document.getElementById('markdown-input');
+        let inputTimeout;
+        markdownInput.addEventListener('input', () => {
+            clearTimeout(inputTimeout);
+            inputTimeout = setTimeout(() => {
+                if (currentMode === 'text') {
+                    markdownContent = markdownInput.value;
+                    imageMap.clear();
+                    updatePreview();
+                }
+            }, 500);
+        });
+
+        // 刷新预览
+        function refreshPreview() {
+            if (currentMode === 'text') {
+                markdownContent = markdownInput.value;
+            }
+            updatePreview();
+        }
+
+        // 更新预览
+        function updatePreview() {
+            if (!markdownContent.trim()) {
+                resetPreview();
+                return;
+            }
+
+            // 配置 marked - 关闭 breaks 避免过多空行
+            marked.setOptions({
+                breaks: false,
+                gfm: true
+            });
+
+            // 解析 Markdown
+            let html = marked.parse(markdownContent);
+
+            // 替换图片路径为 base64
+            html = html.replace(/<img([^>]*)src="([^"]+)"([^>]*)>/gi, (match, before, src, after) => {
+                // 解码 URL 编码的路径
+                let decodedSrc = src;
+                try {
+                    decodedSrc = decodeURIComponent(src);
+                } catch (e) {}
+
+                // 尝试多种路径格式查找图片
+                let base64 = imageMap.get(src) || imageMap.get(decodedSrc);
+
+                if (!base64) {
+                    // 尝试去掉开头的 ./ 或 ../
+                    const cleanSrc = decodedSrc.replace(/^(\.\.?\/)+/, '');
+                    base64 = imageMap.get(cleanSrc);
+                }
+
+                if (!base64) {
+                    // 尝试只用文件名
+                    const fileName = decodedSrc.split('/').pop();
+                    base64 = imageMap.get(fileName) || imageMap.get(decodeURIComponent(fileName));
+                }
+
+                if (!base64) {
+                    // 尝试去掉查询参数
+                    const withoutQuery = decodedSrc.split('?')[0];
+                    const fileNameClean = withoutQuery.split('/').pop();
+                    base64 = imageMap.get(fileNameClean);
+                }
+
+                if (base64) {
+                    console.log('图片匹配成功:', src);
+                    return `<img${before}src="${base64}"${after}>`;
+                }
+                console.warn('图片未找到:', src, '- 可用图片:', Array.from(imageMap.keys()).slice(0, 5));
+                return match;
+            });
+
+            document.getElementById('preview').innerHTML = html;
+            document.getElementById('export-btn').disabled = false;
+        }
+
+        // 显示/隐藏加载状态
+        function showLoading(show) {
+            document.getElementById('loading').classList.toggle('show', show);
+        }
+
+        // 导出 PDF - 使用浏览器原生打印功能
+        async function exportPDF() {
+            const preview = document.getElementById('preview');
+            const exportBtn = document.getElementById('export-btn');
+
+            exportBtn.disabled = true;
+            exportBtn.innerHTML = '⏳ 准备中...';
+
+            try {
+                // 创建打印专用窗口
+                const printWindow = window.open('', '_blank');
+                if (!printWindow) {
+                    alert('请允许弹出窗口以导出 PDF');
+                    return;
+                }
+
+                // 构建打印页面
+                const printContent = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>${currentMode === 'zip' && zipFileName ? zipFileName : 'Markdown'} - PDF</title>
+    <style>
+        @media print {
+            @page {
+                size: A4;
+                margin: 20mm;
+            }
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            font-size: 14px;
+            line-height: 1.7;
+            color: #333;
+            background: white;
+            margin: 0;
+            padding: 20px;
+        }
+
+        /* 标题样式 */
+        h1, h2, h3, h4, h5, h6 {
+            margin-top: 1.2em;
+            margin-bottom: 0.5em;
+            font-weight: 600;
+            line-height: 1.3;
+            page-break-after: avoid;
+        }
+
+        h1:first-child, h2:first-child, h3:first-child { margin-top: 0; }
+        h1 { font-size: 1.7em; border-bottom: 1px solid #ddd; padding-bottom: 0.3em; }
+        h2 { font-size: 1.4em; border-bottom: 1px solid #eee; padding-bottom: 0.2em; }
+        h3 { font-size: 1.2em; }
+        h4 { font-size: 1.05em; }
+
+        /* 段落 */
+        p {
+            margin: 0.8em 0;
+            orphans: 3;
+            widows: 3;
+        }
+
+        /* 图片 - 关键：防止被分页截断 */
+        img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            margin: 1em 0;
+            page-break-inside: avoid;
+            break-inside: avoid;
+        }
+
+        /* 代码块 */
+        pre {
+            background: #f5f5f5;
+            padding: 12px 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            margin: 1em 0;
+            page-break-inside: avoid;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        code {
+            background: #f5f5f5;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-family: "Monaco", "Menlo", "Ubuntu Mono", monospace;
+            font-size: 0.9em;
+        }
+
+        pre code {
+            background: none;
+            padding: 0;
+        }
+
+        /* 引用 */
+        blockquote {
+            border-left: 4px solid #4a90d9;
+            padding-left: 15px;
+            margin: 1em 0;
+            color: #555;
+            page-break-inside: avoid;
+        }
+
+        /* 列表 */
+        ul, ol {
+            margin: 0.8em 0;
+            padding-left: 2em;
+        }
+
+        li {
+            margin: 0.4em 0;
+        }
+
+        /* 表格 */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1em 0;
+            page-break-inside: avoid;
+        }
+
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px 12px;
+            text-align: left;
+        }
+
+        th {
+            background: #f5f5f5;
+            font-weight: 600;
+        }
+
+        /* 分隔线 */
+        hr {
+            border: none;
+            border-top: 1px solid #ddd;
+            margin: 1.5em 0;
+        }
+
+        /* 链接 */
+        a {
+            color: #4a90d9;
+            text-decoration: none;
+        }
+
+        /* 打印时隐藏不必要的元素 */
+        @media print {
+            body {
+                padding: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    ${preview.innerHTML}
+    <scr` + `ipt>
+        // 等待所有图片加载完成后自动打印
+        Promise.all(
+            Array.from(document.images)
+                .filter(img => !img.complete)
+                .map(img => new Promise(resolve => {
+                    img.onload = img.onerror = resolve;
+                }))
+        ).then(() => {
+            setTimeout(() => {
+                window.print();
+            }, 300);
+        });
+
+        // 如果没有图片，直接打印
+        if (document.images.length === 0 || Array.from(document.images).every(img => img.complete)) {
+            setTimeout(() => window.print(), 300);
+        }
+    </scr` + `ipt>
+
+<style>
+.site-footer {
+    position: fixed; bottom: 0; left: 0; width: 100%;
+    padding: .75rem 1rem; font-size: 14px;
+    background: rgba(255, 255, 255, 0.25);
+    backdrop-filter: blur(16px) saturate(180%);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+    color: rgba(0, 0, 0, 0.7);
+    text-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
+    border-top: 1px solid rgba(255, 255, 255, 0.3);
+    display: flex; flex-wrap: wrap; gap: .5rem;
+    justify-content: center; align-items: center; z-index: 999;
+}
+.site-footer a { color: rgba(0, 0, 0, 0.8); text-decoration: none; font-weight: 600; text-shadow: 0 0 8px rgba(255, 255, 255, 0.6); }
+.site-footer a:hover { text-decoration: underline; }
+.qr-wrapper { position: relative; display: inline-block; }
+.qr-img { display: none; position: absolute; bottom: 1.8rem; left: 50%; transform: translateX(-50%); max-width: 140px; border: 1px solid #ddd; background: #fff; padding: 4px; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,.15); z-index: 1000; }
+.qr-wrapper:hover .qr-img { display: block; }
+</style>
+<div class="site-footer">
+    Created&nbsp;by：
+    <span class="qr-wrapper"><a href="https://mp.weixin.qq.com/mp/profile_ext?action=home&__biz=MzI0MzUzOTEwMw==&scene=124#wechat_redirect" target="_blank">系统1与系统2</a><img class="qr-img" src="https://raw.githubusercontent.com/anneeeee/programming_exercise/refs/heads/main/ad_pics/qrcode_for_gh_87351941139e_258%20(2).jpg" alt="二维码"></span>
+    &nbsp;||&nbsp;广告位：
+    <span class="qr-wrapper"><a href="https://t.zsxq.com/SjYuX" target="_blank">AI编程星球</a><img class="qr-img" src="https://raw.githubusercontent.com/anneeeee/programming_exercise/refs/heads/main/ad_pics/AI_programming.pic.jpg" alt="二维码"></span> |
+    <span class="qr-wrapper"><a href="https://t.zsxq.com/VTCya" target="_blank">副业避坑星球</a><img class="qr-img" src="https://raw.githubusercontent.com/anneeeee/programming_exercise/refs/heads/main/ad_pics/laoxu.pic.jpg" alt="二维码"></span> |
+    <span class="qr-wrapper"><a href="https://www.xiaobot.net/p/ai07?refer=a9625ad2-ec04-4cc8-8549-7511079cb3b5" target="_blank">AI&nbsp;产品日报</a><img class="qr-img" src="https://raw.githubusercontent.com/anneeeee/programming_exercise/refs/heads/main/ad_pics/hani-xiaobot-8.png" alt="二维码"></span> |
+    <span class="qr-wrapper"><a href="https://t.zsxq.com/jcaEa" target="_blank">AI&nbsp;产品经理大本营</a><img class="qr-img" src="https://raw.githubusercontent.com/anneeeee/programming_exercise/refs/heads/main/ad_pics/aipm.pic.jpg" alt="二维码"></span> |
+    <a href="https://dkfile.net" target="_blank">DKFile</a>
+</div>
+
+</body>
+</html>`;
+
+                printWindow.document.write(printContent);
+                printWindow.document.close();
+
+            } catch (error) {
+                console.error('导出 PDF 失败:', error);
+                alert('导出失败: ' + error.message);
+            } finally {
+                exportBtn.disabled = false;
+                exportBtn.innerHTML = '📥 导出 PDF';
+            }
+        }
+
+        // 初始化
+        initTheme();
+    </script>
+
+<style>
+.site-footer {
+    position: fixed; bottom: 0; left: 0; width: 100%;
+    padding: .75rem 1rem; font-size: 14px;
+    background: rgba(255, 255, 255, 0.25);
+    backdrop-filter: blur(16px) saturate(180%);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+    color: rgba(0, 0, 0, 0.7);
+    text-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
+    border-top: 1px solid rgba(255, 255, 255, 0.3);
+    display: flex; flex-wrap: wrap; gap: .5rem;
+    justify-content: center; align-items: center; z-index: 999;
+}
+.site-footer a { color: rgba(0, 0, 0, 0.8); text-decoration: none; font-weight: 600; text-shadow: 0 0 8px rgba(255, 255, 255, 0.6); }
+.site-footer a:hover { text-decoration: underline; }
+.qr-wrapper { position: relative; display: inline-block; }
+.qr-img { display: none; position: absolute; bottom: 1.8rem; left: 50%; transform: translateX(-50%); max-width: 140px; border: 1px solid #ddd; background: #fff; padding: 4px; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,.15); z-index: 1000; }
+.qr-wrapper:hover .qr-img { display: block; }
+</style>
+<div class="site-footer">
+    Created&nbsp;by：
+    <span class="qr-wrapper"><a href="https://mp.weixin.qq.com/mp/profile_ext?action=home&__biz=MzI0MzUzOTEwMw==&scene=124#wechat_redirect" target="_blank">系统1与系统2</a><img class="qr-img" src="https://raw.githubusercontent.com/anneeeee/programming_exercise/refs/heads/main/ad_pics/qrcode_for_gh_87351941139e_258%20(2).jpg" alt="二维码"></span>
+    &nbsp;||&nbsp;广告位：
+    <span class="qr-wrapper"><a href="https://t.zsxq.com/SjYuX" target="_blank">AI编程星球</a><img class="qr-img" src="https://raw.githubusercontent.com/anneeeee/programming_exercise/refs/heads/main/ad_pics/AI_programming.pic.jpg" alt="二维码"></span> |
+    <span class="qr-wrapper"><a href="https://t.zsxq.com/VTCya" target="_blank">副业避坑星球</a><img class="qr-img" src="https://raw.githubusercontent.com/anneeeee/programming_exercise/refs/heads/main/ad_pics/laoxu.pic.jpg" alt="二维码"></span> |
+    <span class="qr-wrapper"><a href="https://www.xiaobot.net/p/ai07?refer=a9625ad2-ec04-4cc8-8549-7511079cb3b5" target="_blank">AI&nbsp;产品日报</a><img class="qr-img" src="https://raw.githubusercontent.com/anneeeee/programming_exercise/refs/heads/main/ad_pics/hani-xiaobot-8.png" alt="二维码"></span> |
+    <span class="qr-wrapper"><a href="https://t.zsxq.com/jcaEa" target="_blank">AI&nbsp;产品经理大本营</a><img class="qr-img" src="https://raw.githubusercontent.com/anneeeee/programming_exercise/refs/heads/main/ad_pics/aipm.pic.jpg" alt="二维码"></span> |
+    <a href="https://dkfile.net" target="_blank">DKFile</a>
+</div>
+
+</body>
+</html>

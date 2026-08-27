@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Emoji黄脸连连看</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background-color: #f5f5f5;
+            margin: 0;
+            padding: 20px;
+            touch-action: manipulation;
+            user-select: none;
+        }
+        
+        .game-container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        
+        .game-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+        
+        .game-board {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 5px;
+            margin-bottom: 15px;
+        }
+        
+        .tile {
+            aspect-ratio: 1;
+            background-color: #f0f0f0;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .tile.selected {
+            background-color: #ffeb3b;
+            transform: scale(0.95);
+            box-shadow: 0 0 5px rgba(0,0,0,0.2);
+        }
+        
+        .tile.matched {
+            visibility: hidden;
+        }
+        
+        .tile::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(255,255,255,0.5);
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        
+        .tile:active::before {
+            opacity: 1;
+        }
+        
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        button {
+            padding: 8px 15px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.2s;
+        }
+        
+        button:hover {
+            background-color: #45a049;
+        }
+        
+        .game-over {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0,0,0,0.7);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 24px;
+            z-index: 100;
+            display: none;
+        }
+        
+        .game-over-content {
+            background-color: white;
+            color: #333;
+            padding: 30px;
+            border-radius: 10px;
+            max-width: 80%;
+            text-align: center;
+        }
+        
+        .game-over button {
+            margin-top: 15px;
+            background-color: #2196F3;
+        }
+        
+        .game-over button:hover {
+            background-color: #0b7dda;
+        }
+
+        .download-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0,0,0,0.7);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            display: none;
+        }
+        
+        .download-content {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            max-width: 80%;
+            text-align: center;
+        }
+        
+        .download-content p {
+            margin-bottom: 20px;
+            font-size: 18px;
+        }
+        
+        .download-content button {
+            background-color: #2196F3;
+        }
+        
+        .download-content button:hover {
+            background-color: #0b7dda;
+        }
+        
+        .link-text {
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            word-break: break-all;
+            user-select: all;
+        }
+        
+        @media (max-width: 600px) {
+            .game-board {
+                gap: 3px;
+            }
+            
+            .tile {
+                font-size: 18px;
+            }
+            
+            .game-header {
+                font-size: 16px;
+            }
+            
+            button {
+                padding: 6px 12px;
+                font-size: 14px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="game-header">
+            <div class="timer">时间: <span id="time">00:00</span></div>
+            <div class="score">分数: <span id="score">0</span></div>
+        </div>
+        
+        <div class="game-board" id="board"></div>
+        
+        <div class="controls">
+            <button id="reset">重排</button>
+            <button id="restart">重玩</button>
+            <button id="download">下载游戏</button>
+        </div>
+    </div>
+    
+    <div class="game-over" id="gameOver">
+        <div class="game-over-content">
+            <h2>游戏结束!</h2>
+            <p>你的分数: <span id="finalScore">0</span></p>
+            <p>用时: <span id="finalTime">00:00</span></p>
+            <button id="playAgain">再玩一次</button>
+        </div>
+    </div>
+
+    <div class="download-modal" id="downloadModal">
+        <div class="download-content">
+            <p>复制以下夸克网盘链接在浏览器打开</p>
+            <div class="link-text">https://pan.quark.cn/s/db1adbbdb55a</div>
+            <button id="copyLink">复制链接</button>
+        </div>
+    </div>
+    
+    <script>
+        // 游戏配置
+        const config = {
+            rows: 8,
+            cols: 8,
+            emojis: ["😀", "😂", "😍", "😎", "🤔", "😴", "😷", "🤯", "🥳", "😡", "🥺", "🤢", "🤠", "🥶", "🤡", "👻"],
+            initialScore: 0,
+            shuffleCost: 5
+        };
+        
+        // 游戏状态
+        let state = {
+            board: [],
+            selectedTile: null,
+            score: config.initialScore,
+            time: 0,
+            timer: null,
+            isPlaying: false,
+            matchedPairs: 0
+        };
+        
+        // DOM元素
+        const elements = {
+            board: document.getElementById("board"),
+            time: document.getElementById("time"),
+            score: document.getElementById("score"),
+            reset: document.getElementById("reset"),
+            restart: document.getElementById("restart"),
+            gameOver: document.getElementById("gameOver"),
+            finalScore: document.getElementById("finalScore"),
+            finalTime: document.getElementById("finalTime"),
+            playAgain: document.getElementById("playAgain"),
+            download: document.getElementById("download"),
+            downloadModal: document.getElementById("downloadModal"),
+            copyLink: document.getElementById("copyLink")
+        };
+        
+        // 初始化游戏
+        function initGame() {
+            // 清除之前的游戏状态
+            clearInterval(state.timer);
+            
+            // 重置状态
+            state = {
+                board: [],
+                selectedTile: null,
+                score: config.initialScore,
+                time: 0,
+                timer: null,
+                isPlaying: true,
+                matchedPairs: 0
+            };
+            
+            // 更新UI
+            updateScore();
+            updateTime();
+            
+            // 创建游戏板
+            createBoard();
+            
+            // 隐藏游戏结束界面
+            elements.gameOver.style.display = "none";
+            
+            // 开始计时
+            startTimer();
+        }
+        
+        // 创建游戏板
+        function createBoard() {
+            // 清空游戏板
+            elements.board.innerHTML = "";
+            
+            // 创建配对的emoji数组
+            const pairs = [];
+            const totalPairs = (config.rows * config.cols) / 2;
+            
+            // 确保emoji数量足够
+            const emojis = [...config.emojis];
+            while (emojis.length < totalPairs) {
+                emojis.push(...config.emojis);
+            }
+            
+            // 随机选择emoji并创建配对
+            for (let i = 0; i < totalPairs; i++) {
+                const randomIndex = Math.floor(Math.random() * emojis.length);
+                const emoji = emojis.splice(randomIndex, 1)[0];
+                pairs.push(emoji, emoji);
+            }
+            
+            // 打乱顺序
+            shuffleArray(pairs);
+            
+            // 创建游戏板数组和DOM元素
+            state.board = [];
+            for (let row = 0; row < config.rows; row++) {
+                state.board[row] = [];
+                for (let col = 0; col < config.cols; col++) {
+                    const index = row * config.cols + col;
+                    const emoji = pairs[index];
+                    
+                    const tile = document.createElement("div");
+                    tile.className = "tile";
+                    tile.dataset.row = row;
+                    tile.dataset.col = col;
+                    tile.textContent = emoji;
+                    tile.addEventListener("click", () => handleTileClick(row, col));
+                    
+                    elements.board.appendChild(tile);
+                    state.board[row][col] = {
+                        emoji: emoji,
+                        element: tile,
+                        matched: false
+                    };
+                }
+            }
+        }
+        
+        // 处理方块点击
+        function handleTileClick(row, col) {
+            if (!state.isPlaying) return;
+            
+            const tile = state.board[row][col];
+            
+            // 如果已经匹配或者是同一个方块，则忽略
+            if (tile.matched || (state.selectedTile && state.selectedTile.row === row && state.selectedTile.col === col)) {
+                return;
+            }
+            
+            // 如果已经选择了一个方块
+            if (state.selectedTile) {
+                const selectedTile = state.board[state.selectedTile.row][state.selectedTile.col];
+                
+                // 检查是否匹配
+                if (tile.emoji === selectedTile.emoji) {
+                    // 匹配成功
+                    tile.matched = true;
+                    selectedTile.matched = true;
+                    
+                    tile.element.classList.add("matched");
+                    selectedTile.element.classList.add("matched");
+                    
+                    state.selectedTile = null;
+                    state.score += 10;
+                    state.matchedPairs++;
+                    updateScore();
+                    
+                    // 检查游戏是否结束
+                    if (state.matchedPairs === (config.rows * config.cols) / 2) {
+                        endGame();
+                    }
+                } else {
+                    // 匹配失败
+                    tile.element.classList.add("selected");
+                    state.selectedTile = { row, col };
+                    
+                    // 短暂显示后恢复
+                    setTimeout(() => {
+                        tile.element.classList.remove("selected");
+                        selectedTile.element.classList.remove("selected");
+                        state.selectedTile = null;
+                    }, 1000);
+                }
+            } else {
+                // 选择第一个方块
+                tile.element.classList.add("selected");
+                state.selectedTile = { row, col };
+            }
+        }
+        
+        // 打乱数组
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+        
+        // 重排游戏板
+        function shuffleBoard() {
+            if (!state.isPlaying || state.score < config.shuffleCost) return;
+            
+            state.score -= config.shuffleCost;
+            updateScore();
+            
+            // 收集所有未匹配的emoji
+            const unmatchedEmojis = [];
+            for (let row = 0; row < config.rows; row++) {
+                for (let col = 0; col < config.cols; col++) {
+                    if (!state.board[row][col].matched) {
+                        unmatchedEmojis.push(state.board[row][col].emoji);
+                    }
+                }
+            }
+            
+            // 打乱顺序
+            shuffleArray(unmatchedEmojis);
+            
+            // 重新分配emoji
+            let index = 0;
+            for (let row = 0; row < config.rows; row++) {
+                for (let col = 0; col < config.cols; col++) {
+                    if (!state.board[row][col].matched) {
+                        state.board[row][col].emoji = unmatchedEmojis[index++];
+                        state.board[row][col].element.textContent = state.board[row][col].emoji;
+                    }
+                }
+            }
+            
+            // 取消选择
+            if (state.selectedTile) {
+                const selectedTile = state.board[state.selectedTile.row][state.selectedTile.col];
+                selectedTile.element.classList.remove("selected");
+                state.selectedTile = null;
+            }
+        }
+        
+        // 开始计时器
+        function startTimer() {
+            state.time = 0;
+            updateTime();
+            state.timer = setInterval(() => {
+                state.time++;
+                updateTime();
+            }, 1000);
+        }
+        
+        // 更新时间显示
+        function updateTime() {
+            const minutes = Math.floor(state.time / 60).toString().padStart(2, "0");
+            const seconds = (state.time % 60).toString().padStart(2, "0");
+            elements.time.textContent = `${minutes}:${seconds}`;
+        }
+        
+        // 更新分数显示
+        function updateScore() {
+            elements.score.textContent = state.score;
+        }
+        
+        // 结束游戏
+        function endGame() {
+            clearInterval(state.timer);
+            state.isPlaying = false;
+            
+            elements.finalScore.textContent = state.score;
+            elements.finalTime.textContent = elements.time.textContent;
+            elements.gameOver.style.display = "flex";
+        }
+        
+        // 复制链接到剪贴板
+        function copyToClipboard(text) {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed';  // 避免滚动到页面底部
+            document.body.appendChild(textarea);
+            textarea.select();
+            
+            try {
+                const successful = document.execCommand('copy');
+                if (successful) {
+                    alert('链接已复制到剪贴板');
+                } else {
+                    alert('复制失败，请手动复制链接');
+                }
+            } catch (err) {
+                alert('复制失败，请手动复制链接');
+                console.error('无法复制链接: ', err);
+            }
+            
+            document.body.removeChild(textarea);
+        }
+        
+        // 事件监听
+        elements.reset.addEventListener("click", shuffleBoard);
+        elements.restart.addEventListener("click", initGame);
+        elements.playAgain.addEventListener("click", initGame);
+        
+        // 新增下载按钮事件
+        elements.download.addEventListener("click", () => {
+            elements.downloadModal.style.display = "flex";
+        });
+        
+        // 复制链接按钮事件
+        elements.copyLink.addEventListener("click", () => {
+            copyToClipboard("https://pan.quark.cn/s/db1adbbdb55a");
+            elements.downloadModal.style.display = "none";
+        });
+        
+        // 点击模态框外部关闭
+        elements.downloadModal.addEventListener("click", (e) => {
+            if (e.target === elements.downloadModal) {
+                elements.downloadModal.style.display = "none";
+            }
+        });
+        
+        // 初始化游戏
+        initGame();
+    </script>
+</body>
+</html>
+

@@ -1,0 +1,930 @@
+<html lang="zh-CN"><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>批量页脚注入工具</title>
+    <!-- 引入外部资源 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+    
+    <!-- Tailwind 配置 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#007DFF',
+                        secondary: '#36D399',
+                        neutral: '#F5F7FA',
+                        'neutral-dark': '#1D2129',
+                        'neutral-content': '#4E5969',
+                        'harmony-blue': '#0A59F7',
+                        'harmony-purple': '#7B61FF',
+                        'harmony-green': '#00B42A',
+                        'harmony-orange': '#FF7D00',
+                        'harmony-red': '#F53F3F',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                    boxShadow: {
+                        'harmony': '0 4px 12px rgba(0, 0, 0, 0.08)',
+                        'harmony-hover': '0 6px 16px rgba(0, 0, 0, 0.12)',
+                    }
+                },
+            }
+        }
+    </script>
+    
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .transition-harmony {
+                transition: all 0.2s ease-in-out;
+            }
+            .card-harmony {
+                @apply bg-white rounded-xl shadow-harmony transition-harmony hover:shadow-harmony-hover;
+            }
+            .btn-harmony {
+                @apply px-4 py-2 rounded-lg font-medium transition-harmony focus:outline-none focus:ring-2 focus:ring-offset-2;
+            }
+            .btn-primary {
+                @apply btn-harmony bg-primary text-white hover:bg-primary/90 focus:ring-primary/50;
+            }
+            .btn-secondary {
+                @apply btn-harmony bg-neutral text-neutral-dark hover:bg-neutral/80 focus:ring-primary/30;
+            }
+            .btn-danger {
+                @apply btn-harmony bg-harmony-red text-white hover:bg-harmony-red/90 focus:ring-harmony-red/50;
+            }
+            .input-harmony {
+                @apply w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-harmony;
+            }
+            .tab-active {
+                @apply text-primary border-primary font-medium;
+            }
+            .color-option {
+                @apply w-6 h-6 rounded-full cursor-pointer transition-harmony border-2 border-transparent hover:border-gray-400;
+            }
+            .color-option.selected {
+                @apply border-gray-600 scale-110;
+            }
+            .social-icon {
+                @apply text-xl w-8 h-8 flex items-center justify-center rounded-full transition-all hover:scale-110;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-neutral-dark min-h-screen flex flex-col">
+    <!-- 顶部导航栏 -->
+    <header class="bg-white shadow-sm sticky top-0 z-10">
+        <div class="container mx-auto px-4 py-4 flex justify-between items-center">
+            <div class="flex items-center space-x-2">
+                <i class="fa fa-code-fork text-primary text-2xl"></i>
+                <h1 class="text-xl font-bold text-neutral-dark">批量页脚注入工具</h1>
+            </div>
+            <div class="hidden md:flex items-center space-x-4">
+                <button class="text-neutral-content hover:text-primary transition-harmony" title="使用帮助">
+                    <i class="fa fa-question-circle"></i>
+                </button>
+                <button class="text-neutral-content hover:text-primary transition-harmony" title="关于工具">
+                    <i class="fa fa-info-circle"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主内容区 -->
+    <main class="flex-grow container mx-auto px-4 py-6">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- 左侧配置面板 -->
+            <div class="lg:col-span-1 space-y-6">
+                <!-- 文件上传区域 -->
+                <div class="card-harmony p-5">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center">
+                        <i class="fa fa-file-html-o text-primary mr-2"></i>文件处理
+                    </h2>
+                    
+                    <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-primary transition-harmony cursor-pointer" id="fileDropArea">
+                        <i class="fa fa-cloud-upload text-4xl text-neutral-content mb-3"></i>
+                        <p class="text-neutral-content mb-2">拖放HTML文件到此处，或点击选择文件</p>
+                        <p class="text-xs text-gray-400">支持批量上传多个HTML文件</p>
+                        <input type="file" id="fileInput" class="hidden" accept=".html" multiple="">
+                    </div>
+                    
+                    <div id="fileList" class="mt-4 max-h-40 overflow-y-auto space-y-2 hidden">
+                        <h3 class="font-medium text-sm text-neutral-dark">已选择文件:</h3>
+                        <!-- 文件列表将动态添加到这里 -->
+                    </div>
+                    
+                    <div class="mt-4 flex space-x-3">
+                        <button id="processFiles" class="btn-primary flex-1 flex items-center justify-center" disabled="">
+                            <i class="fa fa-magic mr-1"></i> 处理文件
+                        </button>
+                        <button id="downloadFiles" class="btn-secondary flex-1 flex items-center justify-center" disabled="">
+                            <i class="fa fa-download mr-1"></i> 下载结果
+                        </button>
+                        <button id="clearAll" class="btn-danger flex items-center justify-center px-2">
+                            <i class="fa fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- 页脚内容配置 -->
+                <div class="card-harmony p-5">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center">
+                        <i class="fa fa-pencil-square-o text-primary mr-2"></i>页脚内容
+                    </h2>
+                    
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-neutral-content mb-1">作者</label>
+                            <input type="text" id="footerAuthor" class="input-harmony" placeholder="输入作者名称">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-neutral-content mb-1">邮箱</label>
+                            <input type="email" id="footerEmail" class="input-harmony" placeholder="输入联系邮箱">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-neutral-content mb-1">联系方式</label>
+                            <input type="text" id="footerContact" class="input-harmony" placeholder="输入联系电话或其他方式">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-neutral-content mb-1">链接</label>
+                            <input type="url" id="footerLink" class="input-harmony" placeholder="输入相关链接">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-neutral-content mb-1">链接文本</label>
+                            <input type="text" id="footerLinkText" class="input-harmony" placeholder="输入链接显示文本">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-neutral-content mb-1">网页信息</label>
+                            <input type="text" id="footerInfo" class="input-harmony" placeholder="输入网页相关信息">
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 社交媒体链接 -->
+                <div class="card-harmony p-5">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center">
+                        <i class="fa fa-share-alt text-primary mr-2"></i>社交媒体链接
+                    </h2>
+                    
+                    <div class="space-y-3">
+                        <div class="flex items-center space-x-3">
+                            <div class="social-icon bg-[#1877F2] text-white">
+                                <i class="fa fa-facebook"></i>
+                            </div>
+                            <input type="url" id="socialFacebook" class="input-harmony" placeholder="Facebook 链接">
+                        </div>
+                        
+                        <div class="flex items-center space-x-3">
+                            <div class="social-icon bg-[#1DA1F2] text-white">
+                                <i class="fa fa-twitter"></i>
+                            </div>
+                            <input type="url" id="socialTwitter" class="input-harmony" placeholder="Twitter 链接">
+                        </div>
+                        
+                        <div class="flex items-center space-x-3">
+                            <div class="social-icon bg-[#E4405F] text-white">
+                                <i class="fa fa-instagram"></i>
+                            </div>
+                            <input type="url" id="socialInstagram" class="input-harmony" placeholder="Instagram 链接">
+                        </div>
+                        
+                        <div class="flex items-center space-x-3">
+                            <div class="social-icon bg-[#FF0000] text-white">
+                                <i class="fa fa-youtube-play"></i>
+                            </div>
+                            <input type="url" id="socialYoutube" class="input-harmony" placeholder="YouTube 链接">
+                        </div>
+                        
+                        <div class="flex items-center space-x-3">
+                            <div class="social-icon bg-[#0A66C2] text-white">
+                                <i class="fa fa-linkedin"></i>
+                            </div>
+                            <input type="url" id="socialLinkedin" class="input-harmony" placeholder="LinkedIn 链接">
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 页脚设置 -->
+                <div class="card-harmony p-5">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center">
+                        <i class="fa fa-cog text-primary mr-2"></i>页脚设置
+                    </h2>
+                    
+                    <!-- 显示模式 -->
+                    <div class="mb-6">
+                        <h3 class="text-sm font-medium text-neutral-dark mb-2">显示模式</h3>
+                        <div class="flex space-x-3">
+                            <label class="flex items-center space-x-2 flex-1 cursor-pointer">
+                                <input type="radio" name="footerMode" value="default" class="text-primary focus:ring-primary" checked="">
+                                <span>默认模式</span>
+                            </label>
+                            <label class="flex items-center space-x-2 flex-1 cursor-pointer">
+                                <input type="radio" name="footerMode" value="fixed" class="text-primary focus:ring-primary">
+                                <span>固定底部</span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <!-- 字体颜色选择 -->
+                    <div class="mb-6">
+                        <h3 class="text-sm font-medium text-neutral-dark mb-2">字体颜色</h3>
+                        <div class="flex flex-wrap gap-2">
+                            <div class="color-option selected" data-color="#000000" style="background-color: #000000;" title="黑色"></div>
+                            <div class="color-option" data-color="#FFFFFF" style="background-color: #FFFFFF; border: 1px solid #ddd;" title="白色"></div>
+                            <div class="color-option" data-color="#4E5969" style="background-color: #4E5969;" title="中性色"></div>
+                            <div class="color-option" data-color="#0A59F7" style="background-color: #0A59F7;" title="蓝色"></div>
+                            <div class="color-option" data-color="#7B61FF" style="background-color: #7B61FF;" title="紫色"></div>
+                            <div class="color-option" data-color="#00B42A" style="background-color: #00B42A;" title="绿色"></div>
+                            <div class="color-option" data-color="#FF7D00" style="background-color: #FF7D00;" title="橙色"></div>
+                            <div class="color-option" data-color="#F53F3F" style="background-color: #F53F3F;" title="红色"></div>
+                            <input type="color" id="customColor" class="w-6 h-6 p-0 border rounded-full cursor-pointer" value="#000000" title="自定义颜色">
+                        </div>
+                    </div>
+                    
+                    <!-- 主题选择 -->
+                    <div>
+                        <h3 class="text-sm font-medium text-neutral-dark mb-2">主题样式</h3>
+                        <div class="grid grid-cols-5 gap-2">
+                            <button class="theme-btn w-full h-8 rounded border-2 border-primary bg-primary/10" data-theme="theme1" title="主题1"></button>
+                            <button class="theme-btn w-full h-8 rounded border-2 border-transparent hover:border-gray-300 bg-harmony-purple/10" data-theme="theme2" title="主题2"></button>
+                            <button class="theme-btn w-full h-8 rounded border-2 border-transparent hover:border-gray-300 bg-harmony-green/10" data-theme="theme3" title="主题3"></button>
+                            <button class="theme-btn w-full h-8 rounded border-2 border-transparent hover:border-gray-300 bg-harmony-orange/10" data-theme="theme4" title="主题4"></button>
+                            <button class="theme-btn w-full h-8 rounded border-2 border-transparent hover:border-gray-300 bg-harmony-red/10" data-theme="theme5" title="主题5"></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 右侧预览区域 -->
+            <div class="lg:col-span-2">
+                <div class="card-harmony p-5 h-full flex flex-col">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center">
+                        <i class="fa fa-eye text-primary mr-2"></i>实时预览
+                    </h2>
+                    
+                    <div class="flex-1 flex flex-col border border-gray-200 rounded-lg overflow-hidden">
+                        <div class="bg-gray-100 px-4 py-2 border-b border-gray-200 flex justify-between items-center">
+                            <div class="flex space-x-2">
+                                <div class="w-3 h-3 rounded-full bg-red-400"></div>
+                                <div class="w-3 h-3 rounded-full bg-yellow-400"></div>
+                                <div class="w-3 h-3 rounded-full bg-green-400"></div>
+                            </div>
+                            <div class="text-sm text-gray-500">预览窗口</div>
+                        </div>
+                        
+                        <div id="previewContainer" class="flex-1 overflow-auto bg-white relative">
+                            <!-- 预览内容 -->
+                            <div id="previewContent" class="min-h-full p-6">
+                                <h1 class="text-2xl font-bold mb-4">示例页面内容</h1>
+                                <p class="mb-4">这是一个示例页面，用于展示页脚注入后的效果。您可以在左侧面板中配置页脚内容和样式，实时查看效果变化。</p>
+                                <p class="mb-4">页脚将显示在页面的底部，可以是跟随内容的默认模式，也可以是固定在浏览器窗口底部的固定模式。</p>
+                                <div class="h-64 bg-gray-100 rounded-lg flex items-center justify-center mb-4">
+                                    <p class="text-gray-500">页面内容区域</p>
+                                </div>
+                                <p>滚动页面查看页脚位置效果...</p>
+                            </div>
+                            
+                            <!-- 预览页脚（动态生成） -->
+                            <div id="previewFooter" class="theme1">
+                                <!-- 页脚内容将动态生成 -->
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4 text-sm text-gray-500">
+                        <p><i class="fa fa-info-circle mr-1"></i> 提示：修改左侧配置项可实时更新预览效果</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 页脚 -->
+    <footer class="bg-white border-t border-gray-200 py-4 mt-6">
+        <div class="container mx-auto px-4 text-center text-sm text-neutral-content">
+            <p>&nbsp;所有操作均在本地完成，不会上传您的文件</p>
+        </div>
+    </footer>
+
+    <!-- 通知提示组件 -->
+    <div id="notification" class="fixed bottom-4 right-4 px-4 py-3 rounded-lg shadow-lg transform translate-y-20 opacity-0 transition-all duration-300 flex items-center max-w-sm z-50">
+        <i id="notificationIcon" class="mr-2 text-xl"></i>
+        <span id="notificationText"></span>
+    </div>
+
+    <script>
+        // 全局变量
+        let selectedFiles = [];
+        let processedFiles = [];
+        let currentTheme = 'theme1';
+        let currentMode = 'default';
+        let currentFontColor = '#000000'; // 默认字体颜色
+        
+        // 社交媒体配置
+        const socialMedia = [
+            { id: 'socialFacebook', icon: 'fa-facebook', color: '#1877F2' },
+            { id: 'socialTwitter', icon: 'fa-twitter', color: '#1DA1F2' },
+            { id: 'socialInstagram', icon: 'fa-instagram', color: '#E4405F' },
+            { id: 'socialYoutube', icon: 'fa-youtube-play', color: '#FF0000' },
+            { id: 'socialLinkedin', icon: 'fa-linkedin', color: '#0A66C2' }
+        ];
+        
+        // DOM 元素
+        const fileDropArea = document.getElementById('fileDropArea');
+        const fileInput = document.getElementById('fileInput');
+        const fileList = document.getElementById('fileList');
+        const processFilesBtn = document.getElementById('processFiles');
+        const downloadFilesBtn = document.getElementById('downloadFiles');
+        const clearAllBtn = document.getElementById('clearAll');
+        const previewFooter = document.getElementById('previewFooter');
+        const notification = document.getElementById('notification');
+        const notificationIcon = document.getElementById('notificationIcon');
+        const notificationText = document.getElementById('notificationText');
+        const customColorInput = document.getElementById('customColor');
+        
+        // 页脚内容输入元素
+        const footerAuthor = document.getElementById('footerAuthor');
+        const footerEmail = document.getElementById('footerEmail');
+        const footerContact = document.getElementById('footerContact');
+        const footerLink = document.getElementById('footerLink');
+        const footerLinkText = document.getElementById('footerLinkText');
+        const footerInfo = document.getElementById('footerInfo');
+        
+        // 初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            setupEventListeners();
+            updateFooterPreview();
+        });
+        
+        // 设置事件监听器
+        function setupEventListeners() {
+            // 文件上传区域事件
+            fileDropArea.addEventListener('click', () => fileInput.click());
+            fileInput.addEventListener('change', handleFileSelection);
+            
+            // 拖放事件
+            fileDropArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                fileDropArea.classList.add('border-primary');
+            });
+            
+            fileDropArea.addEventListener('dragleave', () => {
+                fileDropArea.classList.remove('border-primary');
+            });
+            
+            fileDropArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                fileDropArea.classList.remove('border-primary');
+                
+                if (e.dataTransfer.files.length) {
+                    handleFiles(e.dataTransfer.files);
+                }
+            });
+            
+            // 处理、下载和清除按钮事件
+            processFilesBtn.addEventListener('click', processAllFiles);
+            downloadFilesBtn.addEventListener('click', downloadProcessedFiles);
+            clearAllBtn.addEventListener('click', clearAllSettings);
+            
+            // 页脚内容输入变化事件
+            const inputElements = [
+                footerAuthor, footerEmail, footerContact, 
+                footerLink, footerLinkText, footerInfo
+            ];
+            
+            inputElements.forEach(input => {
+                input.addEventListener('input', updateFooterPreview);
+            });
+            
+            // 社交媒体链接输入事件
+            socialMedia.forEach(social => {
+                const element = document.getElementById(social.id);
+                element.addEventListener('input', updateFooterPreview);
+            });
+            
+            // 显示模式切换事件
+            document.querySelectorAll('input[name="footerMode"]').forEach(radio => {
+                radio.addEventListener('change', (e) => {
+                    currentMode = e.target.value;
+                    updateFooterPreview();
+                });
+            });
+            
+            // 字体颜色选择事件
+            document.querySelectorAll('.color-option').forEach(option => {
+                option.addEventListener('click', (e) => {
+                    document.querySelectorAll('.color-option').forEach(opt => {
+                        opt.classList.remove('selected');
+                    });
+                    e.target.classList.add('selected');
+                    
+                    currentFontColor = e.target.dataset.color;
+                    customColorInput.value = currentFontColor;
+                    
+                    updateFooterPreview();
+                });
+            });
+            
+            // 自定义颜色选择事件
+            customColorInput.addEventListener('input', (e) => {
+                currentFontColor = e.target.value;
+                
+                document.querySelectorAll('.color-option').forEach(opt => {
+                    opt.classList.remove('selected');
+                });
+                
+                updateFooterPreview();
+            });
+            
+            // 主题切换事件
+            document.querySelectorAll('.theme-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    document.querySelectorAll('.theme-btn').forEach(b => {
+                        b.classList.remove('border-primary');
+                        b.classList.add('border-transparent');
+                    });
+                    
+                    e.target.classList.remove('border-transparent');
+                    e.target.classList.add('border-primary');
+                    
+                    currentTheme = e.target.dataset.theme;
+                    updateFooterPreview();
+                });
+            });
+        }
+        
+        // 处理文件选择
+        function handleFileSelection(e) {
+            handleFiles(e.target.files);
+        }
+        
+        // 处理文件
+        function handleFiles(files) {
+            const htmlFiles = Array.from(files).filter(file => 
+                file.name.toLowerCase().endsWith('.html') || 
+                file.name.toLowerCase().endsWith('.htm')
+            );
+            
+            if (htmlFiles.length === 0) {
+                showNotification('请选择HTML文件', 'warning');
+                return;
+            }
+            
+            htmlFiles.forEach(file => {
+                if (!selectedFiles.some(f => f.name === file.name && f.size === file.size)) {
+                    selectedFiles.push(file);
+                }
+            });
+            
+            updateFileListDisplay();
+            processFilesBtn.disabled = false;
+        }
+        
+        // 更新文件列表显示
+        function updateFileListDisplay() {
+            if (selectedFiles.length === 0) {
+                fileList.classList.add('hidden');
+                return;
+            }
+            
+            fileList.classList.remove('hidden');
+            fileList.innerHTML = '<h3 class="font-medium text-sm text-neutral-dark">已选择文件:</h3>';
+            
+            selectedFiles.forEach((file, index) => {
+                const fileSize = (file.size / 1024).toFixed(1);
+                const fileItem = document.createElement('div');
+                fileItem.className = 'flex items-center justify-between text-sm p-2 bg-gray-50 rounded';
+                fileItem.innerHTML = `
+                    <div class="flex items-center overflow-hidden">
+                        <i class="fa fa-file-html-o text-primary mr-2"></i>
+                        <span class="truncate max-w-[200px]">${file.name}</span>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <span class="text-gray-500 text-xs">${fileSize} KB</span>
+                        <button class="text-gray-400 hover:text-red-500 transition-harmony" data-index="${index}">
+                            <i class="fa fa-times"></i>
+                        </button>
+                    </div>
+                `;
+                
+                fileList.appendChild(fileItem);
+            });
+            
+            document.querySelectorAll('.fa-times').forEach(icon => {
+                icon.parentElement.addEventListener('click', (e) => {
+                    const index = parseInt(e.target.closest('button').dataset.index);
+                    selectedFiles.splice(index, 1);
+                    updateFileListDisplay();
+                    
+                    if (selectedFiles.length === 0) {
+                        processFilesBtn.disabled = true;
+                    }
+                });
+            });
+        }
+        
+        // 更新页脚预览
+        function updateFooterPreview() {
+            previewFooter.className = '';
+            previewFooter.classList.add(currentTheme);
+            
+            if (currentMode === 'fixed') {
+                previewFooter.classList.add('fixed', 'bottom-0', 'left-0', 'right-0');
+            } else {
+                previewFooter.classList.remove('fixed', 'bottom-0', 'left-0', 'right-0');
+            }
+            
+            previewFooter.style.color = currentFontColor;
+            
+            // 构建链接HTML
+            let linkHtml = '';
+            if (footerLink.value && footerLinkText.value) {
+                linkHtml = `<a href="${footerLink.value}" target="_blank" class="footer-link">${footerLinkText.value}</a>`;
+            } else if (footerLink.value) {
+                linkHtml = `<a href="${footerLink.value}" target="_blank" class="footer-link">${footerLink.value}</a>`;
+            }
+            
+            // 收集页脚内容片段
+            const footerParts = [];
+            if (footerAuthor.value.trim()) footerParts.push(footerAuthor.value.trim());
+            if (footerEmail.value.trim()) footerParts.push(footerEmail.value.trim());
+            if (footerContact.value.trim()) footerParts.push(footerContact.value.trim());
+            if (linkHtml) footerParts.push(linkHtml);
+            if (footerInfo.value.trim()) footerParts.push(footerInfo.value.trim());
+            
+            // 收集社交媒体链接
+            const socialLinks = [];
+            socialMedia.forEach(social => {
+                const url = document.getElementById(social.id).value.trim();
+                if (url) {
+                    socialLinks.push(`
+                        <a href="${url}" target="_blank" class="social-icon ml-1" style="background-color: ${social.color}; color: white;">
+                            <i class="fa ${social.icon}"></i>
+                        </a>
+                    `);
+                }
+            });
+            
+            // 构建页脚内容HTML
+            let contentHtml = '';
+            if (footerParts.length > 0 || socialLinks.length > 0) {
+                contentHtml = `
+                    <div class="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
+                        ${footerParts.length > 0 ? footerParts.join(' | ') : ''}
+                        ${socialLinks.length > 0 ? '<div class="flex mt-1">' + socialLinks.join('') + '</div>' : ''}
+                    </div>
+                `;
+            } else {
+                contentHtml = '<span class="text-gray-400">未设置页脚内容</span>';
+            }
+            
+            previewFooter.innerHTML = `
+                <div class="footer-content">
+                    ${contentHtml}
+                </div>
+            `;
+        }
+        
+        // 处理所有文件
+        function processAllFiles() {
+            if (selectedFiles.length === 0) return;
+            
+            processedFiles = [];
+            let completedCount = 0;
+            
+            selectedFiles.forEach(file => {
+                const reader = new FileReader();
+                
+                reader.onload = (e) => {
+                    const content = e.target.result;
+                    const processedContent = injectFooterIntoHtml(content);
+                    
+                    processedFiles.push({
+                        name: file.name,
+                        content: processedContent
+                    });
+                    
+                    completedCount++;
+                    
+                    if (completedCount === selectedFiles.length) {
+                        showNotification(`已成功处理 ${completedCount} 个文件`, 'success');
+                        downloadFilesBtn.disabled = false;
+                    }
+                };
+                
+                reader.readAsText(file);
+            });
+        }
+        
+        // 向HTML中注入页脚
+        function injectFooterIntoHtml(htmlContent) {
+            const footerHtml = getFooterHtml();
+            
+            const bodyCloseIndex = htmlContent.lastIndexOf('</body>');
+            if (bodyCloseIndex !== -1) {
+                return htmlContent.substring(0, bodyCloseIndex) + footerHtml + htmlContent.substring(bodyCloseIndex);
+            }
+            
+            const htmlCloseIndex = htmlContent.lastIndexOf('</html>');
+            if (htmlCloseIndex !== -1) {
+                return htmlContent.substring(0, htmlCloseIndex) + footerHtml + htmlContent.substring(htmlCloseIndex);
+            }
+            
+            return htmlContent + '\n<br clear="all">\n' + footerHtml;
+        }
+        
+        // 获取完整的页脚HTML
+        function getFooterHtml() {
+            // 构建链接HTML
+            let linkHtml = '';
+            if (footerLink.value && footerLinkText.value) {
+                linkHtml = `<a href="${footerLink.value}" target="_blank" class="footer-link">${footerLinkText.value}</a>`;
+            } else if (footerLink.value) {
+                linkHtml = `<a href="${footerLink.value}" target="_blank" class="footer-link">${footerLink.value}</a>`;
+            }
+            
+            // 收集页脚内容片段
+            const footerParts = [];
+            if (footerAuthor.value.trim()) footerParts.push(footerAuthor.value.trim());
+            if (footerEmail.value.trim()) footerParts.push(footerEmail.value.trim());
+            if (footerContact.value.trim()) footerParts.push(footerContact.value.trim());
+            if (linkHtml) footerParts.push(linkHtml);
+            if (footerInfo.value.trim()) footerParts.push(footerInfo.value.trim());
+            
+            // 收集社交媒体链接
+            const socialLinks = [];
+            socialMedia.forEach(social => {
+                const url = document.getElementById(social.id).value.trim();
+                if (url) {
+                    socialLinks.push(`
+                        <a href="${url}" target="_blank" class="social-icon ml-1" style="background-color: ${social.color}; color: white;">
+                            <i class="fa ${social.icon}"></i>
+                        </a>
+                    `);
+                }
+            });
+            
+            // 构建页脚内容HTML
+            let contentHtml = '';
+            if (footerParts.length > 0 || socialLinks.length > 0) {
+                contentHtml = `
+                    <div class="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
+                        ${footerParts.length > 0 ? footerParts.join(' | ') : ''}
+                        ${socialLinks.length > 0 ? '<div class="flex mt-1">' + socialLinks.join('') + '</div>' : ''}
+                    </div>
+                `;
+            }
+            
+            // 构建样式
+            const positionStyle = currentMode === 'fixed' ? 'position: fixed; bottom: 0; left: 0; right: 0;' : '';
+            
+            // 主题样式
+            let themeStyles = '';
+            switch(currentTheme) {
+                case 'theme1':
+                    themeStyles = `
+                        background-color: #f5f7fa;
+                        border-top: 1px solid #e5e9f2;
+                    `;
+                    break;
+                case 'theme2':
+                    themeStyles = `
+                        background-color: #f5f3ff;
+                        border-top: 1px solid #e9e5ff;
+                    `;
+                    break;
+                case 'theme3':
+                    themeStyles = `
+                        background-color: #f0fff4;
+                        border-top: 1px solid #c6f6d5;
+                    `;
+                    break;
+                case 'theme4':
+                    themeStyles = `
+                        background-color: #fff7ed;
+                        border-top: 1px solid #ffedd5;
+                    `;
+                    break;
+                case 'theme5':
+                    themeStyles = `
+                        background-color: #fff5f5;
+                        border-top: 1px solid #ffe3e3;
+                    `;
+                    break;
+            }
+            
+            // 链接样式
+            const linkStyles = `
+                color: inherit;
+                text-decoration: underline;
+                font-weight: 500;
+            `;
+            
+            // 社交媒体图标样式
+            const socialIconStyles = `
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 24px;
+                height: 24px;
+                border-radius: 50%;
+                text-decoration: none;
+                transition: transform 0.2s ease;
+            `;
+            
+            // 强制页脚在底部显示的额外样式
+            const forceBottomStyles = `
+                display: block;
+                clear: both;
+                width: 100%;
+                margin-top: 20px;
+            `;
+            
+            // 完整页脚HTML
+            return `
+                <div class="injected-footer" style="${positionStyle} ${themeStyles} ${forceBottomStyles} color: ${currentFontColor}; padding: 1rem; font-size: 0.875rem; text-align: center;">
+                    <div class="footer-content">
+                        ${contentHtml}
+                    </div>
+                    <style>
+                        .injected-footer .footer-link { ${linkStyles} }
+                        .injected-footer .social-icon { ${socialIconStyles} }
+                        .injected-footer .social-icon:hover { transform: scale(1.1); }
+                        ${currentMode === 'fixed' ? 'body { padding-bottom: 3rem; }' : ''}
+                        .injected-footer:before {
+                            content: "";
+                            display: table;
+                            clear: both;
+                        }
+                    </style>
+                </div>
+            `;
+        }
+        
+        // 下载处理后的文件
+        function downloadProcessedFiles() {
+            if (processedFiles.length === 0) return;
+            
+            const zip = new JSZip();
+            
+            processedFiles.forEach(file => {
+                zip.file(file.name, file.content);
+            });
+            
+            zip.generateAsync({ type: 'blob' })
+                .then(content => {
+                    saveAs(content, 'processed_files.zip');
+                    showNotification(`已成功下载 ${processedFiles.length} 个文件`, 'success');
+                })
+                .catch(error => {
+                    showNotification('文件下载失败: ' + error.message, 'error');
+                    console.error('ZIP生成错误:', error);
+                });
+        }
+        
+        // 清除所有设置和文件
+        function clearAllSettings() {
+            // 清空文件列表
+            selectedFiles = [];
+            processedFiles = [];
+            updateFileListDisplay();
+            
+            // 重置按钮状态
+            processFilesBtn.disabled = true;
+            downloadFilesBtn.disabled = true;
+            
+            // 清空页脚内容输入
+            footerAuthor.value = '';
+            footerEmail.value = '';
+            footerContact.value = '';
+            footerLink.value = '';
+            footerLinkText.value = '';
+            footerInfo.value = '';
+            
+            // 清空社交媒体链接
+            socialMedia.forEach(social => {
+                document.getElementById(social.id).value = '';
+            });
+            
+            // 重置主题和颜色设置
+            currentTheme = 'theme1';
+            currentMode = 'default';
+            currentFontColor = '#000000';
+            
+            // 更新UI选择状态
+            document.querySelectorAll('.theme-btn').forEach(b => {
+                b.classList.remove('border-primary');
+                b.classList.add('border-transparent');
+            });
+            document.querySelector('.theme-btn[data-theme="theme1"]').classList.remove('border-transparent');
+            document.querySelector('.theme-btn[data-theme="theme1"]').classList.add('border-primary');
+            
+            document.querySelectorAll('.color-option').forEach(opt => {
+                opt.classList.remove('selected');
+            });
+            document.querySelector('.color-option[data-color="#000000"]').classList.add('selected');
+            customColorInput.value = '#000000';
+            
+            document.querySelector('input[name="footerMode"][value="default"]').checked = true;
+            
+            // 更新预览
+            updateFooterPreview();
+            
+            // 显示通知
+            showNotification('已清除所有设置和文件', 'info');
+        }
+        
+        // 显示通知
+        function showNotification(message, type = 'info') {
+            let bgColor, textColor, icon;
+            
+            switch(type) {
+                case 'success':
+                    bgColor = 'bg-green-50';
+                    textColor = 'text-green-800';
+                    icon = '<i class="fa fa-check-circle text-green-500"></i>';
+                    break;
+                case 'error':
+                    bgColor = 'bg-red-50';
+                    textColor = 'text-red-800';
+                    icon = '<i class="fa fa-exclamation-circle text-red-500"></i>';
+                    break;
+                case 'warning':
+                    bgColor = 'bg-yellow-50';
+                    textColor = 'text-yellow-800';
+                    icon = '<i class="fa fa-exclamation-triangle text-yellow-500"></i>';
+                    break;
+                default:
+                    bgColor = 'bg-blue-50';
+                    textColor = 'text-blue-800';
+                    icon = '<i class="fa fa-info-circle text-blue-500"></i>';
+            }
+            
+            notification.className = `fixed bottom-4 right-4 px-4 py-3 rounded-lg shadow-lg transform translate-y-0 opacity-100 transition-all duration-300 flex items-center max-w-sm z-50 ${bgColor} ${textColor}`;
+            notificationIcon.innerHTML = icon;
+            notificationText.textContent = message;
+            
+            setTimeout(() => {
+                notification.classList.remove('translate-y-0', 'opacity-100');
+                notification.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+    </script>
+
+
+    
+                <div class="injected-footer" style=" 
+                        background-color: #f5f3ff;
+                        border-top: 1px solid #e9e5ff;
+                     
+                display: block;
+                clear: both;
+                width: 100%;
+                margin-top: 20px;
+             color: #4E5969; padding: 1rem; font-size: 0.875rem; text-align: center;">
+                    <div class="footer-content">
+                        
+                    <div class="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
+                        LGO赵哥 | <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="611b06150e115453505421060c00080d4f020e0c">[email&#160;protected]</a> | WX：LGOzhaoge | 本页面内容均由ai生成
+                        
+                    </div>
+                
+                    </div>
+                    <style>
+                        .injected-footer .footer-link { 
+                color: inherit;
+                text-decoration: underline;
+                font-weight: 500;
+             }
+                        .injected-footer .social-icon { 
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 24px;
+                height: 24px;
+                border-radius: 50%;
+                text-decoration: none;
+                transition: transform 0.2s ease;
+             }
+                        .injected-footer .social-icon:hover { transform: scale(1.1); }
+                        
+                        .injected-footer:before {
+                            content: "";
+                            display: table;
+                            clear: both;
+                        }
+                    </style>
+                </div>
+            <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script></body></html>

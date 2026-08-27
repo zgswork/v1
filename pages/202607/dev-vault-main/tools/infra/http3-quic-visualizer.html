@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html tk="title_http_3_quic_visualizer" lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HTTP/3 & QUIC Visualizer</title>
+<meta name="description" content="Interactive HTTP/3 and QUIC protocol visualizer: connection setup, stream multiplexing, 0-RTT, connection migration, and head-of-line blocking comparison">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:system-ui,-apple-system,sans-serif;background:#0a0a0f;color:#e0e0e0;min-height:100vh}
+header{background:linear-gradient(135deg,#1a1a2e,#16213e);padding:16px 24px;border-bottom:1px solid #333}
+header h1{font-size:1.3rem;color:#26c6da}
+header p{font-size:.85rem;color:#888;margin-top:2px}
+.app{display:grid;grid-template-columns:1fr 300px;grid-template-rows:auto 1fr;height:calc(100vh - 80px)}
+.toolbar{grid-column:1/-1;padding:10px 16px;background:#111;border-bottom:1px solid #222;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.toolbar button{background:#1a1a2e;border:1px solid #333;color:#aaa;padding:5px 12px;border-radius:4px;cursor:pointer;font-size:.78rem;transition:all .2s}
+.toolbar button:hover,.toolbar button.active{background:#26c6da;color:#000;border-color:#26c6da}
+.controls{margin-left:auto;display:flex;gap:6px;align-items:center}
+.controls button{background:#1a1a2e;border:1px solid #333;color:#ccc;padding:5px 12px;border-radius:4px;cursor:pointer;font-size:.78rem}
+.controls button:hover{background:#26c6da;color:#000;border-color:#26c6da}
+.controls button:disabled{opacity:.3;cursor:not-allowed}
+.step-info{font-size:.78rem;color:#666;margin-left:6px}
+.main{overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:16px}
+.sequence{background:#111;border:1px solid #222;border-radius:8px;padding:16px;overflow-x:auto}
+.sequence h3{font-size:.8rem;color:#666;text-transform:uppercase;margin-bottom:12px}
+.seq-diagram{position:relative;min-height:100px}
+.entity-row{display:flex;justify-content:space-between;margin-bottom:8px}
+.entity{text-align:center;width:120px;padding:6px;background:#1a1a2e;border:1px solid #333;border-radius:6px;font-size:.8rem;font-weight:600}
+.entity.client{color:#26c6da;border-color:#00838f}
+.entity.server{color:#ef5350;border-color:#c62828}
+.lifeline{position:absolute;width:1px;background:#333;top:40px;bottom:0}
+.msg-row{display:flex;align-items:center;padding:4px 0;min-height:28px;position:relative;transition:all .3s}
+.msg-row.active{background:rgba(38,198,218,.05);border-radius:4px}
+.msg-row.future{opacity:.2}
+.msg-arrow{height:2px;flex:1;margin:0 60px;position:relative}
+.msg-arrow::after{content:'';position:absolute;right:0;top:-4px;border:5px solid transparent}
+.msg-arrow.right{background:linear-gradient(90deg,#26c6da,#00838f)}
+.msg-arrow.right::after{border-left-color:#00838f;right:-5px}
+.msg-arrow.left{background:linear-gradient(90deg,#ef5350,#c62828)}
+.msg-arrow.left::after{border-right-color:#ef5350;left:-5px;right:auto}
+.msg-arrow.bidir{background:linear-gradient(90deg,#66bb6a,#2e7d32)}
+.msg-label{position:absolute;top:-16px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:.7rem;font-family:'Consolas',monospace;padding:1px 6px;border-radius:3px;background:#111}
+.msg-label.quic{color:#26c6da}
+.msg-label.tls{color:#ab47bc}
+.msg-label.http{color:#66bb6a}
+.msg-label.data{color:#ffa726}
+.msg-label.error{color:#ef5350}
+.msg-time{width:50px;text-align:right;font-size:.65rem;color:#555;font-family:'Consolas',monospace}
+.msg-time-r{width:50px;text-align:left;font-size:.65rem;color:#555;font-family:'Consolas',monospace}
+.comparison{background:#111;border:1px solid #222;border-radius:8px;padding:16px}
+.comparison h3{font-size:.8rem;color:#666;text-transform:uppercase;margin-bottom:12px}
+.compare-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.compare-col{padding:12px;border:1px solid #222;border-radius:6px}
+.compare-col h4{font-size:.8rem;margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid #222}
+.compare-col.h1 h4{color:#ef5350}
+.compare-col.h2 h4{color:#ffa726}
+.compare-col.h3 h4{color:#26c6da}
+.stream-viz{background:#111;border:1px solid #222;border-radius:8px;padding:16px}
+.stream-viz h3{font-size:.8rem;color:#666;text-transform:uppercase;margin-bottom:12px}
+.streams{display:flex;flex-direction:column;gap:4px}
+.stream-row{display:flex;align-items:center;gap:8px}
+.stream-label{width:80px;font-size:.75rem;color:#888;font-family:'Consolas',monospace}
+.stream-bar{flex:1;height:20px;background:#1a1a2e;border-radius:4px;overflow:hidden;position:relative;display:flex}
+.stream-block{height:100%;display:flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:600;color:#000;transition:width .5s}
+.stream-block.data{background:#26c6da}
+.stream-block.headers{background:#ab47bc}
+.stream-block.blocked{background:#ef5350}
+.stream-block.wait{background:#333}
+.sidebar{background:#0d0d14;border-left:1px solid #222;overflow-y:auto;padding:16px}
+.sidebar h3{font-size:.85rem;color:#26c6da;margin-bottom:8px}
+.detail-box{background:#111;border:1px solid #222;border-radius:6px;padding:12px;margin-bottom:12px}
+.detail-box h4{font-size:.75rem;color:#666;text-transform:uppercase;margin-bottom:6px}
+.detail-box p{font-size:.8rem;color:#aaa;line-height:1.5}
+table{width:100%;border-collapse:collapse;font-size:.75rem;margin-bottom:8px}
+th{text-align:left;padding:4px 8px;color:#666;border-bottom:1px solid #222}
+td{padding:4px 8px;border-bottom:1px solid #1a1a1a;color:#aaa}
+.badge{display:inline-block;padding:1px 6px;border-radius:3px;font-size:.65rem;font-weight:600}
+.badge-quic{background:#0d3d44;color:#26c6da}
+.badge-tls{background:#2a1a3a;color:#ab47bc}
+.badge-http{background:#1a2a1a;color:#66bb6a}
+.compare-item{font-size:.78rem;color:#aaa;padding:3px 0;border-bottom:1px solid #1a1a1a}
+.compare-item .label{color:#666}
+</style>
+</head>
+<body>
+
+
+<header>
+<h1 ti="title_http_3_quic_visualizer" ti="h1_http_3_quic_visualizer">HTTP/3 & QUIC Visualizer</h1>
+<p>Explore QUIC transport, HTTP/3 streams, 0-RTT, connection migration, and head-of-line blocking</p>
+</header>
+<div class="app">
+<div class="toolbar">
+<button class="active" onclick="loadScenario(0,this)" ti="btn_quic_handshake">QUIC Handshake</button>
+<button onclick="loadScenario(1,this)" ti="btn_0_rtt_resumption">0-RTT Resumption</button>
+<button onclick="loadScenario(2,this)" ti="btn_stream_multiplex">Stream Multiplex</button>
+<button onclick="loadScenario(3,this)" ti="btn_hol_blocking">HOL Blocking</button>
+<button onclick="loadScenario(4,this)" ti="btn_connection_migration">Connection Migration</button>
+<button onclick="loadScenario(5,this)" ti="btn_loss_recovery">Loss Recovery</button>
+<div class="controls">
+<button id="prevBtn" onclick="prevStep()" disabled>&larr;</button>
+<button id="nextBtn" onclick="nextStep()">Next &rarr;</button>
+<button id="autoBtn" onclick="toggleAuto()">&#9654; Auto</button>
+<button onclick="resetSteps()" ti="btn_reset">Reset</button>
+<span class="step-info" id="stepInfo">Step 0 / 0</span>
+</div>
+</div>
+<div class="main" id="mainArea"></div>
+<div class="sidebar">
+<h3 ti="h3_details">Details</h3>
+<div id="details"></div>
+<div class="detail-box">
+<h4>Protocol Stack</h4>
+<table>
+<tr><th ti="th_http_1_1">HTTP/1.1</th><th ti="th_http_2">HTTP/2</th><th ti="th_http_3">HTTP/3</th></tr>
+<tr><td>HTTP</td><td>HTTP/2</td><td>HTTP/3</td></tr>
+<tr><td>TLS 1.2</td><td>TLS 1.2/1.3</td><td style="color:#26c6da">QUIC+TLS 1.3</td></tr>
+<tr><td>TCP</td><td>TCP</td><td style="color:#26c6da">UDP</td></tr>
+<tr><td>IP</td><td>IP</td><td>IP</td></tr>
+</table>
+</div>
+<div class="detail-box">
+<h4>QUIC Key Features</h4>
+<table>
+<tr><th ti="th_feature">Feature</th><th ti="th_benefit">Benefit</th></tr>
+<tr><td>UDP-based</td><td>No TCP head-of-line blocking</td></tr>
+<tr><td>Built-in TLS 1.3</td><td>1-RTT handshake (0-RTT resumption)</td></tr>
+<tr><td>Connection IDs</td><td>Survives IP changes (WiFi→cellular)</td></tr>
+<tr><td>Independent streams</td><td>Lost packet blocks only its stream</td></tr>
+<tr><td>QPACK</td><td>Header compression without HOL risk</td></tr>
+<tr><td>ACK frames</td><td>More precise loss detection</td></tr>
+</table>
+</div>
+<div class="detail-box">
+<h4>HTTP Version Comparison</h4>
+<table>
+<tr><th></th><th ti="th_h_1_1">H/1.1</th><th ti="th_h_2">H/2</th><th ti="th_h_3">H/3</th></tr>
+<tr><td>Transport</td><td>TCP</td><td>TCP</td><td>QUIC/UDP</td></tr>
+<tr><td>Multiplex</td><td>No</td><td>Yes</td><td>Yes</td></tr>
+<tr><td>HOL Block</td><td>TCP+HTTP</td><td>TCP</td><td>None</td></tr>
+<tr><td>Handshake</td><td>2-3 RTT</td><td>2-3 RTT</td><td>1 RTT</td></tr>
+<tr><td>0-RTT</td><td>No</td><td>TLS 1.3</td><td>Native</td></tr>
+<tr><td>Migration</td><td>No</td><td>No</td><td>Yes</td></tr>
+</table>
+</div>
+</div>
+</div>
+
+
+<script>var _LANG={'title_http_3_quic_visualizer':["HTTP/3 & QUIC Visualizer", "HTTP/3 和 QUIC 可视化工具"],'metadesc_interactive_http_3_and_qu':["Interactive HTTP/3 and QUIC protocol visualizer: connection setup, stream multiplexing, 0-RTT, connection migration, and head-of-line blocking comparison", "交互式 HTTP/3 和 QUIC 协议可视化工具：连接建立、流复用、0-RTT、连接迁移和队头阻塞比较"],'h1_http_3_quic_visualizer':["HTTP/3 & QUIC Visualizer", "HTTP/3 和 QUIC 可视化工具"],'h3_details':["Details", "细节"],'h3_connection_flow':["Connection Flow", "连接流程"],'h3_stream_transport_view':["Stream / Transport View", "流/运输视图"],'btn_quic_handshake':["QUIC Handshake", "QUIC握手"],'btn_0_rtt_resumption':["0-RTT Resumption", "0-RTT 恢复"],'btn_stream_multiplex':["Stream Multiplex", "流多路复用"],'btn_hol_blocking':["HOL Blocking", "霍尔阻塞"],'btn_connection_migration':["Connection Migration", "连接迁移"],'btn_loss_recovery':["Loss Recovery", "损失追回"],'btn_next':["Next →", "下一页 →"],'btn_auto':["▶ Auto", "▶ 自动"],'btn_reset':["Reset", "重置"],'label_m_label':["${m.label}", "${m.label}"],'label_st_label':["${st.label}", "${st.label}"],'th_http_1_1':["HTTP/1.1", "HTTP/1.1"],'th_http_2':["HTTP/2", "HTTP/2"],'th_http_3':["HTTP/3", "HTTP/3"],'th_feature':["Feature", "特征"],'th_benefit':["Benefit", "益处"],'th_h_1_1':["H/1.1", "水平/1.1"],'th_h_2':["H/2", "H/2"],'th_h_3':["H/3", "H/3"],'jtc_auto':["▶ Auto", "▶ 自动"],'jtc_auto_2':["▶ Auto", "▶ 自动"],'jtc_auto_3':["▶ Auto", "▶ 自动"],'jtc_pause':["⏸ Pause", "⏸ 暂停"],'jtlword_scenario':["Scenario", "设想"],'jtlword_scenario_2':["Scenario", "设想"],'jtlword_instructions':["Instructions", "指示"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>
+const scenarios=[
+{
+  name:'QUIC Handshake',
+  desc:'QUIC combines transport and TLS 1.3 handshake in a single round trip. TCP+TLS requires 2-3 RTTs; QUIC needs just 1 RTT.',
+  messages:[
+    {dir:'right',label:'Initial (CRYPTO: ClientHello)',cls:'quic',time:'0ms',detail:'Client sends QUIC Initial packet with TLS ClientHello. Includes supported versions, cipher suites, and key shares. Unlike TCP, encryption starts immediately.'},
+    {dir:'left',label:'Initial (CRYPTO: ServerHello)',cls:'tls',time:'50ms',detail:'Server responds with ServerHello, selects cipher suite, provides key share. Handshake keys are now derived.'},
+    {dir:'left',label:'Handshake (EncryptedExtensions, Certificate, Finished)',cls:'tls',time:'50ms',detail:'Server sends encrypted handshake data: certificate chain, extensions, and Finished message. All in one flight.'},
+    {dir:'right',label:'Handshake (Finished)',cls:'tls',time:'100ms',detail:'Client verifies certificate, derives application keys, sends Finished. Connection established — 1 RTT total!'},
+    {dir:'right',label:'Stream 0: GET /index.html',cls:'http',time:'100ms',detail:'HTTP/3 request sent immediately after handshake completes. No additional setup needed — streams are built into QUIC.'},
+    {dir:'left',label:'Stream 0: 200 OK + HTML',cls:'data',time:'150ms',detail:'Server responds on the same stream. QPACK-encoded headers + body data. No head-of-line blocking between streams.'},
+  ],
+  streams:[
+    {id:0,label:'Handshake',blocks:[{w:40,cls:'headers',text:'CRYPTO'},{w:60,cls:'data',text:'Established'}]},
+  ]
+},
+{
+  name:'0-RTT Resumption',
+  desc:'When resuming a previous connection, QUIC can send application data in the very first packet — zero round trips before data flows.',
+  messages:[
+    {dir:'right',label:'Initial (ClientHello + 0-RTT data: GET /)',cls:'quic',time:'0ms',detail:'Client uses cached TLS session ticket and key to send both ClientHello AND encrypted request in the first packet. Data arrives before handshake completes!'},
+    {dir:'left',label:'Initial (ServerHello) + Handshake (Finished)',cls:'tls',time:'50ms',detail:'Server validates 0-RTT data, completes handshake, starts processing the request concurrently.'},
+    {dir:'left',label:'Stream 0: 200 OK + Response',cls:'data',time:'50ms',detail:'Response is sent alongside or right after the handshake. Total latency: ~1 RTT for complete request-response (vs 2-3 RTT for TCP+TLS).'},
+    {dir:'right',label:'Handshake (Finished)',cls:'tls',time:'100ms',detail:'Client confirms handshake. Connection fully established with forward secrecy for subsequent requests.'},
+    {dir:'right',label:'Stream 4: GET /api/data',cls:'http',time:'100ms',detail:'Subsequent requests use full 1-RTT keys with forward secrecy. Only the initial 0-RTT data uses the weaker replay-vulnerable keys.'},
+    {dir:'left',label:'Stream 4: 200 OK + JSON',cls:'data',time:'150ms',detail:'Normal HTTP/3 response. All streams are independent.'},
+  ],
+  streams:[
+    {id:0,label:'0-RTT',blocks:[{w:30,cls:'headers',text:'Early'},{w:70,cls:'data',text:'Data sent before handshake'}]},
+    {id:4,label:'1-RTT',blocks:[{w:20,cls:'wait',text:''},{w:30,cls:'headers',text:'REQ'},{w:50,cls:'data',text:'Full security'}]},
+  ]
+},
+{
+  name:'Stream Multiplexing',
+  desc:'HTTP/3 streams are independent QUIC streams. Unlike HTTP/2 over TCP, packet loss on one stream does not block others.',
+  messages:[
+    {dir:'right',label:'Stream 0: GET /index.html',cls:'http',time:'0ms',detail:'Each HTTP/3 request uses a separate QUIC stream. Stream IDs: client-initiated bidi = 0,4,8,...'},
+    {dir:'right',label:'Stream 4: GET /style.css',cls:'http',time:'0ms',detail:'Sent simultaneously — no ordering dependency. QUIC handles flow control per-stream.'},
+    {dir:'right',label:'Stream 8: GET /app.js',cls:'http',time:'0ms',detail:'Three concurrent requests, each on independent streams. Server can respond in any order.'},
+    {dir:'left',label:'Stream 4: 200 OK + CSS (fast)',cls:'data',time:'30ms',detail:'CSS responds first — it was ready. Stream independence means this isnt blocked by HTML or JS.'},
+    {dir:'left',label:'Stream 0: 200 OK + HTML (medium)',cls:'data',time:'60ms',detail:'HTML arrives second. Each stream has its own flow control window and ordering guarantees.'},
+    {dir:'left',label:'Stream 8: 200 OK + JS (slow)',cls:'data',time:'100ms',detail:'JS arrives last. If packet loss hit stream 0, streams 4 and 8 would be completely unaffected.'},
+  ],
+  streams:[
+    {id:0,label:'Stream 0 (HTML)',blocks:[{w:10,cls:'headers',text:'REQ'},{w:30,cls:'wait',text:''},{w:60,cls:'data',text:'200 OK + HTML'}]},
+    {id:4,label:'Stream 4 (CSS)',blocks:[{w:10,cls:'headers',text:'REQ'},{w:10,cls:'wait',text:''},{w:80,cls:'data',text:'200 OK + CSS'}]},
+    {id:8,label:'Stream 8 (JS)',blocks:[{w:10,cls:'headers',text:'REQ'},{w:50,cls:'wait',text:''},{w:40,cls:'data',text:'200 OK + JS'}]},
+  ]
+},
+{
+  name:'HOL Blocking Comparison',
+  desc:'Head-of-line blocking: TCP packet loss blocks ALL streams in HTTP/2. QUIC isolates loss to the affected stream only.',
+  messages:[
+    {dir:'right',label:'[HTTP/2] Stream 1,3,5 requests over single TCP',cls:'http',time:'0ms',detail:'HTTP/2 multiplexes all streams over one TCP connection. TCP sees a single byte stream — it doesnt know about HTTP streams.'},
+    {dir:'left',label:'[HTTP/2] Stream 1 data, Stream 3 data',cls:'data',time:'30ms',detail:'Server sends interleaved data for multiple streams. All bytes flow through one TCP pipe.'},
+    {dir:'left',label:'[HTTP/2] ⚠ TCP packet lost (Stream 1 data)',cls:'error',time:'60ms',detail:'A TCP packet carrying Stream 1 data is lost. TCP must retransmit before delivering ANY subsequent data — even data for Streams 3 and 5 that arrived fine!'},
+    {dir:'left',label:'[HTTP/2] ALL streams blocked until retransmit',cls:'error',time:'110ms',detail:'This is TCP head-of-line blocking. Streams 3 and 5 data sits in the TCP buffer, waiting for Stream 1s lost packet. ~50ms wasted.'},
+    {dir:'right',label:'[HTTP/3] Stream 0,4,8 requests over QUIC',cls:'http',time:'0ms',detail:'HTTP/3 sends each stream as an independent QUIC stream. QUIC handles ordering per-stream, not globally.'},
+    {dir:'left',label:'[HTTP/3] Stream 0 data, Stream 4 data',cls:'data',time:'30ms',detail:'Data arrives for multiple streams. Each stream maintains its own ordering independently.'},
+    {dir:'left',label:'[HTTP/3] ⚠ Packet lost (Stream 0 data)',cls:'error',time:'60ms',detail:'A QUIC packet carrying Stream 0 data is lost. Only Stream 0 is blocked.'},
+    {dir:'left',label:'[HTTP/3] Stream 4,8 continue! Only Stream 0 waits',cls:'quic',time:'60ms',detail:'Streams 4 and 8 are completely unaffected! Their data is delivered immediately. Only Stream 0 waits for retransmission. This is QUICs killer advantage.'},
+  ],
+  streams:[
+    {id:'TCP',label:'HTTP/2 (TCP)',blocks:[{w:30,cls:'data',text:'OK'},{w:30,cls:'blocked',text:'ALL BLOCKED'},{w:40,cls:'data',text:'Resume'}]},
+    {id:'S0',label:'H/3 Stream 0',blocks:[{w:30,cls:'data',text:'OK'},{w:30,cls:'blocked',text:'Wait'},{w:40,cls:'data',text:'Retransmit'}]},
+    {id:'S4',label:'H/3 Stream 4',blocks:[{w:30,cls:'data',text:'OK'},{w:70,cls:'data',text:'Unblocked! Continues normally'}]},
+    {id:'S8',label:'H/3 Stream 8',blocks:[{w:30,cls:'data',text:'OK'},{w:70,cls:'data',text:'Unblocked! Continues normally'}]},
+  ]
+},
+{
+  name:'Connection Migration',
+  desc:'QUIC connections survive IP address changes (WiFi→cellular). TCP connections break because they are identified by (IP, port) tuples.',
+  messages:[
+    {dir:'right',label:'Client IP: 192.168.1.50 — QUIC ConnID: 0xA1B2',cls:'quic',time:'0ms',detail:'QUIC connections are identified by Connection IDs, not IP:port tuples. Both endpoints know this ConnID.'},
+    {dir:'bidir',label:'Streaming video on WiFi...',cls:'data',time:'0ms',detail:'Normal data exchange. Client is connected via WiFi with stable IP address.'},
+    {dir:'right',label:'📱 WiFi → Cellular (IP changes to 10.0.0.7)',cls:'error',time:'50ms',detail:'User walks out of WiFi range. IP address changes completely. With TCP, this would kill the connection — new 3-way handshake needed.'},
+    {dir:'right',label:'PATH_CHALLENGE (from new IP, same ConnID: 0xA1B2)',cls:'quic',time:'60ms',detail:'Client sends PATH_CHALLENGE frame from new IP. Server recognizes the Connection ID and validates the new path.'},
+    {dir:'left',label:'PATH_RESPONSE',cls:'quic',time:'110ms',detail:'Server confirms the new path is valid. Connection migrates seamlessly — no handshake, no interrupted streams.'},
+    {dir:'bidir',label:'Video continues on cellular — zero interruption',cls:'data',time:'120ms',detail:'All active streams continue on the new network path. User experiences zero interruption. This is impossible with TCP.'},
+  ],
+  streams:[
+    {id:'wifi',label:'WiFi path',blocks:[{w:50,cls:'data',text:'Active'},{w:50,cls:'wait',text:'Disconnected'}]},
+    {id:'cell',label:'Cellular path',blocks:[{w:50,cls:'wait',text:'Standby'},{w:10,cls:'headers',text:'Migrate'},{w:40,cls:'data',text:'Active — seamless!'}]},
+  ]
+},
+{
+  name:'Loss Recovery',
+  desc:'QUIC improves on TCP loss recovery with per-packet numbers (no ambiguity), ACK ranges, and probe timeout (PTO) instead of RTO.',
+  messages:[
+    {dir:'right',label:'Packet #1 (Stream 0 data)',cls:'quic',time:'0ms',detail:'QUIC packet numbers are never reused and always increase. Unlike TCP sequence numbers, this eliminates retransmission ambiguity.'},
+    {dir:'right',label:'Packet #2 (Stream 0 data)',cls:'quic',time:'10ms',detail:'Each packet has a unique, monotonically increasing number. This makes RTT estimation more accurate than TCP.'},
+    {dir:'right',label:'Packet #3 (Stream 4 data)',cls:'quic',time:'20ms',detail:'Different streams can share packets. A single QUIC packet can carry frames for multiple streams.'},
+    {dir:'left',label:'ACK: received #1, #3 (missing #2)',cls:'quic',time:'70ms',detail:'QUIC ACK frames can express ranges: "received 1 and 3, missing 2". More expressive than TCP SACK. Includes receive timestamps for better RTT estimation.'},
+    {dir:'right',label:'Packet #4 (retransmit #2s data)',cls:'quic',time:'80ms',detail:'Retransmitted data gets a NEW packet number (#4, not #2). This eliminates TCPs retransmission ambiguity problem — we know exactly which packet the ACK refers to.'},
+    {dir:'left',label:'ACK: received #1-#4',cls:'quic',time:'130ms',detail:'All packets acknowledged. QUIC also has Probe Timeout (PTO) which sends probe packets instead of TCPs exponential RTO backoff — faster recovery.'},
+  ],
+  streams:[
+    {id:'pkt',label:'Packet flow',blocks:[{w:20,cls:'data',text:'#1'},{w:20,cls:'blocked',text:'#2 lost'},{w:20,cls:'data',text:'#3'},{w:20,cls:'headers',text:'#4 retx'},{w:20,cls:'data',text:'ACK all'}]},
+  ]
+},
+];
+
+let curScenario=0,curStep=-1,autoTimer=null;
+
+function loadScenario(idx,btn){
+  if(autoTimer){clearInterval(autoTimer);autoTimer=null;document.getElementById('autoBtn').textContent=T("jtc_auto");}
+  curScenario=idx;curStep=-1;
+  document.querySelectorAll('.toolbar > button').forEach(b=>b.classList.remove('active'));
+  if(btn)btn.classList.add('active');
+  render();
+}
+
+function render(){
+  const s=scenarios[curScenario];
+  const main=document.getElementById('mainArea');
+
+  // Sequence diagram
+  let html=`<div class="sequence"><h3 ti="h3_connection_flow">Connection Flow</h3>`;
+  html+=`<div class="entity-row"><div class="entity client">Client</div><div class="entity server">Server</div></div>`;
+
+  s.messages.forEach((m,i)=>{
+    const cls=i<=curStep?'':'future';
+    const active=i===curStep?'active':'';
+    html+=`<div class="msg-row ${cls} ${active}">`;
+    html+=`<span class="msg-time">${m.time}</span>`;
+    html+=`<div class="msg-arrow ${m.dir}"><span class="msg-label ${m.cls}" ti="label_m_label">${m.label}</span></div>`;
+    html+=`<span class="msg-time-r"></span>`;
+    html+=`</div>`;
+  });
+  html+=`</div>`;
+
+  // Stream visualization
+  if(s.streams.length>0){
+    html+=`<div class="stream-viz"><h3 ti="h3_stream_transport_view">Stream / Transport View</h3><div class="streams">`;
+    s.streams.forEach(st=>{
+      html+=`<div class="stream-row"><span class="stream-label" ti="label_st_label">${st.label}</span><div class="stream-bar">`;
+      st.blocks.forEach(b=>{
+        const w=curStep>=0?b.w:0;
+        html+=`<div class="stream-block ${b.cls}" style="width:${w}%">${b.text||''}</div>`;
+      });
+      html+=`</div></div>`;
+    });
+    html+=`</div></div>`;
+  }
+
+  main.innerHTML=html;
+
+  // Details
+  const det=document.getElementById('details');
+  if(curStep>=0&&curStep<s.messages.length){
+    det.innerHTML=`<div class="detail-box"><h4>Step ${curStep+1}: ${s.messages[curStep].label.replace(/<[^>]+>/g,'')}</h4><p>${s.messages[curStep].detail}</p></div><div class="detail-box"><h4>Scenario</h4><p>${s.desc}</p></div>`;
+  }else{
+    det.innerHTML=`<div class="detail-box"><h4>Scenario</h4><p>${s.desc}</p></div><div class="detail-box"><h4>Instructions</h4><p>Click Next or Auto to step through the protocol exchange.</p></div>`;
+  }
+
+  document.getElementById('stepInfo').textContent=`Step ${curStep+1} / ${s.messages.length}`;
+  document.getElementById('prevBtn').disabled=curStep<=0;
+  document.getElementById('nextBtn').disabled=curStep>=s.messages.length-1;
+}
+
+function nextStep(){if(curStep<scenarios[curScenario].messages.length-1){curStep++;render();}}
+function prevStep(){if(curStep>0){curStep--;render();}}
+function resetSteps(){curStep=-1;render();}
+function toggleAuto(){
+  if(autoTimer){clearInterval(autoTimer);autoTimer=null;document.getElementById('autoBtn').textContent=T("jtc_auto");return;}
+  if(curStep>=scenarios[curScenario].messages.length-1)resetSteps();
+  autoTimer=setInterval(()=>{
+    if(curStep>=scenarios[curScenario].messages.length-1){clearInterval(autoTimer);autoTimer=null;document.getElementById('autoBtn').textContent=T("jtc_auto");return;}
+    nextStep();
+  },800);
+  document.getElementById('autoBtn').textContent=T("jtc_pause");
+}
+
+render();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+</body>
+</html>

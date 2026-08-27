@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>公众号小红书首图生成器</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Microsoft YaHei', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; color: #333; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        header { text-align: center; margin-bottom: 30px; color: white; }
+        header h1 { font-size: 2.5em; margin-bottom: 10px; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
+        .main-content { display: flex; gap: 30px; background: white; border-radius: 15px; padding: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+        .control-panel { flex: 0 0 350px; max-height: 80vh; overflow-y: auto; }
+        .panel-section { margin-bottom: 25px; padding: 20px; background: #f8f9fa; border-radius: 10px; border-left: 4px solid #4a90e2; }
+        .panel-section h3 { margin-bottom: 15px; color: #2c3e50; font-size: 1.1em; }
+        .size-btn { padding: 8px 16px; border: 2px solid #ddd; background: white; border-radius: 20px; cursor: pointer; transition: all 0.3s; margin: 5px; }
+        .size-btn.active, .size-btn:hover { background: #4a90e2; color: white; border-color: #4a90e2; }
+        .controls { display: flex; flex-direction: column; gap: 12px; }
+        label { font-weight: 600; color: #555; margin-bottom: 5px; }
+        input[type="color"] { width: 50px; height: 35px; border: none; border-radius: 5px; cursor: pointer; }
+        input[type="range"] { width: 100%; margin: 5px 0; }
+        input[type="file"] { padding: 8px; border: 2px dashed #ddd; border-radius: 5px; background: white; }
+        select { padding: 8px 12px; border: 2px solid #ddd; border-radius: 5px; background: white; }
+        textarea { width: 100%; height: 80px; padding: 12px; border: 2px solid #ddd; border-radius: 5px; resize: vertical; font-family: inherit; }
+        .align-btn { flex: 1; padding: 8px 12px; border: 2px solid #ddd; background: white; border-radius: 5px; cursor: pointer; transition: all 0.3s; margin: 2px; }
+        .align-btn.active, .align-btn:hover { background: #4a90e2; color: white; border-color: #4a90e2; }
+        .preset-btn { width: 40px; height: 40px; border: 2px solid #ddd; background: white; border-radius: 8px; cursor: pointer; font-size: 20px; margin: 5px; }
+        .preset-btn:hover { border-color: #4a90e2; transform: scale(1.1); }
+        .btn { padding: 12px 20px; border: none; border-radius: 8px; cursor: pointer; font-size: 1em; font-weight: 600; transition: all 0.3s; margin: 5px; }
+        .btn-primary { background: #4a90e2; color: white; }
+        .btn-primary:hover { background: #357abd; }
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        .preview-area { flex: 1; display: flex; flex-direction: column; align-items: center; }
+        .canvas-container { position: relative; background: #f8f9fa; border-radius: 10px; padding: 20px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
+        #canvas { border: 2px solid #ddd; border-radius: 8px; background: white; max-width: 100%; height: auto; cursor: crosshair; }
+        .canvas-info { text-align: center; margin-top: 10px; color: #666; }
+        .sticker-list { display: flex; flex-wrap: wrap; gap: 10px; max-height: 150px; overflow-y: auto; padding: 10px; background: white; border-radius: 5px; border: 2px dashed #ddd; min-height: 60px; }
+        .sticker-item { position: relative; width: 60px; height: 60px; border-radius: 5px; overflow: hidden; cursor: pointer; border: 2px solid transparent; }
+        .sticker-item:hover { border-color: #4a90e2; }
+        .sticker-item img { width: 100%; height: 100%; object-fit: cover; }
+        .remove-btn { position: absolute; top: -5px; right: -5px; width: 20px; height: 20px; background: #ff4757; color: white; border: none; border-radius: 50%; cursor: pointer; font-size: 12px; display: none; }
+        .sticker-item:hover .remove-btn { display: block; }
+        footer { text-align: center; margin-top: 30px; padding: 20px; color: white; font-size: 0.9em; opacity: 0.8; }
+        footer a { color: #fff; text-decoration: none; }
+        footer a:hover { text-decoration: underline; }
+        @media (max-width: 1200px) { .main-content { flex-direction: column; } .control-panel { flex: none; max-height: none; } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎨 公众号小红书首图生成器</h1>
+            <p>轻松制作精美的文字首图，支持多种尺寸和样式</p>
+        </header>
+
+        <div class="main-content">
+            <div class="control-panel">
+                <div class="panel-section">
+                    <h3>📐 画布设置</h3>
+                    <button class="size-btn active" onclick="changeSize(900, 383)">公众号横图</button>
+                    <button class="size-btn" onclick="changeSize(383, 383)">小红书方图</button>
+                    <button class="size-btn" onclick="changeSize(750, 1334)">手机竖屏</button>
+                </div>
+
+                <div class="panel-section">
+                    <h3>🎨 背景设置</h3>
+                    <div class="controls">
+                        <label>背景颜色：</label>
+                        <input type="color" id="bgColor" value="#4a90e2" onchange="render()">
+                        <label><input type="checkbox" id="gradientBg" onchange="toggleGradient()"> 渐变背景</label>
+                        <input type="color" id="gradientColor" value="#7b68ee" disabled onchange="render()">
+                        <label>背景图片：</label>
+                        <input type="file" id="bgImage" accept="image/*" onchange="loadBgImage(event)">
+                    </div>
+                </div>
+
+                <div class="panel-section">
+                    <h3>✏️ 文字设置</h3>
+                    <div class="controls">
+                        <textarea id="textInput" placeholder="输入你的文字内容..." onchange="render()">你的标题文字</textarea>
+                        <label>字体大小：<span id="fontSizeValue">48px</span></label>
+                        <input type="range" id="fontSize" min="20" max="120" value="48" oninput="updateFontSize()">
+                        <label>字体颜色：</label>
+                        <input type="color" id="textColor" value="#ffffff" onchange="render()">
+                        <label>字体样式：</label>
+                        <select id="fontFamily" onchange="render()">
+                            <option value="'Microsoft YaHei', sans-serif">微软雅黑</option>
+                            <option value="'SimHei', sans-serif">黑体</option>
+                            <option value="'KaiTi', serif">楷体</option>
+                            <option value="'Arial', sans-serif">Arial</option>
+                        </select>
+                        <label>文字粗细：</label>
+                        <select id="fontWeight" onchange="render()">
+                            <option value="normal">正常</option>
+                            <option value="bold">粗体</option>
+                            <option value="lighter">细体</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="panel-section">
+                    <h3>🖼️ 描边设置</h3>
+                    <div class="controls">
+                        <label><input type="checkbox" id="enableStroke" onchange="toggleStroke()"> 启用描边</label>
+                        <label>描边颜色：</label>
+                        <input type="color" id="strokeColor" value="#000000" disabled onchange="render()">
+                        <label>描边宽度：<span id="strokeWidthValue">2px</span></label>
+                        <input type="range" id="strokeWidth" min="1" max="10" value="2" disabled oninput="updateStrokeWidth()">
+                    </div>
+                </div>
+
+                <div class="panel-section">
+                    <h3>📍 位置设置</h3>
+                    <div class="controls">
+                        <label>水平对齐：</label>
+                        <div>
+                            <button class="align-btn active" onclick="setAlign('left')">左对齐</button>
+                            <button class="align-btn" onclick="setAlign('center')">居中</button>
+                            <button class="align-btn" onclick="setAlign('right')">右对齐</button>
+                        </div>
+                        <label>垂直位置：</label>
+                        <input type="range" id="verticalPos" min="0" max="100" value="50" oninput="render()">
+                        <label>行间距：<span id="lineHeightValue">1.2</span></label>
+                        <input type="range" id="lineHeight" min="1" max="3" step="0.1" value="1.2" oninput="updateLineHeight()">
+                    </div>
+                </div>
+
+                <div class="panel-section">
+                    <h3>🏷️ 贴纸设置</h3>
+                    <div class="controls">
+                        <input type="file" id="stickerInput" accept="image/*" multiple onchange="loadStickers(event)">
+                        <label>预设贴纸：</label>
+                        <div>
+                            <button class="preset-btn" onclick="addEmoji('🔥')">🔥</button>
+                            <button class="preset-btn" onclick="addEmoji('💡')">💡</button>
+                            <button class="preset-btn" onclick="addEmoji('⭐')">⭐</button>
+                            <button class="preset-btn" onclick="addEmoji('❤️')">❤️</button>
+                            <button class="preset-btn" onclick="addEmoji('👍')">👍</button>
+                            <button class="preset-btn" onclick="addEmoji('💯')">💯</button>
+                            <button class="preset-btn" onclick="addEmoji('🎯')">🎯</button>
+                            <button class="preset-btn" onclick="addEmoji('📈')">📈</button>
+                        </div>
+                        <div class="sticker-list" id="stickerList"></div>
+                    </div>
+                </div>
+
+                <div class="panel-section">
+                    <h3>💾 操作</h3>
+                    <button class="btn btn-secondary" onclick="reset()">重置</button>
+                    <button class="btn btn-primary" onclick="download()">下载图片</button>
+                </div>
+            </div>
+
+            <div class="preview-area">
+                <div class="canvas-container">
+                    <canvas id="canvas" width="900" height="383"></canvas>
+                    <div class="canvas-info">
+                        <span id="canvasSize">900 × 383</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <p>© 2025 Doki公众号/小红书封面图生成器 | 微信：Doki0298 | 公众号：Doki学长</p>
+    </footer>
+
+    <script>
+        let canvas = document.getElementById('canvas');
+        let ctx = canvas.getContext('2d');
+        let stickers = [];
+        let selectedSticker = null;
+        let isDragging = false;
+        let dragOffset = { x: 0, y: 0 };
+        let backgroundImage = null;
+        let currentAlign = 'left';
+
+        function changeSize(width, height) {
+            canvas.width = width;
+            canvas.height = height;
+            document.getElementById('canvasSize').textContent = width + ' × ' + height;
+            document.querySelectorAll('.size-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            render();
+        }
+
+        function toggleGradient() {
+            const gradientBg = document.getElementById('gradientBg');
+            const gradientColor = document.getElementById('gradientColor');
+            gradientColor.disabled = !gradientBg.checked;
+            render();
+        }
+
+        function toggleStroke() {
+            const enableStroke = document.getElementById('enableStroke');
+            const strokeColor = document.getElementById('strokeColor');
+            const strokeWidth = document.getElementById('strokeWidth');
+            strokeColor.disabled = !enableStroke.checked;
+            strokeWidth.disabled = !enableStroke.checked;
+            render();
+        }
+
+        function updateFontSize() {
+            const fontSize = document.getElementById('fontSize');
+            document.getElementById('fontSizeValue').textContent = fontSize.value + 'px';
+            render();
+        }
+
+        function updateStrokeWidth() {
+            const strokeWidth = document.getElementById('strokeWidth');
+            document.getElementById('strokeWidthValue').textContent = strokeWidth.value + 'px';
+            render();
+        }
+
+        function updateLineHeight() {
+            const lineHeight = document.getElementById('lineHeight');
+            document.getElementById('lineHeightValue').textContent = lineHeight.value;
+            render();
+        }
+
+        function setAlign(align) {
+            currentAlign = align;
+            document.querySelectorAll('.align-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            render();
+        }
+
+        function loadBgImage(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const img = new Image();
+                    img.onload = function() {
+                        backgroundImage = img;
+                        render();
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function loadStickers(event) {
+            const files = Array.from(event.target.files);
+            files.forEach(file => {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const img = new Image();
+                    img.onload = function() {
+                        const sticker = {
+                            id: Date.now() + Math.random(),
+                            image: img,
+                            x: canvas.width / 2 - 50,
+                            y: canvas.height / 2 - 50,
+                            width: 100,
+                            height: 100
+                        };
+                        stickers.push(sticker);
+                        addStickerToList(sticker, e.target.result);
+                        render();
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function addStickerToList(sticker, src) {
+            const stickerList = document.getElementById('stickerList');
+            const stickerItem = document.createElement('div');
+            stickerItem.className = 'sticker-item';
+            stickerItem.innerHTML = '<img src="' + src + '" alt="贴纸"><button class="remove-btn" onclick="removeSticker(\'' + sticker.id + '\')">×</button>';
+            stickerItem.onclick = function() {
+                selectedSticker = sticker;
+                render();
+            };
+            stickerList.appendChild(stickerItem);
+        }
+
+        function removeSticker(stickerId) {
+            const index = stickers.findIndex(s => s.id == stickerId);
+            if (index > -1) {
+                stickers.splice(index, 1);
+                if (selectedSticker && selectedSticker.id == stickerId) {
+                    selectedSticker = null;
+                }
+                const stickerList = document.getElementById('stickerList');
+                stickerList.children[index].remove();
+                render();
+            }
+        }
+
+        function addEmoji(emoji) {
+            const emojiCanvas = document.createElement('canvas');
+            const emojiCtx = emojiCanvas.getContext('2d');
+            emojiCanvas.width = 100;
+            emojiCanvas.height = 100;
+            
+            emojiCtx.font = '80px Arial';
+            emojiCtx.textAlign = 'center';
+            emojiCtx.textBaseline = 'middle';
+            emojiCtx.fillText(emoji, 50, 50);
+            
+            const img = new Image();
+            img.onload = function() {
+                const sticker = {
+                    id: Date.now() + Math.random(),
+                    image: img,
+                    x: canvas.width / 2 - 50,
+                    y: canvas.height / 2 - 50,
+                    width: 100,
+                    height: 100
+                };
+                stickers.push(sticker);
+                addStickerToList(sticker, emojiCanvas.toDataURL());
+                render();
+            };
+            img.src = emojiCanvas.toDataURL();
+        }
+
+        function render() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // 绘制背景
+            if (backgroundImage) {
+                ctx.drawImage(backgroundImage, 0, 0, canvas.width, canvas.height);
+            } else if (document.getElementById('gradientBg').checked) {
+                const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+                gradient.addColorStop(0, document.getElementById('bgColor').value);
+                gradient.addColorStop(1, document.getElementById('gradientColor').value);
+                ctx.fillStyle = gradient;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            } else {
+                ctx.fillStyle = document.getElementById('bgColor').value;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+            
+            // 绘制文字
+            const text = document.getElementById('textInput').value;
+            if (text) {
+                const fontSize = parseInt(document.getElementById('fontSize').value);
+                const fontFamily = document.getElementById('fontFamily').value;
+                const fontWeight = document.getElementById('fontWeight').value;
+                const textColor = document.getElementById('textColor').value;
+                const lineHeight = parseFloat(document.getElementById('lineHeight').value);
+                
+                ctx.save();
+                ctx.font = fontWeight + ' ' + fontSize + 'px ' + fontFamily;
+                ctx.fillStyle = textColor;
+                ctx.textAlign = currentAlign;
+                
+                if (document.getElementById('enableStroke').checked) {
+                    ctx.strokeStyle = document.getElementById('strokeColor').value;
+                    ctx.lineWidth = parseInt(document.getElementById('strokeWidth').value);
+                }
+                
+                const lines = wrapText(text, canvas.width - 80);
+                const totalHeight = lines.length * fontSize * lineHeight;
+                const verticalPos = parseInt(document.getElementById('verticalPos').value);
+                const startY = (canvas.height * verticalPos / 100) - (totalHeight / 2) + fontSize;
+                
+                lines.forEach((line, index) => {
+                    const y = startY + (index * fontSize * lineHeight);
+                    let x;
+                    
+                    switch (currentAlign) {
+                        case 'left':
+                            x = 40;
+                            break;
+                        case 'right':
+                            x = canvas.width - 40;
+                            break;
+                        default:
+                            x = canvas.width / 2;
+                            break;
+                    }
+                    
+                    if (document.getElementById('enableStroke').checked) {
+                        ctx.strokeText(line, x, y);
+                    }
+                    ctx.fillText(line, x, y);
+                });
+                
+                ctx.restore();
+            }
+            
+            // 绘制贴纸
+            stickers.forEach(sticker => {
+                ctx.save();
+                
+                if (sticker === selectedSticker) {
+                    ctx.strokeStyle = '#4a90e2';
+                    ctx.lineWidth = 2;
+                    ctx.setLineDash([5, 5]);
+                    ctx.strokeRect(sticker.x - 2, sticker.y - 2, sticker.width + 4, sticker.height + 4);
+                    ctx.setLineDash([]);
+                }
+                
+                ctx.drawImage(sticker.image, sticker.x, sticker.y, sticker.width, sticker.height);
+                ctx.restore();
+            });
+        }
+
+        function wrapText(text, maxWidth) {
+            const words = text.split('');
+            const lines = [];
+            let currentLine = '';
+            
+            for (let word of words) {
+                const testLine = currentLine + word;
+                const metrics = ctx.measureText(testLine);
+                
+                if (metrics.width > maxWidth && currentLine !== '') {
+                    lines.push(currentLine);
+                    currentLine = word;
+                } else {
+                    currentLine = testLine;
+                }
+            }
+            
+            if (currentLine) {
+                lines.push(currentLine);
+            }
+            
+            return lines;
+        }
+
+        function reset() {
+            document.getElementById('textInput').value = '你的标题文字';
+            document.getElementById('fontSize').value = 48;
+            document.getElementById('fontSizeValue').textContent = '48px';
+            document.getElementById('textColor').value = '#ffffff';
+            document.getElementById('bgColor').value = '#4a90e2';
+            document.getElementById('gradientBg').checked = false;
+            document.getElementById('gradientColor').disabled = true;
+            document.getElementById('enableStroke').checked = false;
+            document.getElementById('strokeColor').disabled = true;
+            document.getElementById('strokeWidth').disabled = true;
+            document.getElementById('verticalPos').value = 50;
+            document.getElementById('lineHeight').value = 1.2;
+            document.getElementById('lineHeightValue').textContent = '1.2';
+            
+            stickers = [];
+            selectedSticker = null;
+            document.getElementById('stickerList').innerHTML = '';
+            backgroundImage = null;
+            document.getElementById('bgImage').value = '';
+            
+            render();
+        }
+
+        function download() {
+            const link = document.createElement('a');
+            link.download = '首图_' + new Date().getTime() + '.png';
+            link.href = canvas.toDataURL('image/png', 1.0);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // 鼠标事件处理
+        canvas.addEventListener('mousedown', function(event) {
+            const rect = canvas.getBoundingClientRect();
+            const x = (event.clientX - rect.left) * (canvas.width / rect.width);
+            const y = (event.clientY - rect.top) * (canvas.height / rect.height);
+            
+            for (let i = stickers.length - 1; i >= 0; i--) {
+                const sticker = stickers[i];
+                if (x >= sticker.x && x <= sticker.x + sticker.width &&
+                    y >= sticker.y && y <= sticker.y + sticker.height) {
+                    selectedSticker = sticker;
+                    isDragging = true;
+                    dragOffset.x = x - sticker.x;
+                    dragOffset.y = y - sticker.y;
+                    render();
+                    return;
+                }
+            }
+            
+            selectedSticker = null;
+            render();
+        });
+
+        canvas.addEventListener('mousemove', function(event) {
+            if (isDragging && selectedSticker) {
+                const rect = canvas.getBoundingClientRect();
+                const x = (event.clientX - rect.left) * (canvas.width / rect.width);
+                const y = (event.clientY - rect.top) * (canvas.height / rect.height);
+                
+                selectedSticker.x = x - dragOffset.x;
+                selectedSticker.y = y - dragOffset.y;
+                render();
+            }
+        });
+
+        canvas.addEventListener('mouseup', function() {
+            isDragging = false;
+        });
+
+        canvas.addEventListener('dblclick', function(event) {
+            if (selectedSticker) {
+                const newSize = prompt('输入新的尺寸 (像素):', selectedSticker.width);
+                if (newSize && !isNaN(newSize)) {
+                    const size = parseInt(newSize);
+                    selectedSticker.width = size;
+                    selectedSticker.height = size;
+                    render();
+                }
+            }
+        });
+
+        // 键盘事件
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Delete' && selectedSticker) {
+                removeSticker(selectedSticker.id);
+            }
+        });
+
+        // 初始化渲染
+        render();
+    </script>
+</body>
+</html>

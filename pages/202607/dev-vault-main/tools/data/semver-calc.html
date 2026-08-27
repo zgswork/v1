@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html tk="title_semver_calc_visual_semant" lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Semver Calc — Visual Semantic Versioning Calculator</title>
+<meta name="description" content="Visual semver range calculator. See which versions match ^, ~, >=, and complex ranges. Interactive timeline visualization.">
+<meta property="og:title" content="Semver Calc — Visual Semantic Versioning Calculator">
+<meta property="og:description" content="Visual semver range calculator. See which versions match ^, ~, >=, and complex ranges.">
+<meta property="og:type" content="website">
+<link rel="canonical" href="https://gokuscraper.github.io/dev-vault/semver-calc/">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0d1117;--surface:#161b22;--border:#30363d;--text:#e6edf3;--muted:#8b949e;--accent:#58a6ff;--green:#3fb950;--red:#f85149;--yellow:#d29922;--purple:#bc8cff}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;line-height:1.5}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+.container{max-width:800px;margin:0 auto;padding:24px 16px}
+header{text-align:center;margin-bottom:32px}
+header h1{font-size:28px;margin-bottom:6px}
+header h1 span{color:var(--accent)}
+header p{color:var(--muted);font-size:14px}
+
+.input-section{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px}
+.input-group{display:flex;flex-direction:column;gap:4px}
+.input-group label{font-size:13px;color:var(--muted)}
+.input-group input{padding:10px 12px;background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:15px;font-family:monospace;outline:none}
+.input-group input:focus{border-color:var(--accent)}
+
+.presets{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:24px}
+.preset{background:var(--surface);border:1px solid var(--border);padding:4px 10px;border-radius:14px;font-size:12px;font-family:monospace;cursor:pointer;color:var(--muted);transition:all .2s}
+.preset:hover{border-color:var(--accent);color:var(--accent)}
+
+.explain{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:20px;font-size:14px}
+.explain .range-text{font-family:monospace;color:var(--accent);font-size:16px;margin-bottom:8px}
+.explain .human{color:var(--text)}
+.explain .bounds{color:var(--muted);font-size:13px;margin-top:4px}
+
+.version-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:6px;margin-bottom:24px}
+.ver-chip{padding:6px 10px;border-radius:6px;font-family:monospace;font-size:13px;text-align:center;border:1px solid var(--border);transition:all .2s}
+.ver-chip.match{background:rgba(63,185,80,.15);border-color:var(--green);color:var(--green)}
+.ver-chip.no-match{background:rgba(139,148,158,.05);color:var(--muted)}
+.ver-chip.current{box-shadow:0 0 0 2px var(--accent)}
+
+.timeline{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px;margin-bottom:20px;overflow-x:auto}
+.timeline-bar{position:relative;height:40px;margin:16px 0}
+.timeline-track{position:absolute;top:18px;left:0;right:0;height:4px;background:var(--border);border-radius:2px}
+.timeline-range{position:absolute;top:18px;height:4px;background:var(--green);border-radius:2px}
+.timeline-dot{position:absolute;top:12px;width:16px;height:16px;border-radius:50%;border:2px solid var(--border);background:var(--bg);transform:translateX(-50%);cursor:pointer;z-index:1;transition:all .2s}
+.timeline-dot.match{border-color:var(--green);background:rgba(63,185,80,.3)}
+.timeline-dot:hover{transform:translateX(-50%) scale(1.3)}
+.timeline-label{position:absolute;top:32px;font-size:10px;font-family:monospace;color:var(--muted);transform:translateX(-50%);white-space:nowrap}
+.timeline-dot.match .timeline-label{color:var(--green)}
+
+.bump-section{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:20px}
+.bump-section h3{font-size:14px;margin-bottom:10px;color:var(--muted)}
+.bump-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.bump-card{padding:10px;border-radius:6px;border:1px solid var(--border);text-align:center;cursor:pointer;transition:all .2s}
+.bump-card:hover{border-color:var(--accent)}
+.bump-card .label{font-size:11px;color:var(--muted);text-transform:uppercase;margin-bottom:4px}
+.bump-card .ver{font-family:monospace;font-size:16px;font-weight:600}
+.bump-card.major .ver{color:var(--red)}
+.bump-card.minor .ver{color:var(--yellow)}
+.bump-card.patch .ver{color:var(--green)}
+
+.compare-section{margin-bottom:20px}
+.compare-section h3{font-size:14px;margin-bottom:10px;color:var(--muted)}
+.compare-table{width:100%;border-collapse:collapse}
+.compare-table th,.compare-table td{padding:8px 12px;text-align:left;border-bottom:1px solid var(--border);font-size:13px}
+.compare-table th{color:var(--muted);font-weight:500}
+.compare-table td:first-child{font-family:monospace;color:var(--accent)}
+.compare-table .yes{color:var(--green)}
+.compare-table .no{color:var(--muted)}
+
+footer{text-align:center;padding:24px 16px;color:var(--muted);font-size:13px;border-top:1px solid var(--border);margin-top:32px}
+@media(max-width:600px){.input-section{grid-template-columns:1fr}.bump-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+
+
+<div class="container" style="position:relative">
+  <header>
+    <h1><span>Semver</span> Calc</h1>
+    <p>Visual semantic versioning calculator — see which versions match your range</p>
+  </header>
+
+  <div class="input-section">
+    <div class="input-group">
+      <label ti="label_version">Version</label>
+      <input type="text" id="versionInput" value="1.4.2" tp="placeholder_e_g_1_4_2" placeholder="e.g. 1.4.2">
+    </div>
+    <div class="input-group">
+      <label>Range</label>
+      <input type="text" id="rangeInput" value="^1.2.0" tp="placeholder_e_g_1_2_0_2_1_1_0_0_3_0_0" placeholder="e.g. ^1.2.0, ~2.1, >=1.0.0 <3.0.0">
+    </div>
+  </div>
+
+  <div class="presets">
+    <span class="preset" onclick="setPreset('^1.2.3')">^1.2.3</span>
+    <span class="preset" onclick="setPreset('~1.2.3')">~1.2.3</span>
+    <span class="preset" onclick="setPreset('>=1.0.0 <2.0.0')">>=1.0.0 &lt;2.0.0</span>
+    <span class="preset" onclick="setPreset('1.2.x')">1.2.x</span>
+    <span class="preset" onclick="setPreset('1.x')">1.x</span>
+    <span class="preset" onclick="setPreset('>=1.2.3-beta.1')">>=1.2.3-beta.1</span>
+    <span class="preset" onclick="setPreset('1.2.3 - 2.0.0')">1.2.3 - 2.0.0</span>
+    <span class="preset" onclick="setPreset('>=1.0.0 <1.5.0 || >=2.0.0')">||  (or)</span>
+    <span class="preset" onclick="setPreset('*')">*</span>
+  </div>
+
+  <div id="explain" class="explain"></div>
+  <div id="bump"></div>
+  <div id="timeline" class="timeline" style="display:none"></div>
+  <div id="versionGrid"></div>
+  <div id="compare" class="compare-section"></div>
+</div>
+
+<footer>
+  <p>Semver Calc — <a href="https://semver.org/" target="_blank">semver.org</a> spec | Part of <a href="https://gokuscraper.github.io/dev-vault/" target="_blank" ti="footer_dev_vault">Dev Vault</a></p>
+</footer>
+
+
+<script>var _LANG={'title_semver_calc_visual_semant':["Semver Calc — Visual Semantic Versioning Calculator", "Semver Calc — 可视化语义版本控制计算器"],'metadesc_visual_semver_range_calcu':["Visual semver range calculator. See which versions match ^, ~, >=, and complex ranges. Interactive timeline visualization.", "可视化语义版本范围计算器。查看哪些版本与 ^、~、&gt;= 和复杂范围匹配。交互式时间线可视化。"],'h3_version_bumps_from_esc_ve':["Version Bumps from ${esc(ver)}", "版本号从 ${esc(ver)} 开始递增"],'h3_range_comparison_for_esc':["Range Comparison for ${esc(ver)}", "${esc(ver)} 的范围比较"],'placeholder_e_g_1_4_2':["e.g. 1.4.2", "例如 1.4.2"],'placeholder_e_g_1_2_0_2_1_1_0_0_3_0_0':["e.g. ^1.2.0, ~2.1, >=1.0.0 <3.0.0", "例如 ^1.2.0、~2.1、&gt;=1.0.0 &lt;3.0.0"],'th_range':["Range", "范围"],'th_tv_raw':["${tv.raw}", "${tv.raw}"],'th_meaning':["Meaning", "意义"],'label_version':["Version", "版本"],'label_range':["Range", "范围"],'footer_dev_vault':["Dev Vault", "开发者宝库"],'jtlword_major':["Major", "主要的"],'jtlword_minor':["Minor", "次要的"],'jtlword_patch':["Patch", "修补"],'jtlword_range':["Range", "范围"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>
+// Minimal semver implementation (no deps)
+// Supports: ^, ~, >=, <=, >, <, =, x/X/*, ranges with ||, hyphen ranges
+
+const vInput = document.getElementById('versionInput');
+const rInput = document.getElementById('rangeInput');
+
+function parse(v) {
+  v = v.trim().replace(/^[=v]/, '');
+  const m = v.match(/^(\d+)\.(\d+)\.(\d+)(?:-(.+))?$/);
+  if (!m) return null;
+  return { major: +m[1], minor: +m[2], patch: +m[3], pre: m[4] || '', raw: v };
+}
+
+function cmp(a, b) {
+  if (a.major !== b.major) return a.major - b.major;
+  if (a.minor !== b.minor) return a.minor - b.minor;
+  if (a.patch !== b.patch) return a.patch - b.patch;
+  if (!a.pre && !b.pre) return 0;
+  if (!a.pre) return 1;  // no pre > pre
+  if (!b.pre) return -1;
+  const ap = a.pre.split('.'), bp = b.pre.split('.');
+  for (let i = 0; i < Math.max(ap.length, bp.length); i++) {
+    if (i >= ap.length) return -1;
+    if (i >= bp.length) return 1;
+    const an = +ap[i], bn = +bp[i];
+    if (!isNaN(an) && !isNaN(bn)) { if (an !== bn) return an - bn; }
+    else { if (ap[i] < bp[i]) return -1; if (ap[i] > bp[i]) return 1; }
+  }
+  return 0;
+}
+
+function gte(a, b) { return cmp(a, b) >= 0; }
+function lte(a, b) { return cmp(a, b) <= 0; }
+function gt(a, b) { return cmp(a, b) > 0; }
+function lt(a, b) { return cmp(a, b) < 0; }
+function eq(a, b) { return cmp(a, b) === 0; }
+
+function satisfies(version, range) {
+  const v = typeof version === 'string' ? parse(version) : version;
+  if (!v) return false;
+
+  // Handle || (or)
+  const orParts = range.split('||').map(s => s.trim());
+  return orParts.some(part => satisfiesSimple(v, part));
+}
+
+function satisfiesSimple(v, range) {
+  range = range.trim();
+  if (range === '' || range === '*') return true;
+
+  // Hyphen range: A - B
+  const hyphen = range.match(/^(\S+)\s+-\s+(\S+)$/);
+  if (hyphen) {
+    const lo = parseLoose(hyphen[1]);
+    const hi = parseLoose(hyphen[2]);
+    if (!lo || !hi) return false;
+    return gte(v, lo) && lte(v, hi);
+  }
+
+  // Space = AND
+  const parts = range.split(/\s+/);
+  return parts.every(part => satisfiesSingle(v, part));
+}
+
+function parseLoose(s) {
+  s = s.trim().replace(/^v/, '');
+  const parts = s.split('.');
+  const major = +parts[0] || 0;
+  const minor = parts[1] !== undefined && parts[1] !== 'x' && parts[1] !== 'X' && parts[1] !== '*' ? +parts[1] : 0;
+  const patch = parts[2] !== undefined && parts[2] !== 'x' && parts[2] !== 'X' && parts[2] !== '*' ? +parts[2] : 0;
+  const pre = s.includes('-') ? s.split('-').slice(1).join('-') : '';
+  return { major, minor, patch, pre, raw: s };
+}
+
+function satisfiesSingle(v, comp) {
+  comp = comp.trim();
+  if (comp === '' || comp === '*') return true;
+
+  // X-ranges: 1.x, 1.2.x, 1.x.x
+  if (/[xX*]/.test(comp) || comp.split('.').length < 3) {
+    const parts = comp.replace(/^[~^]/, '').split('.');
+    if (parts[0] === 'x' || parts[0] === 'X' || parts[0] === '*') return true;
+    const major = +parts[0];
+    if (v.major !== major) return false;
+    if (!parts[1] || parts[1] === 'x' || parts[1] === 'X' || parts[1] === '*') return true;
+    const minor = +parts[1];
+    if (v.minor !== minor) return false;
+    if (!parts[2] || parts[2] === 'x' || parts[2] === 'X' || parts[2] === '*') return true;
+    return v.patch === +parts[2];
+  }
+
+  // Caret ^
+  if (comp.startsWith('^')) {
+    const target = parse(comp.slice(1));
+    if (!target) return false;
+    if (lt(v, target)) return false;
+    if (target.major !== 0) return v.major === target.major;
+    if (target.minor !== 0) return v.major === target.major && v.minor === target.minor;
+    return v.major === target.major && v.minor === target.minor && v.patch === target.patch;
+  }
+
+  // Tilde ~
+  if (comp.startsWith('~')) {
+    const target = parse(comp.slice(1));
+    if (!target) return false;
+    return v.major === target.major && v.minor === target.minor && gte(v, target);
+  }
+
+  // Comparators
+  let op = '=';
+  let verStr = comp;
+  const opMatch = comp.match(/^(>=|<=|>|<|=)\s*(.+)$/);
+  if (opMatch) { op = opMatch[1]; verStr = opMatch[2]; }
+
+  const target = parse(verStr);
+  if (!target) return false;
+
+  switch (op) {
+    case '>=': return gte(v, target);
+    case '<=': return lte(v, target);
+    case '>': return gt(v, target);
+    case '<': return lt(v, target);
+    case '=': return eq(v, target);
+  }
+  return false;
+}
+
+function explainRange(range) {
+  range = range.trim();
+  if (range === '*') return 'Any version';
+
+  const orParts = range.split('||').map(s => s.trim());
+  if (orParts.length > 1) return orParts.map(explainRange).join(' OR ');
+
+  // Hyphen
+  const hyphen = range.match(/^(\S+)\s+-\s+(\S+)$/);
+  if (hyphen) return `>= ${hyphen[1]} and <= ${hyphen[2]}`;
+
+  const parts = range.split(/\s+/);
+  if (parts.length > 1) return parts.map(explainSingle).join(' AND ');
+  return explainSingle(range);
+}
+
+function explainSingle(comp) {
+  comp = comp.trim();
+  if (comp === '*') return 'any version';
+
+  if (comp.startsWith('^')) {
+    const v = comp.slice(1);
+    const p = parse(v);
+    if (!p) return comp;
+    if (p.major !== 0) return `>= ${v} and < ${p.major+1}.0.0 (compatible with ${p.major}.x)`;
+    if (p.minor !== 0) return `>= ${v} and < ${p.major}.${p.minor+1}.0`;
+    return `exactly ${v}`;
+  }
+
+  if (comp.startsWith('~')) {
+    const v = comp.slice(1);
+    const p = parse(v);
+    if (!p) return comp;
+    return `>= ${v} and < ${p.major}.${p.minor+1}.0 (patch-level changes)`;
+  }
+
+  if (/[xX*]/.test(comp)) {
+    const parts = comp.split('.');
+    if (!parts[1] || parts[1] === 'x') return `any ${parts[0]}.x.x version`;
+    return `any ${parts[0]}.${parts[1]}.x version`;
+  }
+
+  if (comp.startsWith('>=')) return `>= ${comp.slice(2).trim()}`;
+  if (comp.startsWith('<=')) return `<= ${comp.slice(2).trim()}`;
+  if (comp.startsWith('>')) return `> ${comp.slice(1).trim()}`;
+  if (comp.startsWith('<')) return `< ${comp.slice(1).trim()}`;
+
+  return `exactly ${comp}`;
+}
+
+function generateVersions(base) {
+  const v = parse(base);
+  if (!v) return [];
+  const versions = [];
+  // Generate surrounding versions
+  for (let maj = Math.max(0, v.major - 1); maj <= v.major + 2; maj++) {
+    for (let min = 0; min <= Math.min(9, v.minor + 5); min++) {
+      for (let pat = 0; pat <= Math.min(5, v.patch + 3); pat++) {
+        versions.push({ major: maj, minor: min, patch: pat, pre: '', raw: `${maj}.${min}.${pat}` });
+      }
+    }
+  }
+  return versions.sort(cmp);
+}
+
+function update() {
+  const ver = vInput.value.trim();
+  const range = rInput.value.trim();
+  const v = parse(ver);
+
+  // Explain
+  const explainEl = document.getElementById('explain');
+  const isMatch = v ? satisfies(v, range) : false;
+  explainEl.innerHTML = `
+    <div class="range-text">${esc(range)}</div>
+    <div class="human">${explainRange(range)}</div>
+    ${v ? `<div class="bounds" style="color:${isMatch ? 'var(--green)' : 'var(--red)'}">
+      ${esc(ver)} ${isMatch ? '✓ matches' : '✗ does not match'} this range
+    </div>` : ''}
+  `;
+
+  // Bump
+  const bumpEl = document.getElementById('bump');
+  if (v) {
+    bumpEl.innerHTML = `<div class="bump-section">
+      <h3 ti="h3_version_bumps_from_esc_ve">Version Bumps from ${esc(ver)}</h3>
+      <div class="bump-grid">
+        <div class="bump-card major" onclick="setVersion('${v.major+1}.0.0')">
+          <div class="label">Major</div>
+          <div class="ver">${v.major+1}.0.0</div>
+        </div>
+        <div class="bump-card minor" onclick="setVersion('${v.major}.${v.minor+1}.0')">
+          <div class="label">Minor</div>
+          <div class="ver">${v.major}.${v.minor+1}.0</div>
+        </div>
+        <div class="bump-card patch" onclick="setVersion('${v.major}.${v.minor}.${v.patch+1}')">
+          <div class="label">Patch</div>
+          <div class="ver">${v.major}.${v.minor}.${v.patch+1}</div>
+        </div>
+      </div>
+    </div>`;
+  } else {
+    bumpEl.innerHTML = '';
+  }
+
+  // Version grid
+  const gridEl = document.getElementById('versionGrid');
+  if (v) {
+    const versions = generateVersions(ver);
+    // Limit to reasonable count
+    const displayed = versions.slice(0, 80);
+    gridEl.innerHTML = `<div class="version-grid">${displayed.map(dv => {
+      const m = satisfies(dv, range);
+      const isCurrent = eq(dv, v);
+      return `<div class="ver-chip ${m ? 'match' : 'no-match'} ${isCurrent ? 'current' : ''}"
+        onclick="setVersion('${dv.raw}')" title="${dv.raw} ${m ? 'matches' : 'does not match'}">${dv.raw}</div>`;
+    }).join('')}</div>`;
+  }
+
+  // Compare common ranges for this version
+  const compareEl = document.getElementById('compare');
+  if (v) {
+    const ranges = [
+      `^${ver}`, `~${ver}`,
+      `>=${ver}`, `>${ver}`,
+      `${v.major}.${v.minor}.x`, `${v.major}.x`,
+      `>=${ver} <${v.major+1}.0.0`,
+      `>=${ver} <${v.major}.${v.minor+1}.0`,
+      '*'
+    ];
+    const testVersions = [
+      { raw: ver, ...v },
+      { major: v.major, minor: v.minor, patch: v.patch + 1, pre: '', raw: `${v.major}.${v.minor}.${v.patch+1}` },
+      { major: v.major, minor: v.minor + 1, patch: 0, pre: '', raw: `${v.major}.${v.minor+1}.0` },
+      { major: v.major + 1, minor: 0, patch: 0, pre: '', raw: `${v.major+1}.0.0` },
+    ];
+
+    compareEl.innerHTML = `<h3 ti="h3_range_comparison_for_esc">Range Comparison for ${esc(ver)}</h3>
+    <table class="compare-table">
+      <thead><tr><th ti="th_range" ti="label_range">Range</th>${testVersions.map(tv => `<th ti="th_tv_raw">${tv.raw}</th>`).join('')}<th ti="th_meaning">Meaning</th></tr></thead>
+      <tbody>${ranges.map(r => `<tr>
+        <td>${esc(r)}</td>
+        ${testVersions.map(tv => {
+          const m = satisfies(tv, r);
+          return `<td class="${m ? 'yes' : 'no'}">${m ? '✓' : '✗'}</td>`;
+        }).join('')}
+        <td style="color:var(--muted);font-size:12px">${explainRange(r)}</td>
+      </tr>`).join('')}</tbody>
+    </table>`;
+  }
+
+  // Update URL
+  const url = new URL(location);
+  url.searchParams.set('v', ver);
+  url.searchParams.set('r', range);
+  history.replaceState(null, '', url);
+}
+
+function setPreset(range) {
+  rInput.value = range;
+  update();
+}
+
+function setVersion(v) {
+  vInput.value = v;
+  update();
+}
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s || '';
+  return d.innerHTML;
+}
+
+// URL params
+const params = new URLSearchParams(location.search);
+if (params.has('v')) vInput.value = params.get('v');
+if (params.has('r')) rInput.value = params.get('r');
+
+vInput.addEventListener('input', update);
+rInput.addEventListener('input', update);
+update();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+</body>
+</html>

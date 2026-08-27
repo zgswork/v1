@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html tk="title_ipv4_range_expander" lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IPv4 Range Expander</title>
+<meta name="description" content="Convert an IPv4 range (start-end) into the minimal CIDR notation. Calculate network address, broadcast, and size.">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0a0a;color:#e6e6e6;min-height:100vh;display:flex;justify-content:center;padding:24px}
+.container{max-width:560px;width:100%}
+h1{font-size:1.4rem;color:#fff;margin-bottom:6px}
+.desc{color:#888;font-size:0.9rem;margin-bottom:20px}
+.card{background:#161616;border:1px solid #222;border-radius:10px;padding:20px;margin-bottom:16px}
+label{display:block;color:#aaa;font-size:0.85rem;margin-bottom:4px;font-weight:600}
+input{width:100%;padding:10px 14px;border-radius:8px;border:1px solid #333;background:#1a1a1a;color:#fff;font-size:1rem;outline:none;margin-bottom:12px;font-family:monospace}
+input:focus{border-color:#3b82f6}
+table{width:100%;border-collapse:collapse}
+th,td{padding:10px 12px;text-align:left;border-bottom:1px solid #222;font-size:0.85rem}
+th{color:#888;font-weight:600}
+td{color:#e6e6e6;font-family:monospace}
+.alert{background:#1a1020;border:1px solid #7a2a2a;border-radius:8px;padding:16px;margin-bottom:12px;display:none}
+.alert p{color:#f87171;font-size:0.85rem;margin-bottom:10px}
+button{padding:8px 16px;border-radius:6px;border:1px solid #333;background:#1a1a1a;color:#e6e6e6;font-size:0.85rem;cursor:pointer;font-weight:600}
+button:hover{background:#252525;border-color:#3b82f6}
+.error{color:#f87171;font-size:0.85rem;margin-bottom:8px;display:none}
+</style>
+</head>
+<body>
+
+
+<div class="container" style="position:relative">
+  <h1 ti="title_ipv4_range_expander" ti="h1_ipv4_range_expander">IPv4 Range Expander</h1>
+  <p class="desc" ti="subtitle_find_the_minimal_cidr_not">Find the minimal CIDR notation for a given start and end IPv4 address</p>
+
+  <div class="card">
+    <label for="startIp" ti="label_start_address">Start address</label>
+    <input type="text" id="startIp" value="192.168.1.1" spellcheck="false">
+    <label for="endIp" ti="label_end_address">End address</label>
+    <input type="text" id="endIp" value="192.168.6.255" spellcheck="false">
+    <div class="error" id="ipError">Invalid IPv4 address</div>
+  </div>
+
+  <div class="alert" id="invalidRange">
+    <p>The end address is lower than the start address.</p>
+    <button id="switchBtn" ti="btn_switch_start_and_end">Switch start and end</button>
+  </div>
+
+  <div class="card" id="resultCard" style="display:none">
+    <table>
+      <thead><tr><th></th><th ti="th_old_value">Old value</th><th ti="th_new_value">New value</th></tr></thead>
+      <tbody id="resultBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>var _LANG={'title_ipv4_range_expander':["IPv4 Range Expander", "IPv4 范围扩展器"],'metadesc_convert_an_ipv4_range_sta':["Convert an IPv4 range (start-end) into the minimal CIDR notation. Calculate network address, broadcast, and size.", "将 IPv4 地址范围（起始地址-结束地址）转换为最小 CIDR 表示法。计算网络地址、广播地址和地址大小。"],'h1_ipv4_range_expander':["IPv4 Range Expander", "IPv4 范围扩展器"],'subtitle_find_the_minimal_cidr_not':["Find the minimal CIDR notation for a given start and end IPv4 address", "找到给定起始和结束 IPv4 地址的最小 CIDR 表示法"],'btn_switch_start_and_end':["Switch start and end", "开关开始和结束"],'th_old_value':["Old value", "旧价值"],'th_new_value':["New value", "新价值"],'label_start_address':["Start address", "起始地址"],'label_end_address':["End address", "结束地址"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>
+function isValidIpv4(ip) {
+  return /^((25[0-5]|(2[0-4]|1\d|[1-9]|)\d)\.){3}(25[0-5]|(2[0-4]|1\d|[1-9]|)\d)$/.test(ip.trim());
+}
+
+function ipv4ToInt(ip) {
+  return ip.trim().split('.').reduce((acc, p, i) => acc + parseInt(p) * Math.pow(256, 3-i), 0);
+}
+
+function intToIp(n) {
+  return [(n>>>24)&255, (n>>16)&255, (n>>8)&255, n&255].join('.');
+}
+
+function toBin(n) { return n.toString(2).padStart(32, '0'); }
+
+function update() {
+  const start = document.getElementById('startIp').value;
+  const end = document.getElementById('endIp').value;
+  const err = document.getElementById('ipError');
+  const alert = document.getElementById('invalidRange');
+  const resultCard = document.getElementById('resultCard');
+  const resultBody = document.getElementById('resultBody');
+
+  const sOk = isValidIpv4(start);
+  const eOk = isValidIpv4(end);
+  if (!sOk || !eOk) {
+    err.style.display = 'block';
+    alert.style.display = 'none';
+    resultCard.style.display = 'none';
+    return;
+  }
+  err.style.display = 'none';
+
+  const sInt = ipv4ToInt(start);
+  const eInt = ipv4ToInt(end);
+
+  if (eInt < sInt) {
+    alert.style.display = 'block';
+    resultCard.style.display = 'none';
+    return;
+  }
+  alert.style.display = 'none';
+
+  const sBin = toBin(sInt);
+  const eBin = toBin(eInt);
+  const range = eInt - sInt + 1;
+
+  let mask = 32;
+  for (let i = 0; i < 32; i++) {
+    if (sBin[i] !== eBin[i]) { mask = i; break; }
+  }
+
+  const newStartBin = sBin.substring(0, mask) + '0'.repeat(32 - mask);
+  const newEndBin = eBin.substring(0, mask) + '1'.repeat(32 - mask);
+  const newStart = intToIp(parseInt(newStartBin, 2));
+  const newEnd = intToIp(parseInt(newEndBin, 2));
+  const newSize = parseInt(newEndBin, 2) - parseInt(newStartBin, 2) + 1;
+
+  const rows = [
+    { label: 'Start address', old: start, new: newStart },
+    { label: 'End address', old: end, new: newEnd },
+    { label: 'Addresses in range', old: range.toLocaleString(), new: newSize.toLocaleString() },
+    { label: 'CIDR', old: '—', new: newStart + '/' + mask },
+  ];
+
+  resultBody.innerHTML = rows.map(r =>
+    `<tr><td style="font-weight:600;color:#aaa">${r.label}</td><td>${r.old}</td><td>${r.new}</td></tr>`
+  ).join('');
+  resultCard.style.display = 'block';
+}
+
+document.getElementById('startIp').addEventListener('input', update);
+document.getElementById('endIp').addEventListener('input', update);
+document.getElementById('switchBtn').addEventListener('click', () => {
+  const s = document.getElementById('startIp');
+  const e = document.getElementById('endIp');
+  [s.value, e.value] = [e.value, s.value];
+  update();
+});
+update();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Excel文件合并工具</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome -->
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <!-- SheetJS 用于处理Excel文件 -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    
+    <!-- 自定义Tailwind配置 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3b82f6',
+                        secondary: '#6366f1',
+                        accent: '#8b5cf6',
+                        neutral: '#f3f4f6',
+                        success: '#10b981',
+                        warning: '#f59e0b',
+                        error: '#ef4444',
+                    },
+                    fontFamily: {
+                        inter: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                    boxShadow: {
+                        'card': '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                        'hover': '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+                    }
+                },
+            }
+        }
+    </script>
+    
+    <!-- 自定义工具类 -->
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .transition-custom {
+                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            }
+            .scrollbar-hide::-webkit-scrollbar {
+                display: none;
+            }
+            .scrollbar-hide {
+                -ms-overflow-style: none;
+                scrollbar-width: none;
+            }
+            .shadow-inner-custom {
+                box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06);
+            }
+        }
+    </style>
+</head>
+<body class="font-inter bg-gradient-to-br from-blue-50 to-indigo-50 min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-6xl">
+        <!-- 头部 -->
+        <header class="text-center mb-12">
+            <h1 class="text-[clamp(2rem,5vw,3rem)] font-bold text-gray-800 mb-4 tracking-tight">
+                <i class="fa fa-table text-primary mr-3"></i>Excel文件合并工具
+            </h1>
+            <p class="text-gray-600 max-w-2xl mx-auto text-lg">
+                简单、高效地合并多个Excel文件，保留原始数据结构，一键完成合并操作
+            </p>
+        </header>
+
+        <!-- 主内容区 -->
+        <main class="space-y-10">
+            <!-- 文件上传区 -->
+            <section class="bg-white rounded-2xl p-8 shadow-card transition-custom hover:shadow-hover">
+                <h2 class="text-2xl font-semibold text-gray-800 mb-6 flex items-center">
+                    <i class="fa fa-upload text-primary mr-3"></i>上传Excel文件
+                </h2>
+                
+                <div 
+                    id="drop-area" 
+                    class="border-2 border-dashed border-gray-300 rounded-xl p-12 text-center bg-neutral cursor-pointer transition-custom hover:border-primary hover:bg-blue-50"
+                >
+                    <input type="file" id="file-input" class="hidden" accept=".xlsx, .xls" multiple>
+                    <i class="fa fa-file-excel-o text-6xl text-primary mb-4 block"></i>
+                    <h3 class="text-xl font-medium text-gray-700 mb-2">拖放文件到此处，或点击上传</h3>
+                    <p class="text-gray-500 mb-6">支持 .xlsx 和 .xls 格式文件</p>
+                    <button 
+                        id="upload-btn" 
+                        class="bg-primary hover:bg-primary/90 text-white font-medium py-3 px-8 rounded-lg transition-custom shadow-lg hover:shadow-xl flex items-center justify-center mx-auto"
+                    >
+                        <i class="fa fa-plus-circle mr-2"></i>选择Excel文件
+                    </button>
+                </div>
+                
+                <!-- 已上传文件列表 -->
+                <div id="file-list" class="mt-8 space-y-4 max-h-60 overflow-y-auto scrollbar-hide hidden">
+                    <h3 class="text-xl font-medium text-gray-700 mb-2">已上传文件</h3>
+                    <div id="file-items" class="space-y-3"></div>
+                </div>
+            </section>
+
+            <!-- 合并操作区 - 移到预览区上方 -->
+            <section id="merge-section" class="hidden">
+                <div class="bg-white rounded-2xl p-8 shadow-card transition-custom text-center">
+                    <h2 class="text-2xl font-semibold text-gray-800 mb-4">准备合并文件</h2>
+                    <p class="text-gray-600 mb-8">确认所有文件已上传并准备就绪</p>
+                    
+                    <button 
+                        id="merge-btn" 
+                        class="bg-accent hover:bg-accent/90 text-white font-medium py-4 px-10 rounded-lg transition-custom shadow-lg hover:shadow-xl text-lg flex items-center justify-center mx-auto"
+                    >
+                        <i class="fa fa-object-group mr-3"></i>开始合并
+                    </button>
+                </div>
+            </section>
+
+            <!-- 预览区 -->
+            <section id="preview-section" class="hidden">
+                <h2 class="text-2xl font-semibold text-gray-800 mb-6 flex items-center">
+                    <i class="fa fa-eye text-secondary mr-3"></i>文件预览
+                </h2>
+                
+                <div id="preview-tabs" class="flex flex-wrap gap-2 mb-6 border-b border-gray-200 pb-2 overflow-x-auto scrollbar-hide">
+                    <!-- 预览标签页将动态生成 -->
+                </div>
+                
+                <div id="preview-contents" class="bg-white rounded-2xl p-6 shadow-card transition-custom">
+                    <!-- 预览内容将动态生成 -->
+                </div>
+            </section>
+
+            <!-- 结果下载区 - 已优化下载按钮位置 -->
+            <section id="result-section" class="hidden">
+                <div class="bg-white rounded-2xl p-8 shadow-card transition-custom">
+                    <div class="flex flex-col md:flex-row items-center justify-between mb-8">
+                        <h2 class="text-2xl font-semibold text-gray-800 mb-4 md:mb-0">合并完成</h2>
+                        <div id="result-info" class="text-gray-600 text-sm flex flex-col md:flex-row gap-4 items-center">
+                            <div class="flex items-center">
+                                <i class="fa fa-file-text-o text-success mr-2"></i>
+                                <span>总文件数: <span id="total-files" class="font-medium text-primary">0</span></span>
+                            </div>
+                            <div class="flex items-center">
+                                <i class="fa fa-table text-success mr-2"></i>
+                                <span>总行数: <span id="total-rows" class="font-medium text-primary">0</span></span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 下载按钮移到预览上方 -->
+                    <div class="text-center mb-8">
+                        <a 
+                            id="download-link" 
+                            href="#" 
+                            class="inline-flex items-center justify-center bg-success hover:bg-success/90 text-white font-medium py-3 px-8 rounded-lg transition-custom shadow-lg hover:shadow-xl"
+                        >
+                            <i class="fa fa-download mr-2"></i>下载合并文件
+                        </a>
+                    
+                        <button 
+                            id="merge-again-btn" 
+                            class="mt-4 md:mt-0 md:ml-4 inline-flex items-center justify-center bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium py-3 px-8 rounded-lg transition-custom"
+                        >
+                            <i class="fa fa-refresh mr-2"></i>重新开始
+                        </button>
+                    </div>
+                    
+                    <div id="result-preview" class="overflow-x-auto">
+                        <!-- 合并结果预览将动态生成 -->
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- 页脚 -->
+        <footer class="text-center text-gray-500 text-sm mt-16 py-6 border-t border-gray-200">
+            <p>© 2023 Excel文件合并工具 - 安全、高效地处理您的Excel数据</p>
+        </footer>
+    </div>
+
+    <!-- 状态提示框 -->
+    <div id="toast" class="fixed top-6 right-6 bg-gray-800 text-white py-3 px-6 rounded-lg shadow-lg opacity-0 transition-all duration-300 transform translate-y-[-20px] flex items-center">
+        <i id="toast-icon" class="fa fa-check-circle mr-2"></i>
+        <span id="toast-message"></span>
+    </div>
+
+    <script>
+        // 全局变量
+        const uploadedFiles = [];
+        const workbookData = [];
+        let mergedWorkbook = null;
+        let totalRows = 0;
+        
+        // DOM 元素
+        const dropArea = document.getElementById('drop-area');
+        const fileInput = document.getElementById('file-input');
+        const uploadBtn = document.getElementById('upload-btn');
+        const fileList = document.getElementById('file-list');
+        const fileItems = document.getElementById('file-items');
+        const previewSection = document.getElementById('preview-section');
+        const previewTabs = document.getElementById('preview-tabs');
+        const previewContents = document.getElementById('preview-contents');
+        const mergeSection = document.getElementById('merge-section');
+        const resultSection = document.getElementById('result-section');
+        const mergeBtn = document.getElementById('merge-btn');
+        const mergeAgainBtn = document.getElementById('merge-again-btn');
+        const downloadLink = document.getElementById('download-link');
+        const totalFilesEl = document.getElementById('total-files');
+        const totalRowsEl = document.getElementById('total-rows');
+        const resultPreview = document.getElementById('result-preview');
+        const toast = document.getElementById('toast');
+        const toastIcon = document.getElementById('toast-icon');
+        const toastMessage = document.getElementById('toast-message');
+
+        // 初始化事件监听
+        function initEventListeners() {
+            // 上传按钮点击事件
+            uploadBtn.addEventListener('click', () => fileInput.click());
+            
+            // 文件输入变化事件
+            fileInput.addEventListener('change', handleFileSelect);
+            
+            // 拖放事件
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                dropArea.addEventListener(eventName, preventDefaults, false);
+            });
+            
+            function preventDefaults(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+            
+            ['dragenter', 'dragover'].forEach(eventName => {
+                dropArea.addEventListener(eventName, highlight, false);
+            });
+            
+            ['dragleave', 'drop'].forEach(eventName => {
+                dropArea.addEventListener(eventName, unhighlight, false);
+            });
+            
+            function highlight() {
+                dropArea.classList.add('border-primary', 'bg-blue-50');
+            }
+            
+            function unhighlight() {
+                dropArea.classList.remove('border-primary', 'bg-blue-50');
+            }
+            
+            dropArea.addEventListener('drop', handleDrop, false);
+            
+            // 合并按钮点击事件
+            mergeBtn.addEventListener('click', handleMerge);
+            
+            // 重新开始按钮点击事件
+            mergeAgainBtn.addEventListener('click', resetApp);
+        }
+
+        // 处理文件选择
+        function handleFileSelect(e) {
+            const files = Array.from(e.target.files);
+            processFiles(files);
+            fileInput.value = ''; // 重置文件输入
+        }
+
+        // 处理拖放文件
+        function handleDrop(e) {
+            const dt = e.dataTransfer;
+            const files = Array.from(dt.files);
+            processFiles(files);
+        }
+
+        // 处理文件
+        function processFiles(files) {
+            // 过滤Excel文件
+            const excelFiles = files.filter(file => 
+                file.name.endsWith('.xlsx') || file.name.endsWith('.xls')
+            );
+            
+            if (excelFiles.length === 0) {
+                showToast('请选择Excel文件 (.xlsx 或 .xls)', 'warning');
+                return;
+            }
+            
+            // 检查是否有重复文件
+            const newFiles = excelFiles.filter(file => 
+                !uploadedFiles.some(uploaded => uploaded.name === file.name && uploaded.size === file.size)
+            );
+            
+            if (newFiles.length === 0) {
+                showToast('所有文件已上传过', 'info');
+                return;
+            }
+            
+            // 添加新文件并处理
+            newFiles.forEach(file => {
+                uploadedFiles.push(file);
+                readExcelFile(file);
+            });
+            
+            showToast(`已添加 ${newFiles.length} 个文件`, 'success');
+            
+            // 更新UI
+            updateFileList();
+            // 先不调用updateSectionsVisibility，等文件读取完成后再调用
+        }
+
+        // 读取Excel文件
+        function readExcelFile(file) {
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    
+                    // 将工作簿数据存储起来
+                    workbookData.push({
+                        name: file.name,
+                        workbook: workbook
+                    });
+                    
+                    // 创建预览标签页和内容
+                    createPreviewTab(file.name, workbook);
+                    
+                    // 如果是第一个标签页，自动激活
+                    if (previewTabs.children.length === 1) {
+                        previewTabs.children[0].click();
+                    }
+                    
+                    // 文件读取完成后更新UI状态 - 修复预览功能问题
+                    updateSectionsVisibility();
+                    
+                } catch (error) {
+                    console.error('读取文件错误:', error);
+                    showToast(`文件 ${file.name} 读取失败`, 'error');
+                    
+                    // 移除失败的文件
+                    const index = uploadedFiles.findIndex(f => f.name === file.name && f.size === file.size);
+                    if (index !== -1) {
+                        uploadedFiles.splice(index, 1);
+                        updateFileList();
+                        updateSectionsVisibility();
+                    }
+                }
+            };
+            
+            reader.readAsArrayBuffer(file);
+        }
+
+        // 更新文件列表
+        function updateFileList() {
+            if (uploadedFiles.length === 0) {
+                fileList.classList.add('hidden');
+                return;
+            }
+            
+            fileList.classList.remove('hidden');
+            fileItems.innerHTML = '';
+            
+            uploadedFiles.forEach((file, index) => {
+                const fileItem = document.createElement('div');
+                fileItem.className = 'flex items-center justify-between bg-gray-50 p-3 rounded-lg transition-custom hover:bg-gray-100';
+                
+                fileItem.innerHTML = `
+                    <div class="flex items-center">
+                        <i class="fa fa-file-excel-o text-success text-xl mr-3"></i>
+                        <div class="truncate max-w-xs md:max-w-md">
+                            <div class="text-gray-800 font-medium truncate">${file.name}</div>
+                            <div class="text-gray-500 text-sm">${formatFileSize(file.size)}</div>
+                        </div>
+                    </div>
+                    <button class="text-gray-400 hover:text-error transition-custom" data-index="${index}">
+                        <i class="fa fa-times-circle text-lg"></i>
+                    </button>
+                `;
+                
+                // 删除按钮事件
+                fileItem.querySelector('button').addEventListener('click', function() {
+                    const fileIndex = parseInt(this.getAttribute('data-index'));
+                    removeFile(fileIndex);
+                });
+                
+                fileItems.appendChild(fileItem);
+            });
+        }
+
+        // 移除文件
+        function removeFile(index) {
+            const fileToRemove = uploadedFiles[index];
+            uploadedFiles.splice(index, 1);
+            
+            // 移除对应的工作簿数据
+            const workbookIndex = workbookData.findIndex(wb => wb.name === fileToRemove.name);
+            if (workbookIndex !== -1) {
+                workbookData.splice(workbookIndex, 1);
+            }
+            
+            // 更新UI
+            updateFileList();
+            updatePreviewTabs();
+            updateSectionsVisibility();
+            
+            showToast(`已移除文件 ${fileToRemove.name}`, 'info');
+        }
+
+        // 更新预览标签页
+        function updatePreviewTabs() {
+            previewTabs.innerHTML = '';
+            previewContents.innerHTML = '';
+            
+            workbookData.forEach(({ name, workbook }) => {
+                createPreviewTab(name, workbook);
+            });
+            
+            // 如果有标签页，激活第一个
+            if (previewTabs.children.length > 0) {
+                previewTabs.children[0].click();
+            }
+        }
+
+        // 创建预览标签页
+        function createPreviewTab(fileName, workbook) {
+            // 创建标签页
+            const tab = document.createElement('button');
+            tab.className = 'preview-tab px-4 py-2 rounded-t-lg text-sm font-medium transition-custom whitespace-nowrap';
+            tab.textContent = fileName;
+            
+            // 创建内容区域
+            const content = document.createElement('div');
+            content.className = 'preview-content hidden';
+            
+            // 生成Excel预览HTML
+            const firstSheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheetName];
+            const html = XLSX.utils.sheet_to_html(worksheet, { header: 'A' });
+            
+            // 自定义表格样式
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            const table = doc.querySelector('table');
+            
+            if (table) {
+                table.className = 'w-full border-collapse overflow-x-auto';
+                table.style.maxHeight = '400px';
+                table.style.overflowY = 'auto';
+                
+                // 设置表头样式
+                const headers = table.querySelectorAll('th');
+                headers.forEach(header => {
+                    header.className = 'bg-blue-50 text-left px-4 py-2 border border-gray-200 font-semibold text-gray-700';
+                });
+                
+                // 设置单元格样式
+                const cells = table.querySelectorAll('td');
+                cells.forEach(cell => {
+                    cell.className = 'px-4 py-2 border border-gray-200 text-gray-700';
+                });
+            }
+            
+            content.innerHTML = doc.body.innerHTML;
+            
+            // 添加点击事件
+            tab.addEventListener('click', () => {
+                // 移除所有标签页的活跃状态
+                document.querySelectorAll('.preview-tab').forEach(t => {
+                    t.classList.remove('bg-white', 'text-primary', 'border', 'border-gray-200', 'border-b-0');
+                    t.classList.add('text-gray-500', 'hover:text-gray-700', 'hover:bg-gray-100');
+                });
+                
+                // 隐藏所有内容
+                document.querySelectorAll('.preview-content').forEach(c => {
+                    c.classList.add('hidden');
+                });
+                
+                // 设置当前标签页为活跃
+                tab.classList.remove('text-gray-500', 'hover:text-gray-700', 'hover:bg-gray-100');
+                tab.classList.add('bg-white', 'text-primary', 'border', 'border-gray-200', 'border-b-0');
+                
+                // 显示当前内容
+                content.classList.remove('hidden');
+            });
+            
+            previewTabs.appendChild(tab);
+            previewContents.appendChild(content);
+        }
+
+        // 更新各区域显示状态 - 修复预览和合并按钮问题
+        function updateSectionsVisibility() {
+            // 预览区 - 确保上传单个文件时有预览功能
+            if (workbookData.length > 0) {
+                previewSection.classList.remove('hidden');
+            } else {
+                previewSection.classList.add('hidden');
+            }
+            
+            // 合并区 - 确保上传2个文件时有合并按钮
+            if (workbookData.length >= 2) {
+                mergeSection.classList.remove('hidden');
+            } else {
+                mergeSection.classList.add('hidden');
+            }
+            
+            // 结果区
+            resultSection.classList.add('hidden');
+        }
+
+        // 处理合并 - 优化的按列合并逻辑，只保留第一个文件的表头
+        function handleMerge() {
+            if (workbookData.length < 2) {
+                showToast('至少需要两个Excel文件才能合并', 'warning');
+                return;
+            }
+            
+            try {
+                // 创建新的工作簿
+                mergedWorkbook = XLSX.utils.book_new();
+                
+                // 获取所有工作表的数据
+                const allWorksheetData = [];
+                let maxCols = 0;
+                
+                // 遍历所有工作簿，获取每个工作表的数据
+                workbookData.forEach(({ workbook }) => {
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    
+                    // 使用 sheet_to_json 的 header: 1 选项，以数组形式获取数据
+                    const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                    allWorksheetData.push(data);
+                    
+                    // 计算该工作表的最大列数
+                    const sheetMaxCols = data.reduce((max, row) => Math.max(max, row.length), 0);
+                    if (sheetMaxCols > maxCols) {
+                        maxCols = sheetMaxCols;
+                    }
+                });
+                
+                // 创建合并后的数据结构（确保按列合并）
+                const mergedData = [];
+                
+                // 获取第一个文件的表头
+                if (allWorksheetData.length > 0 && allWorksheetData[0].length > 0) {
+                    // 添加第一个文件的表头
+                    mergedData.push([...allWorksheetData[0][0]]);
+                    
+                    // 处理所有文件的数据行（从第二个文件的第一行和第一个文件的第二行开始）
+                    for (let i = 0; i < allWorksheetData.length; i++) {
+                        const worksheetData = allWorksheetData[i];
+                        // 确定起始行（第一个文件从第二行开始，其他文件从第一行开始）
+                        const startRow = (i === 0) ? 1 : 0;
+                        
+                        // 遍历当前文件的数据行
+                        for (let rowIndex = startRow; rowIndex < worksheetData.length; rowIndex++) {
+                            const rowData = worksheetData[rowIndex];
+                            const mergedRow = [];
+                            
+                            // 确保 mergedRow 有足够的空间
+                            for (let colIndex = 0; colIndex < maxCols; colIndex++) {
+                                mergedRow[colIndex] = null;
+                            }
+                            
+                            // 将当前行的所有列数据添加到合并行对应位置
+                            for (let colIndex = 0; colIndex < rowData.length; colIndex++) {
+                                if (rowData[colIndex] !== undefined && rowData[colIndex] !== null) {
+                                    mergedRow[colIndex] = rowData[colIndex];
+                                }
+                            }
+                            
+                            // 如果合并行不为空，则添加到结果中
+                            if (mergedRow.some(cell => cell !== null && cell !== undefined)) {
+                                mergedData.push(mergedRow);
+                            }
+                        }
+                    }
+                }
+                
+                // 创建新的工作表
+                const newWorksheet = XLSX.utils.aoa_to_sheet(mergedData);
+                
+                // 添加工作表到工作簿
+                XLSX.utils.book_append_sheet(mergedWorkbook, newWorksheet, '合并数据');
+                
+                // 计算总行数
+                totalRows = mergedData.length;
+                
+                // 显示结果区
+                showResult();
+                
+                showToast('文件合并成功', 'success');
+                
+            } catch (error) {
+                console.error('合并文件错误:', error);
+                showToast('文件合并失败，请检查文件格式', 'error');
+            }
+        }
+
+        // 显示结果
+        function showResult() {
+            // 隐藏其他区域
+            previewSection.classList.add('hidden');
+            mergeSection.classList.add('hidden');
+            
+            // 显示结果区
+            resultSection.classList.remove('hidden');
+            
+            // 更新统计信息
+            totalFilesEl.textContent = uploadedFiles.length;
+            totalRowsEl.textContent = totalRows;
+            
+            // 生成结果预览
+            if (mergedWorkbook) {
+                const worksheet = mergedWorkbook.Sheets['合并数据'];
+                const html = XLSX.utils.sheet_to_html(worksheet, { header: 'A' });
+                
+                // 自定义表格样式
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                const table = doc.querySelector('table');
+                
+                if (table) {
+                    table.className = 'w-full border-collapse overflow-x-auto';
+                    table.style.maxHeight = '400px';
+                    table.style.overflowY = 'auto';
+                    
+                    // 设置表头样式
+                    const headers = table.querySelectorAll('th');
+                    headers.forEach(header => {
+                        header.className = 'bg-green-50 text-left px-4 py-2 border border-gray-200 font-semibold text-gray-700';
+                    });
+                    
+                    // 设置单元格样式
+                    const cells = table.querySelectorAll('td');
+                    cells.forEach(cell => {
+                        cell.className = 'px-4 py-2 border border-gray-200 text-gray-700';
+                    });
+                }
+                
+                resultPreview.innerHTML = doc.body.innerHTML;
+            }
+            
+            // 设置下载链接
+            updateDownloadLink();
+        }
+
+        // 更新下载链接
+        function updateDownloadLink() {
+            if (mergedWorkbook) {
+                // 生成Excel文件
+                const excelBuffer = XLSX.write(mergedWorkbook, { bookType: 'xlsx', type: 'array' });
+                const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+                const url = URL.createObjectURL(blob);
+                
+                downloadLink.href = url;
+                downloadLink.download = '合并Excel文件.xlsx';
+            }
+        }
+
+        // 重置应用
+        function resetApp() {
+            // 清空数据
+            uploadedFiles.length = 0;
+            workbookData.length = 0;
+            mergedWorkbook = null;
+            totalRows = 0;
+            
+            // 重置UI
+            updateFileList();
+            previewTabs.innerHTML = '';
+            previewContents.innerHTML = '';
+            resultPreview.innerHTML = '';
+            
+            // 更新区域显示
+            updateSectionsVisibility();
+            
+            showToast('已重置，可重新上传文件', 'info');
+        }
+
+        // 显示提示框
+        function showToast(message, type = 'info') {
+            // 设置图标和颜色
+            toastIcon.className = '';
+            
+            switch (type) {
+                case 'success':
+                    toastIcon.className = 'fa fa-check-circle mr-2 text-success';
+                    break;
+                case 'error':
+                    toastIcon.className = 'fa fa-exclamation-circle mr-2 text-error';
+                    break;
+                case 'warning':
+                    toastIcon.className = 'fa fa-exclamation-triangle mr-2 text-warning';
+                    break;
+                default:
+                    toastIcon.className = 'fa fa-info-circle mr-2 text-primary';
+            }
+            
+            // 设置消息
+            toastMessage.textContent = message;
+            
+            // 显示提示框
+            toast.classList.remove('opacity-0', 'translate-y-[-20px]');
+            toast.classList.add('opacity-100', 'translate-y-0');
+            
+            // 3秒后隐藏
+            setTimeout(() => {
+                toast.classList.remove('opacity-100', 'translate-y-0');
+                toast.classList.add('opacity-0', 'translate-y-[-20px]');
+            }, 3000);
+        }
+
+        // 格式化文件大小
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        // 初始化应用
+        function init() {
+            initEventListeners();
+        }
+
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>

@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>海报二维码自动填充工具</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f7f6f3;
+            background-image: 
+                radial-gradient(circle at 25% 25%, rgba(255, 255, 255, 0.3) 0%, transparent 50%),
+                radial-gradient(circle at 75% 75%, rgba(0, 0, 0, 0.02) 0%, transparent 50%);
+            min-height: 100vh;
+            color: #1a1a1a;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1320px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        .workflow-container {
+            background: #fefefe;
+            border-radius: 24px;
+            padding: 40px;
+            box-shadow: 
+                0 12px 40px rgba(0, 0, 0, 0.15),
+                0 4px 12px rgba(0, 0, 0, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.8);
+            margin-bottom: 40px;
+            position: relative;
+        }
+
+        .workflow-container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.8), transparent);
+        }
+
+        .edit-preview-section {
+            margin-top: 32px;
+        }
+
+        .edit-preview-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 32px;
+            margin-top: 24px;
+        }
+
+        .edit-panel, .preview-panel {
+            background: #f8fafc;
+            border-radius: 16px;
+            padding: 24px;
+            border: 1px solid #e8eaed;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+            position: relative;
+        }
+
+        .edit-panel::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 40px;
+            height: 3px;
+            background: #ea580c;
+            border-radius: 0 0 8px 8px;
+        }
+
+        .preview-panel::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 40px;
+            height: 3px;
+            background: #2563eb;
+            border-radius: 0 0 8px 8px;
+        }
+
+        .edit-panel h3, .preview-panel h3 {
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: #374151;
+            font-size: 1.1rem;
+        }
+
+        .preview-content {
+            margin-bottom: 16px;
+        }
+
+        @media (max-width: 1024px) {
+            .edit-preview-content {
+                grid-template-columns: 1fr;
+                gap: 24px;
+            }
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #1a1a1a;
+            margin-bottom: 12px;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            color: #6b7280;
+            font-weight: 400;
+        }
+
+        .upload-section {
+            background: #fefefe;
+            border-radius: 20px;
+            padding: 32px;
+            margin-bottom: 32px;
+            box-shadow: 
+                0 8px 24px rgba(0, 0, 0, 0.12),
+                0 2px 6px rgba(0, 0, 0, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.6);
+            position: relative;
+        }
+
+        .upload-section::before {
+            content: '';
+            position: absolute;
+            top: -1px;
+            left: 20px;
+            right: 20px;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(234, 88, 12, 0.3), transparent);
+        }
+
+        .upload-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+
+        .upload-area {
+            border: 2px dashed #d1d5db;
+            border-radius: 16px;
+            padding: 36px 24px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            background: #fafafa;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .upload-area::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .upload-area:hover {
+            border-color: #ea580c;
+            background: #fef7f0;
+            transform: translateY(-2px);
+        }
+
+        .upload-area:hover::before {
+            opacity: 1;
+        }
+
+        .upload-area.dragover {
+            border-color: #ea580c;
+            background: #fef7f0;
+            transform: scale(1.02);
+        }
+
+        .upload-icon {
+            font-size: 2.8rem;
+            color: #6b7280;
+            margin-bottom: 16px;
+            transition: transform 0.3s ease;
+        }
+
+        .upload-area:hover .upload-icon {
+            transform: scale(1.1);
+        }
+
+        .upload-text {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #374151;
+        }
+
+        .upload-hint {
+            font-size: 0.9rem;
+            color: #9ca3af;
+        }
+
+        .canvas-container {
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            border-radius: 12px;
+            overflow: visible;
+            width: 100%;
+        }
+
+        .canvas-wrapper {
+            position: relative;
+            display: inline-block;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+        }
+
+        #canvas {
+            display: block;
+            cursor: crosshair;
+            max-width: 100%;
+            height: auto;
+            border-radius: 12px;
+        }
+
+        .selection-box {
+            position: absolute;
+            border: 2px solid #ea580c;
+            background: rgba(234, 88, 12, 0.08);
+            z-index: 10;
+            border-radius: 8px;
+            cursor: move;
+        }
+
+        .selection-box::before {
+            content: "📱 二维码区域";
+            position: absolute;
+            top: -32px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #ea580c;
+            color: white;
+            padding: 6px 16px;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            white-space: nowrap;
+            box-shadow: 0 2px 8px rgba(234, 88, 12, 0.3);
+        }
+
+        .selection-box::after {
+            content: "拖拽调整大小";
+            position: absolute;
+            bottom: -28px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 16px;
+            font-size: 0.7rem;
+            white-space: nowrap;
+        }
+
+        .resize-handle {
+            position: absolute;
+            width: 18px;
+            height: 18px;
+            right: -9px;
+            bottom: -9px;
+            background: #fff;
+            border: 2px solid #ea580c;
+            border-radius: 50%;
+            cursor: se-resize;
+            z-index: 11;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+
+        .controls {
+            display: flex;
+            gap: 16px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 24px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s;
+        }
+
+        .btn:hover::before {
+            left: 100%;
+        }
+
+        .btn-primary {
+            background: #ea580c;
+            color: white;
+            box-shadow: 0 4px 12px rgba(234, 88, 12, 0.3);
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background: #dc2626;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(234, 88, 12, 0.4);
+        }
+
+        .btn-secondary {
+            background: #f8fafc;
+            color: #374151;
+            border: 1px solid #d1d5db;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background: #f1f5f9;
+            border-color: #9ca3af;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .btn-success {
+            background: #2563eb;
+            color: white;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+        }
+
+        .btn-success:hover:not(:disabled) {
+            background: #1d4ed8;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(37, 99, 235, 0.4);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        .preview-image {
+            max-width: 100%;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+        }
+
+        .status {
+            padding: 16px 20px;
+            border-radius: 12px;
+            margin: 20px 0;
+            font-weight: 500;
+            font-size: 0.95rem;
+        }
+
+        .status.info {
+            background: #eff6ff;
+            color: #1e40af;
+            border: 1px solid #bfdbfe;
+        }
+
+        .status.success {
+            background: #f0fdf4;
+            color: #166534;
+            border: 1px solid #bbf7d0;
+        }
+
+        .status.error {
+            background: #fef2f2;
+            color: #dc2626;
+            border: 1px solid #fecaca;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px 15px;
+            }
+
+            .header h1 {
+                font-size: 2rem;
+            }
+
+            .upload-grid {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+
+            .controls {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .btn {
+                width: 100%;
+                max-width: 300px;
+                justify-content: center;
+            }
+
+            .edit-preview-content {
+                gap: 20px;
+            }
+
+            .workflow-container {
+                padding: 24px;
+            }
+
+            .upload-section {
+                padding: 24px;
+            }
+        }
+
+        .instruction-tip {
+            background: #fef3c7;
+            color: #92400e;
+            padding: 16px 24px;
+            border-radius: 12px;
+            margin: 20px 0 24px 0;
+            font-weight: 500;
+            text-align: center;
+            font-size: 0.95rem;
+            border: 1px solid #fbbf24;
+            letter-spacing: 0.2px;
+        }
+
+        .footer {
+            margin-top: 60px;
+            padding: 24px 0;
+            text-align: center;
+            font-size: 14px;
+            color: #6b7280;
+        }
+
+        .footer a {
+            color: #ea580c;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .footer a:hover {
+            text-decoration: underline;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            .footer {
+                color: #f0f0f0;
+            }
+            .footer a {
+                color: #fbbf24;
+            }
+        }
+
+        .dark-theme .footer {
+            color: #f0f0f0;
+        }
+
+        .dark-theme .footer a {
+            color: #fbbf24;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>海报二维码自动填充工具</h1>
+            <p>简单几步，轻松为海报添加二维码</p>
+        </div>
+
+        <div class="workflow-container">
+            <!-- 第一步：上传区域 -->
+            <div class="upload-section">
+                <h2 style="margin-bottom: 20px; text-align: center; color: #1d1d1f; font-size: 1.4rem; font-weight: 600;">📤 上传图片</h2>
+                <div class="upload-grid">
+                    <div class="upload-area" id="posterUpload">
+                        <div class="upload-icon">🖼️</div>
+                        <div class="upload-text">上传海报图片</div>
+                        <div class="upload-hint">支持 JPG、PNG 格式</div>
+                        <input type="file" id="posterInput" accept="image/*" style="display: none;">
+                    </div>
+                    <div class="upload-area" id="qrUpload">
+                        <div class="upload-icon">📱</div>
+                        <div class="upload-text">上传二维码图片</div>
+                        <div class="upload-hint">支持 JPG、PNG 格式</div>
+                        <input type="file" id="qrInput" accept="image/*" style="display: none;">
+                    </div>
+                </div>
+                <div id="uploadStatus" class="status info hidden">
+                    请先上传海报图片和二维码图片
+                </div>
+            </div>
+
+            <!-- 第二步：编辑与预览区域 -->
+            <div class="edit-preview-section" id="editPreviewSection">
+                <h2 style="margin-bottom: 24px; text-align: center; color: #1d1d1f; font-size: 1.4rem; font-weight: 600;">✨ 编辑与预览</h2>
+                
+                <div class="edit-preview-content">
+                    <div class="edit-panel">
+                        <h3>调整二维码位置</h3>
+                        <div class="instruction-tip">
+                            💡 拖拽调整二维码的大小和位置
+                        </div>
+                        <div class="canvas-container" id="canvasContainer">
+                            <div id="canvasPlaceholder" style="display: flex; align-items: center; justify-content: center; width: 100%; height: 350px; background: #f6f8fa; color: #6b7280; font-size: 0.95rem; border-radius: 12px; border: 2px dashed #d1d5db; padding: 20px; box-sizing: border-box; text-align: center; font-weight: 500; line-height: 1.6;">
+                                请先上传海报和二维码图片，<br>编辑区将在此显示
+                            </div>
+                            <div class="canvas-wrapper" id="canvasWrapper" style="display: none;">
+                                <canvas id="canvas"></canvas>
+                            </div>
+                        </div>
+                        <div class="controls">
+                            <button class="btn btn-secondary" id="resetBtn" disabled>重置位置</button>
+                            <button class="btn btn-primary" id="confirmBtn" disabled>生成海报</button>
+                        </div>
+                    </div>
+
+                    <div class="preview-panel">
+                        <h3>实时预览</h3>
+                        <div class="preview-content">
+                            <div id="previewPlaceholder" style="display: flex; align-items: center; justify-content: center; width: 100%; height: 350px; background: #f6f8fa; color: #6b7280; font-size: 0.95rem; border-radius: 12px; border: 2px dashed #d1d5db; padding: 20px; box-sizing: border-box; text-align: center; font-weight: 500; line-height: 1.6;">
+                                点击"生成海报"查看最终效果
+                            </div>
+                            <img id="previewImage" class="preview-image" alt="合成后的海报" style="display: none; max-width: 100%; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.15);">
+                        </div>
+                        <div class="controls">
+                            <button class="btn btn-success" id="downloadBtn" disabled>
+                                <span>📥</span>
+                                下载海报
+                            </button>
+                            <button class="btn btn-secondary" id="newPosterBtn">
+                                <span>🔄</span>
+                                重新开始
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="footer">
+        <p>© 2025 海报二维码自动填充工具 | <a href="https://t.zsxq.com/MlnIL" target="_blank">联系作者</a></p>
+    </footer>
+
+    <script>
+        class PosterQRToolV2 {
+            constructor() {
+                this.posterImage = null;
+                this.qrImage = null;
+                this.canvas = document.getElementById('canvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.selectionBox = null;
+                this.isDragging = false;
+                this.isResizing = false;
+                this.dragOffset = { x: 0, y: 0 };
+                this.resizeStart = { x: 0, y: 0, width: 0, height: 0 };
+                this.selectionRect = null;
+                this.initEventListeners();
+                this.updateCanvasVisibility();
+            }
+
+            initEventListeners() {
+                document.getElementById('posterUpload').addEventListener('click', () => {
+                    document.getElementById('posterInput').click();
+                });
+                document.getElementById('qrUpload').addEventListener('click', () => {
+                    document.getElementById('qrInput').click();
+                });
+                document.getElementById('posterInput').addEventListener('change', (e) => {
+                    this.handleFileUpload(e.target.files[0], 'poster');
+                });
+                document.getElementById('qrInput').addEventListener('change', (e) => {
+                    this.handleFileUpload(e.target.files[0], 'qr');
+                });
+                this.setupDragAndDrop('posterUpload', 'poster');
+                this.setupDragAndDrop('qrUpload', 'qr');
+                document.getElementById('resetBtn').addEventListener('click', this.resetSelection.bind(this));
+                document.getElementById('confirmBtn').addEventListener('click', this.confirmSelection.bind(this));
+                document.getElementById('downloadBtn').addEventListener('click', this.downloadPoster.bind(this));
+                document.getElementById('newPosterBtn').addEventListener('click', this.resetAll.bind(this));
+            }
+
+            setupDragAndDrop(elementId, type) {
+                const element = document.getElementById(elementId);
+                element.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    element.classList.add('dragover');
+                });
+                element.addEventListener('dragleave', (e) => {
+                    e.preventDefault();
+                    element.classList.remove('dragover');
+                });
+                element.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    element.classList.remove('dragover');
+                    const files = e.dataTransfer.files;
+                    if (files.length > 0) {
+                        this.handleFileUpload(files[0], type);
+                    }
+                });
+            }
+
+            handleFileUpload(file, type) {
+                if (!file || !file.type.startsWith('image/')) {
+                    this.showStatus('请选择有效的图片文件', 'error');
+                    return;
+                }
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        if (type === 'poster') {
+                            this.posterImage = img;
+                            this.showStatus('海报图片上传成功！', 'success');
+                        } else {
+                            this.qrImage = img;
+                            this.showStatus('二维码图片上传成功！', 'success');
+                        }
+                        this.checkReadyState();
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+
+            checkReadyState() {
+                if (this.posterImage && this.qrImage) {
+                    this.showStatus('图片上传完成，进入编辑模式', 'success');
+                    this.setupCanvas();
+                    this.updateCanvasVisibility();
+                    document.getElementById('resetBtn').disabled = false;
+                    document.getElementById('confirmBtn').disabled = false;
+                }
+            }
+
+            setupCanvas() {
+                const maxWidth = Math.min(350, window.innerWidth - 100);
+                const scale = Math.min(maxWidth / this.posterImage.width, 1);
+                this.canvas.width = this.posterImage.width * scale;
+                this.canvas.height = this.posterImage.height * scale;
+                this.scale = scale;
+                this.ctx.drawImage(this.posterImage, 0, 0, this.canvas.width, this.canvas.height);
+                this.createDefaultSelection();
+            }
+
+            createDefaultSelection() {
+                const margin = 20;
+                const defaultSize = Math.min(this.canvas.width, this.canvas.height) * 0.15;
+                const x = this.canvas.width - defaultSize - margin;
+                const y = this.canvas.height - defaultSize - margin;
+                this.selectionRect = {
+                    x: x,
+                    y: y,
+                    width: defaultSize,
+                    height: defaultSize
+                };
+                this.updateSelectionBox();
+            }
+
+            updateSelectionBox() {
+                this.removeSelectionBox();
+                if (!this.selectionRect) return;
+                const box = document.createElement('div');
+                box.className = 'selection-box';
+                box.style.left = this.selectionRect.x + 'px';
+                box.style.top = this.selectionRect.y + 'px';
+                box.style.width = this.selectionRect.width + 'px';
+                box.style.height = this.selectionRect.height + 'px';
+                box.addEventListener('mousedown', (e) => {
+                    if (e.target.classList.contains('resize-handle')) return;
+                    e.stopPropagation();
+                    this.isDragging = true;
+                    this.dragOffset = {
+                        x: e.clientX - this.selectionRect.x,
+                        y: e.clientY - this.selectionRect.y
+                    };
+                    document.addEventListener('mousemove', this.handleDragMove);
+                    document.addEventListener('mouseup', this.handleDragEnd);
+                });
+                const handle = document.createElement('div');
+                handle.className = 'resize-handle';
+                handle.addEventListener('mousedown', (e) => {
+                    e.stopPropagation();
+                    this.isResizing = true;
+                    this.resizeStart = {
+                        x: e.clientX,
+                        y: e.clientY,
+                        width: this.selectionRect.width,
+                        height: this.selectionRect.height
+                    };
+                    document.addEventListener('mousemove', this.handleResizeMove);
+                    document.addEventListener('mouseup', this.handleResizeEnd);
+                });
+                box.appendChild(handle);
+                document.getElementById('canvasWrapper').appendChild(box);
+                this.selectionBox = box;
+            }
+
+            handleDragMove = (e) => {
+                if (!this.isDragging) return;
+                let newX = e.clientX - this.dragOffset.x;
+                let newY = e.clientY - this.dragOffset.y;
+                newX = Math.max(0, Math.min(this.canvas.width - this.selectionRect.width, newX));
+                newY = Math.max(0, Math.min(this.canvas.height - this.selectionRect.height, newY));
+                this.selectionRect.x = newX;
+                this.selectionRect.y = newY;
+                this.updateSelectionBox();
+            }
+
+            handleDragEnd = () => {
+                this.isDragging = false;
+                document.removeEventListener('mousemove', this.handleDragMove);
+                document.removeEventListener('mouseup', this.handleDragEnd);
+            }
+
+            handleResizeMove = (e) => {
+                if (!this.isResizing) return;
+                let newWidth = this.resizeStart.width + (e.clientX - this.resizeStart.x);
+                let newHeight = this.resizeStart.height + (e.clientY - this.resizeStart.y);
+                newWidth = Math.max(40, Math.min(this.canvas.width - this.selectionRect.x, newWidth));
+                newHeight = Math.max(40, Math.min(this.canvas.height - this.selectionRect.y, newHeight));
+                this.selectionRect.width = newWidth;
+                this.selectionRect.height = newHeight;
+                this.updateSelectionBox();
+            }
+
+            handleResizeEnd = () => {
+                this.isResizing = false;
+                document.removeEventListener('mousemove', this.handleResizeMove);
+                document.removeEventListener('mouseup', this.handleResizeEnd);
+            }
+
+            removeSelectionBox() {
+                if (this.selectionBox) {
+                    this.selectionBox.remove();
+                    this.selectionBox = null;
+                }
+            }
+
+            resetSelection() {
+                this.createDefaultSelection();
+            }
+
+            confirmSelection() {
+                if (!this.selectionRect) {
+                    this.showStatus('请先选择二维码放置区域', 'error');
+                    return;
+                }
+                const { x, y, width, height } = this.selectionRect;
+                const compositeCanvas = document.createElement('canvas');
+                const compositeCtx = compositeCanvas.getContext('2d');
+                compositeCanvas.width = this.posterImage.width;
+                compositeCanvas.height = this.posterImage.height;
+                compositeCtx.drawImage(this.posterImage, 0, 0);
+                const originalX = x / this.scale;
+                const originalY = y / this.scale;
+                const originalW = width / this.scale;
+                const originalH = height / this.scale;
+                compositeCtx.drawImage(
+                    this.qrImage,
+                    originalX,
+                    originalY,
+                    originalW,
+                    originalH
+                );
+                const previewImage = document.getElementById('previewImage');
+                const previewPlaceholder = document.getElementById('previewPlaceholder');
+                const downloadBtn = document.getElementById('downloadBtn');
+                
+                previewImage.src = compositeCanvas.toDataURL('image/png');
+                previewPlaceholder.style.display = 'none';
+                previewImage.style.display = 'block';
+                downloadBtn.disabled = false;
+                
+                this.compositeCanvas = compositeCanvas;
+                this.showStatus('海报合成成功！可以下载了', 'success');
+            }
+
+            downloadPoster() {
+                if (!this.compositeCanvas) {
+                    this.showStatus('请先合成海报', 'error');
+                    return;
+                }
+                const link = document.createElement('a');
+                link.download = 'poster-with-qr.png';
+                link.href = this.compositeCanvas.toDataURL('image/png');
+                link.click();
+                this.showStatus('海报下载成功！', 'success');
+            }
+
+            resetAll() {
+                this.posterImage = null;
+                this.qrImage = null;
+                this.compositeCanvas = null;
+                this.removeSelectionBox();
+                document.getElementById('posterInput').value = '';
+                document.getElementById('qrInput').value = '';
+                
+                const previewImage = document.getElementById('previewImage');
+                const previewPlaceholder = document.getElementById('previewPlaceholder');
+                const downloadBtn = document.getElementById('downloadBtn');
+                const resetBtn = document.getElementById('resetBtn');
+                const confirmBtn = document.getElementById('confirmBtn');
+                
+                previewImage.style.display = 'none';
+                previewPlaceholder.style.display = 'flex';
+                previewPlaceholder.textContent = '点击"生成海报"查看最终效果';
+                downloadBtn.disabled = true;
+                resetBtn.disabled = true;
+                confirmBtn.disabled = true;
+                
+                document.getElementById('uploadStatus').classList.remove('hidden');
+                document.getElementById('uploadStatus').textContent = '请先上传海报图片和二维码图片';
+                document.getElementById('uploadStatus').className = 'status info';
+                this.updateCanvasVisibility();
+            }
+
+            showStatus(message, type) {
+                const statusElement = document.getElementById('uploadStatus');
+                statusElement.textContent = message;
+                statusElement.className = `status ${type}`;
+                statusElement.classList.remove('hidden');
+                setTimeout(() => {
+                    statusElement.classList.add('hidden');
+                }, 3000);
+            }
+
+            updateCanvasVisibility() {
+                const canvasPlaceholder = document.getElementById('canvasPlaceholder');
+                const canvasWrapper = document.getElementById('canvasWrapper');
+                if (this.posterImage && this.qrImage) {
+                    canvasWrapper.style.display = 'block';
+                    canvasPlaceholder.style.display = 'none';
+                } else {
+                    canvasWrapper.style.display = 'none';
+                    canvasPlaceholder.style.display = 'flex';
+                }
+            }
+        }
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            new PosterQRToolV2();
+        });
+    </script>
+</body>
+</html>

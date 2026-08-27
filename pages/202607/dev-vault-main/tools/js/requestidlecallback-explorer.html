@@ -1,0 +1,1035 @@
+<!DOCTYPE html>
+<html tk="title_requestidlecallback_explo" lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>requestIdleCallback Explorer</title>
+<meta name="description" content="Interactive playground for requestIdleCallback API - visualize idle deadlines, task queues, and cooperative scheduling patterns.">
+<style>
+:root {
+  --bg: #0a0a0a;
+  --surface: #141414;
+  --surface-2: #1e1e1e;
+  --surface-3: #282828;
+  --border: #333;
+  --text: #e0e0e0;
+  --text-dim: #888;
+  --accent: #4fc3f7;
+  --accent-2: #81c784;
+  --accent-3: #ffb74d;
+  --accent-4: #e57373;
+  --accent-5: #ba68c8;
+  --radius: 8px;
+  --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --mono: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  min-height: 100vh;
+}
+header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 1.5rem 2rem;
+  text-align: center;
+}
+header h1 {
+  font-size: 1.8rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--accent), var(--accent-5));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+header p { color: var(--text-dim); margin-top: .3rem; font-size: .95rem; }
+.warn-banner {
+  background: var(--accent-4);
+  color: #000;
+  text-align: center;
+  padding: .5rem 1rem;
+  font-size: .85rem;
+  font-weight: 600;
+  display: none;
+}
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1.5rem;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+}
+.full-width { grid-column: 1 / -1; }
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+}
+.card h2 {
+  font-size: 1.1rem;
+  color: var(--accent);
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+}
+.card h2 .icon { font-size: 1.2rem; }
+button {
+  background: var(--surface-3);
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: .5rem 1rem;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-family: var(--font);
+  font-size: .85rem;
+  transition: all .15s;
+}
+button:hover { background: var(--accent); color: #000; border-color: var(--accent); }
+button:active { transform: scale(.97); }
+button.primary { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 600; }
+button.primary:hover { background: #29b6f6; }
+button.danger { border-color: var(--accent-4); color: var(--accent-4); }
+button.danger:hover { background: var(--accent-4); color: #000; }
+.btn-row { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: .75rem; }
+input[type="number"], input[type="text"], select {
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: .45rem .7rem;
+  border-radius: var(--radius);
+  font-family: var(--mono);
+  font-size: .85rem;
+  width: 100%;
+}
+input:focus, select:focus { outline: none; border-color: var(--accent); }
+label {
+  display: block;
+  font-size: .8rem;
+  color: var(--text-dim);
+  margin-bottom: .3rem;
+  font-weight: 500;
+}
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: .75rem;
+  margin-bottom: .75rem;
+}
+.deadline-bar {
+  height: 32px;
+  background: var(--surface-2);
+  border-radius: var(--radius);
+  position: relative;
+  overflow: hidden;
+  margin: .5rem 0;
+}
+.deadline-fill {
+  height: 100%;
+  border-radius: var(--radius);
+  transition: width .1s;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: .5rem;
+  font-size: .75rem;
+  font-weight: 600;
+  color: #000;
+}
+.log-area {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: .75rem;
+  max-height: 300px;
+  overflow-y: auto;
+  font-family: var(--mono);
+  font-size: .78rem;
+  line-height: 1.5;
+}
+.log-entry { padding: .15rem 0; border-bottom: 1px solid #1a1a1a; }
+.log-entry:last-child { border-bottom: none; }
+.log-entry .time { color: var(--accent); }
+.log-entry .remaining { color: var(--accent-2); }
+.log-entry .timeout { color: var(--accent-4); }
+.log-entry .task { color: var(--accent-3); }
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: .75rem;
+}
+.stat-item {
+  background: var(--surface-2);
+  border-radius: var(--radius);
+  padding: .75rem;
+  text-align: center;
+}
+.stat-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  font-family: var(--mono);
+  color: var(--accent);
+}
+.stat-label { font-size: .75rem; color: var(--text-dim); margin-top: .2rem; }
+.timeline-canvas {
+  width: 100%;
+  height: 200px;
+  background: var(--surface-2);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+.task-queue-item {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  padding: .5rem .75rem;
+  background: var(--surface-2);
+  border-radius: var(--radius);
+  margin-bottom: .5rem;
+  font-size: .85rem;
+}
+.task-queue-item .priority {
+  padding: .15rem .5rem;
+  border-radius: 4px;
+  font-size: .7rem;
+  font-weight: 600;
+}
+.priority-high { background: var(--accent-4); color: #000; }
+.priority-medium { background: var(--accent-3); color: #000; }
+.priority-low { background: var(--accent-2); color: #000; }
+.task-queue-item .status {
+  margin-left: auto;
+  font-size: .75rem;
+  font-family: var(--mono);
+}
+.status-pending { color: var(--text-dim); }
+.status-running { color: var(--accent-3); }
+.status-done { color: var(--accent-2); }
+.comparison-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: .75rem;
+  margin-top: .75rem;
+}
+.comparison-cell {
+  background: var(--surface-2);
+  border-radius: var(--radius);
+  padding: .75rem;
+  text-align: center;
+}
+.comparison-cell h4 {
+  font-size: .85rem;
+  color: var(--accent);
+  margin-bottom: .5rem;
+}
+.comparison-cell .ms {
+  font-family: var(--mono);
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+.tab-bar {
+  display: flex;
+  gap: .25rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: .5rem;
+}
+.tab-bar button {
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  padding: .4rem .8rem;
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+.tab-bar button.active {
+  color: var(--accent);
+  background: var(--surface-2);
+}
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  margin: .3rem 0;
+  font-size: .85rem;
+}
+.checkbox-row input[type="checkbox"] {
+  accent-color: var(--accent);
+  width: auto;
+}
+.code-block {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: .75rem;
+  font-family: var(--mono);
+  font-size: .78rem;
+  white-space: pre-wrap;
+  line-height: 1.5;
+  color: var(--text-dim);
+  margin-top: .75rem;
+  overflow-x: auto;
+}
+.code-block .kw { color: var(--accent-5); }
+.code-block .fn { color: var(--accent); }
+.code-block .str { color: var(--accent-2); }
+.code-block .num { color: var(--accent-3); }
+.code-block .cmt { color: #555; }
+.pattern-card {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem;
+  margin-bottom: .75rem;
+}
+.pattern-card h4 { color: var(--accent); font-size: .9rem; margin-bottom: .5rem; }
+.pattern-card p { font-size: .82rem; color: var(--text-dim); margin-bottom: .5rem; }
+footer {
+  text-align: center;
+  padding: 2rem;
+  color: var(--text-dim);
+  font-size: .8rem;
+  border-top: 1px solid var(--border);
+  margin-top: 2rem;
+}
+@media (max-width: 768px) {
+  .container { grid-template-columns: 1fr; padding: 1rem; }
+  .form-row { grid-template-columns: 1fr; }
+  .comparison-row { grid-template-columns: 1fr; }
+  .stat-grid { grid-template-columns: repeat(2, 1fr); }
+  header h1 { font-size: 1.3rem; }
+}
+</style>
+</head>
+<body>
+
+
+
+
+
+<div class="warn-banner" id="warnBanner">
+  Your browser does not support requestIdleCallback. A polyfill is being used for demonstration purposes.
+</div>
+
+<header>
+  <h1 ti="title_requestidlecallback_explo" ti="h1_requestidlecallback_explo" ti="title_requestidlecallback_explo" ti="h1_requestidlecallback_explo">requestIdleCallback Explorer</h1>
+  <p>Visualize idle deadlines, task queues, and cooperative scheduling patterns</p>
+</header>
+
+<div class="container" style="position:relative">
+
+  <!-- Deadline Visualization -->
+  <div class="card">
+    <h2><span class="icon">&#9201;</span> Idle Deadline Visualization</h2>
+    <p style="font-size:.85rem;color:var(--text-dim);margin-bottom:.75rem;">
+      Watch how <code style="color:var(--accent)">timeRemaining()</code> decreases during an idle callback. The browser typically gives ~50ms idle time.
+    </p>
+    <div id="deadlineDisplay">
+      <div style="display:flex;justify-content:space-between;font-size:.8rem;color:var(--text-dim);margin-bottom:.2rem;">
+        <span>0ms</span>
+        <span id="deadlineMax">50ms</span>
+      </div>
+      <div class="deadline-bar">
+        <div class="deadline-fill" id="deadlineFill" style="width:0%;background:var(--accent-2);">0ms</div>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:.5rem;">
+        <span style="font-size:.8rem;color:var(--text-dim);">didTimeout: <span id="didTimeoutVal" style="color:var(--accent-4)">false</span></span>
+        <span style="font-size:.8rem;color:var(--text-dim);">Calls: <span id="callCount" style="color:var(--accent)">0</span></span>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="primary" onclick="startDeadlineDemo()" ti="btn_start_sampling" ti="btn_start_sampling">Start Sampling</button>
+      <button onclick="stopDeadlineDemo()" ti="btn_stop" ti="btn_stop">Stop</button>
+      <button onclick="clearDeadlineLog()" ti="btn_clear_log" ti="btn_clear_log">Clear Log</button>
+    </div>
+    <div class="log-area" id="deadlineLog" style="margin-top:.75rem;max-height:180px;">
+      <div style="color:var(--text-dim)">Click "Start Sampling" to begin...</div>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="card">
+    <h2><span class="icon">&#128202;</span> Idle Time Statistics</h2>
+    <div class="stat-grid" id="statsGrid">
+      <div class="stat-item">
+        <div class="stat-value" id="statAvg">--</div>
+        <div class="stat-label">Avg Remaining (ms)</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value" id="statMin">--</div>
+        <div class="stat-label">Min Remaining (ms)</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value" id="statMax">--</div>
+        <div class="stat-label">Max Remaining (ms)</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value" id="statTotal">0</div>
+        <div class="stat-label">Total Callbacks</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value" id="statTimeouts">0</div>
+        <div class="stat-label">Timeouts</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value" id="statInterval">--</div>
+        <div class="stat-label">Avg Interval (ms)</div>
+      </div>
+    </div>
+    <div style="margin-top:1rem;">
+      <label ti="label_timeout_option_ms_0_none" ti="label_timeout_option_ms_0_none">Timeout option (ms, 0 = none)</label>
+      <input type="number" id="timeoutOption" value="0" min="0" max="10000" step="100">
+    </div>
+    <div style="margin-top:.5rem;">
+      <label ti="label_background_load_simulate" ti="label_background_load_simulate">Background load (simulate busy main thread)</label>
+      <select id="bgLoad">
+        <option value="0">None</option>
+        <option value="5">Light (5ms work)</option>
+        <option value="16">Medium (16ms work)</option>
+        <option value="50">Heavy (50ms work)</option>
+        <option value="100">Extreme (100ms work)</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Task Queue -->
+  <div class="card full-width">
+    <h2><span class="icon">&#128203;</span> Priority Task Queue</h2>
+    <p style="font-size:.85rem;color:var(--text-dim);margin-bottom:.75rem;">
+      Add tasks with different priorities. High-priority tasks get shorter timeouts (execute sooner even when busy). Low-priority tasks only run during true idle time.
+    </p>
+    <div class="form-row">
+      <div>
+        <label ti="label_task_name" ti="label_task_name">Task Name</label>
+        <input type="text" id="taskName" value="Data Processing" tp="placeholder_task_name" tp="placeholder_task_name" placeholder="Task name">
+      </div>
+      <div>
+        <label ti="label_work_duration_ms" ti="label_work_duration_ms">Work Duration (ms)</label>
+        <input type="number" id="taskDuration" value="10" min="1" max="500">
+      </div>
+    </div>
+    <div class="form-row">
+      <div>
+        <label ti="label_priority" ti="label_priority">Priority</label>
+        <select id="taskPriority">
+          <option value="high">High (timeout: 100ms)</option>
+          <option value="medium" selected>Medium (timeout: 1000ms)</option>
+          <option value="low">Low (no timeout)</option>
+        </select>
+      </div>
+      <div>
+        <label ti="label_count" ti="label_count">Count</label>
+        <input type="number" id="taskCount" value="5" min="1" max="50">
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="primary" onclick="addTasks()" ti="btn_add_tasks" ti="btn_add_tasks">Add Tasks</button>
+      <button onclick="startTaskQueue()" ti="btn_process_queue" ti="btn_process_queue">Process Queue</button>
+      <button class="danger" onclick="clearTaskQueue()" ti="btn_clear_all" ti="btn_clear_all">Clear All</button>
+      <button onclick="cancelAllTasks()" ti="btn_cancel_pending" ti="btn_cancel_pending">Cancel Pending</button>
+    </div>
+    <div id="taskQueueList" style="margin-top:.75rem;max-height:250px;overflow-y:auto;">
+      <div style="color:var(--text-dim);font-size:.85rem;padding:.5rem;">No tasks in queue</div>
+    </div>
+  </div>
+
+  <!-- cancelIdleCallback Demo -->
+  <div class="card">
+    <h2><span class="icon">&#10060;</span> cancelIdleCallback Demo</h2>
+    <p style="font-size:.85rem;color:var(--text-dim);margin-bottom:.75rem;">
+      Schedule a callback, then cancel it before it fires. Observe that the callback never executes.
+    </p>
+    <div id="cancelDemoLog" class="log-area" style="min-height:100px;">
+      <div style="color:var(--text-dim)">Click "Schedule & Cancel" to demo...</div>
+    </div>
+    <div class="btn-row">
+      <button class="primary" onclick="cancelDemo()" ti="btn_schedule_cancel" ti="btn_schedule_cancel">Schedule & Cancel</button>
+      <button onclick="scheduleOnly()" ti="btn_schedule_only" ti="btn_schedule_only">Schedule Only</button>
+      <button onclick="clearCancelLog()" ti="btn_clear" ti="btn_clear_2" ti="btn_clear_3" ti="btn_clear" ti="btn_clear_2" ti="btn_clear_3">Clear</button>
+    </div>
+  </div>
+
+  <!-- didTimeout Demo -->
+  <div class="card">
+    <h2><span class="icon">&#9200;</span> didTimeout Behavior</h2>
+    <p style="font-size:.85rem;color:var(--text-dim);margin-bottom:.75rem;">
+      When <code style="color:var(--accent)">timeout</code> is set and the browser is busy, the callback fires with <code style="color:var(--accent-4)">didTimeout: true</code> and <code style="color:var(--accent)">timeRemaining() === 0</code>.
+    </p>
+    <div class="form-row">
+      <div>
+        <label ti="label_timeout_ms" ti="label_timeout_ms">Timeout (ms)</label>
+        <input type="number" id="didTimeoutMs" value="200" min="50" max="5000" step="50">
+      </div>
+      <div>
+        <label ti="label_block_main_thread_for_ms" ti="label_block_main_thread_for_ms">Block main thread for (ms)</label>
+        <input type="number" id="blockMs" value="500" min="0" max="3000" step="100">
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="primary" onclick="didTimeoutDemo()" ti="btn_run_demo" ti="btn_run_demo">Run Demo</button>
+      <button onclick="clearDidTimeoutLog()">Clear</button>
+    </div>
+    <div id="didTimeoutLog" class="log-area" style="margin-top:.75rem;min-height:80px;">
+      <div style="color:var(--text-dim)">Click "Run Demo" to observe timeout behavior...</div>
+    </div>
+  </div>
+
+  <!-- Comparison -->
+  <div class="card full-width">
+    <h2><span class="icon">&#9889;</span> Comparison: rIC vs setTimeout vs rAF</h2>
+    <p style="font-size:.85rem;color:var(--text-dim);margin-bottom:.75rem;">
+      Compare when each scheduling API fires and how much idle time is available.
+    </p>
+    <div class="btn-row" style="margin-top:0;margin-bottom:.75rem;">
+      <button class="primary" onclick="runComparison()" ti="btn_run_comparison" ti="btn_run_comparison">Run Comparison</button>
+      <button onclick="runComparisonBusy()" ti="btn_run_with_busy_main_thread" ti="btn_run_with_busy_main_thread">Run (with busy main thread)</button>
+      <button onclick="clearComparison()">Clear</button>
+    </div>
+    <div class="comparison-row" id="comparisonResults">
+      <div class="comparison-cell">
+        <h4>requestIdleCallback</h4>
+        <div class="ms" id="cmpRic">--</div>
+        <div style="font-size:.75rem;color:var(--text-dim);margin-top:.3rem;">
+          timeRemaining: <span id="cmpRicRemain">--</span>
+        </div>
+      </div>
+      <div class="comparison-cell">
+        <h4>setTimeout(fn, 0)</h4>
+        <div class="ms" id="cmpTimeout">--</div>
+        <div style="font-size:.75rem;color:var(--text-dim);margin-top:.3rem;">
+          Actual delay from schedule
+        </div>
+      </div>
+      <div class="comparison-cell">
+        <h4>requestAnimationFrame</h4>
+        <div class="ms" id="cmpRaf">--</div>
+        <div style="font-size:.75rem;color:var(--text-dim);margin-top:.3rem;">
+          Tied to display refresh
+        </div>
+      </div>
+    </div>
+    <div class="log-area" id="comparisonLog" style="margin-top:.75rem;max-height:200px;">
+      <div style="color:var(--text-dim)">Results will appear here...</div>
+    </div>
+  </div>
+
+  <!-- Cooperative Scheduling Patterns -->
+  <div class="card full-width">
+    <h2><span class="icon">&#128736;</span> Cooperative Scheduling Patterns</h2>
+    <div class="tab-bar" id="patternTabs">
+      <button class="active" onclick="showPattern('chunk')" ti="btn_chunk_processing" ti="btn_chunk_processing">Chunk Processing</button>
+      <button onclick="showPattern('priority')" ti="btn_priority_queue" ti="btn_priority_queue">Priority Queue</button>
+      <button onclick="showPattern('deadline')" ti="btn_deadline_aware" ti="btn_deadline_aware">Deadline Aware</button>
+    </div>
+
+    <div id="pattern-chunk" class="pattern-card">
+      <h4>Chunk Processing Pattern</h4>
+      <p>Process a large array in small chunks during idle time, yielding back to the browser between chunks.</p>
+      <div class="code-block"><span class="kw">function</span> <span class="fn">processInChunks</span>(items, processFn, chunkSize = <span class="num">10</span>) {
+  <span class="kw">let</span> i = <span class="num">0</span>;
+  <span class="kw">function</span> <span class="fn">processChunk</span>(deadline) {
+    <span class="kw">while</span> (i &lt; items.length &amp;&amp; deadline.<span class="fn">timeRemaining</span>() > <span class="num">0</span>) {
+      <span class="kw">const</span> end = Math.<span class="fn">min</span>(i + chunkSize, items.length);
+      <span class="kw">for</span> (<span class="kw">let</span> j = i; j &lt; end; j++) <span class="fn">processFn</span>(items[j]);
+      i = end;
+    }
+    <span class="kw">if</span> (i &lt; items.length) <span class="fn">requestIdleCallback</span>(processChunk);
+  }
+  <span class="fn">requestIdleCallback</span>(processChunk);
+}</div>
+      <div class="btn-row">
+        <button class="primary" onclick="runChunkDemo()" ti="btn_run_demo_1000_items" ti="btn_run_demo_1000_items">Run Demo (1000 items)</button>
+        <span id="chunkStatus" style="font-size:.8rem;color:var(--text-dim);align-self:center;"></span>
+      </div>
+    </div>
+
+    <div id="pattern-priority" class="pattern-card" style="display:none;">
+      <h4>Priority Queue Pattern</h4>
+      <p>Use timeout option to enforce priority. Critical tasks get short timeouts, background tasks wait for true idle.</p>
+      <div class="code-block"><span class="kw">const</span> PRIORITY = { HIGH: <span class="num">100</span>, MEDIUM: <span class="num">1000</span>, LOW: <span class="num">0</span> };
+
+<span class="kw">function</span> <span class="fn">scheduleTask</span>(task, priority) {
+  <span class="kw">const</span> opts = priority > <span class="num">0</span> ? { timeout: priority } : {};
+  <span class="kw">return</span> <span class="fn">requestIdleCallback</span>((deadline) => {
+    <span class="cmt">// If didTimeout, task was forced due to priority</span>
+    <span class="kw">if</span> (deadline.didTimeout) console.<span class="fn">warn</span>(<span class="str">'Forced execution:'</span>, task.name);
+    task.<span class="fn">run</span>();
+  }, opts);
+}</div>
+    </div>
+
+    <div id="pattern-deadline" class="pattern-card" style="display:none;">
+      <h4>Deadline-Aware Pattern</h4>
+      <p>Check timeRemaining() before each unit of work. If time is short, defer to next idle period.</p>
+      <div class="code-block"><span class="kw">function</span> <span class="fn">deadlineAwareWork</span>(tasks) {
+  <span class="kw">function</span> <span class="fn">doWork</span>(deadline) {
+    <span class="kw">while</span> (tasks.length > <span class="num">0</span> &amp;&amp; deadline.<span class="fn">timeRemaining</span>() > <span class="num">1</span>) {
+      <span class="kw">const</span> task = tasks.<span class="fn">shift</span>();
+      <span class="cmt">// Estimate: will this task finish in remaining time?</span>
+      <span class="kw">if</span> (task.estimatedMs > deadline.<span class="fn">timeRemaining</span>()) {
+        tasks.<span class="fn">unshift</span>(task); <span class="cmt">// Put it back</span>
+        <span class="kw">break</span>;
+      }
+      task.<span class="fn">execute</span>();
+    }
+    <span class="kw">if</span> (tasks.length > <span class="num">0</span>) <span class="fn">requestIdleCallback</span>(doWork);
+  }
+  <span class="fn">requestIdleCallback</span>(doWork);
+}</div>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  requestIdleCallback Explorer &mdash; Interactive API Playground
+</footer>
+
+
+
+<script>var _LANG={'title_requestidlecallback_explo':["requestIdleCallback Explorer", "requestIdleCallback Explorer"],'metadesc_interactive_playground_fo':["Interactive playground for requestIdleCallback API - visualize idle deadlines, task queues, and cooperative scheduling patterns.", "requestIdleCallback API 的交互式演示平台 - 可视化空闲截止时间、任务队列和协作调度模式。"],'h1_requestidlecallback_explo':["requestIdleCallback Explorer", "requestIdleCallback Explorer"],'btn_start_sampling':["Start Sampling", "开始采样"],'btn_stop':["Stop", "停止"],'btn_clear_log':["Clear Log", "清除日志"],'btn_add_tasks':["Add Tasks", "添加任务"],'btn_process_queue':["Process Queue", "进程队列"],'btn_clear_all':["Clear All", "全部清除"],'btn_cancel_pending':["Cancel Pending", "取消待处理"],'btn_schedule_cancel':["Schedule & Cancel", "安排和取消"],'btn_schedule_only':["Schedule Only", "仅限日程安排"],'btn_clear':["Clear", "清除"],'btn_run_demo':["Run Demo", "运行演示"],'btn_clear_2':["Clear", "清除"],'btn_run_comparison':["Run Comparison", "运行比较"],'btn_run_with_busy_main_thread':["Run (with busy main thread)", "运行（主线程繁忙时）"],'btn_clear_3':["Clear", "清除"],'btn_chunk_processing':["Chunk Processing", "块处理"],'btn_priority_queue':["Priority Queue", "优先级队列"],'btn_deadline_aware':["Deadline Aware", "截止日期意识"],'btn_run_demo_1000_items':["Run Demo (1000 items)", "运行演示（1000 项）"],'placeholder_task_name':["Task name", "任务名称"],'label_timeout_option_ms_0_none':["Timeout option (ms, 0 = none)", "超时选项（毫秒，0 = 无）"],'label_background_load_simulate':["Background load (simulate busy main thread)", "后台加载（模拟繁忙的主线程）"],'label_task_name':["Task Name", "任务名称"],'label_work_duration_ms':["Work Duration (ms)", "工作时长（毫秒）"],'label_priority':["Priority", "优先事项"],'label_count':["Count", "数数"],'label_timeout_ms':["Timeout (ms)", "超时时间（毫秒）"],'label_block_main_thread_for_ms':["Block main thread for (ms)", "阻塞主线程（毫秒）"],'jtc_0ms':["0ms", "0毫秒"],'jtc_false':["false", "错误的"],'jtc_x':["--", "--"],'jtc_x_2':["...", "..."],'jtc_x_3':["...", "..."],'jtc_x_4':["--", "--"],'jtc_x_5':["--", "--"],'jtc_processing':["Processing...", "加工..."]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>var _LANG={'title_requestidlecallback_explo':["requestIdleCallback Explorer", "requestIdleCallback Explorer"],'metadesc_interactive_playground_fo':["Interactive playground for requestIdleCallback API - visualize idle deadlines, task queues, and cooperative scheduling patterns.", "requestIdleCallback API 的交互式演示平台 - 可视化空闲截止时间、任务队列和协作调度模式。"],'h1_requestidlecallback_explo':["requestIdleCallback Explorer", "requestIdleCallback Explorer"],'btn_start_sampling':["Start Sampling", "开始采样"],'btn_stop':["Stop", "停止"],'btn_clear_log':["Clear Log", "清除日志"],'btn_add_tasks':["Add Tasks", "添加任务"],'btn_process_queue':["Process Queue", "进程队列"],'btn_clear_all':["Clear All", "全部清除"],'btn_cancel_pending':["Cancel Pending", "取消待处理"],'btn_schedule_cancel':["Schedule & Cancel", "安排和取消"],'btn_schedule_only':["Schedule Only", "仅限日程安排"],'btn_clear':["Clear", "清除"],'btn_run_demo':["Run Demo", "运行演示"],'btn_clear_2':["Clear", "清除"],'btn_run_comparison':["Run Comparison", "运行比较"],'btn_run_with_busy_main_thread':["Run (with busy main thread)", "运行（主线程繁忙时）"],'btn_clear_3':["Clear", "清除"],'btn_chunk_processing':["Chunk Processing", "块处理"],'btn_priority_queue':["Priority Queue", "优先级队列"],'btn_deadline_aware':["Deadline Aware", "截止日期意识"],'btn_run_demo_1000_items':["Run Demo (1000 items)", "运行演示（1000 项）"],'placeholder_task_name':["Task name", "任务名称"],'label_timeout_option_ms_0_none':["Timeout option (ms, 0 = none)", "超时选项（毫秒，0 = 无）"],'label_background_load_simulate':["Background load (simulate busy main thread)", "后台加载（模拟繁忙的主线程）"],'label_task_name':["Task Name", "任务名称"],'label_work_duration_ms':["Work Duration (ms)", "工作时长（毫秒）"],'label_priority':["Priority", "优先事项"],'label_count':["Count", "数数"],'label_timeout_ms':["Timeout (ms)", "超时时间（毫秒）"],'label_block_main_thread_for_ms':["Block main thread for (ms)", "阻塞主线程（毫秒）"],'jtc_0ms':["0ms", "0毫秒"],'jtc_false':["false", "错误的"],'jtc_x':["--", "--"],'jtc_x_2':["...", "..."],'jtc_x_3':["...", "..."],'jtc_x_4':["--", "--"],'jtc_x_5':["--", "--"],'jtc_processing':["Processing...", "加工..."]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>
+// Feature detection
+const hasRIC = typeof window.requestIdleCallback === 'function';
+if (!hasRIC) {
+  document.getElementById('warnBanner').style.display = 'block';
+  // Polyfill
+  window.requestIdleCallback = function(cb, opts) {
+    const start = Date.now();
+    return setTimeout(() => {
+      cb({
+        didTimeout: opts && opts.timeout ? (Date.now() - start >= opts.timeout) : false,
+        timeRemaining: () => Math.max(0, 50 - (Date.now() - start))
+      });
+    }, 1);
+  };
+  window.cancelIdleCallback = function(id) { clearTimeout(id); };
+}
+
+// === Deadline Demo ===
+let deadlineSampling = false;
+let deadlineId = null;
+let deadlineStats = { values: [], timeouts: 0, timestamps: [] };
+let bgLoadInterval = null;
+
+function startDeadlineDemo() {
+  if (deadlineSampling) return;
+  deadlineSampling = true;
+  deadlineStats = { values: [], timeouts: 0, timestamps: [] };
+  document.getElementById('deadlineLog').innerHTML = '';
+  setupBgLoad();
+  sampleDeadline();
+}
+
+function stopDeadlineDemo() {
+  deadlineSampling = false;
+  if (deadlineId) { cancelIdleCallback(deadlineId); deadlineId = null; }
+  if (bgLoadInterval) { clearInterval(bgLoadInterval); bgLoadInterval = null; }
+}
+
+function clearDeadlineLog() {
+  stopDeadlineDemo();
+  document.getElementById('deadlineLog').innerHTML = '<div style="color:var(--text-dim)">Click "Start Sampling" to begin...</div>';
+  document.getElementById('deadlineFill').style.width = '0%';
+  document.getElementById('deadlineFill').textContent=T("jtc_0ms");
+  document.getElementById('callCount').textContent = '0';
+  document.getElementById('didTimeoutVal').textContent=T("jtc_false");
+  resetStats();
+}
+
+function setupBgLoad() {
+  if (bgLoadInterval) clearInterval(bgLoadInterval);
+  const load = parseInt(document.getElementById('bgLoad').value);
+  if (load > 0) {
+    bgLoadInterval = setInterval(() => {
+      const end = Date.now() + load;
+      while (Date.now() < end) { /* busy */ }
+    }, 16);
+  }
+}
+
+function sampleDeadline() {
+  const timeout = parseInt(document.getElementById('timeoutOption').value);
+  const opts = timeout > 0 ? { timeout } : undefined;
+  deadlineId = requestIdleCallback((deadline) => {
+    const remaining = deadline.timeRemaining();
+    const timedOut = deadline.didTimeout;
+    deadlineStats.values.push(remaining);
+    deadlineStats.timestamps.push(performance.now());
+    if (timedOut) deadlineStats.timeouts++;
+
+    // Update bar
+    const pct = Math.min(100, (remaining / 50) * 100);
+    const fill = document.getElementById('deadlineFill');
+    fill.style.width = pct + '%';
+    fill.textContent = remaining.toFixed(1) + 'ms';
+    fill.style.background = remaining > 30 ? 'var(--accent-2)' : remaining > 10 ? 'var(--accent-3)' : 'var(--accent-4)';
+
+    document.getElementById('didTimeoutVal').textContent = String(timedOut);
+    document.getElementById('didTimeoutVal').style.color = timedOut ? 'var(--accent-4)' : 'var(--accent-2)';
+    document.getElementById('callCount').textContent = deadlineStats.values.length;
+
+    // Log
+    const log = document.getElementById('deadlineLog');
+    const entry = document.createElement('div');
+    entry.className = 'log-entry';
+    entry.innerHTML = `<span class="time">[${new Date().toLocaleTimeString()}]</span> ` +
+      `<span class="remaining">timeRemaining: ${remaining.toFixed(2)}ms</span>` +
+      (timedOut ? ' <span class="timeout">[TIMED OUT]</span>' : '');
+    log.appendChild(entry);
+    log.scrollTop = log.scrollHeight;
+
+    updateStats();
+
+    if (deadlineSampling) sampleDeadline();
+  }, opts);
+}
+
+function updateStats() {
+  const v = deadlineStats.values;
+  if (v.length === 0) return;
+  const avg = v.reduce((a, b) => a + b, 0) / v.length;
+  const min = Math.min(...v);
+  const max = Math.max(...v);
+  document.getElementById('statAvg').textContent = avg.toFixed(1);
+  document.getElementById('statMin').textContent = min.toFixed(1);
+  document.getElementById('statMax').textContent = max.toFixed(1);
+  document.getElementById('statTotal').textContent = v.length;
+  document.getElementById('statTimeouts').textContent = deadlineStats.timeouts;
+
+  if (deadlineStats.timestamps.length > 1) {
+    const ts = deadlineStats.timestamps;
+    let totalInterval = 0;
+    for (let i = 1; i < ts.length; i++) totalInterval += ts[i] - ts[i - 1];
+    document.getElementById('statInterval').textContent = (totalInterval / (ts.length - 1)).toFixed(0);
+  }
+}
+
+function resetStats() {
+  ['statAvg','statMin','statMax','statInterval'].forEach(id => document.getElementById(id).textContent=T("jtc_x"));
+  ['statTotal','statTimeouts'].forEach(id => document.getElementById(id).textContent = '0');
+}
+
+// === Task Queue ===
+let taskQueue = [];
+let taskIdCounter = 0;
+let taskHandles = new Map();
+
+function addTasks() {
+  const name = document.getElementById('taskName').value || 'Task';
+  const duration = parseInt(document.getElementById('taskDuration').value) || 10;
+  const priority = document.getElementById('taskPriority').value;
+  const count = parseInt(document.getElementById('taskCount').value) || 1;
+
+  for (let i = 0; i < count; i++) {
+    taskQueue.push({
+      id: ++taskIdCounter,
+      name: `${name} #${taskIdCounter}`,
+      duration,
+      priority,
+      status: 'pending'
+    });
+  }
+  renderTaskQueue();
+}
+
+function startTaskQueue() {
+  const pending = taskQueue.filter(t => t.status === 'pending');
+  // Sort: high first, then medium, then low
+  const order = { high: 0, medium: 1, low: 2 };
+  pending.sort((a, b) => order[a.priority] - order[b.priority]);
+
+  pending.forEach(task => {
+    const timeouts = { high: 100, medium: 1000, low: 0 };
+    const timeout = timeouts[task.priority];
+    const opts = timeout > 0 ? { timeout } : undefined;
+    task.status = 'queued';
+    const handle = requestIdleCallback((deadline) => {
+      task.status = 'running';
+      renderTaskQueue();
+      // Simulate work
+      const start = performance.now();
+      while (performance.now() - start < task.duration) { /* work */ }
+      task.status = 'done';
+      task.didTimeout = deadline.didTimeout;
+      task.remaining = deadline.timeRemaining();
+      taskHandles.delete(task.id);
+      renderTaskQueue();
+    }, opts);
+    taskHandles.set(task.id, handle);
+  });
+  renderTaskQueue();
+}
+
+function cancelAllTasks() {
+  taskHandles.forEach((handle) => cancelIdleCallback(handle));
+  taskHandles.clear();
+  taskQueue.forEach(t => { if (t.status !== 'done') t.status = 'cancelled'; });
+  renderTaskQueue();
+}
+
+function clearTaskQueue() {
+  cancelAllTasks();
+  taskQueue = [];
+  taskIdCounter = 0;
+  renderTaskQueue();
+}
+
+function renderTaskQueue() {
+  const container = document.getElementById('taskQueueList');
+  if (taskQueue.length === 0) {
+    container.innerHTML = '<div style="color:var(--text-dim);font-size:.85rem;padding:.5rem;">No tasks in queue</div>';
+    return;
+  }
+  container.innerHTML = taskQueue.map(t => {
+    const prClass = `priority-${t.priority}`;
+    const stClass = `status-${t.status === 'cancelled' ? 'pending' : t.status}`;
+    let extra = '';
+    if (t.status === 'done') {
+      extra = ` | ${t.didTimeout ? 'forced' : 'idle'} | remaining: ${t.remaining?.toFixed(1)}ms`;
+    }
+    return `<div class="task-queue-item">
+      <span class="priority ${prClass}">${t.priority.toUpperCase()}</span>
+      <span>${t.name} (${t.duration}ms)</span>
+      <span class="status ${stClass}">${t.status}${extra}</span>
+    </div>`;
+  }).join('');
+}
+
+// === Cancel Demo ===
+function cancelDemo() {
+  const log = document.getElementById('cancelDemoLog');
+  log.innerHTML = '';
+  addCancelLog('Scheduling idle callback...');
+  const id = requestIdleCallback(() => {
+    addCancelLog('<span style="color:var(--accent-4)">Callback EXECUTED (should not happen if cancelled!)</span>');
+  });
+  addCancelLog(`Got handle: ${id}`);
+  addCancelLog('Calling cancelIdleCallback(' + id + ')...');
+  cancelIdleCallback(id);
+  addCancelLog('<span style="color:var(--accent-2)">Cancelled! Callback will NOT fire.</span>');
+  setTimeout(() => {
+    addCancelLog('<span style="color:var(--text-dim)">[200ms later] Confirmed: callback never executed.</span>');
+  }, 200);
+}
+
+function scheduleOnly() {
+  const log = document.getElementById('cancelDemoLog');
+  log.innerHTML = '';
+  addCancelLog('Scheduling idle callback (without cancelling)...');
+  const id = requestIdleCallback((deadline) => {
+    addCancelLog(`<span style="color:var(--accent-2)">Callback EXECUTED! timeRemaining: ${deadline.timeRemaining().toFixed(2)}ms</span>`);
+  });
+  addCancelLog(`Got handle: ${id}. Waiting for idle time...`);
+}
+
+function addCancelLog(html) {
+  const log = document.getElementById('cancelDemoLog');
+  const entry = document.createElement('div');
+  entry.className = 'log-entry';
+  entry.innerHTML = `<span class="time">[${new Date().toLocaleTimeString()}]</span> ${html}`;
+  log.appendChild(entry);
+}
+
+function clearCancelLog() {
+  document.getElementById('cancelDemoLog').innerHTML = '<div style="color:var(--text-dim)">Click "Schedule & Cancel" to demo...</div>';
+}
+
+// === didTimeout Demo ===
+function didTimeoutDemo() {
+  const timeoutMs = parseInt(document.getElementById('didTimeoutMs').value) || 200;
+  const blockMs = parseInt(document.getElementById('blockMs').value) || 500;
+  const log = document.getElementById('didTimeoutLog');
+  log.innerHTML = '';
+  addDidTimeoutLog(`Scheduling with timeout: ${timeoutMs}ms`);
+  if (blockMs > 0) addDidTimeoutLog(`Blocking main thread for ${blockMs}ms...`);
+
+  const scheduleTime = performance.now();
+
+  requestIdleCallback((deadline) => {
+    const elapsed = (performance.now() - scheduleTime).toFixed(1);
+    addDidTimeoutLog(`Callback fired after ${elapsed}ms`);
+    addDidTimeoutLog(`didTimeout: <span style="color:${deadline.didTimeout ? 'var(--accent-4)' : 'var(--accent-2)'}">${deadline.didTimeout}</span>`);
+    addDidTimeoutLog(`timeRemaining(): <span style="color:var(--accent)">${deadline.timeRemaining().toFixed(2)}ms</span>`);
+    if (deadline.didTimeout) {
+      addDidTimeoutLog('<span style="color:var(--accent-3)">The browser forced execution because the timeout expired while the main thread was busy.</span>');
+    }
+  }, { timeout: timeoutMs });
+
+  if (blockMs > 0) {
+    const end = performance.now() + blockMs;
+    while (performance.now() < end) { /* block */ }
+    addDidTimeoutLog(`Main thread unblocked after ${blockMs}ms`);
+  }
+}
+
+function addDidTimeoutLog(html) {
+  const log = document.getElementById('didTimeoutLog');
+  const entry = document.createElement('div');
+  entry.className = 'log-entry';
+  entry.innerHTML = `<span class="time">[${new Date().toLocaleTimeString()}]</span> ${html}`;
+  log.appendChild(entry);
+}
+
+function clearDidTimeoutLog() {
+  document.getElementById('didTimeoutLog').innerHTML = '<div style="color:var(--text-dim)">Click "Run Demo" to observe timeout behavior...</div>';
+}
+
+// === Comparison ===
+function runComparison(busy = false) {
+  const log = document.getElementById('comparisonLog');
+  log.innerHTML = '';
+  ['cmpRic','cmpTimeout','cmpRaf'].forEach(id => document.getElementById(id).textContent=T("jtc_x_2"));
+  document.getElementById('cmpRicRemain').textContent=T("jtc_x_2");
+
+  const results = {};
+  const start = performance.now();
+  let done = 0;
+
+  function checkDone() {
+    done++;
+    if (done === 3) {
+      const order = Object.entries(results).sort((a, b) => a[1].time - b[1].time);
+      order.forEach(([name, data], i) => {
+        addCompLog(`${i + 1}. ${name}: ${data.time.toFixed(2)}ms${data.extra || ''}`);
+      });
+    }
+  }
+
+  requestIdleCallback((deadline) => {
+    const elapsed = performance.now() - start;
+    results['requestIdleCallback'] = { time: elapsed, extra: ` (remaining: ${deadline.timeRemaining().toFixed(1)}ms, didTimeout: ${deadline.didTimeout})` };
+    document.getElementById('cmpRic').textContent = elapsed.toFixed(1) + 'ms';
+    document.getElementById('cmpRicRemain').textContent = deadline.timeRemaining().toFixed(1) + 'ms';
+    checkDone();
+  });
+
+  setTimeout(() => {
+    const elapsed = performance.now() - start;
+    results['setTimeout(0)'] = { time: elapsed };
+    document.getElementById('cmpTimeout').textContent = elapsed.toFixed(1) + 'ms';
+    checkDone();
+  }, 0);
+
+  requestAnimationFrame(() => {
+    const elapsed = performance.now() - start;
+    results['requestAnimationFrame'] = { time: elapsed };
+    document.getElementById('cmpRaf').textContent = elapsed.toFixed(1) + 'ms';
+    checkDone();
+  });
+
+  if (busy) {
+    const end = performance.now() + 100;
+    while (performance.now() < end) { /* busy */ }
+    addCompLog('(Main thread was blocked for 100ms)');
+  }
+}
+
+function runComparisonBusy() { runComparison(true); }
+
+function addCompLog(text) {
+  const log = document.getElementById('comparisonLog');
+  const entry = document.createElement('div');
+  entry.className = 'log-entry';
+  entry.textContent = text;
+  log.appendChild(entry);
+}
+
+function clearComparison() {
+  document.getElementById('comparisonLog').innerHTML = '<div style="color:var(--text-dim)">Results will appear here...</div>';
+  ['cmpRic','cmpTimeout','cmpRaf'].forEach(id => document.getElementById(id).textContent=T("jtc_x"));
+  document.getElementById('cmpRicRemain').textContent=T("jtc_x");
+}
+
+// === Patterns ===
+function showPattern(name) {
+  document.querySelectorAll('[id^="pattern-"]').forEach(el => el.style.display = 'none');
+  document.getElementById('pattern-' + name).style.display = 'block';
+  document.querySelectorAll('#patternTabs button').forEach(btn => btn.classList.remove('active'));
+  event.target.classList.add('active');
+}
+
+function runChunkDemo() {
+  const items = Array.from({ length: 1000 }, (_, i) => i);
+  let processed = 0;
+  const status = document.getElementById('chunkStatus');
+  status.textContent=T("jtc_processing");
+  const start = performance.now();
+
+  function processChunk(deadline) {
+    while (processed < items.length && deadline.timeRemaining() > 0) {
+      // Simulate work per item
+      const end = performance.now() + 0.1;
+      while (performance.now() < end) {}
+      processed++;
+    }
+    status.textContent = `${processed}/1000 items (${(performance.now() - start).toFixed(0)}ms elapsed)`;
+    if (processed < items.length) {
+      requestIdleCallback(processChunk);
+    } else {
+      status.textContent = `Done! 1000 items in ${(performance.now() - start).toFixed(0)}ms (cooperatively)`;
+      status.style.color = 'var(--accent-2)';
+    }
+  }
+  requestIdleCallback(processChunk);
+}
+</script>
+
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+</body>
+</html>

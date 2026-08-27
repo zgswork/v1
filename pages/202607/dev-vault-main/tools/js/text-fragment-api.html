@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html tk="title_text_fragment_api_playgro" lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Text Fragment API Playground</title>
+<meta name="description" content="Interactive playground for the Text Fragment API. Build #:~:text= URLs, configure prefix/suffix context, highlight multiple fragments, and generate shareable links.">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0a0a0a;
+  --surface: #141414;
+  --surface-2: #1e1e1e;
+  --surface-3: #282828;
+  --border: #333;
+  --text: #e0e0e0;
+  --text-dim: #888;
+  --accent: #e8a838;
+  --accent-dim: #c48a20;
+  --success: #4caf50;
+  --warning: #ff9800;
+  --error: #f44336;
+  --highlight: rgba(232, 168, 56, 0.25);
+  --highlight-border: rgba(232, 168, 56, 0.6);
+  --radius: 8px;
+  --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --mono: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+}
+body { font-family: var(--font); background: var(--bg); color: var(--text); line-height: 1.6; min-height: 100vh; }
+header {
+  text-align: center; padding: 2rem 1rem; border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, var(--surface) 0%, var(--bg) 100%);
+}
+header h1 { font-size: 1.8rem; font-weight: 700; margin-bottom: 0.3rem; }
+header h1 span { color: var(--accent); }
+header p { color: var(--text-dim); font-size: 0.95rem; }
+.support-badge {
+  display: inline-block; margin-top: 0.5rem; padding: 0.25rem 0.75rem;
+  border-radius: 999px; font-size: 0.8rem; font-weight: 600;
+}
+.supported { background: rgba(76,175,80,0.15); color: var(--success); border: 1px solid rgba(76,175,80,0.3); }
+.unsupported { background: rgba(244,67,54,0.15); color: var(--error); border: 1px solid rgba(244,67,54,0.3); }
+main { max-width: 1200px; margin: 0 auto; padding: 1.5rem 1rem; }
+.tabs {
+  display: flex; gap: 0.25rem; border-bottom: 2px solid var(--border);
+  margin-bottom: 1.5rem; overflow-x: auto; -webkit-overflow-scrolling: touch;
+}
+.tab {
+  padding: 0.6rem 1.2rem; background: none; border: none; color: var(--text-dim);
+  cursor: pointer; font-size: 0.9rem; font-family: var(--font); white-space: nowrap;
+  border-bottom: 2px solid transparent; margin-bottom: -2px; transition: color 0.2s, border-color 0.2s;
+}
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.panel { display: none; }
+.panel.active { display: block; }
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 1.25rem; margin-bottom: 1rem;
+}
+.card h2 { font-size: 1.1rem; margin-bottom: 0.75rem; color: var(--accent); }
+.card h3 { font-size: 0.95rem; margin-bottom: 0.5rem; color: var(--text); }
+label { display: block; font-size: 0.85rem; color: var(--text-dim); margin-bottom: 0.3rem; }
+input[type="text"], input[type="url"], select, textarea {
+  width: 100%; padding: 0.5rem 0.75rem; background: var(--surface-2);
+  border: 1px solid var(--border); border-radius: var(--radius); color: var(--text);
+  font-family: var(--mono); font-size: 0.85rem; outline: none; transition: border-color 0.2s;
+}
+input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+textarea { resize: vertical; min-height: 80px; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem; }
+.form-group { margin-bottom: 0.75rem; }
+button {
+  padding: 0.5rem 1rem; background: var(--accent); color: #000; border: none;
+  border-radius: var(--radius); cursor: pointer; font-family: var(--font);
+  font-size: 0.85rem; font-weight: 600; transition: background 0.2s;
+}
+button:hover { background: var(--accent-dim); }
+button.secondary { background: var(--surface-3); color: var(--text); }
+button.secondary:hover { background: var(--border); }
+.btn-row { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.75rem; }
+pre {
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 1rem; overflow-x: auto; font-family: var(--mono); font-size: 0.82rem;
+  line-height: 1.5; color: #c5c5c5; position: relative; word-break: break-all; white-space: pre-wrap;
+}
+pre .copy-btn {
+  position: absolute; top: 0.5rem; right: 0.5rem; padding: 0.25rem 0.6rem; font-size: 0.75rem;
+  background: var(--surface-3);
+}
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.sample-text {
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 1.25rem; line-height: 1.8; font-size: 0.95rem;
+}
+.sample-text mark {
+  background: var(--highlight); border-bottom: 2px solid var(--highlight-border);
+  padding: 0.1rem 0.15rem; border-radius: 2px; color: var(--text);
+}
+.fragment-list { list-style: none; }
+.fragment-list li {
+  display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border); font-family: var(--mono); font-size: 0.85rem;
+}
+.fragment-list li:last-child { border-bottom: none; }
+.fragment-list li button { padding: 0.2rem 0.5rem; font-size: 0.75rem; }
+.url-display {
+  background: var(--surface-2); border: 1px solid var(--accent); border-radius: var(--radius);
+  padding: 0.75rem 1rem; font-family: var(--mono); font-size: 0.82rem;
+  word-break: break-all; color: var(--accent); margin-top: 0.75rem;
+}
+.info-box {
+  background: rgba(232,168,56,0.08); border: 1px solid rgba(232,168,56,0.2);
+  border-radius: var(--radius); padding: 0.75rem 1rem; font-size: 0.85rem;
+  color: var(--text-dim); margin-bottom: 1rem;
+}
+.style-preview {
+  padding: 1rem; background: var(--surface-2); border-radius: var(--radius);
+  border: 1px solid var(--border); margin-top: 0.75rem;
+}
+.directive-table {
+  width: 100%; border-collapse: collapse; font-size: 0.85rem;
+}
+.directive-table th, .directive-table td {
+  padding: 0.5rem 0.75rem; text-align: left; border-bottom: 1px solid var(--border);
+}
+.directive-table th { color: var(--accent); font-weight: 600; }
+.directive-table code { font-family: var(--mono); color: var(--accent); }
+@media (max-width: 768px) {
+  .form-row, .two-col { grid-template-columns: 1fr; }
+  .tab { padding: 0.5rem 0.8rem; font-size: 0.82rem; }
+  header h1 { font-size: 1.4rem; }
+}
+</style>
+</head>
+<body>
+
+
+
+
+
+
+
+<header>
+  <h1>Text <span>Fragment</span> Playground</h1>
+  <p>Build &amp; test #:~:text= URLs for linking directly to text on any page</p>
+  <div id="supportBadge"></div>
+</header>
+
+<main>
+  <div class="tabs" role="tablist">
+    <button class="tab active" data-panel="builder" role="tab" ti="btn_url_builder" ti="btn_url_builder" ti="btn_url_builder">URL Builder</button>
+    <button class="tab" data-panel="context" role="tab" ti="btn_prefix_suffix" ti="btn_prefix_suffix" ti="btn_prefix_suffix">Prefix/Suffix</button>
+    <button class="tab" data-panel="multi" role="tab" ti="btn_multiple_fragments" ti="btn_multiple_fragments" ti="btn_multiple_fragments">Multiple Fragments</button>
+    <button class="tab" data-panel="demo" role="tab" ti="btn_live_demo" ti="btn_live_demo" ti="btn_live_demo">Live Demo</button>
+    <button class="tab" data-panel="style" role="tab" ti="btn_target_text" ti="btn_target_text" ti="btn_target_text">::target-text</button>
+    <button class="tab" data-panel="reference" role="tab" ti="btn_reference" ti="btn_reference" ti="btn_reference">Reference</button>
+  </div>
+
+  <!-- URL Builder Panel -->
+  <div class="panel active" id="builder">
+    <div class="card">
+      <h2 ti="h2_text_fragment_url_builder" ti="h2_text_fragment_url_builder" ti="h2_text_fragment_url_builder">Text Fragment URL Builder</h2>
+      <p style="color:var(--text-dim);font-size:0.85rem;margin-bottom:1rem;">
+        Create a URL that links directly to specific text on a page using the Text Fragments API (<code>#:~:text=</code>).
+      </p>
+
+      <div class="form-group">
+        <label for="baseUrl" ti="label_page_url" ti="label_page_url_2" ti="label_page_url" ti="label_page_url_2" ti="label_page_url" ti="label_page_url_2">Page URL</label>
+        <input type="url" id="baseUrl" value="https://example.com/article" tp="placeholder_https_example_com_page" tp="placeholder_https_example_com_page_2" tp="placeholder_https_example_com_page" tp="placeholder_https_example_com_page_2" tp="placeholder_https_example_com_page" tp="placeholder_https_example_com_page_2" placeholder="https://example.com/page">
+      </div>
+
+      <div class="form-group">
+        <label for="textStart" ti="label_text_start_required" ti="label_text_start_required" ti="label_text_start_required">Text Start (required)</label>
+        <input type="text" id="textStart" value="important section" tp="placeholder_the_text_to_highlight_sta" tp="placeholder_the_text_to_highlight_sta" tp="placeholder_the_text_to_highlight_sta" placeholder="The text to highlight starts here">
+      </div>
+
+      <div class="form-group">
+        <label for="textEnd" ti="label_text_end_optional_for_ran" ti="label_text_end_optional_for_ran" ti="label_text_end_optional_for_ran">Text End (optional, for range)</label>
+        <input type="text" id="textEnd" value="" tp="placeholder_the_text_to_highlight_end" tp="placeholder_the_text_to_highlight_end" tp="placeholder_the_text_to_highlight_end" placeholder="The text to highlight ends here (for ranges)">
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="textPrefix" ti="label_prefix_context_optional" ti="label_prefix_context_optional" ti="label_prefix_context_optional">Prefix Context (optional)</label>
+          <input type="text" id="textPrefix" value="" tp="placeholder_text_before_the_target" tp="placeholder_text_before_the_target" tp="placeholder_text_before_the_target" placeholder="Text before the target">
+        </div>
+        <div class="form-group">
+          <label for="textSuffix" ti="label_suffix_context_optional" ti="label_suffix_context_optional" ti="label_suffix_context_optional">Suffix Context (optional)</label>
+          <input type="text" id="textSuffix" value="" tp="placeholder_text_after_the_target" tp="placeholder_text_after_the_target" tp="placeholder_text_after_the_target" placeholder="Text after the target">
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button onclick="buildUrl()" ti="btn_generate_url" ti="btn_generate_url_2" ti="btn_generate_url" ti="btn_generate_url_2" ti="btn_generate_url" ti="btn_generate_url_2">Generate URL</button>
+        <button class="secondary" onclick="copyGeneratedUrl()" ti="btn_copy_url" ti="btn_copy_url_2" ti="btn_copy_url_3" ti="btn_copy_url" ti="btn_copy_url_2" ti="btn_copy_url_3" ti="btn_copy_url" ti="btn_copy_url_2" ti="btn_copy_url_3">Copy URL</button>
+        <button class="secondary" onclick="openGeneratedUrl()" ti="btn_open_in_new_tab" ti="btn_open_in_new_tab" ti="btn_open_in_new_tab">Open in New Tab</button>
+      </div>
+
+      <div id="generatedUrl" class="url-display" style="display:none;"></div>
+    </div>
+
+    <div class="card">
+      <h3 ti="h3_url_anatomy" ti="h3_url_anatomy" ti="h3_url_anatomy">URL Anatomy</h3>
+      <pre id="urlAnatomy"><button class="copy-btn" onclick="copyCode('urlAnatomy')" ti="btn_copy" ti="btn_copy_2" ti="btn_copy_3" ti="btn_copy_4" ti="btn_copy" ti="btn_copy_2" ti="btn_copy_3" ti="btn_copy_4" ti="btn_copy" ti="btn_copy_2" ti="btn_copy_3" ti="btn_copy_4">Copy</button>https://example.com/article#:~:text=important%20section
+
+Breakdown:
+  https://example.com/article  ← Base URL
+  #                            ← Fragment identifier start
+  :~:                          ← Fragment directive delimiter
+  text=                        ← Text fragment directive
+  important%20section          ← URL-encoded target text</pre>
+    </div>
+
+    <div class="card">
+      <h3 ti="h3_fragment_directive_syntax" ti="h3_fragment_directive_syntax" ti="h3_fragment_directive_syntax">Fragment Directive Syntax</h3>
+      <table class="directive-table">
+        <tr><th ti="th_pattern" ti="th_pattern" ti="th_pattern">Pattern</th><th ti="th_description" ti="th_description" ti="th_description">Description</th><th ti="th_example" ti="th_example" ti="th_example">Example</th></tr>
+        <tr><td><code>text=start</code></td><td>Exact text match</td><td><code>text=hello%20world</code></td></tr>
+        <tr><td><code>text=start,end</code></td><td>Text range (start to end)</td><td><code>text=Chapter%201,Chapter%202</code></td></tr>
+        <tr><td><code>text=prefix-,start</code></td><td>With prefix context</td><td><code>text=Section%203:-,important</code></td></tr>
+        <tr><td><code>text=start,-suffix</code></td><td>With suffix context</td><td><code>text=important,-in%20this</code></td></tr>
+        <tr><td><code>text=prefix-,start,end,-suffix</code></td><td>Full syntax</td><td><code>text=Ch1:-,start,end,-Ch2</code></td></tr>
+        <tr><td><code>&amp;text=...</code></td><td>Multiple fragments</td><td><code>text=first&amp;text=second</code></td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- Prefix/Suffix Panel -->
+  <div class="panel" id="context">
+    <div class="card">
+      <h2>Prefix &amp; Suffix Context</h2>
+      <div class="info-box">
+        Prefix and suffix context help disambiguate when the same text appears multiple times on a page. The context text is <strong ti="strong_not" ti="strong_not" ti="strong_not">not</strong> highlighted — it only helps the browser find the right occurrence.
+      </div>
+
+      <div class="sample-text" id="contextSample">
+        <p>The <strong ti="strong_quick_brown_fox" ti="strong_quick_brown_fox_2" ti="strong_quick_brown_fox_3" ti="strong_quick_brown_fox_4" ti="strong_quick_brown_fox_5" ti="strong_quick_brown_fox_6" ti="strong_quick_brown_fox" ti="strong_quick_brown_fox_2" ti="strong_quick_brown_fox_3" ti="strong_quick_brown_fox_4" ti="strong_quick_brown_fox_5" ti="strong_quick_brown_fox_6" ti="strong_quick_brown_fox" ti="strong_quick_brown_fox_2" ti="strong_quick_brown_fox_3" ti="strong_quick_brown_fox_4" ti="strong_quick_brown_fox_5" ti="strong_quick_brown_fox_6">quick brown fox</strong> jumps over the lazy dog. The <strong>quick brown fox</strong> then runs into the forest. Later, the <strong>quick brown fox</strong> returns home.</p>
+      </div>
+
+      <div style="margin-top:1rem;">
+        <h3 ti="h3_scenario_target_the_secon" ti="h3_scenario_target_the_secon" ti="h3_scenario_target_the_secon">Scenario: Target the second "quick brown fox"</h3>
+        <div class="form-row" style="margin-top:0.75rem;">
+          <div class="form-group">
+            <label ti="label_without_context_ambiguous" ti="label_without_context_ambiguous" ti="label_without_context_ambiguous">Without context (ambiguous)</label>
+            <pre style="font-size:0.8rem;">#:~:text=quick%20brown%20fox
+→ Highlights the FIRST occurrence</pre>
+          </div>
+          <div class="form-group">
+            <label ti="label_with_prefix_context_preci" ti="label_with_prefix_context_preci" ti="label_with_prefix_context_preci">With prefix context (precise)</label>
+            <pre style="font-size:0.8rem;">#:~:text=dog.%20The-,quick%20brown%20fox
+→ Highlights the SECOND occurrence</pre>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:1rem;">
+        <h3 ti="h3_try_it" ti="h3_try_it" ti="h3_try_it">Try It</h3>
+        <div class="form-group">
+          <label for="ctxTarget" ti="label_target_text" ti="label_target_text" ti="label_target_text">Target Text</label>
+          <input type="text" id="ctxTarget" value="quick brown fox" tp="placeholder_text_to_highlight" tp="placeholder_text_to_highlight_2" tp="placeholder_text_to_highlight_3" tp="placeholder_text_to_highlight_4" tp="placeholder_text_to_highlight" tp="placeholder_text_to_highlight_2" tp="placeholder_text_to_highlight_3" tp="placeholder_text_to_highlight_4" tp="placeholder_text_to_highlight" tp="placeholder_text_to_highlight_2" tp="placeholder_text_to_highlight_3" tp="placeholder_text_to_highlight_4" placeholder="Text to highlight">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="ctxPrefix" ti="label_prefix_text_before_ends_w" ti="label_prefix_text_before_ends_w" ti="label_prefix_text_before_ends_w">Prefix (text before, ends with -)</label>
+            <input type="text" id="ctxPrefix" value="" tp="placeholder_e_g_dog_the" tp="placeholder_e_g_dog_the" tp="placeholder_e_g_dog_the" placeholder="e.g., dog. The">
+          </div>
+          <div class="form-group">
+            <label for="ctxSuffix" ti="label_suffix_text_after_starts" ti="label_suffix_text_after_starts" ti="label_suffix_text_after_starts">Suffix (text after, starts with -)</label>
+            <input type="text" id="ctxSuffix" value="" tp="placeholder_e_g_then_runs" tp="placeholder_e_g_then_runs" tp="placeholder_e_g_then_runs" placeholder="e.g., then runs">
+          </div>
+        </div>
+        <button onclick="highlightContext()" ti="btn_highlight" ti="btn_highlight" ti="btn_highlight">Highlight</button>
+        <button class="secondary" onclick="resetContext()" ti="btn_reset" ti="btn_reset" ti="btn_reset">Reset</button>
+        <div id="ctxDirective" class="url-display" style="display:none;margin-top:0.75rem;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Multiple Fragments Panel -->
+  <div class="panel" id="multi">
+    <div class="card">
+      <h2 ti="h2_multiple_fragment_highlig" ti="h2_multiple_fragment_highlig" ti="h2_multiple_fragment_highlig">Multiple Fragment Highlighting</h2>
+      <p style="color:var(--text-dim);font-size:0.85rem;margin-bottom:1rem;">
+        Combine multiple <code>&amp;text=</code> directives to highlight several passages at once.
+      </p>
+
+      <div class="form-group">
+        <label for="multiBaseUrl">Page URL</label>
+        <input type="url" id="multiBaseUrl" value="https://example.com/article" placeholder="https://example.com/page">
+      </div>
+
+      <div id="fragmentEntries">
+        <div class="form-row fragment-entry">
+          <div class="form-group">
+            <label ti="label_fragment_1" ti="label_fragment_1" ti="label_fragment_1">Fragment 1</label>
+            <input type="text" class="frag-text" value="introduction" placeholder="Text to highlight">
+          </div>
+          <div class="form-group" style="display:flex;align-items:flex-end;gap:0.5rem;">
+            <input type="text" class="frag-end" value="" tp="placeholder_end_range_optional" tp="placeholder_end_range_optional_2" tp="placeholder_end_range_optional_3" tp="placeholder_end_range_optional" tp="placeholder_end_range_optional_2" tp="placeholder_end_range_optional_3" tp="placeholder_end_range_optional" tp="placeholder_end_range_optional_2" tp="placeholder_end_range_optional_3" placeholder="End (range, optional)" style="flex:1;">
+          </div>
+        </div>
+        <div class="form-row fragment-entry">
+          <div class="form-group">
+            <label ti="label_fragment_2" ti="label_fragment_2" ti="label_fragment_2">Fragment 2</label>
+            <input type="text" class="frag-text" value="conclusion" placeholder="Text to highlight">
+          </div>
+          <div class="form-group" style="display:flex;align-items:flex-end;gap:0.5rem;">
+            <input type="text" class="frag-end" value="" placeholder="End (range, optional)" style="flex:1;">
+          </div>
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button onclick="addFragment()" ti="btn_add_fragment" ti="btn_add_fragment" ti="btn_add_fragment">+ Add Fragment</button>
+        <button onclick="buildMultiUrl()">Generate URL</button>
+        <button class="secondary" onclick="copyMultiUrl()">Copy URL</button>
+      </div>
+
+      <div id="multiUrl" class="url-display" style="display:none;"></div>
+    </div>
+
+    <div class="card">
+      <h3 ti="h3_preview" ti="h3_preview" ti="h3_preview">Preview</h3>
+      <div class="sample-text" id="multiPreview">
+        <p>This is the <mark>introduction</mark> to our comprehensive guide on web development. We cover HTML, CSS, JavaScript, and modern frameworks. The guide includes practical examples, code snippets, and real-world use cases.</p>
+        <p>In the middle section, we discuss advanced topics like performance optimization, accessibility, and security best practices.</p>
+        <p>In <mark>conclusion</mark>, modern web development requires a broad skill set. We recommend continuous learning and staying updated with the latest specifications and browser capabilities.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Live Demo Panel -->
+  <div class="panel" id="demo">
+    <div class="card">
+      <h2 ti="h2_link_to_text_fragment_dem" ti="h2_link_to_text_fragment_dem" ti="h2_link_to_text_fragment_dem">Link to Text Fragment Demo</h2>
+      <div class="info-box">
+        Select any text in the sample article below, then click "Create Fragment Link" to generate a URL that would scroll to and highlight that text.
+      </div>
+
+      <div class="sample-text" id="demoArticle" style="max-height:400px;overflow-y:auto;">
+        <h3 style="margin-bottom:0.5rem;color:var(--accent);" ti="h3_the_evolution_of_web_apis" ti="h3_the_evolution_of_web_apis" ti="h3_the_evolution_of_web_apis">The Evolution of Web APIs</h3>
+        <p style="margin-bottom:0.75rem;">The web platform has evolved dramatically over the past decade. From simple document viewing to complex application development, browsers now provide hundreds of APIs that enable rich, interactive experiences.</p>
+        <p style="margin-bottom:0.75rem;">One of the most impactful changes has been the introduction of service workers, which enable offline functionality and background processing. Combined with the Cache API, developers can create applications that work reliably even without network connectivity.</p>
+        <p style="margin-bottom:0.75rem;">The Fetch API replaced the aging XMLHttpRequest, providing a cleaner promise-based interface for network requests. It supports streaming responses, request and response objects, and integrates seamlessly with service workers.</p>
+        <p style="margin-bottom:0.75rem;">Web Components brought native component architecture to the browser with Custom Elements, Shadow DOM, and HTML Templates. This reduced the need for framework-specific component models and improved interoperability.</p>
+        <p style="margin-bottom:0.75rem;">Modern CSS has also seen revolutionary changes. CSS Grid and Flexbox transformed layout capabilities. Custom Properties (CSS Variables) enabled dynamic theming. Container Queries finally allowed component-level responsive design.</p>
+        <p style="margin-bottom:0.75rem;">The Text Fragments API is one of the newer additions, allowing precise deep linking to specific text content on any page, even without anchor IDs. This improves citation, sharing, and accessibility.</p>
+        <p>Looking ahead, APIs like the View Transitions API, Navigation API, and Speculation Rules are set to further blur the line between web applications and native experiences.</p>
+      </div>
+
+      <div class="btn-row">
+        <button onclick="createFragmentFromSelection()" ti="btn_create_fragment_link" ti="btn_create_fragment_link" ti="btn_create_fragment_link">Create Fragment Link</button>
+        <button class="secondary" onclick="clearDemoHighlights()" ti="btn_clear_highlights" ti="btn_clear_highlights" ti="btn_clear_highlights">Clear Highlights</button>
+      </div>
+
+      <div id="demoResult" style="display:none;margin-top:0.75rem;">
+        <label ti="label_generated_fragment_url" ti="label_generated_fragment_url" ti="label_generated_fragment_url">Generated Fragment URL:</label>
+        <div id="demoFragmentUrl" class="url-display"></div>
+        <div class="btn-row">
+          <button class="secondary" onclick="copyDemoUrl()">Copy URL</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ::target-text Style Panel -->
+  <div class="panel" id="style">
+    <div class="card">
+      <h2 ti="h2_target_text_styling" ti="h2_target_text_styling" ti="h2_target_text_styling">::target-text Styling</h2>
+      <div class="info-box">
+        The <code>::target-text</code> pseudo-element allows you to customize the appearance of text fragment highlights. Browser support is limited — Chrome 89+ supports it.
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="styleColor">Text Color</label>
+          <input type="text" id="styleColor" value="#000000" tp="placeholder_e_g_000000" tp="placeholder_e_g_000000" tp="placeholder_e_g_000000" placeholder="e.g., #000000">
+        </div>
+        <div class="form-group">
+          <label for="styleBg" ti="label_background_color" ti="label_background_color" ti="label_background_color">Background Color</label>
+          <input type="text" id="styleBg" value="#ffd700" tp="placeholder_e_g_ffd700" tp="placeholder_e_g_ffd700" tp="placeholder_e_g_ffd700" placeholder="e.g., #ffd700">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="styleDecoration" ti="label_text_decoration" ti="label_text_decoration" ti="label_text_decoration">Text Decoration</label>
+        <select id="styleDecoration">
+          <option value="none">None</option>
+          <option value="underline">Underline</option>
+          <option value="underline wavy">Wavy Underline</option>
+          <option value="underline dotted">Dotted Underline</option>
+        </select>
+      </div>
+
+      <button onclick="updateStylePreview()" ti="btn_update_preview" ti="btn_update_preview" ti="btn_update_preview">Update Preview</button>
+
+      <div class="style-preview">
+        <p style="margin-bottom:0.5rem;font-size:0.85rem;color:var(--text-dim);">Preview:</p>
+        <p>This is normal text. <span id="styleTarget" style="background:#ffd700;color:#000000;">This text would be highlighted by a text fragment.</span> This is normal text again.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 ti="h3_generated_css" ti="h3_generated_css" ti="h3_generated_css">Generated CSS</h3>
+      <pre id="styleCode"><button class="copy-btn" onclick="copyCode('styleCode')">Copy</button>::target-text {
+  color: #000000;
+  background-color: #ffd700;
+  text-decoration: none;
+}</pre>
+    </div>
+
+    <div class="card">
+      <h3 ti="h3_browser_default_styles" ti="h3_browser_default_styles" ti="h3_browser_default_styles">Browser Default Styles</h3>
+      <table class="directive-table">
+        <tr><th ti="th_browser" ti="th_browser" ti="th_browser">Browser</th><th ti="th_background" ti="th_background" ti="th_background">Background</th><th ti="th_text_color" ti="label_text_color" ti="th_text_color" ti="label_text_color" ti="th_text_color" ti="label_text_color">Text Color</th></tr>
+        <tr><td ti="th_chrome" ti="th_chrome" ti="th_chrome">Chrome</td><td><span style="background:#ffd700;padding:0.1rem 0.5rem;border-radius:2px;color:#000;">Yellow (#ffd700)</span></td><td>Black</td></tr>
+        <tr><td ti="th_edge" ti="th_edge" ti="th_edge">Edge</td><td><span style="background:#ffd700;padding:0.1rem 0.5rem;border-radius:2px;color:#000;">Yellow (#ffd700)</span></td><td>Black</td></tr>
+        <tr><td ti="th_firefox" ti="th_firefox" ti="th_firefox">Firefox</td><td colspan="2"><em>Not supported (as of 2025)</em></td></tr>
+        <tr><td ti="th_safari" ti="th_safari" ti="th_safari">Safari</td><td><span style="background:#ffd700;padding:0.1rem 0.5rem;border-radius:2px;color:#000;">Yellow</span></td><td>Black</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- Reference Panel -->
+  <div class="panel" id="reference">
+    <div class="card">
+      <h2 ti="h2_text_fragments_api_refere" ti="h2_text_fragments_api_refere" ti="h2_text_fragments_api_refere">Text Fragments API Reference</h2>
+
+      <h3 style="margin-top:1rem;" ti="h3_url_syntax" ti="h3_url_syntax" ti="h3_url_syntax">URL Syntax</h3>
+      <pre>URL#:~:text=[prefix-,]textStart[,textEnd][,-suffix]
+
+Multiple fragments:
+URL#:~:text=fragment1&text=fragment2&text=fragment3</pre>
+
+      <h3 style="margin-top:1rem;" ti="h3_encoding_rules" ti="h3_encoding_rules" ti="h3_encoding_rules">Encoding Rules</h3>
+      <table class="directive-table">
+        <tr><th ti="th_character" ti="th_character" ti="th_character">Character</th><th ti="th_encoded" ti="th_encoded" ti="th_encoded">Encoded</th><th ti="th_notes" ti="th_notes" ti="th_notes">Notes</th></tr>
+        <tr><td>Space</td><td><code>%20</code></td><td>Standard URL encoding</td></tr>
+        <tr><td>&amp;</td><td><code>%26</code></td><td>Separates multiple text directives</td></tr>
+        <tr><td>-</td><td><code>%2D</code></td><td>Only encode if it's a prefix/suffix delimiter</td></tr>
+        <tr><td>,</td><td><code>%2C</code></td><td>Only encode if it's not the range separator</td></tr>
+      </table>
+
+      <h3 style="margin-top:1rem;" ti="h3_browser_support" ti="h3_browser_support" ti="h3_browser_support">Browser Support</h3>
+      <table class="directive-table">
+        <tr><th ti="th_feature" ti="th_feature" ti="th_feature">Feature</th><th>Chrome</th><th>Edge</th><th>Firefox</th><th>Safari</th></tr>
+        <tr><td>Text Fragments</td><td>80+</td><td>80+</td><td>---</td><td>16.1+</td></tr>
+        <tr><td>::target-text</td><td>89+</td><td>89+</td><td>---</td><td>---</td></tr>
+        <tr><td>document.fragmentDirective</td><td>86+</td><td>86+</td><td>---</td><td>---</td></tr>
+      </table>
+
+      <h3 style="margin-top:1rem;" ti="h3_security_constraints" ti="h3_security_constraints" ti="h3_security_constraints">Security Constraints</h3>
+      <ul style="color:var(--text-dim);font-size:0.85rem;padding-left:1.5rem;">
+        <li>Only works on top-level navigations (not iframes)</li>
+        <li>Requires user activation (click, tap) to navigate</li>
+        <li>Cross-origin text fragments are restricted for privacy</li>
+        <li>Fragment directive (<code>:~:</code>) is stripped from <code>location.hash</code></li>
+        <li>Not accessible via JavaScript for privacy reasons</li>
+      </ul>
+    </div>
+  </div>
+</main>
+
+
+
+<script>var _LANG={'title_text_fragment_api_playgro':["Text Fragment API Playground", "文本片段 API 演示区"],'metadesc_interactive_playground_fo':["Interactive playground for the Text Fragment API. Build #:~:text= URLs, configure prefix/suffix context, highlight multiple fragments, and generate shareable links.", "文本片段 API 的交互式演示环境。构建 #:~:text= URL，配置前缀/后缀上下文，高亮显示多个片段，并生成可分享的链接。"],'h2_text_fragment_url_builder':["Text Fragment URL Builder", "文本片段 URL 生成器"],'h2_prefix_suffix_context':["Prefix & Suffix Context", "前缀和后缀的语境"],'h2_multiple_fragment_highlig':["Multiple Fragment Highlighting", "多片段高亮显示"],'h2_link_to_text_fragment_dem':["Link to Text Fragment Demo", "文本片段演示链接"],'h2_target_text_styling':["::target-text Styling", "::target-text 样式"],'h2_text_fragments_api_refere':["Text Fragments API Reference", "文本片段 API 参考"],'h3_url_anatomy':["URL Anatomy", "URL解剖"],'h3_fragment_directive_syntax':["Fragment Directive Syntax", "片段指令语法"],'h3_scenario_target_the_secon':["Scenario: Target the second \"quick brown fox\"", "场景：锁定第二只“敏捷的棕色狐狸”"],'h3_try_it':["Try It", "试试看"],'h3_preview':["Preview", "预览"],'h3_the_evolution_of_web_apis':["The Evolution of Web APIs", "Web API 的演变"],'h3_generated_css':["Generated CSS", "生成的 CSS"],'h3_browser_default_styles':["Browser Default Styles", "浏览器默认样式"],'h3_url_syntax':["URL Syntax", "URL语法"],'h3_encoding_rules':["Encoding Rules", "编码规则"],'h3_browser_support':["Browser Support", "浏览器支持"],'h3_security_constraints':["Security Constraints", "安全限制"],'btn_url_builder':["URL Builder", "URL 生成器"],'btn_prefix_suffix':["Prefix/Suffix", "前缀/后缀"],'btn_multiple_fragments':["Multiple Fragments", "多个片段"],'btn_live_demo':["Live Demo", "在线演示"],'btn_target_text':["::target-text", "::目标文本"],'btn_reference':["Reference", "参考"],'btn_generate_url':["Generate URL", "生成 URL"],'btn_copy_url':["Copy URL", "复制链接"],'btn_open_in_new_tab':["Open in New Tab", "在新标签页中打开"],'btn_copy':["Copy", "复制"],'btn_highlight':["Highlight", "强调"],'btn_reset':["Reset", "重置"],'btn_add_fragment':["+ Add Fragment", "+ 添加片段"],'btn_generate_url_2':["Generate URL", "生成 URL"],'btn_copy_url_2':["Copy URL", "复制链接"],'btn_create_fragment_link':["Create Fragment Link", "创建片段链接"],'btn_clear_highlights':["Clear Highlights", "清晰高亮"],'btn_copy_url_3':["Copy URL", "复制链接"],'btn_update_preview':["Update Preview", "更新预览"],'btn_copy_2':["Copy", "复制"],'btn_copy_3':["Copy", "复制"],'btn_copy_4':["Copy", "复制"],'placeholder_https_example_com_page':["https://example.com/page", "https://example.com/page"],'placeholder_the_text_to_highlight_sta':["The text to highlight starts here", "要高亮显示的文本从这里开始。"],'placeholder_the_text_to_highlight_end':["The text to highlight ends here (for ranges)", "要高亮显示的文本到此结束（适用于范围）。"],'placeholder_text_before_the_target':["Text before the target", "目标前的文本"],'placeholder_text_after_the_target':["Text after the target", "目标后的文本"],'placeholder_text_to_highlight':["Text to highlight", "要突出显示的文本"],'placeholder_e_g_dog_the':["e.g., dog. The", "例如，狗。"],'placeholder_e_g_then_runs':["e.g., then runs", "例如，然后运行"],'placeholder_https_example_com_page_2':["https://example.com/page", "https://example.com/page"],'placeholder_text_to_highlight_2':["Text to highlight", "要突出显示的文本"],'placeholder_end_range_optional':["End (range, optional)", "结束（范围，可选）"],'placeholder_text_to_highlight_3':["Text to highlight", "要突出显示的文本"],'placeholder_end_range_optional_2':["End (range, optional)", "结束（范围，可选）"],'placeholder_e_g_000000':["e.g., #000000", "例如，#000000"],'placeholder_e_g_ffd700':["e.g., #ffd700", "例如，#ffd700"],'placeholder_text_to_highlight_4':["Text to highlight", "要突出显示的文本"],'placeholder_end_range_optional_3':["End (range, optional)", "结束（范围，可选）"],'strong_not':["not", "不是"],'strong_quick_brown_fox':["quick brown fox", "敏捷的棕色狐狸"],'strong_quick_brown_fox_2':["quick brown fox", "敏捷的棕色狐狸"],'strong_quick_brown_fox_3':["quick brown fox", "敏捷的棕色狐狸"],'strong_quick_brown_fox_4':["quick brown fox", "敏捷的棕色狐狸"],'strong_quick_brown_fox_5':["quick brown fox", "敏捷的棕色狐狸"],'strong_quick_brown_fox_6':["quick brown fox", "敏捷的棕色狐狸"],'th_pattern':["Pattern", "图案"],'th_description':["Description", "描述"],'th_example':["Example", "例子"],'th_browser':["Browser", "浏览器"],'th_background':["Background", "背景"],'th_text_color':["Text Color", "文本颜色"],'th_character':["Character", "特点"],'th_encoded':["Encoded", "编码"],'th_notes':["Notes", "笔记"],'th_feature':["Feature", "特征"],'th_chrome':["Chrome", "铬合金"],'th_edge':["Edge", "边缘"],'th_firefox':["Firefox", "火狐浏览器"],'th_safari':["Safari", "狩猎之旅"],'label_page_url':["Page URL", "页面网址"],'label_text_start_required':["Text Start (required)", "文本开始（必填）"],'label_text_end_optional_for_ran':["Text End (optional, for range)", "文本结束（可选，用于范围）"],'label_prefix_context_optional':["Prefix Context (optional)", "前缀上下文（可选）"],'label_suffix_context_optional':["Suffix Context (optional)", "后缀上下文（可选）"],'label_without_context_ambiguous':["Without context (ambiguous)", "缺乏上下文（含义模糊）"],'label_with_prefix_context_preci':["With prefix context (precise)", "带前缀上下文（精确）"],'label_target_text':["Target Text", "目标文本"],'label_prefix_text_before_ends_w':["Prefix (text before, ends with -)", "前缀（前面的文本，以 - 结尾）"],'label_suffix_text_after_starts':["Suffix (text after, starts with -)", "后缀（后面的文本，以 - 开头）"],'label_page_url_2':["Page URL", "页面网址"],'label_fragment_1':["Fragment 1", "片段 1"],'label_fragment_2':["Fragment 2", "片段 2"],'label_generated_fragment_url':["Generated Fragment URL:", "生成的片段 URL："],'label_text_color':["Text Color", "文本颜色"],'label_background_color':["Background Color", "背景颜色"],'label_text_decoration':["Text Decoration", "文字装饰"],'label_fragment_fragmentcount':["Fragment ${fragmentCount}", "片段 ${fragmentCount}"],'jtc_copied':["Copied!", "已复制！"],'jtc_copy':["Copy", "复制"],'jalert_text_start_is_required':["Text Start is required.", "文本开头为必填项。"],'jalert_url_copied':["URL copied!", "网址已复制！"],'jalert_generate_a_url_first':["Generate a URL first.", "请先生成URL。"],'jalert_generate_a_url_first_2':["Generate a URL first.", "请先生成URL。"],'jalert_add_at_least_one_fragment':["Add at least one fragment.", "至少添加一个片段。"],'jalert_url_copied_2':["URL copied!", "网址已复制！"],'jalert_select_some_text_in_the_a':["Select some text in the article first.", "首先选中文章中的一些文本。"],'jalert_url_copied_3':["URL copied!", "网址已复制！"],'jtlword_copy':["Copy", "复制"],'jtlword_copy_2':["Copy", "复制"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>var _LANG={'title_text_fragment_api_playgro':["Text Fragment API Playground", "文本片段 API 演示区"],'metadesc_interactive_playground_fo':["Interactive playground for the Text Fragment API. Build #:~:text= URLs, configure prefix/suffix context, highlight multiple fragments, and generate shareable links.", "文本片段 API 的交互式演示环境。构建 #:~:text= URL，配置前缀/后缀上下文，高亮显示多个片段，并生成可分享的链接。"],'h2_text_fragment_url_builder':["Text Fragment URL Builder", "文本片段 URL 生成器"],'h2_prefix_suffix_context':["Prefix & Suffix Context", "前缀和后缀的语境"],'h2_multiple_fragment_highlig':["Multiple Fragment Highlighting", "多片段高亮显示"],'h2_link_to_text_fragment_dem':["Link to Text Fragment Demo", "文本片段演示链接"],'h2_target_text_styling':["::target-text Styling", "::target-text 样式"],'h2_text_fragments_api_refere':["Text Fragments API Reference", "文本片段 API 参考"],'h3_url_anatomy':["URL Anatomy", "URL解剖"],'h3_fragment_directive_syntax':["Fragment Directive Syntax", "片段指令语法"],'h3_scenario_target_the_secon':["Scenario: Target the second \"quick brown fox\"", "场景：锁定第二只“敏捷的棕色狐狸”"],'h3_try_it':["Try It", "试试看"],'h3_preview':["Preview", "预览"],'h3_the_evolution_of_web_apis':["The Evolution of Web APIs", "Web API 的演变"],'h3_generated_css':["Generated CSS", "生成的 CSS"],'h3_browser_default_styles':["Browser Default Styles", "浏览器默认样式"],'h3_url_syntax':["URL Syntax", "URL语法"],'h3_encoding_rules':["Encoding Rules", "编码规则"],'h3_browser_support':["Browser Support", "浏览器支持"],'h3_security_constraints':["Security Constraints", "安全限制"],'btn_url_builder':["URL Builder", "URL 生成器"],'btn_prefix_suffix':["Prefix/Suffix", "前缀/后缀"],'btn_multiple_fragments':["Multiple Fragments", "多个片段"],'btn_live_demo':["Live Demo", "在线演示"],'btn_target_text':["::target-text", "::目标文本"],'btn_reference':["Reference", "参考"],'btn_generate_url':["Generate URL", "生成 URL"],'btn_copy_url':["Copy URL", "复制链接"],'btn_open_in_new_tab':["Open in New Tab", "在新标签页中打开"],'btn_copy':["Copy", "复制"],'btn_highlight':["Highlight", "强调"],'btn_reset':["Reset", "重置"],'btn_add_fragment':["+ Add Fragment", "+ 添加片段"],'btn_generate_url_2':["Generate URL", "生成 URL"],'btn_copy_url_2':["Copy URL", "复制链接"],'btn_create_fragment_link':["Create Fragment Link", "创建片段链接"],'btn_clear_highlights':["Clear Highlights", "清晰高亮"],'btn_copy_url_3':["Copy URL", "复制链接"],'btn_update_preview':["Update Preview", "更新预览"],'btn_copy_2':["Copy", "复制"],'btn_copy_3':["Copy", "复制"],'btn_copy_4':["Copy", "复制"],'placeholder_https_example_com_page':["https://example.com/page", "https://example.com/page"],'placeholder_the_text_to_highlight_sta':["The text to highlight starts here", "要高亮显示的文本从这里开始。"],'placeholder_the_text_to_highlight_end':["The text to highlight ends here (for ranges)", "要高亮显示的文本到此结束（适用于范围）。"],'placeholder_text_before_the_target':["Text before the target", "目标前的文本"],'placeholder_text_after_the_target':["Text after the target", "目标后的文本"],'placeholder_text_to_highlight':["Text to highlight", "要突出显示的文本"],'placeholder_e_g_dog_the':["e.g., dog. The", "例如，狗。"],'placeholder_e_g_then_runs':["e.g., then runs", "例如，然后运行"],'placeholder_https_example_com_page_2':["https://example.com/page", "https://example.com/page"],'placeholder_text_to_highlight_2':["Text to highlight", "要突出显示的文本"],'placeholder_end_range_optional':["End (range, optional)", "结束（范围，可选）"],'placeholder_text_to_highlight_3':["Text to highlight", "要突出显示的文本"],'placeholder_end_range_optional_2':["End (range, optional)", "结束（范围，可选）"],'placeholder_e_g_000000':["e.g., #000000", "例如，#000000"],'placeholder_e_g_ffd700':["e.g., #ffd700", "例如，#ffd700"],'placeholder_text_to_highlight_4':["Text to highlight", "要突出显示的文本"],'placeholder_end_range_optional_3':["End (range, optional)", "结束（范围，可选）"],'strong_not':["not", "不是"],'strong_quick_brown_fox':["quick brown fox", "敏捷的棕色狐狸"],'strong_quick_brown_fox_2':["quick brown fox", "敏捷的棕色狐狸"],'strong_quick_brown_fox_3':["quick brown fox", "敏捷的棕色狐狸"],'strong_quick_brown_fox_4':["quick brown fox", "敏捷的棕色狐狸"],'strong_quick_brown_fox_5':["quick brown fox", "敏捷的棕色狐狸"],'strong_quick_brown_fox_6':["quick brown fox", "敏捷的棕色狐狸"],'th_pattern':["Pattern", "图案"],'th_description':["Description", "描述"],'th_example':["Example", "例子"],'th_browser':["Browser", "浏览器"],'th_background':["Background", "背景"],'th_text_color':["Text Color", "文本颜色"],'th_character':["Character", "特点"],'th_encoded':["Encoded", "编码"],'th_notes':["Notes", "笔记"],'th_feature':["Feature", "特征"],'th_chrome':["Chrome", "铬合金"],'th_edge':["Edge", "边缘"],'th_firefox':["Firefox", "火狐浏览器"],'th_safari':["Safari", "狩猎之旅"],'label_page_url':["Page URL", "页面网址"],'label_text_start_required':["Text Start (required)", "文本开始（必填）"],'label_text_end_optional_for_ran':["Text End (optional, for range)", "文本结束（可选，用于范围）"],'label_prefix_context_optional':["Prefix Context (optional)", "前缀上下文（可选）"],'label_suffix_context_optional':["Suffix Context (optional)", "后缀上下文（可选）"],'label_without_context_ambiguous':["Without context (ambiguous)", "缺乏上下文（含义模糊）"],'label_with_prefix_context_preci':["With prefix context (precise)", "带前缀上下文（精确）"],'label_target_text':["Target Text", "目标文本"],'label_prefix_text_before_ends_w':["Prefix (text before, ends with -)", "前缀（前面的文本，以 - 结尾）"],'label_suffix_text_after_starts':["Suffix (text after, starts with -)", "后缀（后面的文本，以 - 开头）"],'label_page_url_2':["Page URL", "页面网址"],'label_fragment_1':["Fragment 1", "片段 1"],'label_fragment_2':["Fragment 2", "片段 2"],'label_generated_fragment_url':["Generated Fragment URL:", "生成的片段 URL："],'label_text_color':["Text Color", "文本颜色"],'label_background_color':["Background Color", "背景颜色"],'label_text_decoration':["Text Decoration", "文字装饰"],'label_fragment_fragmentcount':["Fragment ${fragmentCount}", "片段 ${fragmentCount}"],'jtc_copied':["Copied!", "已复制！"],'jtc_copy':["Copy", "复制"],'jalert_text_start_is_required':["Text Start is required.", "文本开头为必填项。"],'jalert_url_copied':["URL copied!", "网址已复制！"],'jalert_generate_a_url_first':["Generate a URL first.", "请先生成URL。"],'jalert_generate_a_url_first_2':["Generate a URL first.", "请先生成URL。"],'jalert_add_at_least_one_fragment':["Add at least one fragment.", "至少添加一个片段。"],'jalert_url_copied_2':["URL copied!", "网址已复制！"],'jalert_select_some_text_in_the_a':["Select some text in the article first.", "首先选中文章中的一些文本。"],'jalert_url_copied_3':["URL copied!", "网址已复制！"],'jtlword_copy':["Copy", "复制"],'jtlword_copy_2':["Copy", "复制"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>
+// === Feature Detection ===
+const isSupported = 'fragmentDirective' in document;
+document.getElementById('supportBadge').innerHTML = isSupported
+  ? '<span class="support-badge supported">Your browser supports Text Fragments API</span>'
+  : '<span class="support-badge unsupported">Text Fragments API not fully detected (may still work for navigation)</span>';
+
+// === Tab Navigation ===
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById(tab.dataset.panel).classList.add('active');
+  });
+});
+
+// === Utility ===
+function escapeHtml(str) {
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+function copyCode(preId) {
+  const pre = document.getElementById(preId);
+  const text = pre.textContent.replace(/^Copy/, '').trim();
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = pre.querySelector('.copy-btn');
+    if (btn) { btn.textContent=T("jtc_copied"); setTimeout(() => btn.textContent=T("jtc_copy"), 1500); }
+  });
+}
+
+function encodeTextFragment(text) {
+  return encodeURIComponent(text).replace(/%20/g, '%20');
+}
+
+// === URL Builder ===
+let lastGeneratedUrl = '';
+
+function buildUrl() {
+  const base = document.getElementById('baseUrl').value.trim();
+  const start = document.getElementById('textStart').value.trim();
+  const end = document.getElementById('textEnd').value.trim();
+  const prefix = document.getElementById('textPrefix').value.trim();
+  const suffix = document.getElementById('textSuffix').value.trim();
+
+  if (!start) { T("jalert_text_start_is_required"); return; }
+
+  let fragment = '';
+  if (prefix) fragment += encodeTextFragment(prefix) + '-,';
+  fragment += encodeTextFragment(start);
+  if (end) fragment += ',' + encodeTextFragment(end);
+  if (suffix) fragment += ',-' + encodeTextFragment(suffix);
+
+  lastGeneratedUrl = `${base}#:~:text=${fragment}`;
+  const display = document.getElementById('generatedUrl');
+  display.style.display = 'block';
+  display.textContent = lastGeneratedUrl;
+
+  // Update anatomy
+  let anatomy = `${base}#:~:text=${fragment}\n\nBreakdown:\n  ${base}  ← Base URL\n  #       ← Fragment identifier start\n  :~:     ← Fragment directive delimiter\n  text=   ← Text fragment directive\n`;
+  if (prefix) anatomy += `  ${encodeTextFragment(prefix)}-,  ← Prefix context\n`;
+  anatomy += `  ${encodeTextFragment(start)}  ← Target text start\n`;
+  if (end) anatomy += `  ,${encodeTextFragment(end)}  ← Target text end (range)\n`;
+  if (suffix) anatomy += `  ,-${encodeTextFragment(suffix)}  ← Suffix context\n`;
+
+  document.getElementById('urlAnatomy').innerHTML = `<button class="copy-btn" onclick="copyCode('urlAnatomy')">Copy</button>${escapeHtml(anatomy)}`;
+}
+
+function copyGeneratedUrl() {
+  if (lastGeneratedUrl) {
+    navigator.clipboard.writeText(lastGeneratedUrl).then(() => T("jalert_url_copied"));
+  } else {
+    T("jalert_generate_a_url_first");
+  }
+}
+
+function openGeneratedUrl() {
+  if (lastGeneratedUrl) {
+    window.open(lastGeneratedUrl, '_blank');
+  } else {
+    T("jalert_generate_a_url_first");
+  }
+}
+
+// === Context Panel ===
+function highlightContext() {
+  const target = document.getElementById('ctxTarget').value.trim();
+  const prefix = document.getElementById('ctxPrefix').value.trim();
+  const suffix = document.getElementById('ctxSuffix').value.trim();
+  const sample = document.getElementById('contextSample');
+  const originalText = 'The quick brown fox jumps over the lazy dog. The quick brown fox then runs into the forest. Later, the quick brown fox returns home.';
+
+  if (!target) return;
+
+  // Find all occurrences
+  const lowerText = originalText.toLowerCase();
+  const lowerTarget = target.toLowerCase();
+  const occurrences = [];
+  let pos = 0;
+  while ((pos = lowerText.indexOf(lowerTarget, pos)) !== -1) {
+    occurrences.push(pos);
+    pos += lowerTarget.length;
+  }
+
+  // Determine which occurrence to highlight based on prefix/suffix
+  let highlightIndex = 0;
+  if (prefix) {
+    for (let i = 0; i < occurrences.length; i++) {
+      const beforeText = originalText.substring(0, occurrences[i]).toLowerCase();
+      if (beforeText.endsWith(prefix.toLowerCase()) || beforeText.trimEnd().endsWith(prefix.toLowerCase())) {
+        highlightIndex = i;
+        break;
+      }
+      // Looser match
+      if (beforeText.includes(prefix.toLowerCase())) {
+        highlightIndex = i;
+      }
+    }
+  }
+
+  // Rebuild HTML with highlight
+  if (occurrences.length > 0) {
+    const idx = occurrences[highlightIndex];
+    const before = originalText.substring(0, idx);
+    const match = originalText.substring(idx, idx + target.length);
+    const after = originalText.substring(idx + target.length);
+    sample.innerHTML = `<p>${escapeHtml(before)}<mark>${escapeHtml(match)}</mark>${escapeHtml(after)}</p>`;
+  }
+
+  // Show directive
+  let directive = 'text=';
+  if (prefix) directive += encodeTextFragment(prefix) + '-,';
+  directive += encodeTextFragment(target);
+  if (suffix) directive += ',-' + encodeTextFragment(suffix);
+
+  const ctxDir = document.getElementById('ctxDirective');
+  ctxDir.style.display = 'block';
+  ctxDir.textContent = `#:~:${directive}`;
+}
+
+function resetContext() {
+  document.getElementById('contextSample').innerHTML = '<p>The <strong>quick brown fox</strong> jumps over the lazy dog. The <strong>quick brown fox</strong> then runs into the forest. Later, the <strong>quick brown fox</strong> returns home.</p>';
+  document.getElementById('ctxDirective').style.display = 'none';
+}
+
+// === Multiple Fragments ===
+let fragmentCount = 2;
+
+function addFragment() {
+  fragmentCount++;
+  const container = document.getElementById('fragmentEntries');
+  const entry = document.createElement('div');
+  entry.className = 'form-row fragment-entry';
+  entry.innerHTML = `
+    <div class="form-group">
+      <label ti="label_fragment_fragmentcount" ti="label_fragment_fragmentcount" ti="label_fragment_fragmentcount">Fragment ${fragmentCount}</label>
+      <input type="text" class="frag-text" value="" placeholder="Text to highlight">
+    </div>
+    <div class="form-group" style="display:flex;align-items:flex-end;gap:0.5rem;">
+      <input type="text" class="frag-end" value="" placeholder="End (range, optional)" style="flex:1;">
+      <button class="secondary" onclick="this.closest('.fragment-entry').remove()" style="padding:0.4rem 0.6rem;font-size:0.75rem;">X</button>
+    </div>
+  `;
+  container.appendChild(entry);
+}
+
+let lastMultiUrl = '';
+
+function buildMultiUrl() {
+  const base = document.getElementById('multiBaseUrl').value.trim();
+  const entries = document.querySelectorAll('.fragment-entry');
+  const fragments = [];
+
+  entries.forEach(entry => {
+    const text = entry.querySelector('.frag-text').value.trim();
+    const end = entry.querySelector('.frag-end').value.trim();
+    if (text) {
+      let frag = encodeTextFragment(text);
+      if (end) frag += ',' + encodeTextFragment(end);
+      fragments.push('text=' + frag);
+    }
+  });
+
+  if (fragments.length === 0) { T("jalert_add_at_least_one_fragment"); return; }
+
+  lastMultiUrl = `${base}#:~:${fragments.join('&')}`;
+  const display = document.getElementById('multiUrl');
+  display.style.display = 'block';
+  display.textContent = lastMultiUrl;
+}
+
+function copyMultiUrl() {
+  if (lastMultiUrl) {
+    navigator.clipboard.writeText(lastMultiUrl).then(() => T("jalert_url_copied"));
+  }
+}
+
+// === Live Demo ===
+function createFragmentFromSelection() {
+  const selection = window.getSelection();
+  const text = selection.toString().trim();
+  if (!text) { T("jalert_select_some_text_in_the_a"); return; }
+
+  const pageUrl = window.location.href.split('#')[0];
+  const fragmentUrl = `${pageUrl}#:~:text=${encodeTextFragment(text)}`;
+
+  document.getElementById('demoResult').style.display = 'block';
+  document.getElementById('demoFragmentUrl').textContent = fragmentUrl;
+
+  // Highlight in the demo
+  const article = document.getElementById('demoArticle');
+  const html = article.innerHTML;
+  // Simple highlight (non-regex for safety)
+  const escapedText = text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const regex = new RegExp(`(${escapedText})`, 'gi');
+  article.innerHTML = html.replace(/<mark[^>]*>|<\/mark>/gi, '').replace(regex, '<mark>$1</mark>');
+}
+
+function clearDemoHighlights() {
+  const article = document.getElementById('demoArticle');
+  article.innerHTML = article.innerHTML.replace(/<mark[^>]*>|<\/mark>/gi, '');
+  document.getElementById('demoResult').style.display = 'none';
+}
+
+function copyDemoUrl() {
+  const url = document.getElementById('demoFragmentUrl').textContent;
+  navigator.clipboard.writeText(url).then(() => T("jalert_url_copied"));
+}
+
+// === Style Panel ===
+function updateStylePreview() {
+  const color = document.getElementById('styleColor').value;
+  const bg = document.getElementById('styleBg').value;
+  const decoration = document.getElementById('styleDecoration').value;
+
+  const target = document.getElementById('styleTarget');
+  target.style.color = color;
+  target.style.backgroundColor = bg;
+  target.style.textDecoration = decoration;
+
+  const css = `::target-text {\n  color: ${color};\n  background-color: ${bg};\n  text-decoration: ${decoration};\n}`;
+  document.getElementById('styleCode').innerHTML = `<button class="copy-btn" onclick="copyCode('styleCode')">Copy</button>${escapeHtml(css)}`;
+}
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+</body>
+</html>

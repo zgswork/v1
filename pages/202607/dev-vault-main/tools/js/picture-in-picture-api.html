@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html tk="title_picture_in_picture_api_pl" lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Picture-in-Picture API Playground</title>
+<meta name="description" content="Interactive playground for the Picture-in-Picture API - request PiP mode, handle events, use canvas sources, and explore Document PiP.">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📺</text></svg>">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0a0a0a;
+  --surface: #141414;
+  --surface-2: #1e1e1e;
+  --surface-3: #282828;
+  --border: #333;
+  --text: #e0e0e0;
+  --text-dim: #888;
+  --accent: #00bcd4;
+  --accent-light: #4dd0e1;
+  --accent-glow: #00bcd440;
+  --success: #4caf50;
+  --warning: #ff9800;
+  --error: #f44336;
+  --info: #29b6f6;
+  --radius: 8px;
+  --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --mono: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace;
+}
+
+body { background: var(--bg); color: var(--text); font-family: var(--font); line-height: 1.6; min-height: 100vh; }
+
+header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 1.5rem 2rem; text-align: center; }
+header h1 { font-size: 1.8rem; font-weight: 700; background: linear-gradient(135deg, var(--accent), var(--accent-light)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+header p { color: var(--text-dim); margin-top: 0.3rem; font-size: 0.95rem; }
+
+.container { max-width: 1100px; margin: 0 auto; padding: 1.5rem; display: flex; flex-direction: column; gap: 1.5rem; }
+
+.support-banner { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.5rem; display: flex; align-items: center; gap: 1rem; }
+.support-banner.supported { border-color: var(--success); background: #4caf5010; }
+.support-banner.partial { border-color: var(--warning); background: #ff980010; }
+.support-banner.unsupported { border-color: var(--error); background: #f4433610; }
+.support-icon { font-size: 1.5rem; flex-shrink: 0; }
+.support-text h3 { font-size: 1rem; }
+.support-text p { font-size: 0.85rem; color: var(--text-dim); }
+
+.support-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0.8rem; margin-top: 1rem; }
+.support-item { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 0.8rem; display: flex; align-items: center; gap: 0.6rem; }
+.support-item .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.support-item .dot.green { background: var(--success); }
+.support-item .dot.red { background: var(--error); }
+.support-item .dot.yellow { background: var(--warning); }
+.support-item .label { font-size: 0.85rem; }
+
+.tabs { display: flex; gap: 0.25rem; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 0.25rem; overflow-x: auto; }
+.tab { padding: 0.6rem 1.2rem; border: none; background: transparent; color: var(--text-dim); cursor: pointer; border-radius: 6px; font-size: 0.9rem; white-space: nowrap; transition: all 0.2s; }
+.tab:hover { color: var(--text); background: var(--surface-2); }
+.tab.active { background: var(--accent); color: #fff; }
+
+.panel { display: none; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; }
+.panel.active { display: block; }
+.panel h2 { font-size: 1.2rem; margin-bottom: 0.3rem; color: var(--accent-light); }
+.panel .desc { color: var(--text-dim); font-size: 0.9rem; margin-bottom: 1.2rem; }
+
+.btn { padding: 0.6rem 1.2rem; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; font-size: 0.9rem; transition: all 0.2s; background: var(--surface-2); color: var(--text); }
+.btn:hover { border-color: var(--accent); background: var(--surface-3); }
+.btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.btn-primary:hover { background: var(--accent-light); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-group { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.5rem; }
+.btn-danger { background: var(--error); color: #fff; border-color: var(--error); }
+
+.form-group { margin-bottom: 1rem; }
+.form-group label { display: block; font-size: 0.85rem; color: var(--text-dim); margin-bottom: 0.3rem; }
+.form-group input, .form-group select { width: 100%; padding: 0.6rem 0.8rem; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-family: var(--font); font-size: 0.9rem; }
+.form-group input:focus, .form-group select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-glow); }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+
+.video-container { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-top: 1rem; position: relative; }
+.video-container video, .video-container canvas { width: 100%; max-height: 400px; display: block; background: #000; }
+.video-overlay { position: absolute; top: 0.5rem; right: 0.5rem; display: flex; gap: 0.4rem; }
+.video-overlay button { padding: 0.3rem 0.6rem; border-radius: 4px; border: none; background: rgba(0,0,0,0.7); color: #fff; cursor: pointer; font-size: 0.8rem; }
+.video-overlay button:hover { background: var(--accent); }
+
+.pip-status { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 0.8rem; margin-top: 1rem; }
+.status-card { background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 0.8rem; text-align: center; }
+.status-card .label { font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.03em; }
+.status-card .value { font-size: 1.3rem; font-weight: 600; color: var(--accent-light); margin-top: 0.2rem; }
+
+.log-area { background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 1rem; font-family: var(--mono); font-size: 0.8rem; max-height: 250px; overflow-y: auto; margin-top: 1rem; }
+.log-entry { padding: 0.2rem 0; border-bottom: 1px solid #222; color: var(--text-dim); }
+.log-entry .time { color: var(--accent); }
+.log-entry .event { color: var(--success); }
+
+.code-block { background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 1rem; font-family: var(--mono); font-size: 0.8rem; overflow-x: auto; white-space: pre-wrap; word-break: break-all; color: var(--accent-light); margin-top: 1rem; }
+
+.canvas-controls { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; margin-top: 1rem; }
+.canvas-controls label { font-size: 0.85rem; color: var(--text-dim); }
+.canvas-controls input[type="color"] { width: 40px; height: 32px; border: none; background: none; cursor: pointer; }
+.canvas-controls input[type="range"] { width: 120px; }
+
+.comparison-table { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.85rem; }
+.comparison-table th, .comparison-table td { padding: 0.6rem 0.8rem; border: 1px solid var(--border); text-align: left; }
+.comparison-table th { background: var(--surface-2); color: var(--accent-light); font-weight: 600; }
+.comparison-table td { background: var(--surface); }
+.comparison-table .yes { color: var(--success); }
+.comparison-table .no { color: var(--error); }
+.comparison-table .partial-cell { color: var(--warning); }
+
+footer { text-align: center; padding: 2rem; color: var(--text-dim); font-size: 0.8rem; border-top: 1px solid var(--border); margin-top: 1rem; }
+footer a { color: var(--accent-light); text-decoration: none; }
+footer a:hover { text-decoration: underline; }
+
+@media (max-width: 768px) {
+  header { padding: 1rem; } header h1 { font-size: 1.4rem; }
+  .container { padding: 1rem; } .form-row { grid-template-columns: 1fr; }
+  .tabs { flex-wrap: nowrap; } .tab { padding: 0.5rem 0.8rem; font-size: 0.8rem; }
+  .pip-status { grid-template-columns: 1fr 1fr; }
+}
+</style>
+</head>
+<body>
+
+
+
+<header>
+  <h1 ti="title_picture_in_picture_api_pl" ti="h1_picture_in_picture_api_pl">Picture-in-Picture API Playground</h1>
+  <p>Request PiP windows, handle events, use canvas sources, and explore Document PiP</p>
+</header>
+
+<div class="container" style="position:relative">
+  <div id="supportBanner" class="support-banner">
+    <div class="support-icon">🔍</div>
+    <div class="support-text">
+      <h3 ti="h3_detecting_picture_in_pict">Detecting Picture-in-Picture support...</h3>
+      <p>Checking browser capabilities</p>
+    </div>
+  </div>
+
+  <div class="support-grid" id="supportGrid"></div>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="video" ti="btn_video_pip">Video PiP</button>
+    <button class="tab" data-tab="canvas" ti="btn_canvas_pip">Canvas PiP</button>
+    <button class="tab" data-tab="events" ti="btn_events">Events</button>
+    <button class="tab" data-tab="docpip" ti="btn_document_pip">Document PiP</button>
+    <button class="tab" data-tab="compare" ti="btn_comparison">Comparison</button>
+    <button class="tab" data-tab="code" ti="btn_code">Code</button>
+  </div>
+
+  <!-- Video PiP -->
+  <div id="tab-video" class="panel active">
+    <h2 ti="h2_video_picture_in_picture">Video Picture-in-Picture</h2>
+    <p class="desc" ti="subtitle_request_pip_mode_for_a_vi">Request PiP mode for a video element. The video floats above other windows.</p>
+
+    <div class="form-group">
+      <label ti="label_video_source">Video Source</label>
+      <select id="videoSource">
+        <option value="generated">Generated Pattern (Canvas-based)</option>
+        <option value="camera">Camera (getUserMedia)</option>
+        <option value="screen">Screen Capture (getDisplayMedia)</option>
+      </select>
+    </div>
+
+    <div class="btn-group">
+      <button class="btn btn-primary" id="btnStartVideo" ti="btn_start_video_source">Start Video Source</button>
+      <button class="btn btn-primary" id="btnEnterPip" disabled ti="btn_enter_pip" ti="btn_enter_pip_2">Enter PiP</button>
+      <button class="btn btn-danger" id="btnExitPip" disabled ti="btn_exit_pip">Exit PiP</button>
+    </div>
+
+    <div class="video-container">
+      <video id="mainVideo" playsinline muted></video>
+      <canvas id="genCanvas" width="640" height="360" style="display:none"></canvas>
+    </div>
+
+    <div class="pip-status" id="pipStatus">
+      <div class="status-card">
+        <div class="label">PiP Active</div>
+        <div class="value" id="statActive">No</div>
+      </div>
+      <div class="status-card">
+        <div class="label">PiP Width</div>
+        <div class="value" id="statWidth">--</div>
+      </div>
+      <div class="status-card">
+        <div class="label">PiP Height</div>
+        <div class="value" id="statHeight">--</div>
+      </div>
+      <div class="status-card">
+        <div class="label">Events Fired</div>
+        <div class="value" id="statEvents">0</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Canvas PiP -->
+  <div id="tab-canvas" class="panel">
+    <h2 ti="h2_canvas_as_pip_source">Canvas as PiP Source</h2>
+    <p class="desc" ti="subtitle_use_a_canvas_element_as_a">Use a canvas element as a video source via captureStream(), then request PiP on the resulting video.</p>
+
+    <div class="canvas-controls">
+      <label ti="label_shape">Shape:</label>
+      <select id="canvasShape">
+        <option value="circles">Circles</option>
+        <option value="bars">Bars</option>
+        <option value="wave">Wave</option>
+        <option value="particles">Particles</option>
+      </select>
+      <label ti="label_color">Color:</label>
+      <input type="color" id="canvasColor" value="#00bcd4">
+      <label ti="label_speed">Speed:</label>
+      <input type="range" id="canvasSpeed" min="1" max="10" value="5">
+    </div>
+
+    <div class="video-container">
+      <canvas id="pipCanvas" width="640" height="360"></canvas>
+    </div>
+
+    <div class="btn-group" style="margin-top:1rem">
+      <button class="btn btn-primary" id="btnStartCanvas" ti="btn_start_animation">Start Animation</button>
+      <button class="btn btn-primary" id="btnCanvasPip" disabled>Enter PiP</button>
+      <button class="btn" id="btnStopCanvas" ti="btn_stop">Stop</button>
+    </div>
+
+    <div class="log-area" id="canvasLog">
+      <div class="log-entry"><span class="time">[info]</span> Select a shape and click Start Animation.</div>
+    </div>
+  </div>
+
+  <!-- Events -->
+  <div id="tab-events" class="panel">
+    <h2 ti="h2_pip_window_events">PiP Window Events</h2>
+    <p class="desc" ti="subtitle_monitor_all_picture_in_pi">Monitor all Picture-in-Picture events: enterpictureinpicture, leavepictureinpicture, and resize.</p>
+
+    <div class="pip-status">
+      <div class="status-card">
+        <div class="label">Enter Events</div>
+        <div class="value" id="enterCount">0</div>
+      </div>
+      <div class="status-card">
+        <div class="label">Leave Events</div>
+        <div class="value" id="leaveCount">0</div>
+      </div>
+      <div class="status-card">
+        <div class="label">Resize Events</div>
+        <div class="value" id="resizeCount">0</div>
+      </div>
+      <div class="status-card">
+        <div class="label">Last Size</div>
+        <div class="value" id="lastSize">--</div>
+      </div>
+    </div>
+
+    <div class="log-area" id="eventLog">
+      <div class="log-entry"><span class="time">[info]</span> Enter PiP mode to start monitoring events. Try resizing the PiP window.</div>
+    </div>
+  </div>
+
+  <!-- Document PiP -->
+  <div id="tab-docpip" class="panel">
+    <h2 ti="h2_document_picture_in_pictu">Document Picture-in-Picture</h2>
+    <p class="desc" ti="subtitle_the_document_pip_api_allo">The Document PiP API allows arbitrary HTML content in PiP windows, not just video. Currently Chrome 116+.</p>
+
+    <div id="docPipSupport" style="margin-bottom:1rem;"></div>
+
+    <div class="form-group">
+      <label ti="label_pip_window_width">PiP Window Width</label>
+      <input type="number" id="docPipWidth" value="400" min="200" max="800">
+    </div>
+    <div class="form-group">
+      <label ti="label_pip_window_height">PiP Window Height</label>
+      <input type="number" id="docPipHeight" value="300" min="150" max="600">
+    </div>
+
+    <div class="form-group">
+      <label ti="label_content_template">Content Template</label>
+      <select id="docPipTemplate">
+        <option value="timer">Countdown Timer</option>
+        <option value="notes">Sticky Notes</option>
+        <option value="controls">Custom Controls</option>
+        <option value="clock">Live Clock</option>
+      </select>
+    </div>
+
+    <div class="btn-group">
+      <button class="btn btn-primary" id="btnDocPip" ti="btn_open_document_pip">Open Document PiP</button>
+    </div>
+
+    <div class="code-block" id="docPipCode"></div>
+  </div>
+
+  <!-- Comparison -->
+  <div id="tab-compare" class="panel">
+    <h2 ti="h2_browser_support_compariso">Browser Support Comparison</h2>
+    <p class="desc" ti="subtitle_standard_pip_vs_document">Standard PiP vs Document PiP across major browsers.</p>
+
+    <table class="comparison-table">
+      <thead>
+        <tr><th ti="th_feature">Feature</th><th ti="th_chrome">Chrome</th><th ti="th_firefox">Firefox</th><th ti="th_safari">Safari</th><th ti="th_edge">Edge</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Standard Video PiP</td><td class="yes">69+</td><td class="yes">113+</td><td class="yes">13.1+</td><td class="yes">79+</td></tr>
+        <tr><td>requestPictureInPicture()</td><td class="yes">69+</td><td class="yes">113+</td><td class="yes">13.1+</td><td class="yes">79+</td></tr>
+        <tr><td>exitPictureInPicture()</td><td class="yes">69+</td><td class="yes">113+</td><td class="yes">13.1+</td><td class="yes">79+</td></tr>
+        <tr><td>enterpictureinpicture event</td><td class="yes">69+</td><td class="yes">113+</td><td class="yes">13.1+</td><td class="yes">79+</td></tr>
+        <tr><td>leavepictureinpicture event</td><td class="yes">69+</td><td class="yes">113+</td><td class="yes">13.1+</td><td class="yes">79+</td></tr>
+        <tr><td>PiP window resize event</td><td class="yes">69+</td><td class="yes">113+</td><td class="no">No</td><td class="yes">79+</td></tr>
+        <tr><td>Canvas captureStream PiP</td><td class="yes">69+</td><td class="yes">113+</td><td class="partial-cell">Limited</td><td class="yes">79+</td></tr>
+        <tr><td>Document PiP API</td><td class="yes">116+</td><td class="no">No</td><td class="no">No</td><td class="yes">116+</td></tr>
+        <tr><td>documentPictureInPicture.requestWindow()</td><td class="yes">116+</td><td class="no">No</td><td class="no">No</td><td class="yes">116+</td></tr>
+        <tr><td>PiP window custom controls</td><td class="yes">via Doc PiP</td><td class="no">No</td><td class="no">No</td><td class="yes">via Doc PiP</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Code -->
+  <div id="tab-code" class="panel">
+    <h2 ti="h2_generated_code">Generated Code</h2>
+    <p class="desc" ti="subtitle_copy_paste_integration_co">Copy-paste integration code for your project.</p>
+
+    <h3 style="font-size:0.95rem;" ti="h3_standard_video_pip">Standard Video PiP</h3>
+    <div class="code-block">// Enter Picture-in-Picture
+const video = document.querySelector('video');
+
+async function togglePiP() {
+  if (document.pictureInPictureElement) {
+    await document.exitPictureInPicture();
+  } else if (document.pictureInPictureEnabled) {
+    const pipWindow = await video.requestPictureInPicture();
+
+    pipWindow.addEventListener('resize', (e) => {
+      console.log(`PiP resized: ${pipWindow.width}x${pipWindow.height}`);
+    });
+  }
+}
+
+video.addEventListener('enterpictureinpicture', (e) => {
+  console.log('Entered PiP', e.pictureInPictureWindow);
+});
+
+video.addEventListener('leavepictureinpicture', () => {
+  console.log('Left PiP');
+});</div>
+
+    <h3 style="font-size:0.95rem;margin-top:1.5rem;" ti="h3_canvas_as_pip_source">Canvas as PiP Source</h3>
+    <div class="code-block">const canvas = document.getElementById('myCanvas');
+const stream = canvas.captureStream(30); // 30 FPS
+
+const video = document.createElement('video');
+video.srcObject = stream;
+video.muted = true;
+await video.play();
+
+const pipWindow = await video.requestPictureInPicture();</div>
+
+    <h3 style="font-size:0.95rem;margin-top:1.5rem;" ti="h3_document_pip_chrome_116">Document PiP (Chrome 116+)</h3>
+    <div class="code-block">// Document Picture-in-Picture
+const pipWindow = await documentPictureInPicture.requestWindow({
+  width: 400,
+  height: 300
+});
+
+// Copy styles
+[...document.styleSheets].forEach(sheet => {
+  try {
+    const css = [...sheet.cssRules].map(r => r.cssText).join('');
+    const style = pipWindow.document.createElement('style');
+    style.textContent = css;
+    pipWindow.document.head.appendChild(style);
+  } catch(e) {} // cross-origin sheets
+});
+
+// Add content
+const content = document.getElementById('player').cloneNode(true);
+pipWindow.document.body.appendChild(content);
+
+pipWindow.addEventListener('pagehide', () => {
+  console.log('Document PiP closed');
+});</div>
+
+    <div class="btn-group" style="margin-top:1rem">
+      <button class="btn btn-primary" onclick="navigator.clipboard.writeText(document.querySelectorAll('#tab-code .code-block')[0].textContent).then(()= ti="btn_this_textcontent_copied">{this.textContent='Copied!';setTimeout(()=>this.textContent='Copy Standard PiP',1500)})">Copy Standard PiP</button>
+      <button class="btn" onclick="navigator.clipboard.writeText(document.querySelectorAll('#tab-code .code-block')[2].textContent).then(()= ti="btn_this_textcontent_copied_2">{this.textContent='Copied!';setTimeout(()=>this.textContent='Copy Document PiP',1500)})">Copy Document PiP</button>
+    </div>
+  </div>
+</div>
+
+<footer>
+  Picture-in-Picture API Playground &mdash; No external dependencies. Built with vanilla JS.
+  <br><a href="https://developer.mozilla.org/en-US/docs/Web/API/Picture-in-Picture_API" target="_blank" rel="noopener">MDN Documentation</a>
+</footer>
+
+
+<script>var _LANG={'title_picture_in_picture_api_pl':["Picture-in-Picture API Playground", "画中画 API 演示区"],'metadesc_interactive_playground_fo':["Interactive playground for the Picture-in-Picture API - request PiP mode, handle events, use canvas sources, and explore Document PiP.", "画中画 API 的交互式游乐场 - 请求画中画模式、处理事件、使用画布源以及探索文档画中画。"],'h1_picture_in_picture_api_pl':["Picture-in-Picture API Playground", "画中画 API 演示区"],'h2_video_picture_in_picture':["Video Picture-in-Picture", "视频画中画"],'h2_canvas_as_pip_source':["Canvas as PiP Source", "画布作为画中画源"],'h2_pip_window_events':["PiP Window Events", "画中画窗口事件"],'h2_document_picture_in_pictu':["Document Picture-in-Picture", "文档画中画"],'h2_browser_support_compariso':["Browser Support Comparison", "浏览器支持度比较"],'h2_generated_code':["Generated Code", "生成的代码"],'h2_countdown_timer':["Countdown Timer", "倒计时器"],'h2_sticky_notes':["Sticky Notes", "便签纸"],'h2_custom_controls':["Custom Controls", "自定义控件"],'h2_live_clock':["Live Clock", "实时时钟"],'h3_detecting_picture_in_pict':["Detecting Picture-in-Picture support...", "检测到画中画支持……"],'h3_standard_video_pip':["Standard Video PiP", "标准视频画中画"],'h3_canvas_as_pip_source':["Canvas as PiP Source", "画布作为画中画源"],'h3_document_pip_chrome_116':["Document PiP (Chrome 116+)", "文档画中画（Chrome 116+）"],'subtitle_request_pip_mode_for_a_vi':["Request PiP mode for a video element. The video floats above other windows.", "请求视频元素进入画中画模式。视频将悬浮在其他窗口之上。"],'subtitle_use_a_canvas_element_as_a':["Use a canvas element as a video source via captureStream(), then request PiP on the resulting video.", "使用 canvas 元素作为视频源，通过 captureStream()，然后对生成的视频请求画中画功能。"],'subtitle_monitor_all_picture_in_pi':["Monitor all Picture-in-Picture events: enterpictureinpicture, leavepictureinpicture, and resize.", "监控所有画中画事件：进入画中画、离开画中画和调整大小。"],'subtitle_the_document_pip_api_allo':["The Document PiP API allows arbitrary HTML content in PiP windows, not just video. Currently Chrome 116+.", "文档画中画 API 允许在画中画窗口中显示任意 HTML 内容，而不仅仅是视频。目前支持 Chrome 116 及更高版本。"],'subtitle_standard_pip_vs_document':["Standard PiP vs Document PiP across major browsers.", "主流浏览器上的标准画中画与文档画中画对比。"],'subtitle_copy_paste_integration_co':["Copy-paste integration code for your project.", "复制粘贴集成代码到您的项目中。"],'btn_video_pip':["Video PiP", "视频画中画"],'btn_canvas_pip':["Canvas PiP", "画布画中画"],'btn_events':["Events", "活动"],'btn_document_pip':["Document PiP", "文档 PiP"],'btn_comparison':["Comparison", "比较"],'btn_code':["Code", "代码"],'btn_start_video_source':["Start Video Source", "开始视频源"],'btn_enter_pip':["Enter PiP", "输入画中画"],'btn_exit_pip':["Exit PiP", "退出 PiP"],'btn_start_animation':["Start Animation", "开始动画"],'btn_enter_pip_2':["Enter PiP", "输入画中画"],'btn_stop':["Stop", "停止"],'btn_open_document_pip':["Open Document PiP", "打开文档 PiP"],'btn_this_textcontent_copied':["{this.textContent='Copied!';setTimeout(()=>this.textContent='Copy Standard PiP',1500)})\">Copy Standard PiP", "{this.textContent=&#39;已复制！&#39;;setTimeout(()=&gt;this.textContent=&#39;复制标准画中画&#39;,1500)})&quot;&gt;复制标准画中画"],'btn_this_textcontent_copied_2':["{this.textContent='Copied!';setTimeout(()=>this.textContent='Copy Document PiP',1500)})\">Copy Document PiP", "{this.textContent=&#39;已复制！&#39;;setTimeout(()=&gt;this.textContent=&#39;复制画中画文档&#39;,1500)})&quot;&gt;复制画中画文档"],'btn_start':["Start", "开始"],'btn_reset':["Reset", "重置"],'btn_prev':["⏮ Prev", "⏮ 上一页"],'btn_pause':["⏸ Pause", "⏸ 暂停"],'btn_next':["⏭ Next", "⏭ 下一页"],'btn_vol':["🔉 Vol-", "🔉 Vol-"],'btn_vol_2':["🔊 Vol+", "🔊 Vol+"],'btn_shuffle':["🔀 Shuffle", "🔀 随机播放"],'label_f_name':["${f.name}", "${f.name}"],'label_document_pip_is_supported':["Document PiP is supported in this browser", "此浏览器支持文档画中画功能"],'label_document_pip_requires_chr':["Document PiP requires Chrome 116+ or Edge 116+", "文档画中画功能需要 Chrome 116+ 或 Edge 116+"],'placeholder_type_your_notes_here':["Type your notes here...", "请在此处输入您的笔记……"],'th_feature':["Feature", "特征"],'th_chrome':["Chrome", "铬合金"],'th_firefox':["Firefox", "火狐浏览器"],'th_safari':["Safari", "狩猎之旅"],'th_edge':["Edge", "边缘"],'label_video_source':["Video Source", "视频来源"],'label_shape':["Shape:", "形状："],'label_color':["Color:", "颜色："],'label_speed':["Speed:", "速度："],'label_pip_window_width':["PiP Window Width", "画中画窗口宽度"],'label_pip_window_height':["PiP Window Height", "画中画窗口高度"],'label_content_template':["Content Template", "内容模板"],'jtc_full_picture_in_picture_s':["Full Picture-in-Picture support detected", "检测到完全支持画中画功能"],'jtc_all_features_including_do':["All features including Document PiP are available.", "所有功能（包括文档画中画）均可用。"],'jtc_standard_pip_supported':["Standard PiP supported", "支持标准画中画功能"],'jtc_x':["⚠️", "⚠️"],'jtc_limited_picture_in_pictur':["Limited Picture-in-Picture support", "有限的画中画支持"],'jtc_some_features_may_not_wor':["Some features may not work in your browser.", "某些功能可能无法在您的浏览器中使用。"],'jtc_yes':["Yes", "是的"],'jtc_no':["No", "不"],'jtc_x_2':["--", "--"],'jtc_x_3':["--", "--"],'jtc_05_00':["05:00", "05:00"],'jalert_document_picture_in_pictu':["Document Picture-in-Picture is not supported in this browser. Try Chrome 116+.", "此浏览器不支持画中画功能。请尝试使用 Chrome 116 或更高版本。"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>
+(function() {
+  'use strict';
+
+  // --- Feature Detection ---
+  const features = [
+    { name: 'Video PiP', check: () => 'pictureInPictureEnabled' in document },
+    { name: 'requestPictureInPicture', check: () => 'requestPictureInPicture' in HTMLVideoElement.prototype },
+    { name: 'exitPictureInPicture', check: () => 'exitPictureInPicture' in document },
+    { name: 'pictureInPictureElement', check: () => 'pictureInPictureElement' in document },
+    { name: 'Document PiP', check: () => 'documentPictureInPicture' in window },
+    { name: 'captureStream', check: () => 'captureStream' in HTMLCanvasElement.prototype }
+  ];
+
+  const grid = document.getElementById('supportGrid');
+  let supportedCount = 0;
+  features.forEach(f => {
+    const ok = f.check();
+    if (ok) supportedCount++;
+    const item = document.createElement('div');
+    item.className = 'support-item';
+    item.innerHTML = `<span class="dot ${ok ? 'green' : 'red'}"></span><span class="label" ti="label_f_name">${f.name}</span>`;
+    grid.appendChild(item);
+  });
+
+  const banner = document.getElementById('supportBanner');
+  if (supportedCount === features.length) {
+    banner.className = 'support-banner supported';
+    banner.querySelector('.support-icon').textContent = '✅';
+    banner.querySelector('h3').textContent=T("jtc_full_picture_in_picture_s");
+    banner.querySelector('p').textContent=T("jtc_all_features_including_do");
+  } else if (supportedCount >= 4) {
+    banner.className = 'support-banner partial';
+    banner.querySelector('.support-icon').textContent = '⚡';
+    banner.querySelector('h3').textContent=T("jtc_standard_pip_supported");
+    banner.querySelector('p').textContent = `${supportedCount}/${features.length} features available. Document PiP may require Chrome 116+.`;
+  } else {
+    banner.className = 'support-banner unsupported';
+    banner.querySelector('.support-icon').textContent=T("jtc_x");
+    banner.querySelector('h3').textContent=T("jtc_limited_picture_in_pictur");
+    banner.querySelector('p').textContent=T("jtc_some_features_may_not_wor");
+  }
+
+  // --- Tabs ---
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+      tab.classList.add('active');
+      document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+    });
+  });
+
+  // --- Event counters ---
+  let enterCount = 0, leaveCount = 0, resizeCount = 0, totalEvents = 0;
+
+  function logEvent(msg) {
+    const log = document.getElementById('eventLog');
+    const entry = document.createElement('div');
+    entry.className = 'log-entry';
+    entry.innerHTML = `<span class="time">[${new Date().toLocaleTimeString()}]</span> <span class="event">${msg}</span>`;
+    log.prepend(entry);
+    if (log.children.length > 80) log.lastChild.remove();
+    totalEvents++;
+    document.getElementById('statEvents').textContent = totalEvents;
+  }
+
+  function logCanvas(msg) {
+    const log = document.getElementById('canvasLog');
+    const entry = document.createElement('div');
+    entry.className = 'log-entry';
+    entry.innerHTML = `<span class="time">[${new Date().toLocaleTimeString()}]</span> ${msg}`;
+    log.prepend(entry);
+    if (log.children.length > 50) log.lastChild.remove();
+  }
+
+  // --- Video PiP ---
+  const video = document.getElementById('mainVideo');
+  const genCanvas = document.getElementById('genCanvas');
+  let genCtx = genCanvas.getContext('2d');
+  let genAnimId = null;
+  let genFrame = 0;
+
+  function drawGeneratedPattern() {
+    genFrame++;
+    genCtx.fillStyle = '#000';
+    genCtx.fillRect(0, 0, 640, 360);
+
+    for (let i = 0; i < 8; i++) {
+      const x = 320 + Math.cos((genFrame + i * 45) * 0.02) * 200;
+      const y = 180 + Math.sin((genFrame + i * 30) * 0.03) * 120;
+      const r = 20 + Math.sin((genFrame + i * 20) * 0.05) * 15;
+      genCtx.beginPath();
+      genCtx.arc(x, y, r, 0, Math.PI * 2);
+      const hue = (genFrame * 2 + i * 45) % 360;
+      genCtx.fillStyle = `hsl(${hue}, 80%, 60%)`;
+      genCtx.fill();
+    }
+
+    genCtx.fillStyle = '#fff';
+    genCtx.font = '16px monospace';
+    genCtx.fillText(`Frame: ${genFrame}`, 10, 30);
+    genCtx.fillText(`PiP: ${document.pictureInPictureElement ? 'Active' : 'Inactive'}`, 10, 50);
+
+    genAnimId = requestAnimationFrame(drawGeneratedPattern);
+  }
+
+  document.getElementById('btnStartVideo').addEventListener('click', async () => {
+    const source = document.getElementById('videoSource').value;
+    try {
+      if (source === 'generated') {
+        drawGeneratedPattern();
+        const stream = genCanvas.captureStream(30);
+        video.srcObject = stream;
+        await video.play();
+      } else if (source === 'camera') {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        video.srcObject = stream;
+        await video.play();
+      } else if (source === 'screen') {
+        const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+        video.srcObject = stream;
+        await video.play();
+      }
+      document.getElementById('btnEnterPip').disabled = false;
+      logEvent(`Video source started: ${source}`);
+    } catch(e) {
+      logEvent(`Error starting source: ${e.message}`);
+    }
+  });
+
+  video.addEventListener('enterpictureinpicture', (e) => {
+    enterCount++;
+    document.getElementById('enterCount').textContent = enterCount;
+    document.getElementById('statActive').textContent=T("jtc_yes");
+    document.getElementById('btnExitPip').disabled = false;
+    document.getElementById('btnEnterPip').disabled = true;
+
+    const pw = e.pictureInPictureWindow;
+    document.getElementById('statWidth').textContent = pw.width;
+    document.getElementById('statHeight').textContent = pw.height;
+    document.getElementById('lastSize').textContent = `${pw.width}x${pw.height}`;
+    logEvent(`enterpictureinpicture - Window: ${pw.width}x${pw.height}`);
+
+    pw.addEventListener('resize', () => {
+      resizeCount++;
+      document.getElementById('resizeCount').textContent = resizeCount;
+      document.getElementById('statWidth').textContent = pw.width;
+      document.getElementById('statHeight').textContent = pw.height;
+      document.getElementById('lastSize').textContent = `${pw.width}x${pw.height}`;
+      logEvent(`resize - New size: ${pw.width}x${pw.height}`);
+    });
+  });
+
+  video.addEventListener('leavepictureinpicture', () => {
+    leaveCount++;
+    document.getElementById('leaveCount').textContent = leaveCount;
+    document.getElementById('statActive').textContent=T("jtc_no");
+    document.getElementById('statWidth').textContent=T("jtc_x_2");
+    document.getElementById('statHeight').textContent=T("jtc_x_2");
+    document.getElementById('btnExitPip').disabled = true;
+    document.getElementById('btnEnterPip').disabled = false;
+    logEvent('leavepictureinpicture');
+  });
+
+  document.getElementById('btnEnterPip').addEventListener('click', async () => {
+    try {
+      await video.requestPictureInPicture();
+    } catch(e) {
+      logEvent(`PiP request failed: ${e.message}`);
+    }
+  });
+
+  document.getElementById('btnExitPip').addEventListener('click', async () => {
+    try {
+      await document.exitPictureInPicture();
+    } catch(e) {
+      logEvent(`PiP exit failed: ${e.message}`);
+    }
+  });
+
+  // --- Canvas PiP ---
+  const pipCanvas = document.getElementById('pipCanvas');
+  const pipCtx = pipCanvas.getContext('2d');
+  let canvasAnimId = null;
+  let canvasFrame = 0;
+  let canvasVideo = null;
+  let particles = [];
+
+  function initParticles() {
+    particles = [];
+    for (let i = 0; i < 60; i++) {
+      particles.push({
+        x: Math.random() * 640, y: Math.random() * 360,
+        vx: (Math.random() - 0.5) * 3, vy: (Math.random() - 0.5) * 3,
+        r: 2 + Math.random() * 4
+      });
+    }
+  }
+  initParticles();
+
+  function drawCanvasAnimation() {
+    canvasFrame++;
+    const color = document.getElementById('canvasColor').value;
+    const speed = parseInt(document.getElementById('canvasSpeed').value);
+    const shape = document.getElementById('canvasShape').value;
+    const f = canvasFrame * speed * 0.1;
+
+    pipCtx.fillStyle = 'rgba(0,0,0,0.15)';
+    pipCtx.fillRect(0, 0, 640, 360);
+
+    pipCtx.strokeStyle = color;
+    pipCtx.fillStyle = color;
+
+    if (shape === 'circles') {
+      for (let i = 0; i < 5; i++) {
+        const cx = 320 + Math.cos(f * 0.02 + i * 1.2) * 180;
+        const cy = 180 + Math.sin(f * 0.03 + i * 0.9) * 100;
+        const r = 15 + Math.sin(f * 0.05 + i) * 10;
+        pipCtx.beginPath();
+        pipCtx.arc(cx, cy, r, 0, Math.PI * 2);
+        pipCtx.globalAlpha = 0.7;
+        pipCtx.fill();
+        pipCtx.globalAlpha = 1;
+      }
+    } else if (shape === 'bars') {
+      const barW = 640 / 32;
+      for (let i = 0; i < 32; i++) {
+        const h = 50 + Math.sin(f * 0.04 + i * 0.3) * 120;
+        pipCtx.fillRect(i * barW, 360 - h, barW - 2, h);
+      }
+    } else if (shape === 'wave') {
+      pipCtx.beginPath();
+      pipCtx.lineWidth = 3;
+      for (let x = 0; x < 640; x++) {
+        const y = 180 + Math.sin(x * 0.02 + f * 0.03) * 60 + Math.cos(x * 0.01 + f * 0.02) * 40;
+        x === 0 ? pipCtx.moveTo(x, y) : pipCtx.lineTo(x, y);
+      }
+      pipCtx.stroke();
+    } else if (shape === 'particles') {
+      particles.forEach(p => {
+        p.x += p.vx * speed * 0.3;
+        p.y += p.vy * speed * 0.3;
+        if (p.x < 0 || p.x > 640) p.vx *= -1;
+        if (p.y < 0 || p.y > 360) p.vy *= -1;
+        pipCtx.beginPath();
+        pipCtx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        pipCtx.fill();
+      });
+    }
+
+    canvasAnimId = requestAnimationFrame(drawCanvasAnimation);
+  }
+
+  document.getElementById('btnStartCanvas').addEventListener('click', async () => {
+    if (canvasAnimId) cancelAnimationFrame(canvasAnimId);
+    pipCtx.clearRect(0, 0, 640, 360);
+    drawCanvasAnimation();
+
+    try {
+      const stream = pipCanvas.captureStream(30);
+      canvasVideo = document.createElement('video');
+      canvasVideo.srcObject = stream;
+      canvasVideo.muted = true;
+      await canvasVideo.play();
+      document.getElementById('btnCanvasPip').disabled = false;
+      logCanvas('<span class="event">Canvas animation started.</span> Ready for PiP.');
+    } catch(e) {
+      logCanvas(`Error: ${e.message}`);
+    }
+  });
+
+  document.getElementById('btnCanvasPip').addEventListener('click', async () => {
+    if (!canvasVideo) return;
+    try {
+      await canvasVideo.requestPictureInPicture();
+      logCanvas('<span class="event">Canvas entered PiP mode!</span>');
+    } catch(e) {
+      logCanvas(`PiP failed: ${e.message}`);
+    }
+  });
+
+  document.getElementById('btnStopCanvas').addEventListener('click', () => {
+    if (canvasAnimId) { cancelAnimationFrame(canvasAnimId); canvasAnimId = null; }
+    pipCtx.clearRect(0, 0, 640, 360);
+    document.getElementById('btnCanvasPip').disabled = true;
+    logCanvas('Animation stopped.');
+  });
+
+  // --- Document PiP ---
+  const docPipSupport = document.getElementById('docPipSupport');
+  const hasDocPip = 'documentPictureInPicture' in window;
+  docPipSupport.innerHTML = hasDocPip
+    ? '<div class="support-item"><span class="dot green"></span><span class="label" ti="label_document_pip_is_supported">Document PiP is supported in this browser</span></div>'
+    : '<div class="support-item"><span class="dot red"></span><span class="label" ti="label_document_pip_requires_chr">Document PiP requires Chrome 116+ or Edge 116+</span></div>';
+
+  document.getElementById('btnDocPip').addEventListener('click', async () => {
+    if (!hasDocPip) {
+      T("jalert_document_picture_in_pictu");
+      return;
+    }
+
+    const width = parseInt(document.getElementById('docPipWidth').value) || 400;
+    const height = parseInt(document.getElementById('docPipHeight').value) || 300;
+    const template = document.getElementById('docPipTemplate').value;
+
+    try {
+      const pipWin = await documentPictureInPicture.requestWindow({ width, height });
+
+      const style = pipWin.document.createElement('style');
+      style.textContent = `
+        body { background: #1a1a2e; color: #e0e0e0; font-family: system-ui; padding: 1rem; margin: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; }
+        h2 { font-size: 1.2rem; color: #00bcd4; margin-bottom: 1rem; }
+        .timer { font-size: 3rem; font-weight: bold; font-family: monospace; }
+        textarea { width: 90%; height: 120px; background: #16213e; border: 1px solid #333; color: #fff; padding: 0.5rem; border-radius: 6px; resize: none; }
+        button { padding: 0.5rem 1rem; background: #00bcd4; border: none; color: #fff; border-radius: 4px; cursor: pointer; margin: 0.3rem; }
+        .clock { font-size: 2.5rem; font-family: monospace; color: #4dd0e1; }
+        .controls-row { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+      `;
+      pipWin.document.head.appendChild(style);
+
+      const body = pipWin.document.body;
+      if (template === 'timer') {
+        body.innerHTML = '<h2 ti="h2_countdown_timer">Countdown Timer</h2><div class="timer" id="timer">05:00</div><div class="controls-row"><button id="start" ti="btn_start">Start</button><button id="reset" ti="btn_reset">Reset</button></div>';
+        let seconds = 300, interval = null;
+        const timerEl = pipWin.document.getElementById('timer');
+        pipWin.document.getElementById('start').addEventListener('click', () => {
+          if (interval) { clearInterval(interval); interval = null; return; }
+          interval = setInterval(() => {
+            seconds--;
+            if (seconds < 0) { clearInterval(interval); seconds = 0; }
+            const m = Math.floor(seconds / 60), s = seconds % 60;
+            timerEl.textContent = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+          }, 1000);
+        });
+        pipWin.document.getElementById('reset').addEventListener('click', () => {
+          clearInterval(interval); interval = null; seconds = 300; timerEl.textContent=T("jtc_05_00");
+        });
+      } else if (template === 'notes') {
+        body.innerHTML = '<h2 ti="h2_sticky_notes">Sticky Notes</h2><textarea tp="placeholder_type_your_notes_here" placeholder="Type your notes here..."></textarea>';
+      } else if (template === 'controls') {
+        body.innerHTML = '<h2 ti="h2_custom_controls">Custom Controls</h2><div class="controls-row"><button ti="btn_prev">⏮ Prev</button><button ti="btn_pause">⏸ Pause</button><button ti="btn_next">⏭ Next</button></div><div class="controls-row"><button ti="btn_vol">🔉 Vol-</button><button ti="btn_vol_2">🔊 Vol+</button><button ti="btn_shuffle">🔀 Shuffle</button></div>';
+      } else if (template === 'clock') {
+        body.innerHTML = '<h2 ti="h2_live_clock">Live Clock</h2><div class="clock" id="clock"></div>';
+        const clockEl = pipWin.document.getElementById('clock');
+        setInterval(() => { clockEl.textContent = new Date().toLocaleTimeString(); }, 1000);
+        clockEl.textContent = new Date().toLocaleTimeString();
+      }
+
+      pipWin.addEventListener('pagehide', () => logEvent('Document PiP window closed'));
+      logEvent(`Document PiP opened: ${template} (${width}x${height})`);
+    } catch(e) {
+      logEvent(`Document PiP error: ${e.message}`);
+    }
+  });
+
+  // Show code for Document PiP
+  const docPipCodeEl = document.getElementById('docPipCode');
+  document.getElementById('docPipTemplate').addEventListener('change', updateDocPipCode);
+  function updateDocPipCode() {
+    const t = document.getElementById('docPipTemplate').value;
+    const w = document.getElementById('docPipWidth').value;
+    const h = document.getElementById('docPipHeight').value;
+    docPipCodeEl.textContent = `const pipWindow = await documentPictureInPicture.requestWindow({\n  width: ${w},\n  height: ${h}\n});\n\n// Add styles and content to pipWindow.document\n// Template: ${t}`;
+  }
+  updateDocPipCode();
+})();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+</body>
+</html>

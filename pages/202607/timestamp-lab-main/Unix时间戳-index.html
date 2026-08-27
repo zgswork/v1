@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>⏱ Timestamp Lab · 时间戳转换器</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0d1117;color:#e6edf3;padding:20px;min-height:100vh}
+.container{max-width:720px;margin:0 auto}
+h1{font-size:1.6em;margin-bottom:4px;display:flex;align-items:center;gap:10px}
+.sub{color:#8b949e;font-size:0.9em;margin-bottom:24px}
+.card{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:20px;margin-bottom:16px}
+.card h2{font-size:1.1em;margin-bottom:12px;color:#58a6ff}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
+.row label{min-width:80px;color:#8b949e;font-size:0.9em}
+input[type=text],input[type=datetime-local]{background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:8px 12px;color:#e6edf3;font-size:0.95em;flex:1;min-width:180px}
+input[type=text]:focus,input[type=datetime-local]:focus{outline:none;border-color:#58a6ff}
+.btn{background:#21262d;border:1px solid #30363d;border-radius:6px;color:#e6edf3;padding:6px 14px;cursor:pointer;font-size:0.9em;white-space:nowrap}
+.btn:hover{background:#30363d;border-color:#8b949e}
+.btn-primary{background:#238636;border-color:#238636;color:#fff}
+.btn-primary:hover{background:#2ea043}
+.output{background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:10px 14px;margin-top:8px;font-family:'SF Mono','Fira Code',monospace;font-size:0.9em;min-height:20px;word-break:break-all;position:relative}
+.output-row{display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap}
+.output-label{color:#8b949e;font-size:0.85em;min-width:60px}
+.output-value{font-family:'SF Mono','Fira Code',monospace;font-size:0.9em}
+.copy-btn{background:transparent;border:1px solid #30363d;border-radius:4px;color:#8b949e;padding:2px 8px;cursor:pointer;font-size:0.8em}
+.copy-btn:hover{color:#e6edf3;border-color:#8b949e}
+.current-time{font-size:1.8em;font-weight:bold;text-align:center;padding:12px 0;font-family:'SF Mono','Fira Code',monospace;color:#58a6ff}
+.current-ts{text-align:center;color:#8b949e;font-size:0.9em;margin-bottom:4px;font-family:'SF Mono','Fira Code',monospace}
+.hint{color:#8b949e;font-size:0.85em;margin-top:4px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:600px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>⏱ Timestamp Lab</h1>
+<p class="sub">Unix 时间戳 ↔ 人类可读日期 · 纯浏览器本地运算</p>
+
+<div class="card" style="text-align:center">
+<div class="current-time" id="currentTime">--</div>
+<div class="current-ts" id="currentTs">--</div>
+<button class="btn" onclick="refreshNow()">🔄 刷新</button>
+</div>
+
+<div class="grid">
+<div class="card">
+<h2>📥 时间戳 → 日期</h2>
+<div class="row">
+<label>时间戳</label>
+<input type="text" id="tsInput" placeholder="例如 1717200000 或 1717200000000" oninput="tsToDate()">
+</div>
+<div class="hint">支持秒（10位）和毫秒（13位）</div>
+<div id="tsResults"></div>
+</div>
+
+<div class="card">
+<h2>📤 日期 → 时间戳</h2>
+<div class="row">
+<label>日期时间</label>
+<input type="datetime-local" id="dateInput" onchange="dateToTs()">
+</div>
+<div class="hint">选择日期时间，自动转换为 Unix 时间戳</div>
+<div id="dateResults"></div>
+</div>
+</div>
+
+<div class="card">
+<h2>📋 常用时间戳</h2>
+<div id="commonTimestamps"></div>
+</div>
+
+<p class="sub" style="margin-top:12px;text-align:center">所有运算在本地完成，数据不上传任何服务器</p>
+</div>
+
+<script>
+function refreshNow(){
+updateCurrentTime();
+}
+function updateCurrentTime(){
+const now=Date.now();
+document.getElementById('currentTime').textContent=new Date(now).toLocaleString('zh-CN',{hour12:false});
+document.getElementById('currentTs').textContent='Unix: '+Math.floor(now/1000)+'  ·  ms: '+now;
+}
+setInterval(updateCurrentTime,1000);
+updateCurrentTime();
+
+function tsToDate(){
+const raw=document.getElementById('tsInput').value.trim();
+const results=document.getElementById('tsResults');
+if(!raw){results.innerHTML='';return}
+let ms=Number(raw);
+if(isNaN(ms)){results.innerHTML='<div class="output" style="color:#f85149">❌ 无效数字</div>';return}
+if(raw.length<=10)ms*=1000;
+const d=new Date(ms);
+if(isNaN(d.getTime())){results.innerHTML='<div class="output" style="color:#f85149">❌ 无效时间戳</div>';return}
+const fmt={hour12:false,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'};
+const items=[
+{label:'UTC',val:d.toUTCString()},
+{label:'本地',val:d.toLocaleString('zh-CN',{...fmt,timeZoneName:'short'})},
+{label:'ISO 8601',val:d.toISOString()},
+{label:'相对',val:relativeTime(ms)},
+];
+let html='';
+for(const i of items){
+html+='<div class="output-row"><span class="output-label">'+i.label+'</span><span class="output-value">'+esc(i.val)+'</span><button class="copy-btn" onclick="copyText(\''+esc(i.val)+'\')">📋</button></div>';
+}
+results.innerHTML=html;
+}
+
+function dateToTs(){
+const val=document.getElementById('dateInput').value;
+const results=document.getElementById('dateResults');
+if(!val){results.innerHTML='';return}
+const d=new Date(val);
+if(isNaN(d.getTime())){results.innerHTML='<div class="output" style="color:#f85149">❌ 无效日期</div>';return}
+const ms=d.getTime();
+const s=Math.floor(ms/1000);
+let html='';
+html+='<div class="output-row"><span class="output-label">秒</span><span class="output-value">'+s+'</span><button class="copy-btn" onclick="copyText(\''+s+'\')">📋</button></div>';
+html+='<div class="output-row"><span class="output-label">毫秒</span><span class="output-value">'+ms+'</span><button class="copy-btn" onclick="copyText(\''+ms+'\')">📋</button></div>';
+results.innerHTML=html;
+}
+
+function relativeTime(ms){
+const now=Date.now();
+const diff=ms-now;
+const abs=Math.abs(diff);
+const sec=Math.floor(abs/1000);
+const min=Math.floor(sec/60);
+const hr=Math.floor(min/60);
+const day=Math.floor(hr/24);
+const month=Math.floor(day/30);
+const year=Math.floor(day/365);
+let prefix=diff>=0?'后':'前';
+if(year>0)return year+' 年'+prefix;
+if(month>0)return month+' 个月'+prefix;
+if(day>0)return day+' 天'+prefix;
+if(hr>0)return hr+' 小时'+prefix;
+if(min>0)return min+' 分钟'+prefix;
+if(sec>10)return sec+' 秒'+prefix;
+return '刚刚';
+}
+
+function commonTimestamps(){
+const now=Date.now();
+const today=new Date();
+today.setHours(0,0,0,0);
+const tomorrow=new Date(today);
+tomorrow.setDate(tomorrow.getDate()+1);
+const items=[
+{label:'现在',ts:Math.floor(now/1000)},
+{label:'今天 00:00 UTC',ts:Math.floor(new Date(Date.UTC(today.getUTCFullYear(),today.getUTCMonth(),today.getUTCDate()))/1000)},
+{label:'明天 00:00 UTC',ts:Math.floor(new Date(Date.UTC(today.getUTCFullYear(),today.getUTCMonth(),today.getUTCDate()+1))/1000)},
+{label:'7 天后 00:00 UTC',ts:Math.floor(new Date(Date.UTC(today.getUTCFullYear(),today.getUTCMonth(),today.getUTCDate()+7))/1000)},
+{label:'30 天后 00:00 UTC',ts:Math.floor(new Date(Date.UTC(today.getUTCFullYear(),today.getUTCMonth(),today.getUTCDate()+30))/1000)},
+{label:'Unix 纪元',ts:0},
+{label:'2038 年问题 (Y2K38)',ts:2147483647},
+{label:'2099 年',ts:4102444800},
+];
+let html='<table style="width:100%;border-collapse:collapse;font-size:0.9em"><tr style="color:#8b949e"><th style="text-align:left;padding:4px 8px">说明</th><th style="text-align:left;padding:4px 8px">Unix 时间戳</th><th style="text-align:left;padding:4px 8px">UTC</th><th></th></tr>';
+for(const i of items){
+const d=new Date(i.ts*1000);
+html+='<tr style="border-top:1px solid #21262d"><td style="padding:6px 8px">'+esc(i.label)+'</td><td style="padding:6px 8px;font-family:monospace">'+i.ts+'</td><td style="padding:6px 8px;font-family:monospace;font-size:0.85em;color:#8b949e">'+d.toISOString().slice(0,19)+'Z</td><td style="padding:6px 8px"><button class="copy-btn" onclick="copyText(\''+i.ts+'\')">📋</button></td></tr>';
+}
+html+='</table>';
+document.getElementById('commonTimestamps').innerHTML=html;
+}
+commonTimestamps();
+
+function esc(s){if(!s)return'';const d=document.createElement('div');d.textContent=s;return d.innerHTML}
+function copyText(t){navigator.clipboard.writeText(t).catch(()=>{}).then(()=>{const btn=event&&event.target;if(btn){const ot=btn.textContent;btn.textContent='✅';setTimeout(()=>btn.textContent=ot,1200)}})}
+
+// restore saved timestamp input
+const saved=localStorage.getItem('tslab-ts');
+if(saved){document.getElementById('tsInput').value=saved;tsToDate()}
+document.getElementById('tsInput').addEventListener('input',function(){localStorage.setItem('tslab-ts',this.value)});
+
+// set date input to now by default
+const nowDate=new Date();const pad=n=>(''+n).padStart(2,'0');
+document.getElementById('dateInput').value=nowDate.getFullYear()+'-'+pad(nowDate.getMonth()+1)+'-'+pad(nowDate.getDate())+'T'+pad(nowDate.getHours())+':'+pad(nowDate.getMinutes());
+dateToTs();
+</script>
+</body>
+</html>

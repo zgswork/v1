@@ -1,0 +1,2108 @@
+<!DOCTYPE html>
+<html tk="title_editcontext_api_playgroun" lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EditContext API Playground</title>
+<meta name="description" content="Interactive playground for the EditContext API — build custom text editors bypassing contenteditable. Live demos, canvas editor, IME composition, and code generator.">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0f1117;
+  --bg-card: #1a1d27;
+  --bg-input: #252833;
+  --border: #2e3240;
+  --border-focus: #6366f1;
+  --text: #e2e8f0;
+  --text-dim: #94a3b8;
+  --text-bright: #f1f5f9;
+  --accent: #6366f1;
+  --accent-dim: #4f46e5;
+  --green: #22c55e;
+  --red: #ef4444;
+  --orange: #f59e0b;
+  --blue: #3b82f6;
+  --cyan: #06b6d4;
+  --pink: #ec4899;
+  --font-mono: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --radius: 10px;
+  --shadow: 0 4px 24px rgba(0,0,0,0.3);
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+header {
+  text-align: center;
+  padding: 3rem 1.5rem 2rem;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, #151820 0%, var(--bg) 100%);
+}
+
+header h1 {
+  font-size: 2.4rem;
+  font-weight: 800;
+  color: var(--text-bright);
+  letter-spacing: -0.02em;
+}
+
+header h1 span { color: var(--accent); }
+
+header p {
+  color: var(--text-dim);
+  max-width: 640px;
+  margin: 0.75rem auto 0;
+  font-size: 1.05rem;
+}
+
+.compat-bar {
+  display: flex;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.compat-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.compat-badge.yes { background: rgba(34,197,94,0.15); color: var(--green); }
+.compat-badge.no { background: rgba(239,68,68,0.15); color: var(--red); }
+.compat-badge.partial { background: rgba(245,158,11,0.15); color: var(--orange); }
+
+nav {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(15,17,23,0.92);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+nav::-webkit-scrollbar { display: none; }
+
+nav ul {
+  display: flex;
+  list-style: none;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+nav a {
+  display: block;
+  padding: 0.75rem 1rem;
+  color: var(--text-dim);
+  text-decoration: none;
+  font-size: 0.85rem;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: color 0.2s;
+  border-bottom: 2px solid transparent;
+}
+
+nav a:hover, nav a.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+main {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 4rem;
+}
+
+section {
+  margin-bottom: 3rem;
+  scroll-margin-top: 4rem;
+}
+
+h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-bright);
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+h2 .icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.95rem;
+  flex-shrink: 0;
+}
+
+.section-desc {
+  color: var(--text-dim);
+  margin-bottom: 1.25rem;
+  font-size: 0.95rem;
+}
+
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.card h3 {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text-bright);
+  margin-bottom: 0.75rem;
+}
+
+.demo-area {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 0.75rem 0;
+  min-height: 60px;
+  position: relative;
+}
+
+.demo-area:focus-within {
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.15);
+}
+
+/* EditContext editor styling */
+.ec-editor {
+  min-height: 80px;
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  line-height: 1.7;
+  color: var(--text);
+  outline: none;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  caret-color: var(--accent);
+  position: relative;
+}
+
+.ec-editor .cursor-blink {
+  display: inline-block;
+  width: 2px;
+  height: 1.2em;
+  background: var(--accent);
+  animation: blink 1s step-end infinite;
+  vertical-align: text-bottom;
+}
+
+@keyframes blink {
+  50% { opacity: 0; }
+}
+
+.ec-editor .composition-text {
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 3px;
+  color: var(--orange);
+}
+
+.ec-editor .selected-text {
+  background: rgba(99,102,241,0.3);
+  border-radius: 2px;
+}
+
+/* Canvas editor */
+.canvas-container {
+  position: relative;
+  width: 100%;
+}
+
+.canvas-container canvas {
+  width: 100%;
+  border-radius: 6px;
+  cursor: text;
+  display: block;
+}
+
+/* Code blocks */
+pre {
+  background: #12141c;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  line-height: 1.6;
+  color: #c9d1d9;
+  margin: 0.75rem 0;
+  position: relative;
+}
+
+pre .copy-btn {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  padding: 0.25rem 0.6rem;
+  border-radius: 5px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+pre .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+.kw { color: #ff7b72; }
+.str { color: #a5d6ff; }
+.fn { color: #d2a8ff; }
+.cm { color: #8b949e; }
+.num { color: #79c0ff; }
+.prop { color: #ffa657; }
+
+/* Log / output */
+.log-output {
+  background: #0d0f14;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  max-height: 200px;
+  overflow-y: auto;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+.log-output .log-entry { padding: 0.15rem 0; }
+.log-output .log-event { color: var(--cyan); }
+.log-output .log-data { color: var(--green); }
+.log-output .log-warn { color: var(--orange); }
+
+/* Comparison table */
+.compare-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.compare-table th {
+  background: var(--bg-input);
+  padding: 0.65rem 0.75rem;
+  text-align: left;
+  font-weight: 600;
+  color: var(--text-bright);
+  border-bottom: 2px solid var(--border);
+}
+
+.compare-table td {
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.compare-table tr:last-child td { border-bottom: none; }
+
+.yes-mark { color: var(--green); font-weight: 600; }
+.no-mark { color: var(--red); font-weight: 600; }
+.partial-mark { color: var(--orange); font-weight: 600; }
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-input);
+  color: var(--text);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn:hover { border-color: var(--accent); color: var(--accent); }
+
+.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.btn-primary:hover { background: var(--accent-dim); }
+
+.btn-group { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 0.75rem 0; }
+
+/* Status indicator */
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.82rem;
+  font-weight: 500;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+}
+
+.status-ok { background: rgba(34,197,94,0.12); color: var(--green); }
+.status-err { background: rgba(239,68,68,0.12); color: var(--red); }
+
+/* Tabs */
+.tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 1rem;
+}
+
+.tab-btn {
+  padding: 0.6rem 1.1rem;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+}
+
+.tab-btn:hover { color: var(--text); }
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* API reference */
+.api-item {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.api-item .api-sig {
+  font-family: var(--font-mono);
+  font-size: 0.88rem;
+  color: var(--cyan);
+  margin-bottom: 0.4rem;
+}
+
+.api-item .api-desc {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.api-item .api-try {
+  margin-top: 0.5rem;
+}
+
+/* Formatting toolbar */
+.format-bar {
+  display: flex;
+  gap: 0.3rem;
+  padding: 0.5rem;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 8px 8px 0 0;
+  border-bottom: none;
+}
+
+.format-btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: none;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.format-btn:hover { background: var(--bg-card); color: var(--text); border-color: var(--border); }
+.format-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+/* Selection info panel */
+.selection-info {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.75rem;
+  margin: 0.75rem 0;
+}
+
+.sel-stat {
+  background: var(--bg-input);
+  border-radius: 6px;
+  padding: 0.6rem 0.8rem;
+  text-align: center;
+}
+
+.sel-stat .label {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.sel-stat .value {
+  font-family: var(--font-mono);
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  header h1 { font-size: 1.8rem; }
+  main { padding: 1.5rem 1rem 3rem; }
+  .card { padding: 1rem; }
+  .selection-info { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* Unsupported banner */
+.unsupported-banner {
+  background: rgba(239,68,68,0.1);
+  border: 1px solid rgba(239,68,68,0.3);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+  margin-bottom: 2rem;
+  text-align: center;
+  display: none;
+}
+
+.unsupported-banner h3 { color: var(--red); margin-bottom: 0.4rem; }
+.unsupported-banner p { color: var(--text-dim); font-size: 0.9rem; }
+
+/* Toast */
+.toast {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.75rem 1.25rem;
+  color: var(--text);
+  font-size: 0.88rem;
+  box-shadow: var(--shadow);
+  transform: translateY(120%);
+  opacity: 0;
+  transition: all 0.3s ease;
+  z-index: 999;
+}
+
+.toast.show { transform: translateY(0); opacity: 1; }
+
+footer {
+  text-align: center;
+  padding: 2rem;
+  border-top: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 0.82rem;
+}
+
+footer a { color: var(--accent); text-decoration: none; }
+footer a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+
+
+<header>
+  <h1><span>EditContext</span> API Playground</h1>
+  <p>Build custom text editors with the low-level EditContext API. Bypass contenteditable, gain full control over text input, composition, and selection.</p>
+  <div class="compat-bar" id="compatBar">
+    <span class="compat-badge" id="compatChrome">Chrome 133+</span>
+    <span class="compat-badge" id="compatEdge">Edge 133+</span>
+    <span class="compat-badge" id="compatFirefox">Firefox</span>
+    <span class="compat-badge" id="compatSafari">Safari</span>
+  </div>
+</header>
+
+<nav>
+  <ul>
+    <li><a href="#basic" ti="link_basic">Basic</a></li>
+    <li><a href="#canvas">Canvas Editor</a></li>
+    <li><a href="#ime" ti="link_ime_composition">IME / Composition</a></li>
+    <li><a href="#selection" ti="link_selection">Selection</a></li>
+    <li><a href="#formatting" ti="link_formatting">Formatting</a></li>
+    <li><a href="#explorer" ti="link_api_explorer">API Explorer</a></li>
+    <li><a href="#comparison" ti="link_comparison">Comparison</a></li>
+    <li><a href="#codegen" ti="link_code_generator">Code Generator</a></li>
+    <li><a href="#support" ti="link_browser_support">Browser Support</a></li>
+  </ul>
+</nav>
+
+<main>
+
+<div class="unsupported-banner" id="unsupportedBanner">
+  <h3 ti="h3_editcontext_api_not_suppo">EditContext API Not Supported</h3>
+  <p>Your browser does not support the EditContext API. The demos below will show simulated output. Use Chrome 133+ or Edge 133+ for full interactivity.</p>
+</div>
+
+<!-- ===== 1. Basic EditContext ===== -->
+<section id="basic">
+  <h2><span class="icon" style="background:rgba(99,102,241,0.15);color:var(--accent);">&#9998;</span> Basic EditContext</h2>
+  <p class="section-desc">Attach an EditContext to a DOM element to receive text input without contenteditable. The element becomes an input surface while you control rendering.</p>
+
+  <div class="card">
+    <h3 ti="h3_minimal_example">Minimal Example</h3>
+    <p style="font-size:0.88rem;color:var(--text-dim);margin-bottom:0.75rem;">Click the editor below and type. The EditContext handles text input; we render it manually.</p>
+    <div class="demo-area">
+      <div id="basicEditor" class="ec-editor" tabindex="0">Click here and start typing...</div>
+    </div>
+    <div class="log-output" id="basicLog"></div>
+
+    <pre><code><span class="cm">// 1. Create an EditContext</span>
+<span class="kw">const</span> editContext = <span class="kw">new</span> <span class="fn">EditContext</span>();
+
+<span class="cm">// 2. Attach it to a DOM element</span>
+<span class="kw">const</span> editor = document.<span class="fn">getElementById</span>(<span class="str">'editor'</span>);
+editor.editContext = editContext;
+
+<span class="cm">// 3. Listen for text updates</span>
+editContext.<span class="fn">addEventListener</span>(<span class="str">'textupdate'</span>, (e) => {
+  <span class="cm">// e.text — the new text</span>
+  <span class="cm">// e.updateRangeStart — start of replaced range</span>
+  <span class="cm">// e.updateRangeEnd — end of replaced range</span>
+  <span class="cm">// e.selectionStart / e.selectionEnd — new cursor</span>
+  renderText();
+});
+
+<span class="kw">function</span> <span class="fn">renderText</span>() {
+  editor.textContent = editContext.text;
+}</code><button class="copy-btn" onclick="copyCode(this)" ti="btn_copy" ti="btn_copy_2" ti="btn_copy_3" ti="btn_copy_4" ti="btn_copy_5" ti="btn_copy_6">Copy</button></pre>
+  </div>
+</section>
+
+<!-- ===== 2. Canvas Editor ===== -->
+<section id="canvas">
+  <h2><span class="icon" style="background:rgba(6,182,212,0.15);color:var(--cyan);">&#9635;</span> Custom Canvas Editor</h2>
+  <p class="section-desc">EditContext enables text input on a &lt;canvas&gt; element — impossible with contenteditable. You render glyphs, cursor, and selection manually.</p>
+
+  <div class="card">
+    <h3 ti="h3_canvas_text_editor">Canvas Text Editor</h3>
+    <p style="font-size:0.88rem;color:var(--text-dim);margin-bottom:0.75rem;">Click the canvas and type. Text is rendered via Canvas 2D API. Arrow keys and backspace work.</p>
+    <div class="canvas-container">
+      <canvas id="canvasEditor" width="1000" height="250" tabindex="0"></canvas>
+    </div>
+    <div style="margin-top:0.5rem;">
+      <span class="status status-ok" id="canvasStatus">Ready</span>
+    </div>
+    <div class="log-output" id="canvasLog" style="margin-top:0.75rem;"></div>
+
+    <pre><code><span class="kw">const</span> canvas = document.<span class="fn">querySelector</span>(<span class="str">'canvas'</span>);
+<span class="kw">const</span> ctx = canvas.<span class="fn">getContext</span>(<span class="str">'2d'</span>);
+<span class="kw">const</span> ec = <span class="kw">new</span> <span class="fn">EditContext</span>();
+canvas.editContext = ec;
+
+ec.<span class="fn">addEventListener</span>(<span class="str">'textupdate'</span>, () => <span class="fn">draw</span>());
+
+<span class="kw">function</span> <span class="fn">draw</span>() {
+  ctx.<span class="fn">clearRect</span>(<span class="num">0</span>, <span class="num">0</span>, canvas.width, canvas.height);
+  ctx.font = <span class="str">'16px monospace'</span>;
+  ctx.fillStyle = <span class="str">'#e2e8f0'</span>;
+
+  <span class="cm">// Draw text</span>
+  ctx.<span class="fn">fillText</span>(ec.text, <span class="num">16</span>, <span class="num">32</span>);
+
+  <span class="cm">// Draw cursor</span>
+  <span class="kw">const</span> before = ec.text.<span class="fn">slice</span>(<span class="num">0</span>, ec.selectionStart);
+  <span class="kw">const</span> x = <span class="num">16</span> + ctx.<span class="fn">measureText</span>(before).width;
+  ctx.fillStyle = <span class="str">'#6366f1'</span>;
+  ctx.<span class="fn">fillRect</span>(x, <span class="num">16</span>, <span class="num">2</span>, <span class="num">20</span>);
+}</code><button class="copy-btn" onclick="copyCode(this)">Copy</button></pre>
+  </div>
+</section>
+
+<!-- ===== 3. IME Composition ===== -->
+<section id="ime">
+  <h2><span class="icon" style="background:rgba(245,158,11,0.15);color:var(--orange);">&#25991;</span> IME Composition</h2>
+  <p class="section-desc">Handle CJK input method editors (IME) properly. EditContext provides compositionstart, compositionend, and textformatupdate events for rendering composition UI.</p>
+
+  <div class="card">
+    <h3 ti="h3_composition_demo">Composition Demo</h3>
+    <p style="font-size:0.88rem;color:var(--text-dim);margin-bottom:0.75rem;">Switch to a CJK IME (Japanese, Chinese, Korean) and type. Composition text appears underlined in orange. On non-IME keyboards, type normally to see textupdate events.</p>
+    <div class="demo-area">
+      <div id="imeEditor" class="ec-editor" tabindex="0">IME入力をお試しください...</div>
+    </div>
+    <div class="selection-info">
+      <div class="sel-stat"><div class="label">Composing</div><div class="value" id="imeComposing">No</div></div>
+      <div class="sel-stat"><div class="label">Composition Text</div><div class="value" id="imeCompText" style="font-size:1rem;">—</div></div>
+      <div class="sel-stat"><div class="label">Formats Applied</div><div class="value" id="imeFormats">0</div></div>
+    </div>
+    <div class="log-output" id="imeLog"></div>
+
+    <pre><code>ec.<span class="fn">addEventListener</span>(<span class="str">'compositionstart'</span>, (e) => {
+  isComposing = <span class="kw">true</span>;
+  log(<span class="str">'compositionstart'</span>);
+});
+
+ec.<span class="fn">addEventListener</span>(<span class="str">'compositionend'</span>, (e) => {
+  isComposing = <span class="kw">false</span>;
+  log(<span class="str">'compositionend'</span>);
+});
+
+<span class="cm">// Text formats during composition (underline styles)</span>
+ec.<span class="fn">addEventListener</span>(<span class="str">'textformatupdate'</span>, (e) => {
+  <span class="kw">const</span> formats = e.<span class="fn">getTextFormats</span>();
+  formats.<span class="fn">forEach</span>(f => {
+    <span class="cm">// f.rangeStart, f.rangeEnd</span>
+    <span class="cm">// f.underlineStyle: 'solid'|'dotted'|'dashed'|'none'</span>
+    <span class="cm">// f.underlineThickness: 'thin'|'thick'</span>
+    applyCompositionFormat(f);
+  });
+});</code><button class="copy-btn" onclick="copyCode(this)">Copy</button></pre>
+  </div>
+</section>
+
+<!-- ===== 4. Selection & Cursor ===== -->
+<section id="selection">
+  <h2><span class="icon" style="background:rgba(59,130,246,0.15);color:var(--blue);">&#9613;</span> Selection &amp; Cursor</h2>
+  <p class="section-desc">EditContext manages selection state. Use updateSelection() to set cursor position, and respond to selectionStart/selectionEnd in textupdate events.</p>
+
+  <div class="card">
+    <h3 ti="h3_selection_tracker">Selection Tracker</h3>
+    <p style="font-size:0.88rem;color:var(--text-dim);margin-bottom:0.75rem;">Type text, then use Shift+Arrow keys to select. The stats below update in real time.</p>
+    <div class="demo-area">
+      <div id="selEditor" class="ec-editor" tabindex="0">Select some text with Shift+Arrow keys</div>
+    </div>
+    <div class="selection-info">
+      <div class="sel-stat"><div class="label">Cursor Pos</div><div class="value" id="selCursor">0</div></div>
+      <div class="sel-stat"><div class="label">Sel Start</div><div class="value" id="selStart">0</div></div>
+      <div class="sel-stat"><div class="label">Sel End</div><div class="value" id="selEnd">0</div></div>
+      <div class="sel-stat"><div class="label">Selected Chars</div><div class="value" id="selCount">0</div></div>
+      <div class="sel-stat"><div class="label">Direction</div><div class="value" id="selDir" style="font-size:1rem;">none</div></div>
+    </div>
+
+    <div class="btn-group">
+      <button class="btn" onclick="selAction('start')" ti="btn_move_to_start">Move to Start</button>
+      <button class="btn" onclick="selAction('end')" ti="btn_move_to_end">Move to End</button>
+      <button class="btn" onclick="selAction('all')" ti="btn_select_all">Select All</button>
+      <button class="btn" onclick="selAction('word')" ti="btn_select_first_word">Select First Word</button>
+    </div>
+
+    <div class="log-output" id="selLog"></div>
+  </div>
+</section>
+
+<!-- ===== 5. Text Formatting ===== -->
+<section id="formatting">
+  <h2><span class="icon" style="background:rgba(236,72,153,0.15);color:var(--pink);">B</span> Text Formatting</h2>
+  <p class="section-desc">EditContext does not provide built-in formatting — you control rendering entirely. Apply bold, italic, or any style to selection ranges with custom rendering logic.</p>
+
+  <div class="card">
+    <h3 ti="h3_rich_text_editor">Rich Text Editor</h3>
+    <p style="font-size:0.88rem;color:var(--text-dim);margin-bottom:0.75rem;">Type text, select a range with Shift+Arrow, then click a formatting button. Formatting is tracked as character-level metadata.</p>
+    <div class="format-bar">
+      <button class="format-btn" onclick="applyFormat('bold')" title="Bold"><b>B</b></button>
+      <button class="format-btn" onclick="applyFormat('italic')" title="Italic"><i>I</i></button>
+      <button class="format-btn" onclick="applyFormat('underline')" title="Underline"><u>U</u></button>
+      <button class="format-btn" onclick="applyFormat('highlight')" title="Highlight" style="color:var(--orange);">H</button>
+      <button class="format-btn" onclick="applyFormat('clear')" title="Clear Formatting">&#10005;</button>
+    </div>
+    <div class="demo-area" style="border-radius:0 0 8px 8px;border-top:none;">
+      <div id="fmtEditor" class="ec-editor" tabindex="0">Type here and format your text...</div>
+    </div>
+    <div class="log-output" id="fmtLog"></div>
+
+    <pre><code><span class="cm">// Store format metadata per character</span>
+<span class="kw">const</span> charFormats = []; <span class="cm">// [{bold, italic, underline, highlight}]</span>
+
+<span class="kw">function</span> <span class="fn">applyFormat</span>(type) {
+  <span class="kw">const</span> { selectionStart, selectionEnd } = editContext;
+  <span class="kw">for</span> (<span class="kw">let</span> i = selectionStart; i &lt; selectionEnd; i++) {
+    charFormats[i] = charFormats[i] || {};
+    charFormats[i][type] = !charFormats[i][type];
+  }
+  renderFormatted();
+}
+
+<span class="kw">function</span> <span class="fn">renderFormatted</span>() {
+  <span class="cm">// Build spans with format classes</span>
+  editor.innerHTML = editContext.text
+    .<span class="fn">split</span>(<span class="str">''</span>)
+    .<span class="fn">map</span>((ch, i) => {
+      <span class="kw">const</span> f = charFormats[i] || {};
+      <span class="kw">let</span> style = <span class="str">''</span>;
+      <span class="kw">if</span> (f.bold) style += <span class="str">'font-weight:700;'</span>;
+      <span class="kw">if</span> (f.italic) style += <span class="str">'font-style:italic;'</span>;
+      <span class="kw">if</span> (f.underline) style += <span class="str">'text-decoration:underline;'</span>;
+      <span class="kw">if</span> (f.highlight) style += <span class="str">'background:rgba(245,158,11,0.3);'</span>;
+      <span class="kw">return</span> <span class="str">`&lt;span style="${style}"&gt;${ch}&lt;/span&gt;`</span>;
+    }).<span class="fn">join</span>(<span class="str">''</span>);
+}</code><button class="copy-btn" onclick="copyCode(this)">Copy</button></pre>
+  </div>
+</section>
+
+<!-- ===== 6. API Explorer ===== -->
+<section id="explorer">
+  <h2><span class="icon" style="background:rgba(34,197,94,0.15);color:var(--green);">{}</span> API Explorer</h2>
+  <p class="section-desc">Interactive reference for every EditContext property, method, and event.</p>
+
+  <div class="card">
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab(this,'props')" ti="btn_properties">Properties</button>
+      <button class="tab-btn" onclick="switchTab(this,'methods')" ti="btn_methods">Methods</button>
+      <button class="tab-btn" onclick="switchTab(this,'events')" ti="btn_events">Events</button>
+    </div>
+
+    <div class="tab-panel active" id="tab-props">
+      <div class="api-item">
+        <div class="api-sig">editContext.text <span style="color:var(--text-dim)">: string (read-only)</span></div>
+        <div class="api-desc">The current text content managed by the EditContext. Updated via textupdate events or updateText().</div>
+        <div class="api-try"><button class="btn" onclick="showProp('text')" ti="btn_read_value" ti="btn_read_value_2" ti="btn_read_value_3">Read Value</button> <span id="propText" style="font-family:var(--font-mono);font-size:0.85rem;color:var(--green);margin-left:0.5rem;"></span></div>
+      </div>
+      <div class="api-item">
+        <div class="api-sig">editContext.selectionStart <span style="color:var(--text-dim)">: number (read-only)</span></div>
+        <div class="api-desc">Start index of the current selection. Equals selectionEnd when no text is selected (cursor position).</div>
+        <div class="api-try"><button class="btn" onclick="showProp('selectionStart')">Read Value</button> <span id="propSelStart" style="font-family:var(--font-mono);font-size:0.85rem;color:var(--green);margin-left:0.5rem;"></span></div>
+      </div>
+      <div class="api-item">
+        <div class="api-sig">editContext.selectionEnd <span style="color:var(--text-dim)">: number (read-only)</span></div>
+        <div class="api-desc">End index of the current selection.</div>
+        <div class="api-try"><button class="btn" onclick="showProp('selectionEnd')">Read Value</button> <span id="propSelEnd" style="font-family:var(--font-mono);font-size:0.85rem;color:var(--green);margin-left:0.5rem;"></span></div>
+      </div>
+      <div class="api-item">
+        <div class="api-sig">editContext.characterBoundsRangeStart <span style="color:var(--text-dim)">: number (read-only)</span></div>
+        <div class="api-desc">Start of the range for which character bounds have been provided via updateCharacterBounds().</div>
+      </div>
+      <div class="api-item">
+        <div class="api-sig">element.editContext <span style="color:var(--text-dim)">: EditContext | null</span></div>
+        <div class="api-desc">Assign an EditContext to any focusable element to make it an editing host. Set to null to detach.</div>
+      </div>
+    </div>
+
+    <div class="tab-panel" id="tab-methods">
+      <div class="api-item">
+        <div class="api-sig">editContext.<span class="fn">updateText</span>(rangeStart, rangeEnd, newText)</div>
+        <div class="api-desc">Programmatically replace text in [rangeStart, rangeEnd) with newText. Use this for undo/redo or programmatic edits.</div>
+        <div class="api-try">
+          <button class="btn" onclick="tryUpdateText()" ti="btn_insert_hello_at_position">Insert "Hello" at position 0</button>
+        </div>
+      </div>
+      <div class="api-item">
+        <div class="api-sig">editContext.<span class="fn">updateSelection</span>(start, end)</div>
+        <div class="api-desc">Set the selection range. If start === end, positions the cursor. Call this after programmatic text changes.</div>
+        <div class="api-try">
+          <button class="btn" onclick="tryUpdateSelection()" ti="btn_select_first_5_chars">Select first 5 chars</button>
+        </div>
+      </div>
+      <div class="api-item">
+        <div class="api-sig">editContext.<span class="fn">updateControlBounds</span>(domRect)</div>
+        <div class="api-desc">Tell the OS where the editing UI is, so IME candidate windows appear in the right position.</div>
+      </div>
+      <div class="api-item">
+        <div class="api-sig">editContext.<span class="fn">updateSelectionBounds</span>(domRect)</div>
+        <div class="api-desc">Tell the OS where the current selection is, for IME positioning.</div>
+      </div>
+      <div class="api-item">
+        <div class="api-sig">editContext.<span class="fn">updateCharacterBounds</span>(rangeStart, bounds[])</div>
+        <div class="api-desc">Provide bounding rects for characters in the composition range. Required for proper IME overlay positioning.</div>
+      </div>
+      <div class="api-item">
+        <div class="api-sig">editContext.<span class="fn">attachedElements</span>()</div>
+        <div class="api-desc">Returns an array of elements this EditContext is attached to.</div>
+        <div class="api-try">
+          <button class="btn" onclick="tryAttachedElements()" ti="btn_get_attached_elements">Get Attached Elements</button>
+          <span id="attachedResult" style="font-family:var(--font-mono);font-size:0.85rem;color:var(--green);margin-left:0.5rem;"></span>
+        </div>
+      </div>
+      <div class="api-item">
+        <div class="api-sig">editContext.<span class="fn">characterBounds</span>()</div>
+        <div class="api-desc">Returns the array of DOMRect objects previously set via updateCharacterBounds().</div>
+      </div>
+    </div>
+
+    <div class="tab-panel" id="tab-events">
+      <div class="api-item">
+        <div class="api-sig">textupdate</div>
+        <div class="api-desc">Fired when the user types, deletes, or pastes. Properties: text, updateRangeStart, updateRangeEnd, selectionStart, selectionEnd.</div>
+      </div>
+      <div class="api-item">
+        <div class="api-sig">textformatupdate</div>
+        <div class="api-desc">Fired during IME composition. Call e.getTextFormats() to get underline/highlight info for composition text.</div>
+      </div>
+      <div class="api-item">
+        <div class="api-sig">characterboundsupdate</div>
+        <div class="api-desc">Fired when the OS needs character bounds (for IME). Respond by calling updateCharacterBounds().</div>
+      </div>
+      <div class="api-item">
+        <div class="api-sig">compositionstart</div>
+        <div class="api-desc">Fired when IME composition begins.</div>
+      </div>
+      <div class="api-item">
+        <div class="api-sig">compositionend</div>
+        <div class="api-desc">Fired when IME composition is committed or cancelled.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== 7. Comparison ===== -->
+<section id="comparison">
+  <h2><span class="icon" style="background:rgba(99,102,241,0.15);color:var(--accent);">&#8644;</span> Comparison</h2>
+  <p class="section-desc">How does EditContext compare to traditional text input approaches?</p>
+
+  <div class="card" style="overflow-x:auto;">
+    <table class="compare-table">
+      <thead>
+        <tr>
+          <th ti="th_feature">Feature</th>
+          <th>&lt;textarea&gt;</th>
+          <th ti="th_contenteditable">contenteditable</th>
+          <th ti="th_editcontext">EditContext</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Custom rendering</td>
+          <td class="no-mark">No</td>
+          <td class="partial-mark">Limited</td>
+          <td class="yes-mark">Full control</td>
+        </tr>
+        <tr>
+          <td>Canvas support</td>
+          <td class="no-mark">No</td>
+          <td class="no-mark">No</td>
+          <td class="yes-mark">Yes</td>
+        </tr>
+        <tr>
+          <td>WebGL / 3D text</td>
+          <td class="no-mark">No</td>
+          <td class="no-mark">No</td>
+          <td class="yes-mark">Yes</td>
+        </tr>
+        <tr>
+          <td>IME support</td>
+          <td class="yes-mark">Built-in</td>
+          <td class="yes-mark">Built-in</td>
+          <td class="yes-mark">Manual (full control)</td>
+        </tr>
+        <tr>
+          <td>Accessibility</td>
+          <td class="yes-mark">Built-in</td>
+          <td class="yes-mark">Built-in</td>
+          <td class="partial-mark">Manual (ARIA needed)</td>
+        </tr>
+        <tr>
+          <td>Copy/paste</td>
+          <td class="yes-mark">Built-in</td>
+          <td class="yes-mark">Built-in (messy HTML)</td>
+          <td class="partial-mark">Manual handling</td>
+        </tr>
+        <tr>
+          <td>Undo/redo</td>
+          <td class="yes-mark">Built-in</td>
+          <td class="partial-mark">Unreliable</td>
+          <td class="partial-mark">Manual (clean impl.)</td>
+        </tr>
+        <tr>
+          <td>DOM pollution</td>
+          <td class="yes-mark">None</td>
+          <td class="no-mark">Significant</td>
+          <td class="yes-mark">None</td>
+        </tr>
+        <tr>
+          <td>Performance (large docs)</td>
+          <td class="partial-mark">Limited</td>
+          <td class="no-mark">Poor (DOM overhead)</td>
+          <td class="yes-mark">Excellent (virtual)</td>
+        </tr>
+        <tr>
+          <td>Spell check</td>
+          <td class="yes-mark">Built-in</td>
+          <td class="yes-mark">Built-in</td>
+          <td class="no-mark">Manual</td>
+        </tr>
+        <tr>
+          <td>Browser support</td>
+          <td class="yes-mark">Universal</td>
+          <td class="yes-mark">Universal</td>
+          <td class="partial-mark">Chrome/Edge 133+</td>
+        </tr>
+        <tr>
+          <td>Learning curve</td>
+          <td class="yes-mark">Trivial</td>
+          <td class="partial-mark">Medium (quirks)</td>
+          <td class="no-mark">Steep (everything manual)</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3 ti="h3_when_to_use_editcontext">When to Use EditContext</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:0.75rem;">
+      <div>
+        <h4 style="color:var(--green);font-size:0.9rem;margin-bottom:0.4rem;">Good Fit</h4>
+        <ul style="font-size:0.88rem;color:var(--text-dim);padding-left:1.2rem;line-height:1.8;">
+          <li>Code editors with syntax highlighting</li>
+          <li>Canvas/WebGL-based text rendering</li>
+          <li>Custom IME handling requirements</li>
+          <li>Very large document editing</li>
+          <li>Game UI text fields</li>
+          <li>Collaborative editing engines</li>
+        </ul>
+      </div>
+      <div>
+        <h4 style="color:var(--red);font-size:0.9rem;margin-bottom:0.4rem;">Poor Fit</h4>
+        <ul style="font-size:0.88rem;color:var(--text-dim);padding-left:1.2rem;line-height:1.8;">
+          <li>Simple forms and inputs</li>
+          <li>Basic rich text (use contenteditable)</li>
+          <li>When accessibility is critical (adds burden)</li>
+          <li>Cross-browser requirement (Firefox/Safari)</li>
+          <li>Rapid prototyping</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== 8. Code Generator ===== -->
+<section id="codegen">
+  <h2><span class="icon" style="background:rgba(6,182,212,0.15);color:var(--cyan);">&lt;/&gt;</span> Code Generator</h2>
+  <p class="section-desc">Copy-paste ready boilerplate for common EditContext patterns.</p>
+
+  <div class="card">
+    <h3 ti="h3_choose_a_template">Choose a Template</h3>
+    <div class="btn-group">
+      <button class="btn btn-primary" onclick="genCode('minimal')" ti="btn_minimal_editor">Minimal Editor</button>
+      <button class="btn" onclick="genCode('canvas')" ti="btn_canvas_editor" ti="link_canvas_editor">Canvas Editor</button>
+      <button class="btn" onclick="genCode('ime')" ti="btn_ime_aware_editor">IME-Aware Editor</button>
+      <button class="btn" onclick="genCode('rich')" ti="btn_rich_text_editor">Rich Text Editor</button>
+    </div>
+    <pre id="codegenOutput"><code id="codegenCode"><span class="cm">// Select a template above to generate code</span></code><button class="copy-btn" onclick="copyCode(this)">Copy</button></pre>
+  </div>
+</section>
+
+<!-- ===== 9. Browser Support ===== -->
+<section id="support">
+  <h2><span class="icon" style="background:rgba(34,197,94,0.15);color:var(--green);">&#9989;</span> Browser Support</h2>
+  <p class="section-desc">The EditContext API is available in Chromium-based browsers starting from version 133.</p>
+
+  <div class="card">
+    <h3 ti="h3_compatibility_matrix">Compatibility Matrix</h3>
+    <table class="compare-table">
+      <thead>
+        <tr><th ti="th_browser">Browser</th><th ti="th_status">Status</th><th ti="th_since">Since</th><th ti="th_notes">Notes</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Chrome</td><td class="yes-mark">Supported</td><td>133 (Feb 2025)</td><td>Full support</td></tr>
+        <tr><td>Edge</td><td class="yes-mark">Supported</td><td>133 (Feb 2025)</td><td>Full support (Chromium-based)</td></tr>
+        <tr><td>Opera</td><td class="yes-mark">Supported</td><td>118+</td><td>Chromium-based</td></tr>
+        <tr><td>Firefox</td><td class="no-mark">Not supported</td><td>—</td><td>No implementation signal</td></tr>
+        <tr><td>Safari</td><td class="no-mark">Not supported</td><td>—</td><td>No implementation signal</td></tr>
+        <tr><td>iOS browsers</td><td class="no-mark">Not supported</td><td>—</td><td>WebKit-based</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3 ti="h3_feature_detection">Feature Detection</h3>
+    <pre><code><span class="kw">if</span> (<span class="str">'EditContext'</span> <span class="kw">in</span> window) {
+  <span class="cm">// EditContext API is available</span>
+  <span class="kw">const</span> ec = <span class="kw">new</span> <span class="fn">EditContext</span>();
+  element.editContext = ec;
+} <span class="kw">else</span> {
+  <span class="cm">// Fallback to contenteditable or textarea</span>
+  element.contentEditable = <span class="str">'true'</span>;
+}</code><button class="copy-btn" onclick="copyCode(this)">Copy</button></pre>
+
+    <h3 style="margin-top:1rem;" ti="h3_your_browser">Your Browser</h3>
+    <div style="margin-top:0.5rem;" id="browserDetect"></div>
+  </div>
+
+  <div class="card">
+    <h3 ti="h3_polyfill_fallback_strateg">Polyfill / Fallback Strategy</h3>
+    <p style="font-size:0.88rem;color:var(--text-dim);line-height:1.7;">
+      There is no polyfill for EditContext — it requires deep integration with the OS input pipeline.
+      The recommended approach is progressive enhancement: use EditContext when available,
+      fall back to a hidden &lt;textarea&gt; for other browsers. Libraries like CodeMirror 6
+      have used this textarea-proxy pattern successfully for years. EditContext simply provides
+      a cleaner, more capable version of the same idea.
+    </p>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <p>EditContext API Playground &mdash; <a href="https://developer.mozilla.org/en-US/docs/Web/API/EditContext_API" target="_blank">MDN Docs</a> &middot; <a href="https://github.com/nicolo-ribaudo/tc39-proposal-structs" target="_blank">Spec</a> &middot; Built with vanilla HTML/CSS/JS</p>
+</footer>
+
+<div class="toast" id="toast"></div>
+
+
+<script>var _LANG={'title_editcontext_api_playgroun':["EditContext API Playground", "EditContext API 演示"],'metadesc_interactive_playground_fo':["Interactive playground for the EditContext API — build custom text editors bypassing contenteditable. Live demos, canvas editor, IME composition, and code generator.", "EditContext API 的交互式演示环境——绕过 contenteditable 构建自定义文本编辑器。包含实时演示、画布编辑器、输入法编辑器和代码生成器。"],'h3_editcontext_api_not_suppo':["EditContext API Not Supported", "不支持 EditContext API。"],'h3_minimal_example':["Minimal Example", "最小示例"],'h3_canvas_text_editor':["Canvas Text Editor", "画布文本编辑器"],'h3_composition_demo':["Composition Demo", "作曲演示"],'h3_selection_tracker':["Selection Tracker", "选择跟踪器"],'h3_rich_text_editor':["Rich Text Editor", "富文本编辑器"],'h3_when_to_use_editcontext':["When to Use EditContext", "何时使用 EditContext"],'h3_choose_a_template':["Choose a Template", "选择模板"],'h3_compatibility_matrix':["Compatibility Matrix", "兼容性矩阵"],'h3_feature_detection':["Feature Detection", "特征检测"],'h3_your_browser':["Your Browser", "您的浏览器"],'h3_polyfill_fallback_strateg':["Polyfill / Fallback Strategy", "Polyfill / 备用策略"],'btn_copy':["Copy", "复制"],'btn_copy_2':["Copy", "复制"],'btn_copy_3':["Copy", "复制"],'btn_move_to_start':["Move to Start", "移至起点"],'btn_move_to_end':["Move to End", "移至结尾"],'btn_select_all':["Select All", "全选"],'btn_select_first_word':["Select First Word", "选择第一个词"],'btn_copy_4':["Copy", "复制"],'btn_properties':["Properties", "特性"],'btn_methods':["Methods", "方法"],'btn_events':["Events", "活动"],'btn_read_value':["Read Value", "读取值"],'btn_read_value_2':["Read Value", "读取值"],'btn_read_value_3':["Read Value", "读取值"],'btn_insert_hello_at_position':["Insert \"Hello\" at position 0", "在位置 0 处插入“Hello”。"],'btn_select_first_5_chars':["Select first 5 chars", "选择前 5 个字符"],'btn_get_attached_elements':["Get Attached Elements", "获取附加元素"],'btn_minimal_editor':["Minimal Editor", "极简编辑器"],'btn_canvas_editor':["Canvas Editor", "画布编辑器"],'btn_ime_aware_editor':["IME-Aware Editor", "支持输入法编辑器"],'btn_rich_text_editor':["Rich Text Editor", "富文本编辑器"],'btn_copy_5':["Copy", "复制"],'btn_copy_6':["Copy", "复制"],'btn_clear':["Clear", "清除"],'th_feature':["Feature", "特征"],'th_contenteditable':["contenteditable", "内容可编辑"],'th_editcontext':["EditContext", "编辑上下文"],'th_browser':["Browser", "浏览器"],'th_status':["Status", "地位"],'th_since':["Since", "自从"],'th_notes':["Notes", "笔记"],'link_basic':["Basic", "基本的"],'link_canvas_editor':["Canvas Editor", "画布编辑器"],'link_ime_composition':["IME / Composition", "IME / 组成"],'link_selection':["Selection", "选拔"],'link_formatting':["Formatting", "格式化"],'link_api_explorer':["API Explorer", "API Explorer"],'link_comparison':["Comparison", "比较"],'link_code_generator':["Code Generator", "代码生成器"],'link_browser_support':["Browser Support", "浏览器支持"],'jtc_copied':["Copied!", "已复制！"],'jtc_copy':["Copy", "复制"],'jtc_firefox_no':["Firefox (No)", "火狐（否）"],'jtc_chrome_133':["Chrome 133+", "Chrome 133+"],'jtc_edge_133':["Edge 133+", "Edge 133+"],'jtc_safari_no':["Safari (No)", "野生动物园（无）"],'jtc_chrome':["Chrome ✓", "铬 ✓"],'jtc_edge':["Edge ✓", "边缘 ✓"],'jtc_focused':["Focused", "专注"],'jtc_ready':["Ready", "准备好"],'jtc_focused_fallback':["Focused (fallback)", "专注（备用）"],'jtc_ready_2':["Ready", "准备好"],'jtc_yes':["Yes", "是的"],'jtc_no':["No", "不"],'jtc_fallback_contenteditable':["Fallback: contenteditable mode", "备用方案：内容可编辑模式"],'jtc_composing':["Composing...", "构成..."],'jtc_composition_committed':["Composition committed", "已提交的组成"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>
+// ===== Utilities =====
+const HAS_EC = 'EditContext' in window;
+
+function $(id) { return document.getElementById(id); }
+
+function log(logEl, msg, cls = 'log-event') {
+  const el = typeof logEl === 'string' ? $(logEl) : logEl;
+  const entry = document.createElement('div');
+  entry.className = 'log-entry';
+  entry.innerHTML = `<span class="${cls}">${msg}</span>`;
+  el.prepend(entry);
+  while (el.children.length > 50) el.lastChild.remove();
+}
+
+function toast(msg) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+function copyCode(btn) {
+  const pre = btn.closest('pre');
+  const code = pre.querySelector('code');
+  const text = code.textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent=T("jtc_copied");
+    setTimeout(() => btn.textContent=T("jtc_copy"), 1500);
+  });
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ===== Compatibility Banner =====
+(function initCompat() {
+  const chrome = $('compatChrome');
+  const edge = $('compatEdge');
+  const ff = $('compatFirefox');
+  const safari = $('compatSafari');
+
+  if (HAS_EC) {
+    chrome.className = 'compat-badge yes';
+    edge.className = 'compat-badge yes';
+  } else {
+    $('unsupportedBanner').style.display = 'block';
+  }
+
+  // Detect specific browser
+  const ua = navigator.userAgent;
+  if (ua.includes('Firefox')) {
+    ff.className = 'compat-badge no'; ff.textContent=T("jtc_firefox_no");
+    chrome.className = 'compat-badge partial'; chrome.textContent=T("jtc_chrome_133");
+    edge.className = 'compat-badge partial'; edge.textContent=T("jtc_edge_133");
+  } else if (ua.includes('Safari') && !ua.includes('Chrome')) {
+    safari.className = 'compat-badge no'; safari.textContent=T("jtc_safari_no");
+  } else {
+    if (HAS_EC) {
+      chrome.className = 'compat-badge yes'; chrome.textContent=T("jtc_chrome");
+      edge.className = 'compat-badge yes'; edge.textContent=T("jtc_edge");
+    }
+  }
+  ff.className = ff.className || 'compat-badge no'; ff.textContent = ff.textContent || 'Firefox (No)';
+  safari.className = safari.className || 'compat-badge no'; safari.textContent = safari.textContent || 'Safari (No)';
+
+  // Browser detect section
+  const detect = $('browserDetect');
+  if (HAS_EC) {
+    detect.innerHTML = '<span class="status status-ok">EditContext API is supported in your browser</span>';
+  } else {
+    detect.innerHTML = '<span class="status status-err">EditContext API is NOT supported in your browser</span>';
+  }
+})();
+
+// ===== Nav Active State =====
+(function initNav() {
+  const links = document.querySelectorAll('nav a');
+  const sections = document.querySelectorAll('section');
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        links.forEach(l => l.classList.remove('active'));
+        const link = document.querySelector(`nav a[href="#${e.target.id}"]`);
+        if (link) link.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+
+  sections.forEach(s => observer.observe(s));
+})();
+
+// ===== Tab Switching =====
+function switchTab(btn, panelId) {
+  const tabs = btn.parentElement;
+  tabs.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const card = tabs.closest('.card');
+  card.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  card.querySelector('#tab-' + panelId).classList.add('active');
+}
+
+// ===== Helper: Create editor with EditContext =====
+function createEditor(elId, logId, opts = {}) {
+  const el = $(elId);
+  const logEl = logId ? $(logId) : null;
+
+  if (!HAS_EC) {
+    // Fallback: use basic key listeners for demo
+    return createFallbackEditor(el, logEl, opts);
+  }
+
+  const ec = new EditContext();
+  el.editContext = ec;
+
+  let text = '';
+  let selStart = 0;
+  let selEnd = 0;
+  let isComposing = false;
+  let compositionText = '';
+  let charFormats = []; // for formatting section
+
+  ec.addEventListener('textupdate', (e) => {
+    text = ec.text;
+    selStart = e.selectionStart;
+    selEnd = e.selectionEnd;
+
+    if (logEl) {
+      const excerpt = e.text.length > 30 ? e.text.slice(0, 30) + '...' : e.text;
+      log(logEl, `textupdate range=[${e.updateRangeStart},${e.updateRangeEnd}] text="${escHtml(excerpt)}" sel=[${selStart},${selEnd}]`);
+    }
+
+    if (opts.onTextUpdate) opts.onTextUpdate(ec, e);
+    render();
+  });
+
+  ec.addEventListener('compositionstart', () => {
+    isComposing = true;
+    if (logEl) log(logEl, 'compositionstart', 'log-warn');
+    if (opts.onCompositionStart) opts.onCompositionStart();
+  });
+
+  ec.addEventListener('compositionend', () => {
+    isComposing = false;
+    compositionText = '';
+    if (logEl) log(logEl, 'compositionend', 'log-warn');
+    if (opts.onCompositionEnd) opts.onCompositionEnd();
+    render();
+  });
+
+  ec.addEventListener('textformatupdate', (e) => {
+    const formats = e.getTextFormats();
+    if (logEl) log(logEl, `textformatupdate: ${formats.length} format(s)`, 'log-data');
+    if (opts.onTextFormatUpdate) opts.onTextFormatUpdate(formats);
+  });
+
+  // Handle selection via keyboard
+  el.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      const dir = e.key === 'ArrowLeft' ? -1 : 1;
+      if (e.shiftKey) {
+        selEnd = Math.max(0, Math.min(text.length, selEnd + dir));
+      } else {
+        if (selStart !== selEnd) {
+          // Collapse selection
+          const pos = dir === -1 ? Math.min(selStart, selEnd) : Math.max(selStart, selEnd);
+          selStart = selEnd = pos;
+        } else {
+          selStart = selEnd = Math.max(0, Math.min(text.length, selStart + dir));
+        }
+      }
+      ec.updateSelection(selStart, selEnd);
+      if (opts.onSelectionChange) opts.onSelectionChange(ec);
+      render();
+      e.preventDefault();
+    } else if (e.key === 'Home') {
+      if (e.shiftKey) { selEnd = 0; } else { selStart = selEnd = 0; }
+      ec.updateSelection(selStart, selEnd);
+      if (opts.onSelectionChange) opts.onSelectionChange(ec);
+      render();
+      e.preventDefault();
+    } else if (e.key === 'End') {
+      if (e.shiftKey) { selEnd = text.length; } else { selStart = selEnd = text.length; }
+      ec.updateSelection(selStart, selEnd);
+      if (opts.onSelectionChange) opts.onSelectionChange(ec);
+      render();
+      e.preventDefault();
+    } else if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+      selStart = 0;
+      selEnd = text.length;
+      ec.updateSelection(selStart, selEnd);
+      if (opts.onSelectionChange) opts.onSelectionChange(ec);
+      render();
+      e.preventDefault();
+    }
+  });
+
+  function render() {
+    text = ec.text;
+    selStart = ec.selectionStart;
+    selEnd = ec.selectionEnd;
+
+    if (opts.customRender) {
+      opts.customRender(el, text, selStart, selEnd, isComposing, ec);
+      return;
+    }
+
+    // Default rendering with selection highlight
+    let html = '';
+    const sS = Math.min(selStart, selEnd);
+    const sE = Math.max(selStart, selEnd);
+
+    for (let i = 0; i < text.length; i++) {
+      const ch = escHtml(text[i]);
+      if (i >= sS && i < sE) {
+        html += `<span class="selected-text">${ch}</span>`;
+      } else {
+        html += ch;
+      }
+    }
+
+    // Cursor
+    if (sS === sE && el === document.activeElement) {
+      const before = escHtml(text.slice(0, sS));
+      const after = escHtml(text.slice(sS));
+      html = before + '<span class="cursor-blink"></span>' + after;
+    }
+
+    if (!text && !isComposing) {
+      html = '<span style="color:var(--text-dim)">Start typing...</span>';
+    }
+
+    el.innerHTML = html;
+  }
+
+  el.addEventListener('focus', () => render());
+  el.addEventListener('blur', () => {
+    el.innerHTML = text || '<span style="color:var(--text-dim)">Click to edit...</span>';
+  });
+
+  // Update control bounds for IME positioning
+  el.addEventListener('focus', () => {
+    const rect = el.getBoundingClientRect();
+    ec.updateControlBounds(rect);
+    ec.updateSelectionBounds(rect);
+  });
+
+  // Initial render
+  el.innerHTML = el.textContent;
+  const initText = el.textContent.trim();
+
+  return {
+    ec,
+    getText: () => ec.text,
+    getSelection: () => ({ start: ec.selectionStart, end: ec.selectionEnd }),
+    setSelection: (s, e) => { selStart = s; selEnd = e; ec.updateSelection(s, e); render(); },
+    render,
+    charFormats
+  };
+}
+
+// Fallback for browsers without EditContext
+function createFallbackEditor(el, logEl, opts) {
+  let text = '';
+  let selStart = 0;
+  let selEnd = 0;
+
+  el.addEventListener('keydown', (e) => {
+    if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+      // Insert character
+      const before = text.slice(0, Math.min(selStart, selEnd));
+      const after = text.slice(Math.max(selStart, selEnd));
+      text = before + e.key + after;
+      selStart = selEnd = before.length + 1;
+      if (logEl) log(logEl, `keypress: "${e.key}" → text="${text.length > 30 ? text.slice(0,30)+'...' : text}"`);
+      render();
+      e.preventDefault();
+    } else if (e.key === 'Backspace') {
+      if (selStart !== selEnd) {
+        const s = Math.min(selStart, selEnd);
+        const en = Math.max(selStart, selEnd);
+        text = text.slice(0, s) + text.slice(en);
+        selStart = selEnd = s;
+      } else if (selStart > 0) {
+        text = text.slice(0, selStart - 1) + text.slice(selStart);
+        selStart = selEnd = selStart - 1;
+      }
+      render();
+      e.preventDefault();
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      const dir = e.key === 'ArrowLeft' ? -1 : 1;
+      if (e.shiftKey) {
+        selEnd = Math.max(0, Math.min(text.length, selEnd + dir));
+      } else {
+        selStart = selEnd = Math.max(0, Math.min(text.length, selStart + dir));
+      }
+      render();
+      e.preventDefault();
+    } else if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+      selStart = 0; selEnd = text.length;
+      render();
+      e.preventDefault();
+    }
+
+    if (opts.onSelectionChange) opts.onSelectionChange({ selectionStart: selStart, selectionEnd: selEnd, text });
+  });
+
+  function render() {
+    if (opts.customRender) {
+      opts.customRender(el, text, selStart, selEnd, false, { text, selectionStart: selStart, selectionEnd: selEnd });
+      return;
+    }
+    let html = '';
+    const sS = Math.min(selStart, selEnd);
+    const sE = Math.max(selStart, selEnd);
+
+    if (sS === sE && el === document.activeElement) {
+      html = escHtml(text.slice(0, sS)) + '<span class="cursor-blink"></span>' + escHtml(text.slice(sS));
+    } else {
+      for (let i = 0; i < text.length; i++) {
+        const ch = escHtml(text[i]);
+        html += (i >= sS && i < sE) ? `<span class="selected-text">${ch}</span>` : ch;
+      }
+    }
+    if (!text) html = '<span style="color:var(--text-dim)">Start typing... (fallback mode)</span>';
+    el.innerHTML = html;
+    if (opts.onSelectionChange) opts.onSelectionChange({ selectionStart: selStart, selectionEnd: selEnd, text });
+  }
+
+  el.addEventListener('focus', () => render());
+
+  return {
+    ec: { text, selectionStart: selStart, selectionEnd: selEnd, updateSelection: (s,e) => { selStart = s; selEnd = e; render(); }, updateText: (rs, re, t) => { text = text.slice(0,rs) + t + text.slice(re); render(); } },
+    getText: () => text,
+    getSelection: () => ({ start: selStart, end: selEnd }),
+    setSelection: (s, e) => { selStart = s; selEnd = e; render(); },
+    render,
+    charFormats: []
+  };
+}
+
+// ===== 1. Basic Editor =====
+const basicEd = createEditor('basicEditor', 'basicLog');
+
+// ===== 2. Canvas Editor =====
+(function initCanvasEditor() {
+  const canvas = $('canvasEditor');
+  const ctx = canvas.getContext('2d');
+  const logEl = $('canvasLog');
+  const statusEl = $('canvasStatus');
+
+  let text = '';
+  let selStart = 0;
+  let selEnd = 0;
+  let cursorVisible = true;
+  let blinkTimer;
+
+  const FONT_SIZE = 16;
+  const LINE_HEIGHT = 24;
+  const PAD_X = 16;
+  const PAD_Y = 20;
+  const CHAR_WIDTH = 9.6; // approximate for monospace
+
+  function draw() {
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.scale(dpr, dpr);
+
+    // Background
+    ctx.fillStyle = '#252833';
+    ctx.fillRect(0, 0, rect.width, rect.height);
+
+    ctx.font = `${FONT_SIZE}px 'SF Mono', 'Fira Code', monospace`;
+
+    // Word wrap
+    const maxWidth = rect.width - PAD_X * 2;
+    const lines = [];
+    let line = '';
+    for (let i = 0; i < text.length; i++) {
+      if (text[i] === '\n') { lines.push(line); line = ''; continue; }
+      const testLine = line + text[i];
+      if (ctx.measureText(testLine).width > maxWidth && line.length > 0) {
+        lines.push(line);
+        line = text[i];
+      } else {
+        line = testLine;
+      }
+    }
+    lines.push(line);
+
+    // Selection highlight
+    const sS = Math.min(selStart, selEnd);
+    const sE = Math.max(selStart, selEnd);
+    if (sS !== sE) {
+      let charIdx = 0;
+      for (let row = 0; row < lines.length; row++) {
+        const lineStart = charIdx;
+        const lineEnd = charIdx + lines[row].length;
+        const selLineStart = Math.max(sS, lineStart) - lineStart;
+        const selLineEnd = Math.min(sE, lineEnd) - lineStart;
+
+        if (selLineStart < selLineEnd && selLineStart < lines[row].length) {
+          const x1 = PAD_X + ctx.measureText(lines[row].slice(0, selLineStart)).width;
+          const x2 = PAD_X + ctx.measureText(lines[row].slice(0, selLineEnd)).width;
+          ctx.fillStyle = 'rgba(99, 102, 241, 0.3)';
+          ctx.fillRect(x1, PAD_Y + row * LINE_HEIGHT - FONT_SIZE + 2, x2 - x1, LINE_HEIGHT);
+        }
+        charIdx = lineEnd;
+        if (charIdx < text.length && text[charIdx] === '\n') charIdx++;
+      }
+    }
+
+    // Draw text
+    ctx.fillStyle = '#e2e8f0';
+    for (let row = 0; row < lines.length; row++) {
+      ctx.fillText(lines[row], PAD_X, PAD_Y + row * LINE_HEIGHT);
+    }
+
+    // Draw cursor
+    if (cursorVisible && canvas === document.activeElement) {
+      let charIdx = 0;
+      for (let row = 0; row < lines.length; row++) {
+        const lineEnd = charIdx + lines[row].length;
+        if (selStart <= lineEnd || row === lines.length - 1) {
+          const col = selStart - charIdx;
+          const x = PAD_X + ctx.measureText(lines[row].slice(0, Math.max(0, col))).width;
+          ctx.fillStyle = '#6366f1';
+          ctx.fillRect(x, PAD_Y + row * LINE_HEIGHT - FONT_SIZE + 4, 2, FONT_SIZE + 2);
+          break;
+        }
+        charIdx = lineEnd;
+        if (charIdx < text.length && text[charIdx] === '\n') charIdx++;
+      }
+    }
+
+    // Line numbers
+    ctx.fillStyle = '#4a5568';
+    ctx.font = `11px 'SF Mono', monospace`;
+    // (skipped for simplicity in this small canvas)
+
+    // Placeholder
+    if (!text) {
+      ctx.font = `${FONT_SIZE}px 'SF Mono', monospace`;
+      ctx.fillStyle = '#64748b';
+      ctx.fillText('Click here and start typing on the canvas...', PAD_X, PAD_Y);
+    }
+  }
+
+  if (HAS_EC) {
+    const ec = new EditContext();
+    canvas.editContext = ec;
+
+    ec.addEventListener('textupdate', (e) => {
+      text = ec.text;
+      selStart = e.selectionStart;
+      selEnd = e.selectionEnd;
+      log(logEl, `canvas textupdate: len=${text.length} cursor=${selStart}`);
+      draw();
+    });
+
+    canvas.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        const dir = e.key === 'ArrowLeft' ? -1 : 1;
+        if (e.shiftKey) {
+          selEnd = Math.max(0, Math.min(text.length, selEnd + dir));
+        } else {
+          selStart = selEnd = Math.max(0, Math.min(text.length, selStart + dir));
+        }
+        ec.updateSelection(selStart, selEnd);
+        draw();
+        e.preventDefault();
+      } else if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+        selStart = 0; selEnd = text.length;
+        ec.updateSelection(selStart, selEnd);
+        draw();
+        e.preventDefault();
+      }
+    });
+
+    canvas.addEventListener('focus', () => {
+      statusEl.textContent=T("jtc_focused");
+      statusEl.className = 'status status-ok';
+      const rect = canvas.getBoundingClientRect();
+      ec.updateControlBounds(rect);
+      startBlink();
+      draw();
+    });
+
+    canvas.addEventListener('blur', () => {
+      statusEl.textContent=T("jtc_ready");
+      stopBlink();
+      draw();
+    });
+  } else {
+    // Fallback
+    canvas.addEventListener('keydown', (e) => {
+      if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+        text = text.slice(0, selStart) + e.key + text.slice(selEnd);
+        selStart = selEnd = selStart + 1;
+        draw();
+        e.preventDefault();
+      } else if (e.key === 'Backspace' && selStart > 0) {
+        text = text.slice(0, selStart - 1) + text.slice(selEnd);
+        selStart = selEnd = selStart - 1;
+        draw();
+        e.preventDefault();
+      } else if (e.key === 'ArrowLeft') { selStart = selEnd = Math.max(0, selStart - 1); draw(); e.preventDefault(); }
+      else if (e.key === 'ArrowRight') { selStart = selEnd = Math.min(text.length, selStart + 1); draw(); e.preventDefault(); }
+    });
+    canvas.addEventListener('focus', () => { statusEl.textContent=T("jtc_focused_fallback"); startBlink(); draw(); });
+    canvas.addEventListener('blur', () => { statusEl.textContent=T("jtc_ready"); stopBlink(); draw(); });
+  }
+
+  function startBlink() {
+    stopBlink();
+    cursorVisible = true;
+    blinkTimer = setInterval(() => { cursorVisible = !cursorVisible; draw(); }, 530);
+  }
+  function stopBlink() { clearInterval(blinkTimer); cursorVisible = true; }
+
+  window.addEventListener('resize', draw);
+  draw();
+})();
+
+// ===== 3. IME Editor =====
+const imeEd = createEditor('imeEditor', 'imeLog', {
+  onCompositionStart() {
+    $('imeComposing').textContent=T("jtc_yes");
+    $('imeComposing').style.color = 'var(--orange)';
+  },
+  onCompositionEnd() {
+    $('imeComposing').textContent=T("jtc_no");
+    $('imeComposing').style.color = 'var(--green)';
+    $('imeCompText').textContent = '—';
+  },
+  onTextFormatUpdate(formats) {
+    $('imeFormats').textContent = formats.length;
+  },
+  onTextUpdate(ec, e) {
+    // Show composition info
+    if ($('imeComposing').textContent === 'Yes') {
+      $('imeCompText').textContent = e.text || '—';
+    }
+  }
+});
+
+// ===== 4. Selection Editor =====
+const selEd = createEditor('selEditor', 'selLog', {
+  onTextUpdate(ec) { updateSelInfo(ec); },
+  onSelectionChange(ec) { updateSelInfo(ec); }
+});
+
+function updateSelInfo(ec) {
+  const s = ec.selectionStart;
+  const e = ec.selectionEnd;
+  $('selCursor').textContent = s === e ? s : '—';
+  $('selStart').textContent = Math.min(s, e);
+  $('selEnd').textContent = Math.max(s, e);
+  $('selCount').textContent = Math.abs(e - s);
+  $('selDir').textContent = s === e ? 'none' : (s < e ? 'forward' : 'backward');
+}
+
+function selAction(action) {
+  const ed = selEd;
+  const len = HAS_EC ? ed.ec.selectionEnd : (ed.getText ? ed.getText().length : 0);
+  const textLen = HAS_EC ? ed.ec.text.length : len;
+
+  switch (action) {
+    case 'start': ed.setSelection(0, 0); break;
+    case 'end': ed.setSelection(textLen, textLen); break;
+    case 'all': ed.setSelection(0, textLen); break;
+    case 'word': {
+      const t = HAS_EC ? ed.ec.text : ed.getText();
+      const space = t.indexOf(' ');
+      ed.setSelection(0, space > 0 ? space : t.length);
+      break;
+    }
+  }
+  updateSelInfo(HAS_EC ? ed.ec : { selectionStart: 0, selectionEnd: 0 });
+  toast(`Selection: ${action}`);
+}
+
+// ===== 5. Formatting Editor =====
+const fmtCharFormats = [];
+const fmtEd = createEditor('fmtEditor', 'fmtLog', {
+  customRender(el, text, selStart, selEnd, isComposing, ec) {
+    // Ensure charFormats array matches text length
+    while (fmtCharFormats.length < text.length) fmtCharFormats.push({});
+    if (fmtCharFormats.length > text.length) fmtCharFormats.length = text.length;
+
+    let html = '';
+    const sS = Math.min(selStart, selEnd);
+    const sE = Math.max(selStart, selEnd);
+
+    for (let i = 0; i < text.length; i++) {
+      const ch = escHtml(text[i]);
+      const f = fmtCharFormats[i] || {};
+      let style = '';
+      if (f.bold) style += 'font-weight:700;';
+      if (f.italic) style += 'font-style:italic;';
+      if (f.underline) style += 'text-decoration:underline;text-underline-offset:3px;';
+      if (f.highlight) style += 'background:rgba(245,158,11,0.3);border-radius:2px;';
+      if (i >= sS && i < sE) style += 'background:rgba(99,102,241,0.3);border-radius:2px;';
+
+      html += style ? `<span style="${style}">${ch}</span>` : ch;
+    }
+
+    if (sS === sE && el === document.activeElement) {
+      const before = text.slice(0, sS);
+      const after = text.slice(sS);
+      // Rebuild with cursor
+      html = '';
+      for (let i = 0; i < before.length; i++) {
+        const f = fmtCharFormats[i] || {};
+        let style = '';
+        if (f.bold) style += 'font-weight:700;';
+        if (f.italic) style += 'font-style:italic;';
+        if (f.underline) style += 'text-decoration:underline;text-underline-offset:3px;';
+        if (f.highlight) style += 'background:rgba(245,158,11,0.3);border-radius:2px;';
+        html += style ? `<span style="${style}">${escHtml(before[i])}</span>` : escHtml(before[i]);
+      }
+      html += '<span class="cursor-blink"></span>';
+      for (let i = sS; i < text.length; i++) {
+        const f = fmtCharFormats[i] || {};
+        let style = '';
+        if (f.bold) style += 'font-weight:700;';
+        if (f.italic) style += 'font-style:italic;';
+        if (f.underline) style += 'text-decoration:underline;text-underline-offset:3px;';
+        if (f.highlight) style += 'background:rgba(245,158,11,0.3);border-radius:2px;';
+        html += style ? `<span style="${style}">${escHtml(text[i])}</span>` : escHtml(text[i]);
+      }
+    }
+
+    if (!text) html = '<span style="color:var(--text-dim)">Start typing...</span>';
+    el.innerHTML = html;
+  },
+  onSelectionChange() {}
+});
+
+function applyFormat(type) {
+  const ec = fmtEd.ec;
+  const s = Math.min(ec.selectionStart, ec.selectionEnd);
+  const e = Math.max(ec.selectionStart, ec.selectionEnd);
+
+  if (s === e) {
+    toast('Select text first');
+    return;
+  }
+
+  if (type === 'clear') {
+    for (let i = s; i < e; i++) fmtCharFormats[i] = {};
+    log('fmtLog', `Cleared formatting [${s},${e}]`, 'log-data');
+  } else {
+    for (let i = s; i < e; i++) {
+      if (!fmtCharFormats[i]) fmtCharFormats[i] = {};
+      fmtCharFormats[i][type] = !fmtCharFormats[i][type];
+    }
+    log('fmtLog', `Toggled ${type} [${s},${e}]`, 'log-data');
+  }
+
+  fmtEd.render();
+  toast(`Applied: ${type}`);
+}
+
+// ===== 6. API Explorer Interactions =====
+function showProp(prop) {
+  if (!HAS_EC) {
+    toast('EditContext not supported');
+    return;
+  }
+  const ec = basicEd.ec;
+  const val = ec[prop];
+  const display = typeof val === 'string' ? `"${val.length > 40 ? val.slice(0,40)+'...' : val}"` : val;
+  const elId = prop === 'text' ? 'propText' : prop === 'selectionStart' ? 'propSelStart' : 'propSelEnd';
+  $(elId).textContent = `→ ${display}`;
+}
+
+function tryUpdateText() {
+  if (!HAS_EC) { toast('EditContext not supported'); return; }
+  basicEd.ec.updateText(0, 0, 'Hello ');
+  basicEd.render();
+  toast('Inserted "Hello" at position 0');
+}
+
+function tryUpdateSelection() {
+  if (!HAS_EC) { toast('EditContext not supported'); return; }
+  const len = Math.min(5, basicEd.ec.text.length);
+  basicEd.ec.updateSelection(0, len);
+  basicEd.render();
+  toast(`Selected chars 0-${len}`);
+}
+
+function tryAttachedElements() {
+  if (!HAS_EC) { toast('EditContext not supported'); return; }
+  const els = basicEd.ec.attachedElements();
+  $('attachedResult').textContent = `→ [${els.map(e => e.tagName + '#' + e.id).join(', ')}]`;
+}
+
+// ===== 8. Code Generator =====
+const templates = {
+  minimal: `<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>Minimal EditContext Editor</title></head>
+<body>
+<div id="editor" tabindex="0" style="
+  min-height: 200px; padding: 16px;
+  border: 2px solid #333; border-radius: 8px;
+  font-family: monospace; font-size: 16px;
+  white-space: pre-wrap; outline: none;
+  caret-color: #6366f1;
+"></div>
+
+<script>
+const editor = document.getElementById('editor');
+const editContext = new EditContext();
+editor.editContext = editContext;
+
+editContext.addEventListener('textupdate', (e) => {
+  // Re-render the text content
+  editor.textContent = editContext.text;
+  console.log('Text:', editContext.text);
+  console.log('Cursor:', e.selectionStart);
+});
+
+// Feature detection
+if (!('EditContext' in window)) {
+  editor.contentEditable = 'true';
+  editor.textContent=T("jtc_fallback_contenteditable");
+}
+<\/script>
+</body>
+</html>`,
+
+  canvas: `<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>Canvas EditContext Editor</title></head>
+<body style="background:#1a1a2e;display:flex;justify-content:center;padding:40px;">
+<canvas id="editor" width="800" height="400" tabindex="0"
+  style="border:2px solid #333;border-radius:8px;cursor:text;"></canvas>
+
+<script>
+const canvas = document.getElementById('editor');
+const ctx = canvas.getContext('2d');
+
+if (!('EditContext' in window)) {
+  ctx.fillStyle = '#ef4444';
+  ctx.font = '18px sans-serif';
+  ctx.fillText('EditContext not supported. Use Chrome 133+', 20, 40);
+} else {
+  const ec = new EditContext();
+  canvas.editContext = ec;
+
+  const FONT = '16px monospace';
+  const PAD = 16;
+  let cursorVisible = true;
+
+  ec.addEventListener('textupdate', draw);
+
+  canvas.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowLeft') {
+      ec.updateSelection(
+        Math.max(0, ec.selectionStart - 1),
+        Math.max(0, ec.selectionStart - 1)
+      );
+      draw();
+    } else if (e.key === 'ArrowRight') {
+      ec.updateSelection(
+        Math.min(ec.text.length, ec.selectionEnd + 1),
+        Math.min(ec.text.length, ec.selectionEnd + 1)
+      );
+      draw();
+    }
+  });
+
+  canvas.addEventListener('focus', () => {
+    const rect = canvas.getBoundingClientRect();
+    ec.updateControlBounds(rect);
+    ec.updateSelectionBounds(rect);
+  });
+
+  setInterval(() => { cursorVisible = !cursorVisible; draw(); }, 530);
+
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#1a1a2e';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.font = FONT;
+    ctx.fillStyle = '#e2e8f0';
+    ctx.fillText(ec.text || 'Start typing...', PAD, 32);
+
+    // Cursor
+    if (cursorVisible) {
+      const before = ec.text.slice(0, ec.selectionStart);
+      const x = PAD + ctx.measureText(before).width;
+      ctx.fillStyle = '#6366f1';
+      ctx.fillRect(x, 14, 2, 22);
+    }
+  }
+
+  draw();
+}
+<\/script>
+</body>
+</html>`,
+
+  ime: `<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>IME-Aware EditContext Editor</title></head>
+<body>
+<div id="editor" tabindex="0" style="
+  min-height: 200px; padding: 16px;
+  border: 2px solid #333; border-radius: 8px;
+  font-family: monospace; font-size: 16px;
+  white-space: pre-wrap; outline: none;
+"></div>
+<div id="status" style="margin-top:8px;font-family:monospace;color:#888;"></div>
+
+<script>
+const editor = document.getElementById('editor');
+const status = document.getElementById('status');
+const ec = new EditContext();
+editor.editContext = ec;
+
+let isComposing = false;
+let compositionFormats = [];
+
+ec.addEventListener('textupdate', render);
+
+ec.addEventListener('compositionstart', () => {
+  isComposing = true;
+  status.textContent=T("jtc_composing");
+});
+
+ec.addEventListener('compositionend', () => {
+  isComposing = false;
+  compositionFormats = [];
+  status.textContent=T("jtc_composition_committed");
+  render();
+});
+
+ec.addEventListener('textformatupdate', (e) => {
+  compositionFormats = e.getTextFormats();
+  render();
+});
+
+ec.addEventListener('characterboundsupdate', (e) => {
+  // Provide character bounds for IME window positioning
+  const range = { start: e.rangeStart, end: e.rangeEnd };
+  const bounds = [];
+  const baseRect = editor.getBoundingClientRect();
+
+  for (let i = range.start; i < range.end; i++) {
+    bounds.push(new DOMRect(
+      baseRect.left + i * 10,  // Approximate
+      baseRect.top,
+      10,
+      20
+    ));
+  }
+  ec.updateCharacterBounds(range.start, bounds);
+});
+
+function render() {
+  const text = ec.text;
+  let html = '';
+
+  for (let i = 0; i < text.length; i++) {
+    let style = '';
+
+    // Apply composition formats
+    for (const fmt of compositionFormats) {
+      if (i >= fmt.rangeStart && i < fmt.rangeEnd) {
+        if (fmt.underlineStyle !== 'none') {
+          style += \`text-decoration:underline;
+            text-decoration-style:\${fmt.underlineStyle};
+            text-underline-offset:3px;\`;
+        }
+        if (fmt.underlineThickness === 'thick') {
+          style += 'text-decoration-thickness:3px;';
+        }
+      }
+    }
+
+    const ch = text[i].replace(/</g, '&lt;');
+    html += style ? \`<span style="\${style}">\${ch}</span>\` : ch;
+  }
+
+  editor.innerHTML = html || '<span style="color:#888">Type here (try IME input)...</span>';
+}
+
+render();
+<\/script>
+</body>
+</html>`,
+
+  rich: `<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>Rich Text EditContext Editor</title></head>
+<body style="background:#0f1117;color:#e2e8f0;font-family:system-ui;padding:40px;">
+<div style="max-width:700px;margin:0 auto;">
+  <div id="toolbar" style="
+    display:flex;gap:4px;padding:8px;
+    background:#1a1d27;border:1px solid #2e3240;
+    border-radius:8px 8px 0 0;border-bottom:none;
+  ">
+    <button onclick="fmt('bold')" style="font-weight:700">B</button>
+    <button onclick="fmt('italic')" style="font-style:italic">I</button>
+    <button onclick="fmt('underline')" style="text-decoration:underline">U</button>
+    <button onclick="fmt('highlight')">H</button>
+    <button onclick="fmt('clear')" ti="btn_clear">Clear</button>
+  </div>
+  <div id="editor" tabindex="0" style="
+    min-height:200px;padding:16px;
+    background:#252833;border:1px solid #2e3240;
+    border-radius:0 0 8px 8px;
+    font-family:monospace;font-size:15px;
+    white-space:pre-wrap;outline:none;
+  "></div>
+</div>
+
+<script>
+const editor = document.getElementById('editor');
+const ec = new EditContext();
+editor.editContext = ec;
+
+// Per-character format metadata
+const formats = [];
+
+ec.addEventListener('textupdate', (e) => {
+  // Insert empty format entries for new characters
+  const inserted = e.text.length;
+  const removed = e.updateRangeEnd - e.updateRangeStart;
+  formats.splice(e.updateRangeStart, removed,
+    ...Array(inserted).fill(null).map(() => ({})));
+  render();
+});
+
+editor.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+    const d = e.key === 'ArrowLeft' ? -1 : 1;
+    const s = ec.selectionStart, en = ec.selectionEnd;
+    if (e.shiftKey) {
+      ec.updateSelection(s, Math.max(0, Math.min(ec.text.length, en + d)));
+    } else {
+      const pos = Math.max(0, Math.min(ec.text.length, s + d));
+      ec.updateSelection(pos, pos);
+    }
+    render();
+    e.preventDefault();
+  }
+});
+
+function fmt(type) {
+  const s = Math.min(ec.selectionStart, ec.selectionEnd);
+  const e = Math.max(ec.selectionStart, ec.selectionEnd);
+  if (s === e) return;
+
+  for (let i = s; i < e; i++) {
+    if (!formats[i]) formats[i] = {};
+    if (type === 'clear') { formats[i] = {}; }
+    else { formats[i][type] = !formats[i][type]; }
+  }
+  render();
+}
+
+function render() {
+  const text = ec.text;
+  let html = '';
+  for (let i = 0; i < text.length; i++) {
+    const f = formats[i] || {};
+    let s = '';
+    if (f.bold) s += 'font-weight:700;';
+    if (f.italic) s += 'font-style:italic;';
+    if (f.underline) s += 'text-decoration:underline;';
+    if (f.highlight) s += 'background:rgba(245,158,11,0.3);';
+
+    // Selection highlight
+    const sS = Math.min(ec.selectionStart, ec.selectionEnd);
+    const sE = Math.max(ec.selectionStart, ec.selectionEnd);
+    if (i >= sS && i < sE) s += 'background:rgba(99,102,241,0.3);';
+
+    const ch = text[i].replace(/</g,'&lt;');
+    html += s ? \`<span style="\${s}">\${ch}</span>\` : ch;
+  }
+  editor.innerHTML = html || '<span style="color:#64748b">Type and format...</span>';
+}
+
+// Style toolbar buttons
+document.querySelectorAll('#toolbar button').forEach(b => {
+  Object.assign(b.style, {
+    padding:'6px 12px', background:'#252833',
+    border:'1px solid #2e3240', borderRadius:'4px',
+    color:'#e2e8f0', cursor:'pointer', fontSize:'14px'
+  });
+});
+
+render();
+<\/script>
+</body>
+</html>`
+};
+
+function genCode(key) {
+  const code = templates[key];
+  $('codegenCode').textContent = code;
+  toast(`Generated: ${key} template`);
+}
+
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+</body>
+</html>

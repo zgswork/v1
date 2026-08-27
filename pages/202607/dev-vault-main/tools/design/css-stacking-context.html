@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html tk="title_css_stacking_context_visu" lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CSS Stacking Context Visualizer</title>
+<meta name="description" content="Interactive CSS stacking context visualizer. Understand z-index, stacking contexts, and paint order. Build layouts and see which elements stack on top.">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0f1117;--surface:#1a1d27;--surface2:#242837;--border:#2e3347;--text:#e4e7f1;--dim:#8b90a5;--accent:#6c8cff;--accent2:#a78bfa;--green:#4ade80;--red:#f87171;--orange:#fbbf24;--cyan:#22d3ee}
+body{font-family:'SF Mono',Monaco,'Cascadia Code',monospace;background:var(--bg);color:var(--text);min-height:100vh}
+.header{padding:14px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px}
+.header h1{font-size:15px;font-weight:600}
+.header span{color:var(--dim);font-size:12px}
+.tabs{display:flex;border-bottom:1px solid var(--border);background:var(--surface)}
+.tab{padding:10px 20px;font-size:12px;cursor:pointer;border:none;background:none;color:var(--dim);font-family:inherit;border-bottom:2px solid transparent;transition:all .2s}
+.tab:hover{color:var(--text)}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.panel{display:none;height:calc(100vh - 95px)}
+.panel.active{display:flex}
+
+/* Builder Panel */
+.builder-panel{flex-direction:row}
+.builder-left{width:340px;border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:auto}
+.builder-right{flex:1;display:flex;flex-direction:column}
+
+/* Element list */
+.el-list{flex:1;overflow-y:auto;padding:8px}
+.el-item{background:var(--surface);border:1px solid var(--border);border-radius:6px;margin-bottom:6px;overflow:hidden;transition:border-color .2s}
+.el-item.selected{border-color:var(--accent)}
+.el-item-header{padding:8px 10px;display:flex;align-items:center;gap:8px;cursor:pointer;font-size:11px}
+.el-item-header .color-dot{width:14px;height:14px;border-radius:3px;flex-shrink:0}
+.el-item-header .name{flex:1;font-weight:600}
+.el-item-header .zindex{color:var(--orange);font-size:10px}
+.el-item-header .ctx-badge{font-size:9px;padding:1px 5px;border-radius:8px;background:var(--accent);color:#fff}
+.el-item-props{padding:0 10px 8px;display:none}
+.el-item.expanded .el-item-props{display:block}
+.prop-row{display:flex;align-items:center;gap:6px;margin-top:6px;font-size:11px}
+.prop-row label{min-width:80px;color:var(--dim)}
+.prop-row input[type="number"]{width:60px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:3px 6px;color:var(--text);font-family:inherit;font-size:11px}
+.prop-row select{background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:3px 6px;color:var(--text);font-family:inherit;font-size:11px}
+.prop-row input[type="color"]{width:30px;height:22px;border:none;border-radius:4px;cursor:pointer}
+.prop-row input[type="range"]{width:80px;accent-color:var(--accent)}
+
+.add-btn{padding:8px;text-align:center;border-top:1px solid var(--border);background:var(--surface)}
+.btn{padding:6px 14px;border-radius:6px;border:none;font-family:inherit;font-size:11px;cursor:pointer;transition:all .15s}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{background:#5a7aee}
+.btn-sm{padding:4px 8px;font-size:10px;background:var(--surface2);color:var(--dim);border:1px solid var(--border);border-radius:4px;cursor:pointer}
+.btn-sm:hover{color:var(--text)}
+.btn-danger{background:var(--red);color:#fff;padding:4px 8px;font-size:10px;border-radius:4px;border:none;cursor:pointer}
+
+/* Canvas */
+.canvas-area{flex:1;position:relative;overflow:hidden;background:repeating-conic-gradient(#1a1a2e 0% 25%, #151525 0% 50%) 0 0 / 20px 20px}
+.canvas-element{position:absolute;border:2px solid;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;cursor:move;transition:box-shadow .2s;user-select:none}
+.canvas-element:hover{box-shadow:0 0 12px rgba(255,255,255,.15)}
+.canvas-element.creates-ctx{border-style:dashed}
+.canvas-element .el-label{background:rgba(0,0,0,.7);padding:2px 6px;border-radius:3px;font-size:10px;pointer-events:none}
+
+/* Tree Panel */
+.tree-panel{flex-direction:row}
+.tree-left{flex:1;padding:24px;overflow:auto}
+.tree-right{width:300px;border-left:1px solid var(--border);padding:16px;overflow:auto}
+.tree-node{margin-left:20px;margin-top:8px}
+.tree-node-label{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:4px;font-size:11px;cursor:pointer;transition:background .15s}
+.tree-node-label:hover{background:var(--surface2)}
+.tree-node-label .color-sq{width:10px;height:10px;border-radius:2px}
+.tree-node-label .ctx-mark{color:var(--accent);font-size:9px}
+.tree-node-label .z-val{color:var(--orange);font-size:10px;margin-left:4px}
+.tree-root{margin-left:0}
+
+/* Info Panel */
+.info-section{margin-bottom:16px}
+.info-section h3{font-size:12px;color:var(--accent);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px}
+.info-section p{font-size:11px;color:var(--dim);line-height:1.6}
+.info-section ul{font-size:11px;color:var(--dim);line-height:1.8;padding-left:16px}
+.info-section code{background:var(--surface2);padding:1px 4px;border-radius:3px;color:var(--green);font-size:10px}
+
+/* Presets Panel */
+.presets-panel{flex-direction:column;padding:24px;gap:16px;overflow:auto}
+.preset-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;cursor:pointer;transition:all .2s}
+.preset-card:hover{border-color:var(--accent);transform:translateY(-1px)}
+.preset-card h3{font-size:13px;margin-bottom:6px}
+.preset-card p{font-size:11px;color:var(--dim);line-height:1.5}
+.presets-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+
+/* Paint order */
+.paint-order{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:12px;margin-top:12px}
+.paint-order h4{font-size:11px;color:var(--dim);margin-bottom:8px}
+.paint-step{display:flex;align-items:center;gap:8px;padding:3px 0;font-size:11px}
+.paint-step .order-num{color:var(--dim);min-width:20px}
+.paint-step .color-sq{width:10px;height:10px;border-radius:2px}
+</style>
+</head>
+<body>
+
+
+
+<div class="header">
+  <h1 ti="title_css_stacking_context_visu" ti="h1_css_stacking_context_visu">CSS Stacking Context Visualizer</h1>
+  <span>Understand z-index, stacking contexts & paint order</span>
+</div>
+
+<div class="tabs">
+  <button class="tab active" data-tab="builder" ti="btn_builder">Builder</button>
+  <button class="tab" data-tab="tree" ti="btn_context_tree">Context Tree</button>
+  <button class="tab" data-tab="presets" ti="btn_presets">Presets</button>
+  <button class="tab" data-tab="rules" ti="btn_rules">Rules</button>
+</div>
+
+<!-- Builder Panel -->
+<div class="panel builder-panel active" id="panel-builder">
+  <div class="builder-left">
+    <div class="el-list" id="elList"></div>
+    <div class="add-btn">
+      <button class="btn btn-primary" onclick="addElement()" ti="btn_add_element">+ Add Element</button>
+    </div>
+  </div>
+  <div class="builder-right">
+    <div class="canvas-area" id="canvas"></div>
+  </div>
+</div>
+
+<!-- Tree Panel -->
+<div class="panel tree-panel" id="panel-tree">
+  <div class="tree-left" id="treeView"></div>
+  <div class="tree-right">
+    <div class="info-section">
+      <h3 ti="h3_paint_order">Paint Order</h3>
+      <p>Elements are painted in this order (bottom to top):</p>
+    </div>
+    <div id="paintOrder"></div>
+  </div>
+</div>
+
+<!-- Presets Panel -->
+<div class="panel presets-panel" id="panel-presets">
+  <h2 style="font-size:14px;color:var(--dim)" ti="h2_preset_scenarios">Preset Scenarios</h2>
+  <div class="presets-grid" id="presetsGrid"></div>
+</div>
+
+<!-- Rules Panel -->
+<div class="panel" id="panel-rules" style="flex-direction:column;padding:24px;overflow:auto">
+  <div style="max-width:680px">
+    <div class="info-section">
+      <h3 ti="h3_what_creates_a_stacking_c">What Creates a Stacking Context?</h3>
+      <ul>
+        <li>Root element (<code>&lt;html&gt;</code>)</li>
+        <li><code>position: absolute/relative</code> with <code>z-index</code> other than <code>auto</code></li>
+        <li><code>position: fixed</code> or <code>sticky</code></li>
+        <li><code>opacity</code> less than 1</li>
+        <li><code>transform</code> other than <code>none</code></li>
+        <li><code>filter</code> other than <code>none</code></li>
+        <li><code>isolation: isolate</code></li>
+        <li><code>mix-blend-mode</code> other than <code>normal</code></li>
+        <li><code>will-change</code> with certain values</li>
+        <li><code>contain: layout/paint/strict/content</code></li>
+        <li>Flex/Grid child with <code>z-index</code> other than <code>auto</code></li>
+      </ul>
+    </div>
+    <div class="info-section">
+      <h3 ti="h3_paint_order_within_a_stac">Paint Order Within a Stacking Context</h3>
+      <ol style="font-size:11px;color:var(--dim);line-height:2;padding-left:16px">
+        <li>Background and borders of the stacking context element</li>
+        <li>Child stacking contexts with negative z-index</li>
+        <li>In-flow, non-positioned block-level elements</li>
+        <li>Non-positioned floated elements</li>
+        <li>In-flow, non-positioned inline elements</li>
+        <li>Child stacking contexts with z-index: 0 / auto</li>
+        <li>Child stacking contexts with positive z-index</li>
+      </ol>
+    </div>
+    <div class="info-section">
+      <h3 ti="h3_common_gotchas">Common Gotchas</h3>
+      <ul>
+        <li><strong ti="strong_z_index_only_works_on_pos">z-index only works on positioned elements</strong> — <code>z-index: 999</code> on a <code>position: static</code> element does nothing</li>
+        <li><strong ti="strong_z_index_is_relative_to_th">z-index is relative to the parent stacking context</strong> — an element with <code>z-index: 9999</code> can still be below an element with <code>z-index: 1</code> if they're in different stacking contexts</li>
+        <li><strong>opacity &lt; 1 creates a stacking context</strong> — this is a very common surprise. Adding <code>opacity: 0.99</code> changes paint order</li>
+        <li><strong ti="strong_transform_creates_a_stack">transform creates a stacking context</strong> — even <code>transform: translateZ(0)</code> or <code>will-change: transform</code></li>
+        <li><strong ti="strong_fixed_positioning_inside">Fixed positioning inside a transformed parent</strong> — <code>position: fixed</code> becomes relative to the transform parent, not the viewport</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+
+<script>var _LANG={'title_css_stacking_context_visu':["CSS Stacking Context Visualizer", "CSS 堆叠上下文可视化工具"],'metadesc_interactive_css_stacking':["Interactive CSS stacking context visualizer. Understand z-index, stacking contexts, and paint order. Build layouts and see which elements stack on top.", "交互式 CSS 堆叠上下文可视化工具。理解 z-index、堆叠上下文和绘制顺序。构建布局并查看哪些元素堆叠在顶部。"],'h1_css_stacking_context_visu':["CSS Stacking Context Visualizer", "CSS 堆叠上下文可视化工具"],'h2_preset_scenarios':["Preset Scenarios", "预设场景"],'h3_paint_order':["Paint Order", "油漆订单"],'h3_what_creates_a_stacking_c':["What Creates a Stacking Context?", "什么会创建堆叠上下文？"],'h3_paint_order_within_a_stac':["Paint Order Within a Stacking Context", "堆叠上下文中的绘制顺序"],'h3_common_gotchas':["Common Gotchas", "常见陷阱"],'h3_p_name':["${p.name}", "${p.name}"],'btn_builder':["Builder", "建造者"],'btn_context_tree':["Context Tree", "上下文树"],'btn_presets':["Presets", "预设"],'btn_rules':["Rules", "规则"],'btn_add_element':["+ Add Element", "+ 添加元素"],'btn_delete':["Delete", "删除"],'label_eschtml_el_name_z_zdispl':["${escHTML(el.name)} (z:${zDisplay})", "${escHTML(el.name)} (z:${zDisplay})"],'strong_z_index_only_works_on_pos':["z-index only works on positioned elements", "z-index 仅对已定位元素有效"],'strong_z_index_is_relative_to_th':["z-index is relative to the parent stacking context", "z-index 是相对于父级堆叠上下文的。"],'strong_opacity_1_creates_a_stack':["opacity < 1 creates a stacking context", "不透明度 &lt; 1 会创建一个堆叠上下文"],'strong_transform_creates_a_stack':["transform creates a stacking context", "变换会创建一个堆叠上下文"],'strong_fixed_positioning_inside':["Fixed positioning inside a transformed parent", "在变换后的父级内部进行固定定位"],'label_name':["Name", "姓名"],'label_position':["position", "位置"],'label_z_index':["z-index", "z 指数"],'label_opacity':["opacity", "不透明度"],'label_transform':["transform", "转换"],'label_color':["color", "颜色"],'label_parent':["parent", "父母"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>
+// Tab switching
+document.querySelectorAll('.tab').forEach(t => {
+  t.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    document.getElementById('panel-' + t.dataset.tab).classList.add('active');
+    if (t.dataset.tab === 'tree') renderTree();
+  });
+});
+
+// State
+let elements = [];
+let nextId = 1;
+let selectedId = null;
+let dragState = null;
+
+const COLORS = ['#3b82f6','#ef4444','#22c55e','#f59e0b','#a855f7','#06b6d4','#ec4899','#84cc16','#f97316','#8b5cf6'];
+
+function addElement(opts = {}) {
+  const id = nextId++;
+  const el = {
+    id,
+    name: opts.name || `Element ${id}`,
+    color: opts.color || COLORS[(id - 1) % COLORS.length],
+    x: opts.x ?? 40 + (id * 30) % 300,
+    y: opts.y ?? 40 + (id * 25) % 200,
+    w: opts.w || 120,
+    h: opts.h || 80,
+    zIndex: opts.zIndex ?? 'auto',
+    position: opts.position || 'relative',
+    opacity: opts.opacity ?? 1,
+    transform: opts.transform || 'none',
+    parentId: opts.parentId || null
+  };
+  elements.push(el);
+  renderAll();
+  return id;
+}
+
+function removeElement(id) {
+  // Also remove children
+  elements = elements.filter(e => e.id !== id && e.parentId !== id);
+  if (selectedId === id) selectedId = null;
+  renderAll();
+}
+
+function createsStackingContext(el) {
+  if (el.id === 'root') return true;
+  if ((el.position === 'absolute' || el.position === 'relative') && el.zIndex !== 'auto') return true;
+  if (el.position === 'fixed' || el.position === 'sticky') return true;
+  if (el.opacity < 1) return true;
+  if (el.transform !== 'none') return true;
+  return false;
+}
+
+function getStackingContextReason(el) {
+  const reasons = [];
+  if (el.id === 'root') return ['root element'];
+  if ((el.position === 'absolute' || el.position === 'relative') && el.zIndex !== 'auto')
+    reasons.push(`position: ${el.position} + z-index: ${el.zIndex}`);
+  if (el.position === 'fixed') reasons.push('position: fixed');
+  if (el.position === 'sticky') reasons.push('position: sticky');
+  if (el.opacity < 1) reasons.push(`opacity: ${el.opacity}`);
+  if (el.transform !== 'none') reasons.push(`transform: ${el.transform}`);
+  return reasons;
+}
+
+function renderAll() {
+  renderElementList();
+  renderCanvas();
+}
+
+function renderElementList() {
+  const list = document.getElementById('elList');
+  list.innerHTML = elements.map(el => {
+    const isCtx = createsStackingContext(el);
+    const isExpanded = el.id === selectedId;
+    const zDisplay = el.zIndex === 'auto' ? 'auto' : el.zIndex;
+    return `
+    <div class="el-item${isExpanded ? ' selected expanded' : ''}" data-id="${el.id}">
+      <div class="el-item-header" onclick="selectElement(${el.id})">
+        <span class="color-dot" style="background:${el.color}"></span>
+        <span class="name">${escHTML(el.name)}</span>
+        <span class="zindex">z:${zDisplay}</span>
+        ${isCtx ? '<span class="ctx-badge">CTX</span>' : ''}
+      </div>
+      <div class="el-item-props">
+        <div class="prop-row">
+          <label ti="label_name">Name</label>
+          <input type="text" value="${escHTML(el.name)}" onchange="updateProp(${el.id},'name',this.value)" style="width:120px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:3px 6px;color:var(--text);font-family:inherit;font-size:11px">
+        </div>
+        <div class="prop-row">
+          <label ti="label_position">position</label>
+          <select onchange="updateProp(${el.id},'position',this.value)">
+            ${['static','relative','absolute','fixed','sticky'].map(v => `<option${el.position === v ? ' selected' : ''}>${v}</option>`).join('')}
+          </select>
+        </div>
+        <div class="prop-row">
+          <label ti="label_z_index">z-index</label>
+          <input type="text" value="${el.zIndex}" onchange="updateProp(${el.id},'zIndex',this.value === 'auto' ? 'auto' : parseInt(this.value) || 0)" style="width:60px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:3px 6px;color:var(--text);font-family:inherit;font-size:11px">
+        </div>
+        <div class="prop-row">
+          <label ti="label_opacity">opacity</label>
+          <input type="range" min="0" max="1" step="0.05" value="${el.opacity}" oninput="updateProp(${el.id},'opacity',parseFloat(this.value))">
+          <span style="font-size:10px;color:var(--dim)">${el.opacity}</span>
+        </div>
+        <div class="prop-row">
+          <label ti="label_transform">transform</label>
+          <select onchange="updateProp(${el.id},'transform',this.value)">
+            ${['none','translateZ(0)','rotate(0deg)','scale(1)'].map(v => `<option${el.transform === v ? ' selected' : ''}>${v}</option>`).join('')}
+          </select>
+        </div>
+        <div class="prop-row">
+          <label ti="label_color">color</label>
+          <input type="color" value="${el.color}" oninput="updateProp(${el.id},'color',this.value)">
+        </div>
+        <div class="prop-row">
+          <label ti="label_parent">parent</label>
+          <select onchange="updateProp(${el.id},'parentId',this.value === '' ? null : parseInt(this.value))">
+            <option value="">none (root)</option>
+            ${elements.filter(e => e.id !== el.id).map(e => `<option value="${e.id}"${el.parentId === e.id ? ' selected' : ''}>${e.name}</option>`).join('')}
+          </select>
+        </div>
+        <div class="prop-row" style="justify-content:flex-end;margin-top:8px">
+          <button class="btn-danger" onclick="removeElement(${el.id})" ti="btn_delete">Delete</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function selectElement(id) {
+  selectedId = selectedId === id ? null : id;
+  renderAll();
+}
+
+function updateProp(id, prop, value) {
+  const el = elements.find(e => e.id === id);
+  if (el) {
+    el[prop] = value;
+    renderAll();
+  }
+}
+
+function renderCanvas() {
+  const canvas = document.getElementById('canvas');
+  canvas.innerHTML = '';
+
+  // Compute paint order
+  const paintOrder = computePaintOrder();
+
+  paintOrder.forEach((el, i) => {
+    const div = document.createElement('div');
+    div.className = 'canvas-element' + (createsStackingContext(el) ? ' creates-ctx' : '');
+    div.style.left = el.x + 'px';
+    div.style.top = el.y + 'px';
+    div.style.width = el.w + 'px';
+    div.style.height = el.h + 'px';
+    div.style.backgroundColor = el.color + '40';
+    div.style.borderColor = el.color;
+    div.style.zIndex = i + 1; // Visual stacking based on paint order
+    div.style.opacity = el.opacity;
+
+    const zDisplay = el.zIndex === 'auto' ? 'auto' : el.zIndex;
+    div.innerHTML = `<span class="el-label" ti="label_eschtml_el_name_z_zdispl">${escHTML(el.name)} (z:${zDisplay})</span>`;
+
+    // Drag
+    div.addEventListener('mousedown', (e) => {
+      dragState = { id: el.id, startX: e.clientX - el.x, startY: e.clientY - el.y };
+      e.preventDefault();
+    });
+
+    canvas.appendChild(div);
+  });
+}
+
+document.addEventListener('mousemove', (e) => {
+  if (!dragState) return;
+  const el = elements.find(e => e.id === dragState.id);
+  if (!el) return;
+  el.x = Math.max(0, e.clientX - dragState.startX);
+  el.y = Math.max(0, e.clientY - dragState.startY);
+  renderCanvas();
+});
+
+document.addEventListener('mouseup', () => {
+  dragState = null;
+});
+
+function computePaintOrder() {
+  // Build the stacking context tree
+  const root = { id: 'root', children: [], zIndex: 0, el: null };
+
+  function findContext(el) {
+    if (!el.parentId) return root;
+    const parent = elements.find(e => e.id === el.parentId);
+    if (parent && createsStackingContext(parent)) return { id: parent.id, el: parent };
+    return root;
+  }
+
+  // Group elements by their stacking context
+  const contexts = new Map();
+  contexts.set('root', { el: null, children: [] });
+
+  for (const el of elements) {
+    const ctx = findContext(el);
+    const ctxId = ctx.id;
+    if (!contexts.has(ctxId)) contexts.set(ctxId, { el: ctx.el, children: [] });
+    contexts.get(ctxId).children.push(el);
+  }
+
+  // Sort within each context by z-index
+  const order = [];
+
+  function processContext(ctxId) {
+    const ctx = contexts.get(ctxId);
+    if (!ctx) return;
+
+    const children = ctx.children.slice();
+    // Separate into negative z-index, zero/auto, and positive
+    const negative = children.filter(e => typeof e.zIndex === 'number' && e.zIndex < 0).sort((a, b) => a.zIndex - b.zIndex);
+    const zero = children.filter(e => e.zIndex === 'auto' || e.zIndex === 0);
+    const positive = children.filter(e => typeof e.zIndex === 'number' && e.zIndex > 0).sort((a, b) => a.zIndex - b.zIndex);
+
+    // Paint order: negative z-index → tree order (z:auto/0) → positive z-index
+    for (const el of negative) {
+      order.push(el);
+      if (createsStackingContext(el) && contexts.has(el.id)) processContext(el.id);
+    }
+    for (const el of zero) {
+      order.push(el);
+      if (createsStackingContext(el) && contexts.has(el.id)) processContext(el.id);
+    }
+    for (const el of positive) {
+      order.push(el);
+      if (createsStackingContext(el) && contexts.has(el.id)) processContext(el.id);
+    }
+  }
+
+  processContext('root');
+
+  // If some elements weren't added (no parent context found), add them
+  for (const el of elements) {
+    if (!order.includes(el)) order.push(el);
+  }
+
+  return order;
+}
+
+function renderTree() {
+  const treeView = document.getElementById('treeView');
+  const paintOrderView = document.getElementById('paintOrder');
+
+  // Build tree structure
+  let html = '<div class="tree-root"><div class="tree-node-label"><span class="color-sq" style="background:#666"></span>root (html)<span class="ctx-mark">CTX</span></div>';
+
+  function renderNode(el, depth) {
+    const isCtx = createsStackingContext(el);
+    const children = elements.filter(e => e.parentId === el.id);
+    const zDisplay = el.zIndex === 'auto' ? 'auto' : el.zIndex;
+
+    let nodeHtml = `<div class="tree-node">
+      <div class="tree-node-label">
+        <span class="color-sq" style="background:${el.color}"></span>
+        ${escHTML(el.name)}
+        <span class="z-val">z:${zDisplay}</span>
+        ${isCtx ? '<span class="ctx-mark">CTX</span>' : ''}
+      </div>`;
+
+    for (const child of children) {
+      nodeHtml += renderNode(child, depth + 1);
+    }
+
+    nodeHtml += '</div>';
+    return nodeHtml;
+  }
+
+  const rootChildren = elements.filter(e => !e.parentId);
+  for (const el of rootChildren) {
+    html += renderNode(el, 1);
+  }
+  html += '</div>';
+  treeView.innerHTML = html;
+
+  // Paint order
+  const order = computePaintOrder();
+  paintOrderView.innerHTML = '<div class="paint-order"><h4>Paint Order (bottom → top)</h4>' +
+    order.map((el, i) => {
+      const isCtx = createsStackingContext(el);
+      const zDisplay = el.zIndex === 'auto' ? 'auto' : el.zIndex;
+      return `<div class="paint-step">
+        <span class="order-num">${i + 1}.</span>
+        <span class="color-sq" style="background:${el.color}"></span>
+        <span>${escHTML(el.name)}</span>
+        <span style="color:var(--orange);font-size:10px">z:${zDisplay}</span>
+        ${isCtx ? '<span style="color:var(--accent);font-size:9px">CTX</span>' : ''}
+      </div>`;
+    }).join('') + '</div>';
+}
+
+function escHTML(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// Presets
+const PRESETS = [
+  {
+    name: 'z-index Without Position',
+    desc: 'A common mistake: z-index has no effect on position: static elements.',
+    setup: () => {
+      elements = [];
+      nextId = 1;
+      addElement({ name: 'Background', color: '#3b82f6', x: 50, y: 50, w: 200, h: 150, zIndex: 'auto', position: 'static' });
+      addElement({ name: 'Should be on top', color: '#ef4444', x: 100, y: 80, w: 200, h: 150, zIndex: 999, position: 'static' });
+      addElement({ name: 'Actually on top', color: '#22c55e', x: 150, y: 110, w: 200, h: 150, zIndex: 1, position: 'relative' });
+    }
+  },
+  {
+    name: 'Stacking Context Trap',
+    desc: 'An element with z-index: 9999 inside a low stacking context can\'t escape above a higher one.',
+    setup: () => {
+      elements = [];
+      nextId = 1;
+      const a = addElement({ name: 'Context A (z:1)', color: '#3b82f6', x: 50, y: 50, w: 250, h: 200, zIndex: 1, position: 'relative' });
+      addElement({ name: 'Child (z:9999)', color: '#ef4444', x: 80, y: 80, w: 180, h: 120, zIndex: 9999, position: 'absolute', parentId: a });
+      addElement({ name: 'Context B (z:2)', color: '#22c55e', x: 200, y: 100, w: 250, h: 200, zIndex: 2, position: 'relative' });
+    }
+  },
+  {
+    name: 'Opacity Creates Context',
+    desc: 'Adding opacity < 1 creates a new stacking context, changing paint order unexpectedly.',
+    setup: () => {
+      elements = [];
+      nextId = 1;
+      const parent = addElement({ name: 'Parent (opacity: 0.99)', color: '#3b82f6', x: 50, y: 50, w: 250, h: 200, zIndex: 'auto', position: 'relative', opacity: 0.99 });
+      addElement({ name: 'Child (z:100)', color: '#ef4444', x: 80, y: 80, w: 180, h: 120, zIndex: 100, position: 'absolute', parentId: parent });
+      addElement({ name: 'Sibling (z:1)', color: '#22c55e', x: 200, y: 100, w: 200, h: 150, zIndex: 1, position: 'relative' });
+    }
+  },
+  {
+    name: 'Transform Context',
+    desc: 'transform: translateZ(0) creates a stacking context, trapping children.',
+    setup: () => {
+      elements = [];
+      nextId = 1;
+      const parent = addElement({ name: 'Transformed', color: '#a855f7', x: 50, y: 50, w: 250, h: 200, zIndex: 'auto', position: 'relative', transform: 'translateZ(0)' });
+      addElement({ name: 'Trapped child', color: '#f59e0b', x: 80, y: 80, w: 180, h: 120, zIndex: 999, position: 'absolute', parentId: parent });
+      addElement({ name: 'Free element', color: '#06b6d4', x: 200, y: 100, w: 200, h: 150, zIndex: 1, position: 'relative' });
+    }
+  },
+  {
+    name: 'Negative z-index',
+    desc: 'Negative z-index paints below the parent\'s background, but only within the same stacking context.',
+    setup: () => {
+      elements = [];
+      nextId = 1;
+      addElement({ name: 'Normal (z:0)', color: '#3b82f6', x: 80, y: 80, w: 200, h: 150, zIndex: 0, position: 'relative' });
+      addElement({ name: 'Behind (z:-1)', color: '#ef4444', x: 120, y: 60, w: 200, h: 150, zIndex: -1, position: 'relative' });
+      addElement({ name: 'Way behind (z:-5)', color: '#22c55e', x: 160, y: 40, w: 200, h: 150, zIndex: -5, position: 'relative' });
+    }
+  },
+  {
+    name: 'Multiple Contexts',
+    desc: 'Three separate stacking contexts. z-index only competes within the same context.',
+    setup: () => {
+      elements = [];
+      nextId = 1;
+      const a = addElement({ name: 'Ctx A (z:1)', color: '#3b82f6', x: 30, y: 50, w: 200, h: 180, zIndex: 1, position: 'relative' });
+      addElement({ name: 'A-child (z:10)', color: '#93c5fd', x: 50, y: 70, w: 120, h: 100, zIndex: 10, position: 'absolute', parentId: a });
+
+      const b = addElement({ name: 'Ctx B (z:2)', color: '#ef4444', x: 180, y: 80, w: 200, h: 180, zIndex: 2, position: 'relative' });
+      addElement({ name: 'B-child (z:5)', color: '#fca5a5', x: 200, y: 100, w: 120, h: 100, zIndex: 5, position: 'absolute', parentId: b });
+
+      const c = addElement({ name: 'Ctx C (z:3)', color: '#22c55e', x: 330, y: 110, w: 200, h: 180, zIndex: 3, position: 'relative' });
+      addElement({ name: 'C-child (z:1)', color: '#86efac', x: 350, y: 130, w: 120, h: 100, zIndex: 1, position: 'absolute', parentId: c });
+    }
+  }
+];
+
+const presetsGrid = document.getElementById('presetsGrid');
+PRESETS.forEach(p => {
+  const card = document.createElement('div');
+  card.className = 'preset-card';
+  card.innerHTML = `<h3 ti="h3_p_name">${p.name}</h3><p>${p.desc}</p>`;
+  card.addEventListener('click', () => {
+    p.setup();
+    document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(x => x.classList.remove('active'));
+    document.querySelector('[data-tab="builder"]').classList.add('active');
+    document.getElementById('panel-builder').classList.add('active');
+  });
+  presetsGrid.appendChild(card);
+});
+
+// Initialize with the "Stacking Context Trap" preset
+PRESETS[1].setup();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+</body>
+</html>

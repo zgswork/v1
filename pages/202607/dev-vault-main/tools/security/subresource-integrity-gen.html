@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html tk="title_sri_generator_subresource" lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SRI Generator - Subresource Integrity Hash Tool</title>
+<meta name="description" content="Generate Subresource Integrity (SRI) hashes for scripts and stylesheets. SHA-256/384/512 hash generation, CDN library lookup, batch processing, and fallback script generation.">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0a0a0a; --surface: #141414; --surface-2: #1e1e1e; --surface-3: #282828;
+  --border: #333; --text: #e0e0e0; --text-dim: #888;
+  --accent: #10b981; --accent-dim: #059669;
+  --good: #4caf50; --warn: #ff9800; --error: #f44336; --info: #2196f3;
+  --radius: 8px;
+  --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --mono: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+}
+body { font-family: var(--font); background: var(--bg); color: var(--text); line-height: 1.6; min-height: 100vh; }
+header {
+  text-align: center; padding: 2rem 1rem; border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, var(--surface) 0%, var(--bg) 100%);
+}
+header h1 { font-size: 1.8rem; font-weight: 700; margin-bottom: 0.3rem; }
+header h1 span { color: var(--accent); }
+header p { color: var(--text-dim); font-size: 0.95rem; }
+main { max-width: 1200px; margin: 0 auto; padding: 1.5rem 1rem; }
+.tabs {
+  display: flex; gap: 0.25rem; border-bottom: 2px solid var(--border);
+  margin-bottom: 1.5rem; overflow-x: auto;
+}
+.tab {
+  padding: 0.6rem 1.2rem; background: none; border: none; color: var(--text-dim);
+  cursor: pointer; font-size: 0.9rem; font-family: var(--font); white-space: nowrap;
+  border-bottom: 2px solid transparent; margin-bottom: -2px; transition: color 0.2s, border-color 0.2s;
+}
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.panel { display: none; }
+.panel.active { display: block; }
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 1.25rem; margin-bottom: 1rem;
+}
+.card h2 { font-size: 1.1rem; margin-bottom: 0.75rem; color: var(--accent); }
+.card h3 { font-size: 0.95rem; margin-bottom: 0.5rem; }
+label { display: block; font-size: 0.85rem; color: var(--text-dim); margin-bottom: 0.3rem; }
+input[type="text"], input[type="url"], select, textarea {
+  width: 100%; padding: 0.5rem 0.75rem; background: var(--surface-2);
+  border: 1px solid var(--border); border-radius: var(--radius); color: var(--text);
+  font-family: var(--mono); font-size: 0.85rem; outline: none; transition: border-color 0.2s;
+}
+input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+textarea { resize: vertical; min-height: 100px; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem; }
+.form-group { margin-bottom: 0.75rem; }
+button {
+  padding: 0.5rem 1rem; background: var(--accent); color: #000; border: none;
+  border-radius: var(--radius); cursor: pointer; font-family: var(--font);
+  font-size: 0.85rem; font-weight: 600; transition: background 0.2s;
+}
+button:hover { background: var(--accent-dim); }
+button.secondary { background: var(--surface-3); color: var(--text); }
+button.secondary:hover { background: var(--border); }
+.btn-row { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.75rem; }
+pre {
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 1rem; overflow-x: auto; font-family: var(--mono); font-size: 0.82rem;
+  line-height: 1.5; color: #c5c5c5; position: relative; white-space: pre-wrap; word-break: break-all;
+}
+pre .copy-btn {
+  position: absolute; top: 0.5rem; right: 0.5rem; padding: 0.25rem 0.6rem;
+  font-size: 0.75rem; background: var(--surface-3);
+}
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.status-msg {
+  padding: 0.5rem 0.75rem; border-radius: var(--radius); margin-top: 0.5rem;
+  font-size: 0.85rem;
+}
+.status-success { background: rgba(76,175,80,0.1); border: 1px solid rgba(76,175,80,0.3); color: var(--good); }
+.status-error { background: rgba(244,67,54,0.1); border: 1px solid rgba(244,67,54,0.3); color: var(--error); }
+.status-loading { background: rgba(33,150,243,0.1); border: 1px solid rgba(33,150,243,0.3); color: var(--info); }
+.cdn-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 0.5rem; margin-bottom: 1rem;
+}
+.cdn-item {
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 0.75rem; cursor: pointer; transition: border-color 0.2s;
+}
+.cdn-item:hover { border-color: var(--accent); }
+.cdn-item .cdn-name { font-weight: 600; font-size: 0.9rem; }
+.cdn-item .cdn-url { font-family: var(--mono); font-size: 0.75rem; color: var(--text-dim); word-break: break-all; margin-top: 0.25rem; }
+.batch-item {
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 0.75rem; margin-bottom: 0.5rem;
+}
+.batch-item .batch-url { font-family: var(--mono); font-size: 0.82rem; color: var(--accent); word-break: break-all; }
+.batch-item .batch-status { font-size: 0.8rem; margin-top: 0.25rem; }
+.batch-item pre { margin-top: 0.5rem; font-size: 0.78rem; }
+.info-box {
+  background: rgba(16,185,129,0.08); border: 1px solid rgba(16,185,129,0.2);
+  border-radius: var(--radius); padding: 0.75rem 1rem; font-size: 0.85rem;
+  color: var(--text-dim); margin-bottom: 1rem;
+}
+.hash-display {
+  background: var(--surface-2); border: 1px solid var(--accent); border-radius: var(--radius);
+  padding: 0.75rem 1rem; font-family: var(--mono); font-size: 0.82rem;
+  word-break: break-all; color: var(--accent); margin-top: 0.75rem;
+}
+@media (max-width: 768px) {
+  .form-row, .two-col { grid-template-columns: 1fr; }
+  .cdn-grid { grid-template-columns: 1fr; }
+  .tab { padding: 0.5rem 0.8rem; font-size: 0.82rem; }
+  header h1 { font-size: 1.4rem; }
+}
+</style>
+</head>
+<body>
+
+
+
+<header>
+  <h1><span>SRI</span> Generator</h1>
+  <p>Subresource Integrity hash generation for secure script &amp; stylesheet loading</p>
+</header>
+
+<main>
+  <div class="tabs" role="tablist">
+    <button class="tab active" data-panel="generator" role="tab" ti="btn_hash_generator">Hash Generator</button>
+    <button class="tab" data-panel="cdn" role="tab" ti="btn_cdn_libraries">CDN Libraries</button>
+    <button class="tab" data-panel="batch" role="tab" ti="btn_batch_processing">Batch Processing</button>
+    <button class="tab" data-panel="fallback" role="tab" ti="btn_fallback_script">Fallback Script</button>
+    <button class="tab" data-panel="reference" role="tab" ti="btn_reference">Reference</button>
+  </div>
+
+  <!-- Hash Generator Panel -->
+  <div class="panel active" id="generator">
+    <div class="card">
+      <h2 ti="h2_generate_sri_hash">Generate SRI Hash</h2>
+      <div class="info-box">
+        Subresource Integrity (SRI) lets browsers verify that resources fetched from CDNs haven't been tampered with. Provide a URL or paste content directly to generate integrity hashes.
+      </div>
+
+      <div class="form-group">
+        <label for="sriUrl" ti="label_resource_url_fetched_via">Resource URL (fetched via CORS proxy for hashing)</label>
+        <input type="url" id="sriUrl" value="" tp="placeholder_https_cdn_jsdelivr_net_np" placeholder="https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js">
+      </div>
+
+      <p style="text-align:center;color:var(--text-dim);margin:0.5rem 0;">— or paste content directly —</p>
+
+      <div class="form-group">
+        <label for="sriContent" ti="label_resource_content">Resource Content</label>
+        <textarea id="sriContent" tp="placeholder_paste_the_javascript_or_c" placeholder="Paste the JavaScript or CSS content here..."></textarea>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="sriAlgo" ti="label_hash_algorithm" ti="label_hash_algorithm_2">Hash Algorithm</label>
+          <select id="sriAlgo">
+            <option value="SHA-256">SHA-256</option>
+            <option value="SHA-384" selected>SHA-384 (recommended)</option>
+            <option value="SHA-512">SHA-512</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="sriType" ti="label_resource_type">Resource Type</label>
+          <select id="sriType">
+            <option value="script">Script (&lt;script&gt;)</option>
+            <option value="style">Stylesheet (&lt;link&gt;)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="sriCrossorigin">Crossorigin Attribute</label>
+        <select id="sriCrossorigin">
+          <option value="anonymous">anonymous (default, recommended)</option>
+          <option value="use-credentials">use-credentials</option>
+          <option value="">none (omit attribute)</option>
+        </select>
+      </div>
+
+      <div class="btn-row">
+        <button onclick="generateFromContent()" ti="btn_generate_from_content">Generate from Content</button>
+        <button onclick="fetchAndGenerate()" ti="btn_fetch_url_generate">Fetch URL & Generate</button>
+      </div>
+
+      <div id="sriStatus"></div>
+    </div>
+
+    <div id="sriResults" style="display:none;">
+      <div class="card">
+        <h3 ti="h3_integrity_hash" ti="label_integrity_hash">Integrity Hash</h3>
+        <div class="hash-display" id="hashValue"></div>
+      </div>
+
+      <div class="card">
+        <h3 ti="h3_html_tag_copy_ready">HTML Tag (copy-ready)</h3>
+        <pre id="htmlTag"><button class="copy-btn" onclick="copyCode('htmlTag')" ti="btn_copy" ti="btn_copy_2" ti="btn_copy_3" ti="btn_copy_4" ti="btn_copy_5" ti="btn_copy_6" ti="btn_copy_7" ti="btn_copy_8" ti="btn_copy_9" ti="btn_copy_10" ti="btn_copy_11" ti="btn_copy_12">Copy</button></pre>
+      </div>
+
+      <div class="two-col">
+        <div class="card">
+          <h3 ti="h3_multiple_algorithms">Multiple Algorithms</h3>
+          <p style="font-size:0.82rem;color:var(--text-dim);margin-bottom:0.5rem;">You can specify multiple algorithms. The browser uses the strongest one it supports.</p>
+          <pre id="multiAlgoTag"><button class="copy-btn" onclick="copyCode('multiAlgoTag')">Copy</button></pre>
+        </div>
+        <div class="card">
+          <h3 ti="h3_hash_only">Hash Only</h3>
+          <pre id="hashOnly"><button class="copy-btn" onclick="copyCode('hashOnly')">Copy</button></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CDN Libraries Panel -->
+  <div class="panel" id="cdn">
+    <div class="card">
+      <h2 ti="h2_popular_cdn_libraries">Popular CDN Libraries</h2>
+      <p style="color:var(--text-dim);font-size:0.85rem;margin-bottom:1rem;">Click a library to auto-fill the URL and generate SRI hash. Note: fetching requires CORS support from the CDN.</p>
+
+      <div class="cdn-grid" id="cdnGrid"></div>
+    </div>
+  </div>
+
+  <!-- Batch Processing Panel -->
+  <div class="panel" id="batch">
+    <div class="card">
+      <h2 ti="h2_batch_hash_generation">Batch Hash Generation</h2>
+      <p style="color:var(--text-dim);font-size:0.85rem;margin-bottom:1rem;">Enter multiple URLs (one per line) to generate SRI hashes for all of them.</p>
+
+      <div class="form-group">
+        <label for="batchUrls" ti="label_urls_one_per_line">URLs (one per line)</label>
+        <textarea id="batchUrls" style="min-height:120px;" tp="placeholder_https_cdn_jsdelivr_net_np_2" placeholder="https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js
+https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></textarea>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="batchAlgo">Hash Algorithm</label>
+          <select id="batchAlgo">
+            <option value="SHA-256">SHA-256</option>
+            <option value="SHA-384" selected>SHA-384</option>
+            <option value="SHA-512">SHA-512</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="batchType" ti="label_default_resource_type">Default Resource Type</label>
+          <select id="batchType">
+            <option value="auto">Auto-detect (.js → script, .css → style)</option>
+            <option value="script">Script</option>
+            <option value="style">Stylesheet</option>
+          </select>
+        </div>
+      </div>
+
+      <button onclick="processBatch()" ti="btn_process_all_urls">Process All URLs</button>
+
+      <div id="batchResults" style="margin-top:1rem;"></div>
+
+      <div id="batchCombined" style="display:none;margin-top:1rem;">
+        <h3 ti="h3_combined_html_output">Combined HTML Output</h3>
+        <pre id="batchCombinedCode"><button class="copy-btn" onclick="copyCode('batchCombinedCode')">Copy</button></pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- Fallback Script Panel -->
+  <div class="panel" id="fallback">
+    <div class="card">
+      <h2 ti="h2_fallback_script_generator">Fallback Script Generator</h2>
+      <p style="color:var(--text-dim);font-size:0.85rem;margin-bottom:1rem;">
+        Generate fallback code that loads a local copy if the SRI check fails (CDN tampered with or unavailable).
+      </p>
+
+      <div class="form-group">
+        <label for="fbCdnUrl" ti="label_cdn_url">CDN URL</label>
+        <input type="url" id="fbCdnUrl" value="https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js">
+      </div>
+      <div class="form-group">
+        <label for="fbLocalPath" ti="label_local_fallback_path">Local Fallback Path</label>
+        <input type="text" id="fbLocalPath" value="/vendor/lodash.min.js">
+      </div>
+      <div class="form-group">
+        <label for="fbGlobalVar" ti="label_global_variable_check_for">Global Variable Check (for scripts)</label>
+        <input type="text" id="fbGlobalVar" value="_" tp="placeholder_e_g_jquery_react" placeholder="e.g., _, jQuery, React">
+      </div>
+      <div class="form-group">
+        <label for="fbIntegrity">Integrity Hash</label>
+        <input type="text" id="fbIntegrity" value="" tp="placeholder_sha384" placeholder="sha384-...">
+      </div>
+
+      <button onclick="generateFallback()" ti="btn_generate_fallback_code">Generate Fallback Code</button>
+
+      <pre id="fallbackCode" style="margin-top:0.75rem;"><button class="copy-btn" onclick="copyCode('fallbackCode')">Copy</button>Fill in the fields above and click Generate.</pre>
+    </div>
+
+    <div class="card">
+      <h3 ti="h3_css_fallback_pattern">CSS Fallback Pattern</h3>
+      <pre><button class="copy-btn" onclick="copyCode('cssFallbackExample')">Copy</button><!-- Primary: CDN with SRI -->
+&lt;link rel="stylesheet"
+      href="https://cdn.example.com/styles.css"
+      integrity="sha384-HASH_HERE"
+      crossorigin="anonymous"
+      onerror="this.onerror=null;this.href='/css/styles.css';"&gt;
+
+<!-- The onerror handler loads the local fallback
+     if the CDN fails or SRI check fails. --></pre>
+    </div>
+  </div>
+
+  <!-- Reference Panel -->
+  <div class="panel" id="reference">
+    <div class="card">
+      <h2 ti="h2_sri_reference">SRI Reference</h2>
+
+      <h3 ti="h3_how_sri_works">How SRI Works</h3>
+      <ol style="padding-left:1.5rem;font-size:0.85rem;color:var(--text-dim);margin-bottom:1rem;">
+        <li>You generate a cryptographic hash of the resource content</li>
+        <li>You add the hash as an <code>integrity</code> attribute on the script/link tag</li>
+        <li>The browser fetches the resource and computes its hash</li>
+        <li>If hashes match, the resource loads. If not, it's blocked</li>
+        <li>This protects against CDN compromise, MITM attacks, and supply chain attacks</li>
+      </ol>
+
+      <h3 ti="h3_syntax">Syntax</h3>
+      <pre>&lt;script src="https://cdn.example.com/lib.js"
+        integrity="sha384-oqVuAfXRKap7fdgcCY5uykM6+R9GqQ8K/uxy9rx7HNQlGYl1kPzQho1wx4JwY8w"
+        crossorigin="anonymous"&gt;&lt;/script&gt;
+
+&lt;link rel="stylesheet"
+      href="https://cdn.example.com/styles.css"
+      integrity="sha384-oqVuAfXRKap7fdgcCY5uykM6+R9GqQ8K/uxy9rx7HNQlGYl1kPzQho1wx4JwY8w"
+      crossorigin="anonymous"&gt;</pre>
+
+      <h3 style="margin-top:1rem;" ti="h3_hash_algorithms">Hash Algorithms</h3>
+      <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+        <tr style="border-bottom:1px solid var(--border);">
+          <th style="text-align:left;padding:0.5rem;" ti="th_algorithm">Algorithm</th>
+          <th style="text-align:left;padding:0.5rem;" ti="th_hash_length">Hash Length</th>
+          <th style="text-align:left;padding:0.5rem;" ti="th_security">Security</th>
+          <th style="text-align:left;padding:0.5rem;" ti="th_recommendation">Recommendation</th>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:0.5rem;">SHA-256</td>
+          <td style="padding:0.5rem;">44 chars (base64)</td>
+          <td style="padding:0.5rem;">Good</td>
+          <td style="padding:0.5rem;">Minimum acceptable</td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:0.5rem;">SHA-384</td>
+          <td style="padding:0.5rem;">64 chars (base64)</td>
+          <td style="padding:0.5rem;">Better</td>
+          <td style="padding:0.5rem;color:var(--accent);font-weight:600;">Recommended</td>
+        </tr>
+        <tr>
+          <td style="padding:0.5rem;">SHA-512</td>
+          <td style="padding:0.5rem;">88 chars (base64)</td>
+          <td style="padding:0.5rem;">Best</td>
+          <td style="padding:0.5rem;">For maximum security</td>
+        </tr>
+      </table>
+
+      <h3 style="margin-top:1rem;" ti="h3_crossorigin_attribute" ti="label_crossorigin_attribute">Crossorigin Attribute</h3>
+      <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+        <tr style="border-bottom:1px solid var(--border);">
+          <th style="text-align:left;padding:0.5rem;" ti="th_value">Value</th>
+          <th style="text-align:left;padding:0.5rem;" ti="th_when_to_use">When to Use</th>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:0.5rem;"><code>anonymous</code></td>
+          <td style="padding:0.5rem;">Default. Use for public CDN resources. No credentials sent.</td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:0.5rem;"><code>use-credentials</code></td>
+          <td style="padding:0.5rem;">When the resource requires authentication (cookies, client certs).</td>
+        </tr>
+        <tr>
+          <td style="padding:0.5rem;">(omitted)</td>
+          <td style="padding:0.5rem;">Same-origin resources only. SRI won't work cross-origin without it.</td>
+        </tr>
+      </table>
+
+      <h3 style="margin-top:1rem;" ti="h3_browser_support">Browser Support</h3>
+      <p style="font-size:0.85rem;color:var(--text-dim);">SRI is supported in all modern browsers: Chrome 45+, Firefox 43+, Safari 11+, Edge 17+. IE does not support SRI but safely ignores the integrity attribute.</p>
+    </div>
+  </div>
+</main>
+
+
+<script>var _LANG={'title_sri_generator_subresource':["SRI Generator - Subresource Integrity Hash Tool", "SRI生成器 - 子资源完整性哈希工具"],'metadesc_generate_subresource_inte':["Generate Subresource Integrity (SRI) hashes for scripts and stylesheets. SHA-256/384/512 hash generation, CDN library lookup, batch processing, and fallback script generation.", "为脚本和样式表生成子资源完整性 (SRI) 哈希值。支持 SHA-256/384/512 哈希值生成、CDN 库查找、批量处理和备用脚本生成。"],'h2_generate_sri_hash':["Generate SRI Hash", "生成 SRI 哈希"],'h2_popular_cdn_libraries':["Popular CDN Libraries", "热门 CDN 库"],'h2_batch_hash_generation':["Batch Hash Generation", "批量哈希生成"],'h2_fallback_script_generator':["Fallback Script Generator", "备用脚本生成器"],'h2_sri_reference':["SRI Reference", "SRI参考"],'h3_integrity_hash':["Integrity Hash", "完整性哈希"],'h3_html_tag_copy_ready':["HTML Tag (copy-ready)", "HTML标签（可直接复制）"],'h3_multiple_algorithms':["Multiple Algorithms", "多种算法"],'h3_hash_only':["Hash Only", "仅哈希"],'h3_combined_html_output':["Combined HTML Output", "合并后的 HTML 输出"],'h3_css_fallback_pattern':["CSS Fallback Pattern", "CSS回退模式"],'h3_how_sri_works':["How SRI Works", "SRI 的运作原理"],'h3_syntax':["Syntax", "句法"],'h3_hash_algorithms':["Hash Algorithms", "哈希算法"],'h3_crossorigin_attribute':["Crossorigin Attribute", "跨域属性"],'h3_browser_support':["Browser Support", "浏览器支持"],'btn_hash_generator':["Hash Generator", "哈希生成器"],'btn_cdn_libraries':["CDN Libraries", "CDN库"],'btn_batch_processing':["Batch Processing", "批量处理"],'btn_fallback_script':["Fallback Script", "备用脚本"],'btn_reference':["Reference", "参考"],'btn_generate_from_content':["Generate from Content", "从内容生成"],'btn_fetch_url_generate':["Fetch URL & Generate", "获取 URL 并生成"],'btn_copy':["Copy", "复制"],'btn_copy_2':["Copy", "复制"],'btn_copy_3':["Copy", "复制"],'btn_process_all_urls':["Process All URLs", "处理所有URL"],'btn_copy_4':["Copy", "复制"],'btn_generate_fallback_code':["Generate Fallback Code", "生成备用代码"],'btn_copy_5':["Copy", "复制"],'btn_copy_6':["Copy", "复制"],'btn_copy_7':["Copy", "复制"],'btn_copy_8':["Copy", "复制"],'btn_copy_9':["Copy", "复制"],'btn_copy_10':["Copy", "复制"],'btn_copy_11':["Copy", "复制"],'btn_copy_12':["Copy", "复制"],'placeholder_https_cdn_jsdelivr_net_np':["https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js", "https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js"],'placeholder_paste_the_javascript_or_c':["Paste the JavaScript or CSS content here...", "请在此处粘贴 JavaScript 或 CSS 内容……"],'placeholder_https_cdn_jsdelivr_net_np_2':["https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js\nhttps://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js", "https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"],'placeholder_e_g_jquery_react':["e.g., _, jQuery, React", "例如，_，jQuery，React"],'placeholder_sha384':["sha384-...", "sha384-..."],'th_algorithm':["Algorithm", "算法"],'th_hash_length':["Hash Length", "哈希长度"],'th_security':["Security", "安全"],'th_recommendation':["Recommendation", "推荐"],'th_value':["Value", "价值"],'th_when_to_use':["When to Use", "何时使用"],'label_resource_url_fetched_via':["Resource URL (fetched via CORS proxy for hashing)", "资源 URL（通过 CORS 代理获取，用于哈希处理）"],'label_resource_content':["Resource Content", "资源内容"],'label_hash_algorithm':["Hash Algorithm", "哈希算法"],'label_resource_type':["Resource Type", "资源类型"],'label_crossorigin_attribute':["Crossorigin Attribute", "跨域属性"],'label_urls_one_per_line':["URLs (one per line)", "URL（每行一个）"],'label_hash_algorithm_2':["Hash Algorithm", "哈希算法"],'label_default_resource_type':["Default Resource Type", "默认资源类型"],'label_cdn_url':["CDN URL", "CDN URL"],'label_local_fallback_path':["Local Fallback Path", "本地回退路径"],'label_global_variable_check_for':["Global Variable Check (for scripts)", "全局变量检查（针对脚本）"],'label_integrity_hash':["Integrity Hash", "完整性哈希"],'jtc_copied':["Copied!", "已复制！"],'jtc_copy':["Copy", "复制"],'jalert_paste_resource_content_fi':["Paste resource content first.", "请先粘贴资源内容。"],'jalert_enter_a_url_first':["Enter a URL first.", "请先输入网址。"],'jalert_enter_at_least_one_url':["Enter at least one URL.", "请至少输入一个网址。"],'jtlword_copy':["Copy", "复制"],'jtlword_copy_2':["Copy", "复制"],'jtlword_copy_3':["Copy", "复制"],'jtlword_copy_4':["Copy", "复制"],'jtlword_copy_5':["Copy", "复制"],'jtlword_copy_6':["Copy", "复制"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>
+// === Tab Navigation ===
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById(tab.dataset.panel).classList.add('active');
+  });
+});
+
+function copyCode(preId) {
+  const pre = document.getElementById(preId);
+  const text = pre.textContent.replace(/^Copy/, '').trim();
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = pre.querySelector('.copy-btn');
+    if (btn) { btn.textContent=T("jtc_copied"); setTimeout(() => btn.textContent=T("jtc_copy"), 1500); }
+  });
+}
+
+function escapeHtml(str) { const d = document.createElement('div'); d.textContent = str; return d.innerHTML; }
+
+// === Hash Generation ===
+async function computeHash(content, algorithm) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(content);
+  const hashBuffer = await crypto.subtle.digest(algorithm, data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return btoa(String.fromCharCode(...hashArray));
+}
+
+function getAlgoPrefix(algo) {
+  return algo.replace('-', '').toLowerCase(); // SHA-384 → sha384
+}
+
+async function generateFromContent() {
+  const content = document.getElementById('sriContent').value;
+  if (!content) { T("jalert_paste_resource_content_fi"); return; }
+
+  const algo = document.getElementById('sriAlgo').value;
+  const type = document.getElementById('sriType').value;
+  const crossorigin = document.getElementById('sriCrossorigin').value;
+  const url = document.getElementById('sriUrl').value || 'https://cdn.example.com/resource';
+
+  const hash = await computeHash(content, algo);
+  const prefix = getAlgoPrefix(algo);
+  const integrity = `${prefix}-${hash}`;
+
+  displayResults(url, integrity, type, crossorigin, content, algo);
+}
+
+async function fetchAndGenerate() {
+  const url = document.getElementById('sriUrl').value;
+  if (!url) { T("jalert_enter_a_url_first"); return; }
+
+  const statusEl = document.getElementById('sriStatus');
+  statusEl.innerHTML = '<div class="status-msg status-loading">Fetching resource...</div>';
+
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const content = await response.text();
+    document.getElementById('sriContent').value = content.substring(0, 5000) + (content.length > 5000 ? '\n... (truncated for display)' : '');
+
+    const algo = document.getElementById('sriAlgo').value;
+    const type = document.getElementById('sriType').value;
+    const crossorigin = document.getElementById('sriCrossorigin').value;
+
+    const hash = await computeHash(content, algo);
+    const prefix = getAlgoPrefix(algo);
+    const integrity = `${prefix}-${hash}`;
+
+    statusEl.innerHTML = '<div class="status-msg status-success">Resource fetched and hashed successfully.</div>';
+    displayResults(url, integrity, type, crossorigin, content, algo);
+  } catch (e) {
+    statusEl.innerHTML = `<div class="status-msg status-error">Failed to fetch: ${escapeHtml(e.message)}. CORS may block direct fetching. Try pasting the content manually.</div>`;
+  }
+}
+
+async function displayResults(url, integrity, type, crossorigin, content, algo) {
+  document.getElementById('sriResults').style.display = 'block';
+  document.getElementById('hashValue').textContent = integrity;
+
+  const crossoriginAttr = crossorigin ? ` crossorigin="${crossorigin}"` : '';
+
+  let htmlTag;
+  if (type === 'script') {
+    htmlTag = `<script src="${url}"\n        integrity="${integrity}"${crossoriginAttr}><\/script>`;
+  } else {
+    htmlTag = `<link rel="stylesheet"\n      href="${url}"\n      integrity="${integrity}"${crossoriginAttr}>`;
+  }
+
+  document.getElementById('htmlTag').innerHTML = `<button class="copy-btn" onclick="copyCode('htmlTag')">Copy</button>${escapeHtml(htmlTag)}`;
+
+  // Generate hashes with all algorithms for multi-algo display
+  const algos = ['SHA-256', 'SHA-384', 'SHA-512'];
+  const hashes = {};
+  for (const a of algos) {
+    hashes[a] = `${getAlgoPrefix(a)}-${await computeHash(content, a)}`;
+  }
+
+  const multiIntegrity = Object.values(hashes).join(' ');
+  let multiTag;
+  if (type === 'script') {
+    multiTag = `<script src="${url}"\n        integrity="${multiIntegrity}"${crossoriginAttr}><\/script>`;
+  } else {
+    multiTag = `<link rel="stylesheet"\n      href="${url}"\n      integrity="${multiIntegrity}"${crossoriginAttr}>`;
+  }
+  document.getElementById('multiAlgoTag').innerHTML = `<button class="copy-btn" onclick="copyCode('multiAlgoTag')">Copy</button>${escapeHtml(multiTag)}`;
+
+  document.getElementById('hashOnly').innerHTML = `<button class="copy-btn" onclick="copyCode('hashOnly')">Copy</button>SHA-256: ${hashes['SHA-256']}\nSHA-384: ${hashes['SHA-384']}\nSHA-512: ${hashes['SHA-512']}`;
+}
+
+// === CDN Libraries ===
+const cdnLibraries = [
+  { name: 'Lodash 4.17.21', url: 'https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js', type: 'script' },
+  { name: 'jQuery 3.7.1', url: 'https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js', type: 'script' },
+  { name: 'Axios 1.7.2', url: 'https://cdn.jsdelivr.net/npm/axios@1.7.2/dist/axios.min.js', type: 'script' },
+  { name: 'Chart.js 4.4.3', url: 'https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js', type: 'script' },
+  { name: 'D3.js 7.9.0', url: 'https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js', type: 'script' },
+  { name: 'Alpine.js 3.14.1', url: 'https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js', type: 'script' },
+  { name: 'HTMX 2.0.0', url: 'https://cdn.jsdelivr.net/npm/htmx.org@2.0.0/dist/htmx.min.js', type: 'script' },
+  { name: 'Tailwind CSS (CDN)', url: 'https://cdn.tailwindcss.com', type: 'script' },
+  { name: 'Bootstrap 5.3.3 CSS', url: 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css', type: 'style' },
+  { name: 'Bootstrap 5.3.3 JS', url: 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js', type: 'script' },
+  { name: 'Font Awesome 6.5.2', url: 'https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.5.2/css/all.min.css', type: 'style' },
+  { name: 'Highlight.js 11.10.0', url: 'https://cdn.jsdelivr.net/npm/highlight.js@11.10.0/lib/highlight.min.js', type: 'script' },
+];
+
+function renderCDNGrid() {
+  document.getElementById('cdnGrid').innerHTML = cdnLibraries.map((lib, i) => `
+    <div class="cdn-item" onclick="selectCDN(${i})">
+      <div class="cdn-name">${lib.name} <span style="font-size:0.75rem;color:var(--text-dim);">(${lib.type})</span></div>
+      <div class="cdn-url">${lib.url}</div>
+    </div>
+  `).join('');
+}
+
+function selectCDN(index) {
+  const lib = cdnLibraries[index];
+  document.getElementById('sriUrl').value = lib.url;
+  document.getElementById('sriType').value = lib.type;
+  // Switch to generator tab
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelector('[data-panel="generator"]').classList.add('active');
+  document.getElementById('generator').classList.add('active');
+  // Auto-fetch
+  fetchAndGenerate();
+}
+
+renderCDNGrid();
+
+// === Batch Processing ===
+async function processBatch() {
+  const urls = document.getElementById('batchUrls').value.trim().split('\n').filter(u => u.trim());
+  if (urls.length === 0) { T("jalert_enter_at_least_one_url"); return; }
+
+  const algo = document.getElementById('batchAlgo').value;
+  const defaultType = document.getElementById('batchType').value;
+  const results = document.getElementById('batchResults');
+  results.innerHTML = '';
+
+  const allTags = [];
+
+  for (const url of urls) {
+    const trimUrl = url.trim();
+    if (!trimUrl) continue;
+
+    const item = document.createElement('div');
+    item.className = 'batch-item';
+    item.innerHTML = `<div class="batch-url">${escapeHtml(trimUrl)}</div><div class="batch-status status-msg status-loading">Fetching...</div>`;
+    results.appendChild(item);
+
+    try {
+      const response = await fetch(trimUrl);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const content = await response.text();
+      const hash = await computeHash(content, algo);
+      const prefix = getAlgoPrefix(algo);
+      const integrity = `${prefix}-${hash}`;
+
+      let type = defaultType;
+      if (type === 'auto') {
+        type = trimUrl.endsWith('.css') ? 'style' : 'script';
+      }
+
+      let tag;
+      if (type === 'script') {
+        tag = `<script src="${trimUrl}" integrity="${integrity}" crossorigin="anonymous"><\/script>`;
+      } else {
+        tag = `<link rel="stylesheet" href="${trimUrl}" integrity="${integrity}" crossorigin="anonymous">`;
+      }
+      allTags.push(tag);
+
+      item.innerHTML = `
+        <div class="batch-url">${escapeHtml(trimUrl)}</div>
+        <div class="batch-status status-msg status-success">Hash generated</div>
+        <pre style="margin-top:0.5rem;font-size:0.78rem;"><button class="copy-btn" onclick="navigator.clipboard.writeText(this.parentElement.textContent.replace('Copy','').trim())">Copy</button>${escapeHtml(tag)}</pre>
+      `;
+    } catch (e) {
+      item.innerHTML = `
+        <div class="batch-url">${escapeHtml(trimUrl)}</div>
+        <div class="batch-status status-msg status-error">Failed: ${escapeHtml(e.message)}</div>
+      `;
+    }
+  }
+
+  if (allTags.length > 0) {
+    const combined = document.getElementById('batchCombined');
+    combined.style.display = 'block';
+    document.getElementById('batchCombinedCode').innerHTML = `<button class="copy-btn" onclick="copyCode('batchCombinedCode')">Copy</button>${escapeHtml(allTags.join('\n'))}`;
+  }
+}
+
+// === Fallback Script Generator ===
+function generateFallback() {
+  const cdnUrl = document.getElementById('fbCdnUrl').value;
+  const localPath = document.getElementById('fbLocalPath').value;
+  const globalVar = document.getElementById('fbGlobalVar').value;
+  const integrity = document.getElementById('fbIntegrity').value;
+
+  const integrityAttr = integrity ? `\n        integrity="${integrity}"\n        crossorigin="anonymous"` : '';
+
+  const code = `<!-- Primary: CDN with SRI -->
+<script src="${cdnUrl}"${integrityAttr}><\/script>
+
+<!-- Fallback: Load local copy if CDN fails -->
+<script>
+  if (typeof ${globalVar || 'window.__LIB__'} === 'undefined') {
+    console.warn('CDN failed for ${cdnUrl}, loading local fallback');
+    var script = document.createElement('script');
+    script.src = '${localPath}';
+    document.head.appendChild(script);
+  }
+<\/script>
+
+<!-- Alternative: Using onerror (simpler but less reliable) -->
+<script src="${cdnUrl}"${integrityAttr}
+        onerror="this.onerror=null;this.src='${localPath}'"><\/script>`;
+
+  document.getElementById('fallbackCode').innerHTML = `<button class="copy-btn" onclick="copyCode('fallbackCode')">Copy</button>${escapeHtml(code)}`;
+}
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+</body>
+</html>

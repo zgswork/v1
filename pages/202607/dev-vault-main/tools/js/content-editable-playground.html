@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html tk="title_contenteditable_playgroun" lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>contenteditable Playground</title>
+<meta name="description" content="Interactive playground for contenteditable API. Explore editing modes, execCommand, input events, Selection/Range, clipboard handling, and sanitization.">
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --surface: #141414;
+    --surface-2: #1e1e1e;
+    --surface-3: #282828;
+    --border: #333;
+    --text: #e0e0e0;
+    --text-dim: #888;
+    --accent: #6c9fff;
+    --accent-dim: #3a6fd8;
+    --green: #4caf50;
+    --orange: #ff9800;
+    --red: #f44336;
+    --purple: #b388ff;
+    --radius: 8px;
+    --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    --mono: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font); line-height: 1.6; }
+  header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 1.5rem 2rem; text-align: center; }
+  header h1 { font-size: 1.6rem; font-weight: 700; color: var(--accent); margin-bottom: 0.3rem; }
+  header p { color: var(--text-dim); font-size: 0.9rem; }
+  .container { max-width: 1300px; margin: 0 auto; padding: 1.5rem; display: grid; gap: 1.5rem; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; }
+  .card h2 { font-size: 1.1rem; color: var(--accent); margin-bottom: 1rem; }
+  button { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-family: var(--font); font-size: 0.85rem; transition: all 0.2s; }
+  button:hover { background: var(--surface-3); border-color: var(--accent); }
+  button.primary { background: var(--accent-dim); border-color: var(--accent); color: #fff; }
+  button.primary:hover { background: var(--accent); }
+  button.active { border-color: var(--accent); background: rgba(108,159,255,0.1); }
+  select, input[type="text"], input[type="color"] { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); padding: 0.4rem 0.6rem; border-radius: 4px; font-family: var(--font); font-size: 0.85rem; }
+  label { font-size: 0.8rem; color: var(--text-dim); }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+  .code-block { background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 1rem; font-family: var(--mono); font-size: 0.8rem; line-height: 1.7; overflow-x: auto; white-space: pre-wrap; color: var(--text-dim); }
+
+  /* Editable areas */
+  .editable-area {
+    min-height: 150px;
+    padding: 1rem;
+    border: 2px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface-2);
+    outline: none;
+    font-size: 0.95rem;
+    line-height: 1.8;
+    transition: border-color 0.2s;
+  }
+  .editable-area:focus { border-color: var(--accent); }
+  .editable-area::selection { background: rgba(108,159,255,0.3); }
+
+  /* Toolbar */
+  .toolbar { display: flex; flex-wrap: wrap; gap: 4px; padding: 0.5rem; background: var(--surface-3); border-radius: var(--radius); margin-bottom: 0.5rem; }
+  .toolbar button { padding: 0.3rem 0.6rem; font-size: 0.8rem; min-width: 32px; }
+  .toolbar .sep { width: 1px; background: var(--border); margin: 0 4px; }
+
+  /* Mode selector */
+  .mode-tabs { display: flex; gap: 0; margin-bottom: 1rem; border-bottom: 1px solid var(--border); }
+  .mode-tabs button { border: none; border-bottom: 2px solid transparent; border-radius: 0; background: none; padding: 0.6rem 1.2rem; color: var(--text-dim); }
+  .mode-tabs button.active { border-bottom-color: var(--accent); color: var(--accent); }
+
+  /* Event log */
+  .event-log { max-height: 250px; overflow-y: auto; font-family: var(--mono); font-size: 0.72rem; line-height: 1.5; background: var(--surface-2); border-radius: 6px; border: 1px solid var(--border); }
+  .event-log .log-entry { padding: 0.25rem 0.5rem; border-bottom: 1px solid rgba(51,51,51,0.3); }
+  .event-log .log-entry:nth-child(odd) { background: rgba(20,20,20,0.5); }
+  .log-entry .ev-type { color: var(--accent); font-weight: 600; }
+  .log-entry .ev-data { color: var(--text-dim); }
+
+  /* Selection info */
+  .sel-info { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.5rem; }
+  .sel-prop { background: var(--surface-2); border-radius: 6px; padding: 0.5rem 0.7rem; }
+  .sel-prop .prop-name { font-size: 0.7rem; color: var(--text-dim); font-family: var(--mono); }
+  .sel-prop .prop-value { font-size: 0.85rem; color: var(--accent); font-family: var(--mono); margin-top: 0.15rem; word-break: break-all; }
+
+  /* execCommand grid */
+  .cmd-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.5rem; }
+  .cmd-item { background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 0.6rem; cursor: pointer; transition: all 0.2s; }
+  .cmd-item:hover { border-color: var(--accent); }
+  .cmd-item .cmd-name { font-family: var(--mono); font-size: 0.8rem; color: var(--accent); }
+  .cmd-item .cmd-desc { font-size: 0.7rem; color: var(--text-dim); margin-top: 0.2rem; }
+  .cmd-item .cmd-status { font-size: 0.65rem; margin-top: 0.2rem; }
+  .cmd-item .cmd-status.deprecated { color: var(--orange); }
+
+  /* HTML output */
+  .html-output { background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 0.75rem; font-family: var(--mono); font-size: 0.75rem; max-height: 200px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; color: var(--text-dim); }
+
+  /* Sanitization */
+  .sanitize-demo { display: grid; grid-template-columns: 1fr auto 1fr; gap: 0.75rem; align-items: start; }
+  .sanitize-demo .arrow { font-size: 1.5rem; color: var(--text-dim); padding-top: 2rem; }
+
+  /* Clipboard */
+  .clipboard-zone { min-height: 100px; padding: 1rem; border: 2px dashed var(--border); border-radius: var(--radius); background: var(--surface-2); text-align: center; color: var(--text-dim); transition: all 0.3s; }
+  .clipboard-zone.drag-over { border-color: var(--accent); background: rgba(108,159,255,0.05); }
+
+  @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } .sanitize-demo { grid-template-columns: 1fr; } .sanitize-demo .arrow { transform: rotate(90deg); text-align: center; padding: 0; } }
+  footer { text-align: center; padding: 2rem; color: var(--text-dim); font-size: 0.8rem; border-top: 1px solid var(--border); margin-top: 1rem; }
+</style>
+</head>
+<body>
+
+
+
+
+
+
+
+
+<header>
+  <h1 ti="title_contenteditable_playgroun" ti="h1_contenteditable_playgroun" ti="title_contenteditable_playgroun" ti="h1_contenteditable_playgroun" ti="title_contenteditable_playgroun" ti="h1_contenteditable_playgroun" ti="title_contenteditable_playgroun" ti="h1_contenteditable_playgroun">contenteditable Playground</h1>
+  <p>Explore editing modes, execCommand, input events, Selection/Range, clipboard handling, and sanitization</p>
+</header>
+<div class="container" style="position:relative">
+
+  <!-- Editing Modes -->
+  <div class="card">
+    <h2 ti="h2_contenteditable_modes" ti="h2_contenteditable_modes" ti="h2_contenteditable_modes" ti="h2_contenteditable_modes">contentEditable Modes</h2>
+    <div class="mode-tabs">
+      <button class="active" onclick="setMode('true',this)" ti="btn_true" ti="btn_true" ti="btn_true" ti="btn_true">true</button>
+      <button onclick="setMode('false',this)" ti="btn_false" ti="btn_false" ti="btn_false" ti="btn_false">false</button>
+      <button onclick="setMode('plaintext-only',this)" ti="btn_plaintext_only" ti="btn_plaintext_only" ti="btn_plaintext_only" ti="btn_plaintext_only">plaintext-only</button>
+    </div>
+    <p style="font-size:0.8rem;color:var(--text-dim);margin-bottom:0.75rem">
+      <strong ti="strong_true" ti="strong_true" ti="strong_true" ti="strong_true">true</strong>: Full rich text editing &nbsp;|&nbsp;
+      <strong ti="strong_false" ti="strong_false" ti="strong_false" ti="strong_false">false</strong>: Not editable &nbsp;|&nbsp;
+      <strong ti="strong_plaintext_only" ti="strong_plaintext_only" ti="strong_plaintext_only" ti="strong_plaintext_only">plaintext-only</strong>: Text only, no HTML formatting
+    </p>
+    <div class="editable-area" id="modeEditor" contenteditable="true">
+      <p>Try typing here. Switch between modes above to see the behavior change.</p>
+      <p>This is a <strong ti="strong_bold" ti="strong_bold_2" ti="strong_bold" ti="strong_bold_2" ti="strong_bold" ti="strong_bold_2" ti="strong_bold" ti="strong_bold_2">bold</strong> and <em>italic</em> text example.</p>
+    </div>
+    <div style="margin-top:0.75rem;display:flex;gap:0.5rem;align-items:center">
+      <label ti="label_current_mode" ti="label_current_mode" ti="label_current_mode" ti="label_current_mode">Current mode:</label>
+      <span style="font-family:var(--mono);color:var(--accent)" id="currentMode">true</span>
+      <label style="margin-left:1rem" ti="label_innerhtml" ti="label_innerhtml" ti="label_innerhtml" ti="label_innerhtml">innerHTML:</label>
+    </div>
+    <div class="html-output" id="modeHTML"></div>
+  </div>
+
+  <!-- Rich Text Editor with Toolbar -->
+  <div class="card">
+    <h2 ti="h2_rich_text_editor_execcomm" ti="h2_rich_text_editor_execcomm" ti="h2_rich_text_editor_execcomm" ti="h2_rich_text_editor_execcomm">Rich Text Editor (execCommand)</h2>
+    <p style="font-size:0.75rem;color:var(--orange);margin-bottom:0.5rem">Note: execCommand is deprecated but still widely used. Modern alternatives use the Input Events API.</p>
+    <div class="toolbar" id="toolbar">
+      <button onclick="exec('bold')" title="Bold"><b>B</b></button>
+      <button onclick="exec('italic')" title="Italic"><i>I</i></button>
+      <button onclick="exec('underline')" title="Underline"><u>U</u></button>
+      <button onclick="exec('strikeThrough')" title="Strikethrough"><s>S</s></button>
+      <div class="sep"></div>
+      <button onclick="exec('justifyLeft')" title="Align Left">L</button>
+      <button onclick="exec('justifyCenter')" title="Align Center">C</button>
+      <button onclick="exec('justifyRight')" title="Align Right">R</button>
+      <div class="sep"></div>
+      <button onclick="exec('insertOrderedList')" title="Ordered List" ti="btn_ol" ti="btn_ol" ti="btn_ol" ti="btn_ol">OL</button>
+      <button onclick="exec('insertUnorderedList')" title="Unordered List" ti="btn_ul" ti="btn_ul" ti="btn_ul" ti="btn_ul">UL</button>
+      <div class="sep"></div>
+      <button onclick="exec('indent')" title="Indent">&raquo;</button>
+      <button onclick="exec('outdent')" title="Outdent">&laquo;</button>
+      <div class="sep"></div>
+      <select onchange="exec('formatBlock',this.value);this.selectedIndex=0" title="Heading">
+        <option value="">Heading</option>
+        <option value="h1">H1</option>
+        <option value="h2">H2</option>
+        <option value="h3">H3</option>
+        <option value="p">Paragraph</option>
+        <option value="blockquote">Quote</option>
+        <option value="pre">Code</option>
+      </select>
+      <select onchange="exec('fontSize',this.value);this.selectedIndex=0" title="Font Size">
+        <option value="">Size</option>
+        <option value="1">Small</option>
+        <option value="3">Normal</option>
+        <option value="5">Large</option>
+        <option value="7">Huge</option>
+      </select>
+      <input type="color" value="#6c9fff" onchange="exec('foreColor',this.value)" title="Text Color">
+      <input type="color" value="#1e1e1e" onchange="exec('hiliteColor',this.value)" title="Background Color">
+      <div class="sep"></div>
+      <button onclick="exec('createLink',prompt('URL:','https://'))" title="Link" ti="btn_link" ti="btn_link" ti="btn_link" ti="btn_link">Link</button>
+      <button onclick="exec('unlink')" title="Unlink" ti="btn_unlink" ti="btn_unlink" ti="btn_unlink" ti="btn_unlink">Unlink</button>
+      <button onclick="exec('removeFormat')" title="Remove Format" ti="btn_clear" ti="btn_clear_2" ti="btn_clear" ti="btn_clear_2" ti="btn_clear" ti="btn_clear_2" ti="btn_clear" ti="btn_clear_2">Clear</button>
+      <div class="sep"></div>
+      <button onclick="exec('undo')" title="Undo" ti="btn_undo" ti="btn_undo" ti="btn_undo" ti="btn_undo">Undo</button>
+      <button onclick="exec('redo')" title="Redo" ti="btn_redo" ti="btn_redo" ti="btn_redo" ti="btn_redo">Redo</button>
+    </div>
+    <div class="editable-area" id="richEditor" contenteditable="true" style="min-height:200px">
+      <h3 style="color:var(--accent)" ti="h3_rich_text_editor" ti="h3_rich_text_editor" ti="h3_rich_text_editor" ti="h3_rich_text_editor">Rich Text Editor</h3>
+      <p>Select text and use the toolbar buttons above. Try <strong>bold</strong>, <em>italic</em>, <u>underline</u>, and more.</p>
+      <p>Create lists, change alignment, adjust font sizes, and add links.</p>
+      <ul>
+        <li>First item</li>
+        <li>Second item</li>
+        <li>Third item</li>
+      </ul>
+    </div>
+    <div style="display:flex;gap:0.5rem;margin-top:0.75rem">
+      <button onclick="showRichHTML()" ti="btn_show_html" ti="btn_show_html" ti="btn_show_html" ti="btn_show_html">Show HTML</button>
+      <button onclick="document.getElementById('richEditor').innerHTML='';showRichHTML()">Clear</button>
+    </div>
+    <div class="html-output" id="richHTML" style="margin-top:0.5rem"></div>
+  </div>
+
+  <div class="two-col">
+    <!-- Input Events -->
+    <div class="card">
+      <h2>Input &amp; beforeinput Events</h2>
+      <p style="font-size:0.8rem;color:var(--text-dim);margin-bottom:0.5rem">Type in the editor below. Events are logged in real time.</p>
+      <div class="editable-area" id="eventEditor" contenteditable="true" style="min-height:100px">
+        <p>Type, paste, or format text here to see events fire.</p>
+      </div>
+      <div style="display:flex;gap:0.5rem;margin:0.5rem 0">
+        <button onclick="document.getElementById('eventLog').innerHTML=''" ti="btn_clear_log" ti="btn_clear_log" ti="btn_clear_log" ti="btn_clear_log">Clear Log</button>
+        <label style="display:flex;align-items:center;gap:0.3rem;cursor:pointer">
+          <input type="checkbox" id="logBeforeInput" checked> beforeinput
+        </label>
+        <label style="display:flex;align-items:center;gap:0.3rem;cursor:pointer">
+          <input type="checkbox" id="logInput" checked> input
+        </label>
+      </div>
+      <div class="event-log" id="eventLog"></div>
+    </div>
+
+    <!-- Selection & Range -->
+    <div class="card">
+      <h2>Selection &amp; Range Inspector</h2>
+      <p style="font-size:0.8rem;color:var(--text-dim);margin-bottom:0.5rem">Select text in the editor below to inspect Selection and Range properties.</p>
+      <div class="editable-area" id="selEditor" contenteditable="true" style="min-height:100px">
+        <p>Select any text in this editor to see the Selection and Range properties update below.</p>
+        <p>You can also try <strong ti="strong_selecting_across" ti="strong_selecting_across" ti="strong_selecting_across" ti="strong_selecting_across">selecting across</strong> multiple elements.</p>
+      </div>
+      <div class="sel-info" style="margin-top:0.75rem">
+        <div class="sel-prop"><div class="prop-name">selection.type</div><div class="prop-value" id="sel-type">--</div></div>
+        <div class="sel-prop"><div class="prop-name">selection.rangeCount</div><div class="prop-value" id="sel-rangeCount">--</div></div>
+        <div class="sel-prop"><div class="prop-name">selection.isCollapsed</div><div class="prop-value" id="sel-collapsed">--</div></div>
+        <div class="sel-prop"><div class="prop-name">selection.toString()</div><div class="prop-value" id="sel-text">--</div></div>
+        <div class="sel-prop"><div class="prop-name">range.startContainer</div><div class="prop-value" id="sel-startNode">--</div></div>
+        <div class="sel-prop"><div class="prop-name">range.startOffset</div><div class="prop-value" id="sel-startOff">--</div></div>
+        <div class="sel-prop"><div class="prop-name">range.endContainer</div><div class="prop-value" id="sel-endNode">--</div></div>
+        <div class="sel-prop"><div class="prop-name">range.endOffset</div><div class="prop-value" id="sel-endOff">--</div></div>
+      </div>
+      <div style="display:flex;gap:0.5rem;margin-top:0.75rem;flex-wrap:wrap">
+        <button onclick="wrapSelection('strong')">Wrap &lt;strong&gt;</button>
+        <button onclick="wrapSelection('em')">Wrap &lt;em&gt;</button>
+        <button onclick="wrapSelection('mark')">Wrap &lt;mark&gt;</button>
+        <button onclick="deleteSelection()" ti="btn_delete_selection" ti="btn_delete_selection" ti="btn_delete_selection" ti="btn_delete_selection">Delete Selection</button>
+        <button onclick="insertAtCursor('INSERTED')" ti="btn_insert_at_cursor" ti="btn_insert_at_cursor" ti="btn_insert_at_cursor" ti="btn_insert_at_cursor">Insert at Cursor</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="two-col">
+    <!-- Clipboard -->
+    <div class="card">
+      <h2 ti="h2_clipboard_handling" ti="h2_clipboard_handling" ti="h2_clipboard_handling" ti="h2_clipboard_handling">Clipboard Handling</h2>
+      <div class="editable-area" id="clipEditor" contenteditable="true" style="min-height:80px">
+        <p>Paste content here (Ctrl+V). Try pasting HTML, plain text, or images.</p>
+      </div>
+      <div style="margin-top:0.5rem">
+        <label ti="label_last_paste_event_data" ti="label_last_paste_event_data" ti="label_last_paste_event_data" ti="label_last_paste_event_data">Last paste event data:</label>
+        <div class="html-output" id="clipData" style="min-height:60px">Paste something above to see clipboard data</div>
+      </div>
+      <div class="clipboard-zone" id="dropZone" style="margin-top:0.75rem">
+        Drop files here or paste to inspect clipboard contents
+      </div>
+    </div>
+
+    <!-- Sanitization -->
+    <div class="card">
+      <h2 ti="h2_sanitization_strategies" ti="h2_sanitization_strategies" ti="h2_sanitization_strategies" ti="h2_sanitization_strategies">Sanitization Strategies</h2>
+      <p style="font-size:0.8rem;color:var(--text-dim);margin-bottom:0.75rem">Enter HTML to see different sanitization approaches.</p>
+      <div>
+        <label ti="label_input_html" ti="label_input_html" ti="label_input_html" ti="label_input_html">Input HTML</label>
+        <textarea id="sanitizeInput" style="width:100%;min-height:80px;background:var(--surface-2);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:0.75rem;font-family:var(--mono);font-size:0.8rem;resize:vertical">&lt;p&gt;Hello &lt;script&gt;alert('xss')&lt;/script&gt; &lt;b&gt;world&lt;/b&gt;&lt;/p&gt;
+&lt;img src="x" onerror="alert('xss')"&gt;
+&lt;a href="javascript:alert('xss')"&gt;click&lt;/a&gt;
+&lt;style&gt;body{display:none}&lt;/style&gt;</textarea>
+        <button class="primary" style="margin-top:0.5rem" onclick="runSanitize()" ti="btn_sanitize" ti="btn_sanitize" ti="btn_sanitize" ti="btn_sanitize">Sanitize</button>
+      </div>
+      <div style="margin-top:1rem;display:grid;gap:0.75rem">
+        <div>
+          <label ti="label_1_textcontent_strip_all_h" ti="label_1_textcontent_strip_all_h" ti="label_1_textcontent_strip_all_h" ti="label_1_textcontent_strip_all_h">1. textContent (strip all HTML)</label>
+          <div class="html-output" id="san1"></div>
+        </div>
+        <div>
+          <label ti="label_2_allow_list_keep_only_sa" ti="label_2_allow_list_keep_only_sa" ti="label_2_allow_list_keep_only_sa" ti="label_2_allow_list_keep_only_sa">2. Allow-list (keep only safe tags)</label>
+          <div class="html-output" id="san2"></div>
+        </div>
+        <div>
+          <label ti="label_3_domparser_strip_dangero" ti="label_3_domparser_strip_dangero" ti="label_3_domparser_strip_dangero" ti="label_3_domparser_strip_dangero">3. DOMParser + strip dangerous</label>
+          <div class="html-output" id="san3"></div>
+        </div>
+        <div>
+          <label ti="label_4_sanitizer_api_if_availa" ti="label_4_sanitizer_api_if_availa" ti="label_4_sanitizer_api_if_availa" ti="label_4_sanitizer_api_if_availa">4. Sanitizer API (if available)</label>
+          <div class="html-output" id="san4"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- execCommand Reference -->
+  <div class="card">
+    <h2 ti="h2_execcommand_reference" ti="h2_execcommand_reference" ti="h2_execcommand_reference" ti="h2_execcommand_reference">execCommand Reference</h2>
+    <p style="font-size:0.8rem;color:var(--orange);margin-bottom:1rem">document.execCommand() is deprecated. Use Input Events API (beforeinput/input with inputType) for modern implementations.</p>
+    <div class="cmd-grid" id="cmdGrid"></div>
+  </div>
+
+  <!-- Code Reference -->
+  <div class="card">
+    <h2 ti="h2_modern_patterns" ti="h2_modern_patterns" ti="h2_modern_patterns" ti="h2_modern_patterns">Modern Patterns</h2>
+    <div class="code-block"><span style="color:var(--purple)">// Modern approach: beforeinput event</span>
+editor.addEventListener('beforeinput', (e) => {
+  console.log(e.inputType);    <span style="color:#555">// "insertText", "formatBold", etc.</span>
+  console.log(e.data);         <span style="color:#555">// inserted text</span>
+  console.log(e.dataTransfer); <span style="color:#555">// for paste events</span>
+  <span style="color:#555">// e.preventDefault() to block the action</span>
+});
+
+<span style="color:var(--purple)">// Selection API</span>
+const sel = window.getSelection();
+const range = sel.getRangeAt(0);
+const wrapper = document.createElement('mark');
+range.surroundContents(wrapper);
+
+<span style="color:var(--purple)">// Clipboard API (modern)</span>
+editor.addEventListener('paste', async (e) => {
+  e.preventDefault();
+  const text = await navigator.clipboard
+
+<script>var _LANG={'title_contenteditable_playgroun':["contenteditable Playground", "可编辑游乐场"],'metadesc_interactive_playground_fo':["Interactive playground for contenteditable API. Explore editing modes, execCommand, input events, Selection/Range, clipboard handling, and sanitization.", "contenteditable API 的交互式演示环境。探索编辑模式、execCommand、输入事件、选择/范围、剪贴板处理和清理等功能。"],'h1_contenteditable_playgroun':["contenteditable Playground", "可编辑游乐场"],'h2_contenteditable_modes':["contentEditable Modes", "内容可编辑模式"],'h2_rich_text_editor_execcomm':["Rich Text Editor (execCommand)", "富文本编辑器（execCommand）"],'h2_input_beforeinput_events':["Input & beforeinput Events", "输入和输入前事件"],'h2_selection_range_inspector':["Selection & Range Inspector", "选型及范围检查员"],'h2_clipboard_handling':["Clipboard Handling", "剪贴板处理"],'h2_sanitization_strategies':["Sanitization Strategies", "消毒策略"],'h2_execcommand_reference':["execCommand Reference", "执行命令参考"],'h2_modern_patterns':["Modern Patterns", "现代图案"],'h3_rich_text_editor':["Rich Text Editor", "富文本编辑器"],'btn_true':["true", "真的"],'btn_false':["false", "错误的"],'btn_plaintext_only':["plaintext-only", "纯文本"],'btn_ol':["OL", "OL"],'btn_ul':["UL", "UL"],'btn_link':["Link", "关联"],'btn_unlink':["Unlink", "取消链接"],'btn_clear':["Clear", "清除"],'btn_undo':["Undo", "撤销"],'btn_redo':["Redo", "重做"],'btn_show_html':["Show HTML", "显示 HTML"],'btn_clear_2':["Clear", "清除"],'btn_clear_log':["Clear Log", "清除日志"],'btn_wrap_strong':["Wrap <strong>", "裹<strong>"],'btn_wrap_em':["Wrap <em>", "裹<em>"],'btn_wrap_mark':["Wrap <mark>", "裹<mark>"],'btn_delete_selection':["Delete Selection", "删除所选内容"],'btn_insert_at_cursor':["Insert at Cursor", "在光标处插入"],'btn_sanitize':["Sanitize", "消毒"],'strong_true':["true", "真的"],'strong_false':["false", "错误的"],'strong_plaintext_only':["plaintext-only", "纯文本"],'strong_bold':["bold", "大胆的"],'strong_bold_2':["bold", "大胆的"],'strong_selecting_across':["selecting across", "选择"],'label_current_mode':["Current mode:", "当前模式："],'label_innerhtml':["innerHTML:", "innerHTML："],'label_last_paste_event_data':["Last paste event data:", "上次粘贴事件数据："],'label_input_html':["Input HTML", "输入 HTML"],'label_1_textcontent_strip_all_h':["1. textContent (strip all HTML)", "1. textContent（去除所有 HTML）"],'label_2_allow_list_keep_only_sa':["2. Allow-list (keep only safe tags)", "2. 允许列表（仅保留安全标签）"],'label_3_domparser_strip_dangero':["3. DOMParser + strip dangerous", "3. DOMParser + strip dangerous"],'label_4_sanitizer_api_if_availa':["4. Sanitizer API (if available)", "4. 消毒剂 API（如有）"],'jtc_sanitizer_api_error':["Sanitizer API error:", "Sanitizer API 错误："],'jtc_sanitizer_api_not_availab':["Sanitizer API not available in this browser", "此浏览器不支持 Sanitizer API"],'jtcpre_sanitizer_api_error':["Sanitizer API error: ", "Sanitizer API 错误："]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>var _LANG={'title_contenteditable_playgroun':["contenteditable Playground", "可编辑游乐场"],'metadesc_interactive_playground_fo':["Interactive playground for contenteditable API. Explore editing modes, execCommand, input events, Selection/Range, clipboard handling, and sanitization.", "contenteditable API 的交互式演示环境。探索编辑模式、execCommand、输入事件、选择/范围、剪贴板处理和清理等功能。"],'h1_contenteditable_playgroun':["contenteditable Playground", "可编辑游乐场"],'h2_contenteditable_modes':["contentEditable Modes", "内容可编辑模式"],'h2_rich_text_editor_execcomm':["Rich Text Editor (execCommand)", "富文本编辑器（execCommand）"],'h2_input_beforeinput_events':["Input & beforeinput Events", "输入和输入前事件"],'h2_selection_range_inspector':["Selection & Range Inspector", "选型及范围检查员"],'h2_clipboard_handling':["Clipboard Handling", "剪贴板处理"],'h2_sanitization_strategies':["Sanitization Strategies", "消毒策略"],'h2_execcommand_reference':["execCommand Reference", "执行命令参考"],'h2_modern_patterns':["Modern Patterns", "现代图案"],'h3_rich_text_editor':["Rich Text Editor", "富文本编辑器"],'btn_true':["true", "真的"],'btn_false':["false", "错误的"],'btn_plaintext_only':["plaintext-only", "纯文本"],'btn_ol':["OL", "OL"],'btn_ul':["UL", "UL"],'btn_link':["Link", "关联"],'btn_unlink':["Unlink", "取消链接"],'btn_clear':["Clear", "清除"],'btn_undo':["Undo", "撤销"],'btn_redo':["Redo", "重做"],'btn_show_html':["Show HTML", "显示 HTML"],'btn_clear_2':["Clear", "清除"],'btn_clear_log':["Clear Log", "清除日志"],'btn_wrap_strong':["Wrap <strong>", "裹<strong>"],'btn_wrap_em':["Wrap <em>", "裹<em>"],'btn_wrap_mark':["Wrap <mark>", "裹<mark>"],'btn_delete_selection':["Delete Selection", "删除所选内容"],'btn_insert_at_cursor':["Insert at Cursor", "在光标处插入"],'btn_sanitize':["Sanitize", "消毒"],'strong_true':["true", "真的"],'strong_false':["false", "错误的"],'strong_plaintext_only':["plaintext-only", "纯文本"],'strong_bold':["bold", "大胆的"],'strong_bold_2':["bold", "大胆的"],'strong_selecting_across':["selecting across", "选择"],'label_current_mode':["Current mode:", "当前模式："],'label_innerhtml':["innerHTML:", "innerHTML："],'label_last_paste_event_data':["Last paste event data:", "上次粘贴事件数据："],'label_input_html':["Input HTML", "输入 HTML"],'label_1_textcontent_strip_all_h':["1. textContent (strip all HTML)", "1. textContent（去除所有 HTML）"],'label_2_allow_list_keep_only_sa':["2. Allow-list (keep only safe tags)", "2. 允许列表（仅保留安全标签）"],'label_3_domparser_strip_dangero':["3. DOMParser + strip dangerous", "3. DOMParser + strip dangerous"],'label_4_sanitizer_api_if_availa':["4. Sanitizer API (if available)", "4. 消毒剂 API（如有）"],'jtc_sanitizer_api_error':["Sanitizer API error:", "Sanitizer API 错误："],'jtc_sanitizer_api_not_availab':["Sanitizer API not available in this browser", "此浏览器不支持 Sanitizer API"],'jtcpre_sanitizer_api_error':["Sanitizer API error: ", "Sanitizer API 错误："]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+.readText();
+  document.execCommand('insertText', false, text); <span style="color:#555">// or use insertText inputType</span>
+});
+
+<span style="color:var(--purple)">// Sanitizer API (experimental)</span>
+const sanitizer = new Sanitizer({
+  allowElements: ['p', 'b', 'i', 'em', 'strong', 'a'],
+  allowAttributes: { 'href': ['a'] }
+});
+editor.setHTML(dirtyHTML, { sanitizer });</div>
+  </div>
+
+</div>
+<footer>contenteditable Playground &mdash; No external dependencies</footer>
+
+
+<script>var _LANG={'title_contenteditable_playgroun':["contenteditable Playground", "可编辑游乐场"],'metadesc_interactive_playground_fo':["Interactive playground for contenteditable API. Explore editing modes, execCommand, input events, Selection/Range, clipboard handling, and sanitization.", "contenteditable API 的交互式演示环境。探索编辑模式、execCommand、输入事件、选择/范围、剪贴板处理和清理等功能。"],'h1_contenteditable_playgroun':["contenteditable Playground", "可编辑游乐场"],'h2_contenteditable_modes':["contentEditable Modes", "内容可编辑模式"],'h2_rich_text_editor_execcomm':["Rich Text Editor (execCommand)", "富文本编辑器（execCommand）"],'h2_input_beforeinput_events':["Input & beforeinput Events", "输入和输入前事件"],'h2_selection_range_inspector':["Selection & Range Inspector", "选型及范围检查员"],'h2_clipboard_handling':["Clipboard Handling", "剪贴板处理"],'h2_sanitization_strategies':["Sanitization Strategies", "消毒策略"],'h2_execcommand_reference':["execCommand Reference", "执行命令参考"],'h2_modern_patterns':["Modern Patterns", "现代图案"],'h3_rich_text_editor':["Rich Text Editor", "富文本编辑器"],'btn_true':["true", "真的"],'btn_false':["false", "错误的"],'btn_plaintext_only':["plaintext-only", "纯文本"],'btn_ol':["OL", "OL"],'btn_ul':["UL", "UL"],'btn_link':["Link", "关联"],'btn_unlink':["Unlink", "取消链接"],'btn_clear':["Clear", "清除"],'btn_undo':["Undo", "撤销"],'btn_redo':["Redo", "重做"],'btn_show_html':["Show HTML", "显示 HTML"],'btn_clear_2':["Clear", "清除"],'btn_clear_log':["Clear Log", "清除日志"],'btn_wrap_strong':["Wrap <strong>", "裹<strong>"],'btn_wrap_em':["Wrap <em>", "裹<em>"],'btn_wrap_mark':["Wrap <mark>", "裹<mark>"],'btn_delete_selection':["Delete Selection", "删除所选内容"],'btn_insert_at_cursor':["Insert at Cursor", "在光标处插入"],'btn_sanitize':["Sanitize", "消毒"],'strong_true':["true", "真的"],'strong_false':["false", "错误的"],'strong_plaintext_only':["plaintext-only", "纯文本"],'strong_bold':["bold", "大胆的"],'strong_bold_2':["bold", "大胆的"],'strong_selecting_across':["selecting across", "选择"],'label_current_mode':["Current mode:", "当前模式："],'label_innerhtml':["innerHTML:", "innerHTML："],'label_last_paste_event_data':["Last paste event data:", "上次粘贴事件数据："],'label_input_html':["Input HTML", "输入 HTML"],'label_1_textcontent_strip_all_h':["1. textContent (strip all HTML)", "1. textContent（去除所有 HTML）"],'label_2_allow_list_keep_only_sa':["2. Allow-list (keep only safe tags)", "2. 允许列表（仅保留安全标签）"],'label_3_domparser_strip_dangero':["3. DOMParser + strip dangerous", "3. DOMParser + strip dangerous"],'label_4_sanitizer_api_if_availa':["4. Sanitizer API (if available)", "4. 消毒剂 API（如有）"],'jtc_sanitizer_api_error':["Sanitizer API error:", "Sanitizer API 错误："],'jtc_sanitizer_api_not_availab':["Sanitizer API not available in this browser", "此浏览器不支持 Sanitizer API"],'jtcpre_sanitizer_api_error':["Sanitizer API error: ", "Sanitizer API 错误："]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>
+(function() {
+  'use strict';
+
+  // --- Mode switching ---
+  window.setMode = function(mode, btn) {
+    document.querySelectorAll('.mode-tabs button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const editor = document.getElementById('modeEditor');
+    editor.contentEditable = mode;
+    document.getElementById('currentMode').textContent = mode;
+    updateModeHTML();
+  };
+
+  function updateModeHTML() {
+    document.getElementById('modeHTML').textContent = document.getElementById('modeEditor').innerHTML;
+  }
+
+  document.getElementById('modeEditor').addEventListener('input', updateModeHTML);
+  updateModeHTML();
+
+  // --- Rich text editor ---
+  window.exec = function(cmd, val) {
+    document.getElementById('richEditor').focus();
+    document.execCommand(cmd, false, val || null);
+    showRichHTML();
+  };
+
+  window.showRichHTML = function() {
+    document.getElementById('richHTML').textContent = document.getElementById('richEditor').innerHTML;
+  };
+  showRichHTML();
+
+  // --- Event logging ---
+  const eventEditor = document.getElementById('eventEditor');
+  const eventLog = document.getElementById('eventLog');
+  let eventCount = 0;
+
+  function logEvent(type, detail) {
+    const show = type === 'beforeinput' ? document.getElementById('logBeforeInput').checked : document.getElementById('logInput').checked;
+    if (!show) return;
+    eventCount++;
+    const entry = document.createElement('div');
+    entry.className = 'log-entry';
+    entry.innerHTML = `<span class="ev-type">${type}</span> <span class="ev-data">${detail}</span>`;
+    eventLog.insertBefore(entry, eventLog.firstChild);
+    while (eventLog.children.length > 100) eventLog.removeChild(eventLog.lastChild);
+  }
+
+  eventEditor.addEventListener('beforeinput', e => {
+    logEvent('beforeinput', `inputType="${e.inputType}" data="${e.data || ''}" isComposing=${e.isComposing}`);
+  });
+
+  eventEditor.addEventListener('input', e => {
+    logEvent('input', `inputType="${e.inputType}" data="${e.data || ''}" isComposing=${e.isComposing}`);
+  });
+
+  // --- Selection inspector ---
+  const selEditor = document.getElementById('selEditor');
+
+  function updateSelInfo() {
+    const sel = window.getSelection();
+    document.getElementById('sel-type').textContent = sel.type || '--';
+    document.getElementById('sel-rangeCount').textContent = sel.rangeCount;
+    document.getElementById('sel-collapsed').textContent = sel.isCollapsed;
+    document.getElementById('sel-text').textContent = sel.toString().substring(0, 100) || '(empty)';
+
+    if (sel.rangeCount > 0) {
+      const range = sel.getRangeAt(0);
+      document.getElementById('sel-startNode').textContent = nodeDesc(range.startContainer);
+      document.getElementById('sel-startOff').textContent = range.startOffset;
+      document.getElementById('sel-endNode').textContent = nodeDesc(range.endContainer);
+      document.getElementById('sel-endOff').textContent = range.endOffset;
+    }
+  }
+
+  function nodeDesc(node) {
+    if (node.nodeType === 3) return '#text "' + node.textContent.substring(0, 30) + '..."';
+    return '<' + node.nodeName.toLowerCase() + '>';
+  }
+
+  document.addEventListener('selectionchange', updateSelInfo);
+
+  window.wrapSelection = function(tag) {
+    const sel = window.getSelection();
+    if (sel.rangeCount === 0 || sel.isCollapsed) return;
+    const range = sel.getRangeAt(0);
+    try {
+      const wrapper = document.createElement(tag);
+      range.surroundContents(wrapper);
+    } catch(e) {
+      // surroundContents fails if selection crosses element boundaries
+      const frag = range.extractContents();
+      const wrapper = document.createElement(tag);
+      wrapper.appendChild(frag);
+      range.insertNode(wrapper);
+    }
+  };
+
+  window.deleteSelection = function() {
+    const sel = window.getSelection();
+    if (sel.rangeCount > 0) sel.getRangeAt(0).deleteContents();
+  };
+
+  window.insertAtCursor = function(text) {
+    const sel = window.getSelection();
+    if (sel.rangeCount === 0) return;
+    const range = sel.getRangeAt(0);
+    range.deleteContents();
+    range.insertNode(document.createTextNode(text));
+  };
+
+  // --- Clipboard ---
+  const clipEditor = document.getElementById('clipEditor');
+  const clipData = document.getElementById('clipData');
+
+  clipEditor.addEventListener('paste', e => {
+    const types = Array.from(e.clipboardData.types);
+    let info = 'Types: ' + types.join(', ') + '\n\n';
+    types.forEach(t => {
+      if (t === 'Files') {
+        const files = Array.from(e.clipboardData.files);
+        info += 'Files: ' + files.map(f => f.name + ' (' + f.type + ', ' + f.size + 'B)').join(', ') + '\n';
+      } else {
+        const data = e.clipboardData.getData(t);
+        info += t + ':\n' + data.substring(0, 500) + '\n\n';
+      }
+    });
+    clipData.textContent = info;
+  });
+
+  // Drop zone
+  const dropZone = document.getElementById('dropZone');
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    const items = Array.from(e.dataTransfer.items || []);
+    const files = Array.from(e.dataTransfer.files || []);
+    let info = 'Dropped items: ' + items.length + '\n';
+    info += 'Files: ' + files.map(f => f.name + ' (' + f.type + ')').join(', ') + '\n';
+    const types = Array.from(e.dataTransfer.types);
+    types.forEach(t => {
+      if (t !== 'Files') info += t + ': ' + e.dataTransfer.getData(t).substring(0, 200) + '\n';
+    });
+    dropZone.textContent = info;
+  });
+
+  // --- Sanitization ---
+  window.runSanitize = function() {
+    const input = document.getElementById('sanitizeInput').value;
+
+    // 1. textContent
+    const div1 = document.createElement('div');
+    div1.innerHTML = input;
+    document.getElementById('san1').textContent = div1.textContent;
+
+    // 2. Allow-list
+    const ALLOWED = new Set(['P','B','I','EM','STRONG','A','BR','UL','OL','LI','H1','H2','H3','BLOCKQUOTE','CODE','PRE']);
+    const div2 = document.createElement('div');
+    div2.innerHTML = input;
+    function cleanNode(node) {
+      const children = Array.from(node.childNodes);
+      children.forEach(child => {
+        if (child.nodeType === 1) {
+          if (!ALLOWED.has(child.tagName)) {
+            while (child.firstChild) node.insertBefore(child.firstChild, child);
+            node.removeChild(child);
+          } else {
+            // Remove dangerous attributes
+            Array.from(child.attributes).forEach(attr => {
+              if (attr.name.startsWith('on') || (attr.name === 'href' && attr.value.startsWith('javascript:'))) {
+                child.removeAttribute(attr.name);
+              }
+            });
+            cleanNode(child);
+          }
+        }
+      });
+    }
+    cleanNode(div2);
+    document.getElementById('san2').textContent = div2.innerHTML;
+
+    // 3. DOMParser
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(input, 'text/html');
+    doc.querySelectorAll('script,style,iframe,object,embed,form').forEach(el => el.remove());
+    doc.querySelectorAll('*').forEach(el => {
+      Array.from(el.attributes).forEach(attr => {
+        if (attr.name.startsWith('on') || (attr.name === 'href' && attr.value.startsWith('javascript:')))
+          el.removeAttribute(attr.name);
+      });
+    });
+    document.getElementById('san3').textContent = doc.body.innerHTML;
+
+    // 4. Sanitizer API
+    if ('Sanitizer' in window) {
+      try {
+        const sanitizer = new Sanitizer({ allowElements: ['p','b','i','em','strong','a','br','ul','ol','li'] });
+        const div4 = document.createElement('div');
+        div4.setHTML(input, { sanitizer });
+        document.getElementById('san4').textContent = div4.innerHTML;
+      } catch(e) {
+        document.getElementById('san4').textContent=T("jtcpre_sanitizer_api_error")+ e.message;
+      }
+    } else {
+      document.getElementById('san4').textContent=T("jtc_sanitizer_api_not_availab");
+    }
+  };
+
+  // --- execCommand reference ---
+  const COMMANDS = [
+    { name: 'bold', desc: 'Toggle bold', deprecated: true },
+    { name: 'italic', desc: 'Toggle italic', deprecated: true },
+    { name: 'underline', desc: 'Toggle underline', deprecated: true },
+    { name: 'strikeThrough', desc: 'Toggle strikethrough', deprecated: true },
+    { name: 'justifyLeft', desc: 'Left align', deprecated: true },
+    { name: 'justifyCenter', desc: 'Center align', deprecated: true },
+    { name: 'justifyRight', desc: 'Right align', deprecated: true },
+    { name: 'justifyFull', desc: 'Justify text', deprecated: true },
+    { name: 'insertOrderedList', desc: 'Create ordered list', deprecated: true },
+    { name: 'insertUnorderedList', desc: 'Create unordered list', deprecated: true },
+    { name: 'indent', desc: 'Increase indent', deprecated: true },
+    { name: 'outdent', desc: 'Decrease indent', deprecated: true },
+    { name: 'formatBlock', desc: 'Block-level formatting', deprecated: true },
+    { name: 'fontSize', desc: 'Set font size (1-7)', deprecated: true },
+    { name: 'foreColor', desc: 'Set text color', deprecated: true },
+    { name: 'hiliteColor', desc: 'Set background color', deprecated: true },
+    { name: 'createLink', desc: 'Create hyperlink', deprecated: true },
+    { name: 'unlink', desc: 'Remove hyperlink', deprecated: true },
+    { name: 'insertText', desc: 'Insert plain text', deprecated: true },
+    { name: 'insertHTML', desc: 'Insert HTML', deprecated: true },
+    { name: 'removeFormat', desc: 'Remove formatting', deprecated: true },
+    { name: 'copy', desc: 'Copy selection', deprecated: true },
+    { name: 'cut', desc: 'Cut selection', deprecated: true },
+    { name: 'paste', desc: 'Paste clipboard', deprecated: true },
+    { name: 'undo', desc: 'Undo last action', deprecated: true },
+    { name: 'redo', desc: 'Redo last action', deprecated: true },
+    { name: 'selectAll', desc: 'Select all content', deprecated: true },
+    { name: 'insertHorizontalRule', desc: 'Insert <hr>', deprecated: true },
+  ];
+
+  const cmdGrid = document.getElementById('cmdGrid');
+  COMMANDS.forEach(cmd => {
+    const div = document.createElement('div');
+    div.className = 'cmd-item';
+    let supported = false;
+    try { supported = document.queryCommandSupported(cmd.name); } catch(e) {}
+    div.innerHTML = `<div class="cmd-name">${cmd.name}</div>` +
+      `<div class="cmd-desc">${cmd.desc}</div>` +
+      `<div class="cmd-status ${cmd.deprecated ? 'deprecated' : ''}">${cmd.deprecated ? 'Deprecated' : ''} ${supported ? '(supported)' : '(not supported)'}</div>`;
+    div.onclick = () => {
+      document.getElementById('richEditor').focus();
+      if (cmd.name === 'createLink') {
+        document.execCommand(cmd.name, false, prompt('URL:', 'https://'));
+      } else if (cmd.name === 'insertText' || cmd.name === 'insertHTML') {
+        document.execCommand(cmd.name, false, prompt('Content:', ''));
+      } else {
+        document.execCommand(cmd.name, false, null);
+      }
+      showRichHTML();
+    };
+    cmdGrid.appendChild(div);
+  });
+
+  // Init sanitize
+  runSanitize();
+
+})();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+</body>
+</html>

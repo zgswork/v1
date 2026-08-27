@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html tk="title_svg_path_editor" lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SVG Path Editor</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a0a;color:#e0e0e0;font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;display:flex;flex-direction:column}
+h1{text-align:center;padding:16px;font-size:1.4rem;color:#7c9aff;border-bottom:1px solid #222}
+.app{display:flex;flex:1;overflow:hidden}
+.sidebar{width:340px;min-width:340px;border-right:1px solid #222;display:flex;flex-direction:column;overflow-y:auto}
+.canvas-wrap{flex:1;position:relative;overflow:hidden}
+svg.canvas{width:100%;height:100%;background:#0f0f0f;cursor:crosshair}
+.controls{padding:12px;border-bottom:1px solid #222}
+.controls label{display:block;margin-bottom:4px;font-size:.85rem;color:#999}
+.controls select,.controls input,.controls button,.controls textarea{width:100%;padding:6px 8px;background:#1a1a1a;color:#e0e0e0;border:1px solid #333;border-radius:4px;font-size:.85rem;margin-bottom:8px}
+.controls button{cursor:pointer;background:#2a3a5c;border-color:#4a6a9c;transition:background .2s}
+.controls button:hover{background:#3a4a7c}
+.btn-row{display:flex;gap:6px}
+.btn-row button{flex:1}
+.cmd-list{flex:1;overflow-y:auto;padding:8px}
+.cmd-item{padding:6px 8px;margin-bottom:4px;background:#141414;border:1px solid #2a2a2a;border-radius:4px;font-family:monospace;font-size:.82rem;cursor:pointer;display:flex;justify-content:space-between;align-items:center}
+.cmd-item:hover{border-color:#4a6a9c}
+.cmd-item.active{border-color:#7c9aff;background:#1a2040}
+.cmd-item .del{color:#666;cursor:pointer;padding:0 4px}
+.cmd-item .del:hover{color:#f66}
+.path-output{padding:12px;border-top:1px solid #222}
+.path-output textarea{height:80px;resize:vertical;font-family:monospace;font-size:.8rem}
+.reference{padding:12px;border-top:1px solid #222}
+.reference summary{cursor:pointer;color:#7c9aff;font-size:.85rem}
+.reference table{width:100%;font-size:.75rem;margin-top:8px;border-collapse:collapse}
+.reference td,.reference th{padding:3px 6px;border:1px solid #222;text-align:left}
+.reference th{background:#1a1a1a}
+.grid-line{stroke:#1a1a1a;stroke-width:1}
+.grid-line-major{stroke:#252525;stroke-width:1}
+.point{fill:#7c9aff;cursor:grab;transition:r .1s}
+.point:hover{r:7}
+.control-point{fill:#ff9c4a;cursor:grab}
+.control-point:hover{r:6}
+.control-line{stroke:#ff9c4a;stroke-width:1;stroke-dasharray:4,3;opacity:.5}
+.path-preview{fill:none;stroke:#7c9aff;stroke-width:2}
+.path-fill-preview{fill:rgba(124,154,255,.1);stroke:none}
+.toolbar{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px}
+.toolbar button{flex:none;width:36px;height:30px;font-family:monospace;font-weight:bold;font-size:.9rem}
+.toolbar button.active{background:#4a6a9c;border-color:#7c9aff}
+.status{padding:4px 12px;font-size:.75rem;color:#666;border-top:1px solid #222}
+</style>
+</head>
+<body>
+
+
+<h1 ti="title_svg_path_editor" ti="h1_svg_path_editor">SVG Path Editor</h1>
+<div class="app">
+<div class="sidebar">
+<div class="controls">
+<label ti="label_active_command">Active Command</label>
+<div class="toolbar" id="toolbar"></div>
+<div class="btn-row">
+<button onclick="undoLast()" ti="btn_undo">Undo</button>
+<button onclick="clearPath()" ti="btn_clear">Clear</button>
+</div>
+<label ti="label_canvas_size">Canvas Size</label>
+<div class="btn-row">
+<input type="number" id="canvasW" value="500" min="100" max="2000" onchange="updateCanvas()">
+<input type="number" id="canvasH" value="400" min="100" max="2000" onchange="updateCanvas()">
+</div>
+<label ti="label_stroke_width">Stroke Width</label>
+<input type="range" id="strokeW" min="1" max="10" value="2" oninput="updateStroke()">
+<label ti="label_fill">Fill</label>
+<div class="btn-row">
+<input type="checkbox" id="showFill" style="width:auto;margin-right:8px" onchange="render()">
+<input type="color" id="fillColor" value="#7c9aff" style="width:60px" onchange="render()">
+</div>
+</div>
+<div class="cmd-list" id="cmdList"></div>
+<div class="path-output">
+<label ti="label_path_data">Path Data</label>
+<textarea id="pathData" tp="placeholder_paste_path_data_to_import" placeholder="Paste path data to import..." oninput="importPath()"></textarea>
+<div class="btn-row">
+<button onclick="copyPath()" ti="btn_copy">Copy</button>
+<button onclick="optimizePath()" ti="btn_optimize">Optimize</button>
+</div>
+</div>
+<details class="reference">
+<summary>Path Command Reference</summary>
+<table>
+<tr><th ti="th_cmd">Cmd</th><th ti="th_name">Name</th><th ti="th_params">Params</th></tr>
+<tr><td>M</td><td>Move To</td><td>x, y</td></tr>
+<tr><td>L</td><td>Line To</td><td>x, y</td></tr>
+<tr><td>H</td><td>Horizontal</td><td>x</td></tr>
+<tr><td>V</td><td>Vertical</td><td>y</td></tr>
+<tr><td>C</td><td>Cubic Bezier</td><td>x1,y1 x2,y2 x,y</td></tr>
+<tr><td>S</td><td>Smooth Cubic</td><td>x2,y2 x,y</td></tr>
+<tr><td>Q</td><td>Quad Bezier</td><td>x1,y1 x,y</td></tr>
+<tr><td>T</td><td>Smooth Quad</td><td>x,y</td></tr>
+<tr><td>A</td><td>Arc</td><td>rx,ry rot large sweep x,y</td></tr>
+<tr><td>Z</td><td>Close Path</td><td>none</td></tr>
+</table>
+</details>
+</div>
+<div class="canvas-wrap">
+<svg class="canvas" id="svg" viewBox="0 0 500 400">
+<defs>
+<pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+<path d="M 20 0 L 0 0 0 20" fill="none" class="grid-line"/>
+</pattern>
+<pattern id="gridMajor" width="100" height="100" patternUnits="userSpaceOnUse">
+<path d="M 100 0 L 0 0 0 100" fill="none" class="grid-line-major"/>
+</pattern>
+</defs>
+<rect width="100%" height="100%" fill="url(#grid)"/>
+<rect width="100%" height="100%" fill="url(#gridMajor)"/>
+<path class="path-fill-preview" id="pathFill"/>
+<path class="path-preview" id="pathPreview"/>
+<g id="handles"></g>
+</svg>
+</div>
+</div>
+<div class="status" id="status" ti="status_click_on_canvas_to_add_po">Click on canvas to add points. Select a command type from the toolbar.</div>
+
+<script>var _LANG={'title_svg_path_editor':["SVG Path Editor", "SVG路径编辑器"],'h1_svg_path_editor':["SVG Path Editor", "SVG路径编辑器"],'btn_undo':["Undo", "撤销"],'btn_clear':["Clear", "清除"],'btn_copy':["Copy", "复制"],'btn_optimize':["Optimize", "优化"],'placeholder_paste_path_data_to_import':["Paste path data to import...", "粘贴路径数据以导入..."],'th_cmd':["Cmd", "命令"],'th_name':["Name", "姓名"],'th_params':["Params", "参数"],'label_active_command':["Active Command", "活动命令"],'label_canvas_size':["Canvas Size", "画布尺寸"],'label_stroke_width':["Stroke Width", "笔画宽度"],'label_fill':["Fill", "充满"],'label_path_data':["Path Data", "路径数据"],'status_click_on_canvas_to_add_po':["Click on canvas to add points. Select a command type from the toolbar.", "点击画布添加点数。从工具栏中选择命令类型。"],'jtc_smooth_cubic_1_2_points_p':["Smooth cubic: 1/2 points placed", "光滑立方：放置 1/2 个点"],'jtc_quadratic_1_2_points_plac':["Quadratic: 1/2 points placed", "二次函数：1/2 分"],'jtc_path_copied':["Path copied!", "路径已复制！"],'jtc_path_optimized':["Path optimized", "路径优化"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>
+const commands=['M','L','H','V','C','S','Q','T','A','Z'];
+let activeCmd='M';
+let pathCmds=[];
+let selectedIdx=-1;
+let dragTarget=null;
+let dragOffset={x:0,y:0};
+let clickStage=0;
+let tempPoints=[];
+let svgW=500,svgH=400;
+const svg=document.getElementById('svg');
+const pathPreview=document.getElementById('pathPreview');
+const pathFill=document.getElementById('pathFill');
+const handles=document.getElementById('handles');
+const cmdList=document.getElementById('cmdList');
+const pathData=document.getElementById('pathData');
+const status=document.getElementById('status');
+const toolbar=document.getElementById('toolbar');
+
+commands.forEach(c=>{
+  const b=document.createElement('button');
+  b.textContent=c;
+  b.onclick=()=>setCmd(c);
+  if(c==='M')b.classList.add('active');
+  b.id='btn-'+c;
+  toolbar.appendChild(b);
+});
+
+function setCmd(c){
+  activeCmd=c;
+  clickStage=0;
+  tempPoints=[];
+  toolbar.querySelectorAll('button').forEach(b=>b.classList.remove('active'));
+  document.getElementById('btn-'+c).classList.add('active');
+  updateStatus();
+}
+
+function updateStatus(){
+  const msgs={
+    M:'Click to set move-to point',
+    L:'Click to add line-to point',
+    H:'Click to set horizontal line X',
+    V:'Click to set vertical line Y',
+    C:'Click 3 points: control1, control2, end',
+    S:'Click 2 points: control2, end',
+    Q:'Click 2 points: control, end',
+    T:'Click to set smooth quad end point',
+    A:'Click to set arc endpoint (edit params in sidebar)',
+    Z:'Click to close path'
+  };
+  status.textContent=msgs[activeCmd]||'';
+}
+
+function getSVGPoint(e){
+  const rect=svg.getBoundingClientRect();
+  const vb=svg.viewBox.baseVal;
+  return{
+    x:Math.round((e.clientX-rect.left)/rect.width*vb.width),
+    y:Math.round((e.clientY-rect.top)/rect.height*vb.height)
+  };
+}
+
+svg.addEventListener('click',e=>{
+  if(dragTarget)return;
+  if(e.target.classList.contains('point')||e.target.classList.contains('control-point'))return;
+  const p=getSVGPoint(e);
+  handleClick(p);
+});
+
+function handleClick(p){
+  if(activeCmd==='Z'){
+    pathCmds.push({cmd:'Z'});
+    finishAdd();
+    return;
+  }
+  if(activeCmd==='M'||activeCmd==='L'||activeCmd==='T'){
+    pathCmds.push({cmd:activeCmd,x:p.x,y:p.y});
+    finishAdd();
+  }else if(activeCmd==='H'){
+    pathCmds.push({cmd:'H',x:p.x});
+    finishAdd();
+  }else if(activeCmd==='V'){
+    pathCmds.push({cmd:'V',y:p.y});
+    finishAdd();
+  }else if(activeCmd==='C'){
+    tempPoints.push(p);
+    if(tempPoints.length===3){
+      pathCmds.push({cmd:'C',x1:tempPoints[0].x,y1:tempPoints[0].y,x2:tempPoints[1].x,y2:tempPoints[1].y,x:tempPoints[2].x,y:tempPoints[2].y});
+      tempPoints=[];
+      finishAdd();
+    }else{
+      status.textContent=`Cubic: ${tempPoints.length}/3 points placed`;
+    }
+  }else if(activeCmd==='S'){
+    tempPoints.push(p);
+    if(tempPoints.length===2){
+      pathCmds.push({cmd:'S',x2:tempPoints[0].x,y2:tempPoints[0].y,x:tempPoints[1].x,y:tempPoints[1].y});
+      tempPoints=[];
+      finishAdd();
+    }else{
+      status.textContent=T("jtc_smooth_cubic_1_2_points_p");
+    }
+  }else if(activeCmd==='Q'){
+    tempPoints.push(p);
+    if(tempPoints.length===2){
+      pathCmds.push({cmd:'Q',x1:tempPoints[0].x,y1:tempPoints[0].y,x:tempPoints[1].x,y:tempPoints[1].y});
+      tempPoints=[];
+      finishAdd();
+    }else{
+      status.textContent=T("jtc_quadratic_1_2_points_plac");
+    }
+  }else if(activeCmd==='A'){
+    pathCmds.push({cmd:'A',rx:50,ry:50,rotation:0,largeArc:0,sweep:1,x:p.x,y:p.y});
+    finishAdd();
+  }
+}
+
+function finishAdd(){
+  clickStage=0;
+  tempPoints=[];
+  render();
+  updateStatus();
+}
+
+function render(){
+  const d=buildPath();
+  pathPreview.setAttribute('d',d);
+  pathPreview.setAttribute('stroke-width',document.getElementById('strokeW').value);
+  if(document.getElementById('showFill').checked){
+    pathFill.setAttribute('d',d);
+    pathFill.setAttribute('fill',document.getElementById('fillColor').value+'22');
+  }else{
+    pathFill.setAttribute('d','');
+  }
+  pathData.value=d;
+  renderHandles();
+  renderCmdList();
+}
+
+function buildPath(){
+  return pathCmds.map(c=>{
+    switch(c.cmd){
+      case'M':case'L':case'T':return`${c.cmd}${c.x} ${c.y}`;
+      case'H':return`H${c.x}`;
+      case'V':return`V${c.y}`;
+      case'C':return`C${c.x1} ${c.y1} ${c.x2} ${c.y2} ${c.x} ${c.y}`;
+      case'S':return`S${c.x2} ${c.y2} ${c.x} ${c.y}`;
+      case'Q':return`Q${c.x1} ${c.y1} ${c.x} ${c.y}`;
+      case'A':return`A${c.rx} ${c.ry} ${c.rotation} ${c.largeArc} ${c.sweep} ${c.x} ${c.y}`;
+      case'Z':return'Z';
+    }
+  }).join(' ');
+}
+
+function renderHandles(){
+  handles.innerHTML='';
+  let cx=0,cy=0;
+  pathCmds.forEach((c,i)=>{
+    if(c.cmd==='Z')return;
+    // control points
+    if(c.cmd==='C'){
+      addControlLine(cx,cy,c.x1,c.y1);
+      addControlLine(c.x,c.y,c.x2,c.y2);
+      addControlPoint(c.x1,c.y1,i,'x1','y1');
+      addControlPoint(c.x2,c.y2,i,'x2','y2');
+    }
+    if(c.cmd==='Q'){
+      addControlLine(cx,cy,c.x1,c.y1);
+      addControlLine(c.x,c.y,c.x1,c.y1);
+      addControlPoint(c.x1,c.y1,i,'x1','y1');
+    }
+    if(c.cmd==='S'){
+      addControlLine(c.x,c.y,c.x2,c.y2);
+      addControlPoint(c.x2,c.y2,i,'x2','y2');
+    }
+    // main point
+    if('x' in c && 'y' in c){
+      addPoint(c.x,c.y,i);
+      cx=c.x;cy=c.y;
+    }else if(c.cmd==='H'){
+      addPoint(c.x,cy,i);
+      cx=c.x;
+    }else if(c.cmd==='V'){
+      addPoint(cx,c.y,i);
+      cy=c.y;
+    }
+  });
+}
+
+function addPoint(x,y,idx){
+  const c=document.createElementNS('http://www.w3.org/2000/svg','circle');
+  c.setAttribute('cx',x);c.setAttribute('cy',y);c.setAttribute('r',5);
+  c.classList.add('point');
+  c.dataset.idx=idx;c.dataset.px='x';c.dataset.py='y';
+  c.addEventListener('mousedown',startDrag);
+  handles.appendChild(c);
+}
+
+function addControlPoint(x,y,idx,px,py){
+  const c=document.createElementNS('http://www.w3.org/2000/svg','circle');
+  c.setAttribute('cx',x);c.setAttribute('cy',y);c.setAttribute('r',4);
+  c.classList.add('control-point');
+  c.dataset.idx=idx;c.dataset.px=px;c.dataset.py=py;
+  c.addEventListener('mousedown',startDrag);
+  handles.appendChild(c);
+}
+
+function addControlLine(x1,y1,x2,y2){
+  const l=document.createElementNS('http://www.w3.org/2000/svg','line');
+  l.setAttribute('x1',x1);l.setAttribute('y1',y1);
+  l.setAttribute('x2',x2);l.setAttribute('y2',y2);
+  l.classList.add('control-line');
+  handles.appendChild(l);
+}
+
+function startDrag(e){
+  e.stopPropagation();
+  dragTarget=e.target;
+  const p=getSVGPoint(e);
+  dragOffset.x=p.x-parseFloat(dragTarget.getAttribute('cx'));
+  dragOffset.y=p.y-parseFloat(dragTarget.getAttribute('cy'));
+  svg.style.cursor='grabbing';
+}
+
+svg.addEventListener('mousemove',e=>{
+  if(!dragTarget)return;
+  const p=getSVGPoint(e);
+  const nx=p.x-dragOffset.x;
+  const ny=p.y-dragOffset.y;
+  const idx=parseInt(dragTarget.dataset.idx);
+  const cmd=pathCmds[idx];
+  const px=dragTarget.dataset.px;
+  const py=dragTarget.dataset.py;
+  if(cmd.cmd==='H'){cmd[px]=nx;}
+  else if(cmd.cmd==='V'){cmd[py]=ny;}
+  else{cmd[px]=nx;cmd[py]=ny;}
+  render();
+});
+
+svg.addEventListener('mouseup',()=>{
+  dragTarget=null;
+  svg.style.cursor='crosshair';
+});
+
+function renderCmdList(){
+  cmdList.innerHTML='';
+  pathCmds.forEach((c,i)=>{
+    const d=document.createElement('div');
+    d.className='cmd-item'+(i===selectedIdx?' active':'');
+    let text=c.cmd;
+    if(c.cmd==='C')text+=` ${c.x1},${c.y1} ${c.x2},${c.y2} ${c.x},${c.y}`;
+    else if(c.cmd==='S')text+=` ${c.x2},${c.y2} ${c.x},${c.y}`;
+    else if(c.cmd==='Q')text+=` ${c.x1},${c.y1} ${c.x},${c.y}`;
+    else if(c.cmd==='A')text+=` ${c.rx},${c.ry} ${c.rotation} ${c.largeArc} ${c.sweep} ${c.x},${c.y}`;
+    else if(c.cmd==='H')text+=` ${c.x}`;
+    else if(c.cmd==='V')text+=` ${c.y}`;
+    else if(c.cmd!=='Z')text+=` ${c.x},${c.y}`;
+    d.innerHTML=`<span>${text}</span><span class="del" data-i="${i}">&times;</span>`;
+    d.onclick=()=>{selectedIdx=i;render();};
+    d.querySelector('.del').onclick=e=>{e.stopPropagation();pathCmds.splice(i,1);if(selectedIdx>=pathCmds.length)selectedIdx=-1;render();};
+    cmdList.appendChild(d);
+  });
+}
+
+function undoLast(){
+  pathCmds.pop();
+  render();
+}
+
+function clearPath(){
+  pathCmds=[];
+  selectedIdx=-1;
+  render();
+}
+
+function updateCanvas(){
+  svgW=parseInt(document.getElementById('canvasW').value)||500;
+  svgH=parseInt(document.getElementById('canvasH').value)||400;
+  svg.setAttribute('viewBox',`0 0 ${svgW} ${svgH}`);
+}
+
+function updateStroke(){
+  render();
+}
+
+function copyPath(){
+  navigator.clipboard.writeText(pathData.value).then(()=>{status.textContent=T("jtc_path_copied")});
+}
+
+function optimizePath(){
+  // Simple optimization: remove redundant spaces
+  let d=pathData.value.replace(/\s+/g,' ').trim();
+  d=d.replace(/ ?,/g,',').replace(/, ?/g,',');
+  pathData.value=d;
+  status.textContent=T("jtc_path_optimized");
+}
+
+function importPath(){
+  const d=pathData.value.trim();
+  if(!d)return;
+  try{
+    const parsed=parsePath(d);
+    if(parsed.length>0){
+      pathCmds=parsed;
+      render();
+      // don't re-set pathData since render() does it
+    }
+  }catch(e){}
+}
+
+function parsePath(d){
+  const cmds=[];
+  const re=/([MLHVCSQTAZ])\s*([-\d.,\s]*)/gi;
+  let m;
+  while((m=re.exec(d))!==null){
+    const cmd=m[1].toUpperCase();
+    const nums=m[2].trim().split(/[\s,]+/).filter(s=>s).map(Number);
+    switch(cmd){
+      case'M':case'L':case'T':
+        cmds.push({cmd,x:nums[0],y:nums[1]});break;
+      case'H':cmds.push({cmd,x:nums[0]});break;
+      case'V':cmds.push({cmd,y:nums[0]});break;
+      case'C':cmds.push({cmd,x1:nums[0],y1:nums[1],x2:nums[2],y2:nums[3],x:nums[4],y:nums[5]});break;
+      case'S':cmds.push({cmd,x2:nums[0],y2:nums[1],x:nums[2],y:nums[3]});break;
+      case'Q':cmds.push({cmd,x1:nums[0],y1:nums[1],x:nums[2],y:nums[3]});break;
+      case'A':cmds.push({cmd,rx:nums[0],ry:nums[1],rotation:nums[2],largeArc:nums[3],sweep:nums[4],x:nums[5],y:nums[6]});break;
+      case'Z':cmds.push({cmd:'Z'});break;
+    }
+  }
+  return cmds;
+}
+
+render();
+updateStatus();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+</body>
+</html>

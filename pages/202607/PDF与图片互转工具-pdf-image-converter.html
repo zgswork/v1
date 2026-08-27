@@ -1,0 +1,1018 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF与图片互转工具</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3B82F6',
+                        secondary: '#6366F1',
+                        accent: '#10B981',
+                        dark: '#1E293B',
+                        light: '#F8FAFC'
+                    },
+                    fontFamily: {
+                        inter: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                    boxShadow: {
+                        'card': '0 4px 20px rgba(0, 0, 0, 0.08)',
+                        'hover': '0 8px 30px rgba(0, 0, 0, 0.12)',
+                    }
+                },
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .transition-smooth {
+                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            }
+            .rotate-y-180 {
+                transform: rotateY(180deg);
+            }
+            .preserve-3d {
+                transform-style: preserve-3d;
+            }
+            .backface-hidden {
+                backface-visibility: hidden;
+            }
+        }
+    </style>
+</head>
+<body class="bg-white min-h-screen font-inter text-gray-800">
+    <!-- 页面头部 -->
+    <header class="w-full py-6 px-4 md:px-8 bg-white shadow-sm">
+        <div class="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center">
+            <div class="flex items-center mb-4 md:mb-0">
+                <i class="fa fa-file-pdf-o text-primary text-3xl mr-3"></i>
+                <h1 class="text-2xl md:text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-secondary">PDF与图片互转工具</h1>
+            </div>
+            <div class="flex space-x-2">
+                <button id="theme-toggle" class="p-2 rounded-full hover:bg-gray-100 transition-smooth" title="切换主题">
+                    <i class="fa fa-moon-o text-gray-600"></i>
+                </button>
+                <button id="help-btn" class="p-2 rounded-full hover:bg-gray-100 transition-smooth">
+                    <i class="fa fa-question text-gray-600"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主内容区 -->
+    <main class="max-w-6xl mx-auto px-4 md:px-8 py-8">
+        <!-- 工具切换卡片 -->
+        <div class="relative h-60 md:h-80 mb-12">
+            <div id="tool-card" class="w-full h-full perspective-1000 preserve-3d transition-smooth">
+                <!-- PDF转图片正面 -->
+                <div id="pdf-to-image" class="absolute inset-0 bg-white rounded-xl shadow-card p-6 flex flex-col items-center justify-center backface-hidden transition-smooth">
+                    <div class="text-primary text-6xl mb-4">
+                        <i class="fa fa-file-image-o"></i>
+                    </div>
+                    <h2 class="text-xl md:text-2xl font-bold mb-2">PDF 转 图片</h2>
+                    <p class="text-gray-500 text-center mb-6">将PDF文件转换为高质量图片，支持单张和批量下载</p>
+                    <label for="pdf-upload" class="cursor-pointer">
+                        <div class="flex items-center justify-center bg-primary hover:bg-primary/90 text-white px-6 py-3 rounded-lg shadow transition-smooth">
+                            <i class="fa fa-upload mr-2"></i>
+                            <span>选择PDF文件</span>
+                        </div>
+                        <input id="pdf-upload" type="file" accept=".pdf" class="hidden"/>
+                    </label>
+                </div>
+                <!-- 图片转PDF背面 -->
+                <div id="image-to-pdf" class="absolute inset-0 bg-white rounded-xl shadow-card p-6 flex flex-col items-center justify-center backface-hidden rotate-y-180 transition-smooth">
+                    <div class="text-secondary text-6xl mb-4">
+                        <i class="fa fa-file-pdf-o"></i>
+                    </div>
+                    <h2 class="text-xl md:text-2xl font-bold mb-2">图片 转 PDF</h2>
+                    <p class="text-gray-500 text-center mb-6">将多张图片合并为PDF文件，可自定义顺序</p>
+                    <label for="image-upload" class="cursor-pointer">
+                        <div class="flex items-center justify-center bg-secondary hover:bg-secondary/90 text-white px-6 py-3 rounded-lg shadow transition-smooth">
+                            <i class="fa fa-picture-o mr-2"></i>
+                            <span>选择图片文件</span>
+                        </div>
+                        <input id="image-upload" type="file" accept="image/*" multiple class="hidden"/>
+                    </label>
+                </div>
+            </div>
+            <!-- 切换按钮 -->
+            <button id="toggle-tool" class="absolute bottom-4 right-4 flex items-center bg-gradient-to-r from-primary to-secondary text-white px-4 py-2 rounded-full shadow-lg hover:shadow-xl transition-smooth transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2">
+                <i class="fa fa-exchange mr-2"></i>
+                <span id="toggle-text">切换到图片转PDF</span>
+            </button>
+        </div>
+
+        <!-- PDF转图片结果区 -->
+        <div id="pdf-result-container" class="hidden">
+            <div class="bg-white rounded-xl shadow-card p-6 mb-6">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
+                    <h3 class="text-xl font-bold mb-2 md:mb-0">转换结果</h3>
+                    <div class="flex space-x-2">
+                        <select id="image-format" class="border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50">
+                            <option value="png">PNG格式</option>
+                            <option value="jpeg">JPEG格式</option>
+                            <option value="webp">WebP格式</option>
+                        </select>
+                        <select id="image-quality" class="border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50">
+                            <option value="low">低质量 (快速)</option>
+                            <option value="medium" selected>中等质量</option>
+                            <option value="high">高质量</option>
+                            <option value="best">最佳质量 (较慢)</option>
+                        </select>
+                        <button id="download-all" class="bg-accent hover:bg-accent/90 text-white px-4 py-2 rounded-lg shadow transition-smooth flex items-center">
+                            <i class="fa fa-download mr-2"></i>
+                            <span>打包下载</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="pdf-loading" class="hidden py-10 text-center">
+                    <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
+                    <p class="text-gray-600">正在处理 PDF 文件，请稍候...</p>
+                </div>
+                
+                <div id="pdf-result" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <!-- 转换后的图片将在这里显示 -->
+                </div>
+            </div>
+        </div>
+
+        <!-- 图片转PDF结果区 -->
+        <div id="image-result-container" class="hidden">
+            <div class="bg-white rounded-xl shadow-card p-6 mb-6">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
+                    <h3 class="text-xl font-bold mb-2 md:mb-0">已选择图片</h3>
+                    <div class="flex space-x-2">
+                        <select id="pdf-quality" class="border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50">
+                            <option value="low">低质量 (最小文件)</option>
+                            <option value="medium">中等质量</option>
+                            <option value="high" selected>高质量</option>
+                            <option value="best">最佳质量 (最大文件)</option>
+                        </select>
+                        <button id="sort-asc" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-lg shadow transition-smooth flex items-center">
+                            <i class="fa fa-sort-asc mr-1"></i>
+                            <span>升序</span>
+                        </button>
+                        <button id="sort-desc" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-lg shadow transition-smooth flex items-center">
+                            <i class="fa fa-sort-desc mr-1"></i>
+                            <span>降序</span>
+                        </button>
+                        <button id="create-pdf" class="bg-accent hover:bg-accent/90 text-white px-4 py-2 rounded-lg shadow transition-smooth flex items-center">
+                            <i class="fa fa-file-pdf-o mr-2"></i>
+                            <span>生成 PDF</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="image-loading" class="hidden py-10 text-center">
+                    <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-secondary mb-4"></div>
+                    <p class="text-gray-600">正在生成 PDF 文件，请稍候...</p>
+                </div>
+                
+                <div id="image-sortable" class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    <!-- 选择的图片将在这里显示，可拖动排序 -->
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 页脚 -->
+    <footer id="main-footer" class="w-full py-6 px-4 md:px-8 bg-white border-t border-gray-200">
+        <div class="max-w-6xl mx-auto flex justify-center items-center">
+            <div class="flex space-x-4">
+                <a href="#" class="text-gray-500 hover:text-primary transition-smooth">
+                    <i class="fa fa-github text-lg"></i>
+                </a>
+                <a href="#" class="text-gray-500 hover:text-primary transition-smooth">
+                    <i class="fa fa-twitter text-lg"></i>
+                </a>
+                <a href="#" class="text-gray-500 hover:text-primary transition-smooth">
+                    <i class="fa fa-envelope text-lg"></i>
+                </a>
+            </div>
+        </div>
+    </footer>
+
+    <!-- 帮助模态框 -->
+    <div id="help-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-xl shadow-lg p-6 max-w-lg w-full mx-4 transform transition-all">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold">使用帮助</h3>
+                <button id="close-help" class="text-gray-500 hover:text-gray-700">
+                    <i class="fa fa-times text-xl"></i>
+                </button>
+            </div>
+            <div class="text-gray-600 space-y-4">
+                <div>
+                    <h4 class="font-bold mb-2">PDF 转 图片</h4>
+                    <p>点击「选择PDF文件」上传您的PDF文档，系统会自动将其转换为图片。转换完成后，您可以单独下载每张图片，或点击「打包下载」获取所有图片的ZIP压缩包。</p>
+                </div>
+                <div>
+                    <h4 class="font-bold mb-2">图片 转 PDF</h4>
+                    <p>点击「选择图片文件」可上传多张图片，上传后可以拖动调整顺序，然后点击「生成PDF」将所有图片合并为一个PDF文件。</p>
+                </div>
+                <div>
+                    <h4 class="font-bold mb-2">提示</h4>
+                    <p>• 大文件转换可能需要更长时间，请耐心等待。</p>
+                    <p>• 所有处理均在您的浏览器中进行，不会上传到服务器。</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 初始化变量
+        let isPDFToImageMode = true;
+        let pdfImages = [];
+        let selectedImages = [];
+        let currentPDFDoc = null;
+        const { jsPDF } = window.jspdf;
+        
+        // DOM元素
+        const toolCard = document.getElementById('tool-card');
+        const toggleToolBtn = document.getElementById('toggle-tool');
+        const pdfUpload = document.getElementById('pdf-upload');
+        const imageUpload = document.getElementById('image-upload');
+        const pdfResultContainer = document.getElementById('pdf-result-container');
+        const imageResultContainer = document.getElementById('image-result-container');
+        const pdfResult = document.getElementById('pdf-result');
+        const imageSortable = document.getElementById('image-sortable');
+        const downloadAllBtn = document.getElementById('download-all');
+        const createPdfBtn = document.getElementById('create-pdf');
+        const pdfLoading = document.getElementById('pdf-loading');
+        const imageLoading = document.getElementById('image-loading');
+        const helpBtn = document.getElementById('help-btn');
+        const helpModal = document.getElementById('help-modal');
+        const closeHelpBtn = document.getElementById('close-help');
+        const themeToggleBtn = document.getElementById('theme-toggle');
+        const imageFormatSelect = document.getElementById('image-format');
+        const imageQualitySelect = document.getElementById('image-quality');
+        const sortAscBtn = document.getElementById('sort-asc');
+        const sortDescBtn = document.getElementById('sort-desc');
+        
+        // 工具切换功能
+        toggleToolBtn.addEventListener('click', () => {
+            isPDFToImageMode = !isPDFToImageMode;
+            toolCard.style.transform = isPDFToImageMode ? 'rotateY(0deg)' : 'rotateY(180deg)';
+            pdfResultContainer.classList.add('hidden');
+            imageResultContainer.classList.add('hidden');
+            
+            // 更新按钮文本
+            const toggleText = document.getElementById('toggle-text');
+            toggleText.textContent = isPDFToImageMode ? '切换到图片转PDF' : '切换到PDF转图片';
+        });
+        
+        // PDF转图片功能
+        pdfUpload.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            pdfResultContainer.classList.remove('hidden');
+            pdfLoading.classList.remove('hidden');
+            pdfResult.innerHTML = '';
+            pdfImages = [];
+            
+            try {
+                // 设置pdf.js工作路径
+                pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+                
+                // 读取PDF文件
+                const fileReader = new FileReader();
+                fileReader.onload = async (event) => {
+                    const typedArray = new Uint8Array(event.target.result);
+                    
+                    try {
+                        // 解析PDF
+                        const pdf = await pdfjsLib.getDocument(typedArray).promise;
+                        currentPDFDoc = pdf;
+                        
+                        // 遍历每一页
+                        for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+                            const page = await pdf.getPage(pageNum);
+                            
+                            // 根据质量设置获取缩放比例
+                            let scale;
+                            switch(imageQualitySelect.value) {
+                                case 'low': scale = 1.0;
+                                    break;
+                                case 'medium': scale = 1.5;
+                                    break;
+                                case 'high': scale = 2.0;
+                                    break;
+                                case 'best': scale = 3.0;
+                                    break;
+                                default: scale = 1.5;
+                            }
+                            
+                            const viewport = page.getViewport({ scale: scale });
+                            
+                            // 创建画布
+                            const canvas = document.createElement('canvas');
+                            const context = canvas.getContext('2d');
+                            canvas.height = viewport.height;
+                            canvas.width = viewport.width;
+                            
+                            // 渲染PDF页面到画布
+                            await page.render({
+                                canvasContext: context,
+                                viewport: viewport
+                            }).promise;
+                            
+                            // 将画布转换为图片
+                            const imageFormat = imageFormatSelect.value;
+                            const imageDataUrl = canvas.toDataURL(`image/${imageFormat}`, imageQualitySelect.value === 'best' ? 1.0 : 0.8);
+                            pdfImages.push({
+                                dataUrl: imageDataUrl,
+                                pageNum: pageNum,
+                                format: imageFormat
+                            });
+                            
+                            // 创建图片预览元素
+                            addImagePreview(imageDataUrl, pageNum, imageFormat);
+                        }
+                    } catch (error) {
+                        console.error('PDF解析错误:', error);
+                        showErrorMessage('PDF文件解析失败，请尝试其他文件。');
+                    } finally {
+                        pdfLoading.classList.add('hidden');
+                    }
+                };
+                
+                fileReader.readAsArrayBuffer(file);
+            } catch (error) {
+                console.error('文件读取错误:', error);
+                showErrorMessage('文件读取失败，请尝试其他文件。');
+                pdfLoading.classList.add('hidden');
+            }
+        });
+        
+        // 添加图片预览
+        function addImagePreview(imageDataUrl, pageNum, format) {
+            const imageContainer = document.createElement('div');
+            imageContainer.className = 'relative bg-gray-50 rounded-lg overflow-hidden shadow hover:shadow-hover transition-smooth';
+            
+            const img = document.createElement('img');
+            img.src = imageDataUrl;
+            img.className = 'w-full h-auto object-contain';
+            img.alt = `第 ${pageNum} 页`;
+            
+            const pageNumLabel = document.createElement('div');
+            pageNumLabel.className = 'absolute top-2 left-2 bg-primary/80 text-white text-xs px-2 py-1 rounded';
+            pageNumLabel.textContent = `第 ${pageNum} 页`;
+            
+            const downloadBtn = document.createElement('button');
+            downloadBtn.className = 'absolute top-2 right-2 bg-white/80 hover:bg-white text-primary p-2 rounded-full shadow-md transition-smooth';
+            downloadBtn.innerHTML = '<i class="fa fa-download"></i>';
+            downloadBtn.title = `下载第 ${pageNum} 页`;
+            downloadBtn.addEventListener('click', () => {
+                downloadImage(imageDataUrl, `page_${pageNum}.${format}`);
+            });
+            
+            imageContainer.appendChild(img);
+            imageContainer.appendChild(pageNumLabel);
+            imageContainer.appendChild(downloadBtn);
+            
+            pdfResult.appendChild(imageContainer);
+        }
+        
+        // 下载单个图片
+        function downloadImage(dataUrl, filename) {
+            const link = document.createElement('a');
+            link.href = dataUrl;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+        
+        // 打包下载所有图片
+        downloadAllBtn.addEventListener('click', async () => {
+            if (pdfImages.length === 0) {
+                showErrorMessage('没有可下载的图片，请先转换PDF文件。');
+                return;
+            }
+            
+            try {
+                const zip = new JSZip();
+                
+                // 添加每张图片到ZIP文件
+                for (const img of pdfImages) {
+                    const data = img.dataUrl.split(',')[1]; // 移除base64前缀
+                    zip.file(`page_${img.pageNum}.${img.format}`, data, { base64: true });
+                }
+                
+                // 生成ZIP文件并下载
+                const content = await zip.generateAsync({ type: 'blob' });
+                saveAs(content, 'pdf_images.zip');
+            } catch (error) {
+                console.error('打包下载错误:', error);
+                showErrorMessage('打包下载失败，请稍后再试。');
+            }
+        });
+        
+        // 图片转PDF功能
+        imageUpload.addEventListener('change', (e) => {
+            const files = Array.from(e.target.files);
+            if (files.length === 0) return;
+            
+            imageResultContainer.classList.remove('hidden');
+            
+            // 读取并显示图片
+            files.forEach(file => {
+                if (!file.type.startsWith('image/')) {
+                    showErrorMessage(`${file.name} 不是有效的图片文件。`);
+                    return;
+                }
+                
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const imageDataUrl = event.target.result;
+                    const timestamp = new Date().getTime();
+                    
+                    // 添加到已选择图片数组
+                    selectedImages.push({
+                        id: timestamp,
+                        dataUrl: imageDataUrl,
+                        name: file.name
+                    });
+                    
+                    // 创建图片预览元素
+                    addSelectedImagePreview(imageDataUrl, timestamp, file.name);
+                    
+                    // 启用拖放排序
+                    enableDragSort();
+                };
+                reader.readAsDataURL(file);
+            });
+        });
+        
+        // 添加选中图片的预览
+        function addSelectedImagePreview(imageDataUrl, id, name) {
+            const imageContainer = document.createElement('div');
+            imageContainer.className = 'relative bg-gray-50 rounded-lg overflow-hidden shadow hover:shadow-hover transition-smooth sortable-item';
+            imageContainer.dataset.id = id;
+            
+            const img = document.createElement('img');
+            img.src = imageDataUrl;
+            img.className = 'w-full h-48 object-cover';
+            img.alt = name;
+            
+            const nameLabel = document.createElement('div');
+            nameLabel.className = 'absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2 text-white text-xs truncate';
+            nameLabel.textContent = name;
+            
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'absolute top-2 right-2 bg-white/80 hover:bg-white text-red-500 p-2 rounded-full shadow-md transition-smooth';
+            deleteBtn.innerHTML = '<i class="fa fa-trash"></i>';
+            deleteBtn.title = '删除此图片';
+            deleteBtn.addEventListener('click', () => {
+                // 从DOM和数组中移除
+                imageContainer.remove();
+                selectedImages = selectedImages.filter(img => img.id !== id);
+            });
+            
+            // 添加排序手柄
+            const handle = document.createElement('div');
+            handle.className = 'absolute top-2 left-2 bg-white/80 hover:bg-white text-gray-500 p-2 rounded-full shadow-md transition-smooth cursor-grab active:cursor-grabbing';
+            handle.innerHTML = '<i class="fa fa-arrows"></i>';
+            handle.title = '拖动调整顺序';
+            // 设置handle的draggable属性为true
+            handle.setAttribute('draggable', 'true');
+            // 添加dragstart事件到handle
+            handle.addEventListener('dragstart', (e) => {
+                e.stopPropagation();
+                // 触发父元素的dragstart事件
+                const dragStartEvent = new MouseEvent('dragstart', {
+                    bubbles: true,
+                    cancelable: true
+                });
+                imageContainer.dispatchEvent(dragStartEvent);
+            });
+            
+            imageContainer.appendChild(img);
+            imageContainer.appendChild(nameLabel);
+            imageContainer.appendChild(deleteBtn);
+            imageContainer.appendChild(handle);
+            
+            imageSortable.appendChild(imageContainer);
+        }
+        
+        // 全局变量保存当前拖动的元素
+        let draggedItem = null;
+        
+        // 标记已添加事件监听器的元素，避免重复添加
+        const initializedItems = new Set();
+        
+        // 启用拖放排序功能 - 重新设计为只添加一次事件监听器
+        function enableDragSort() {
+            const sortableItems = document.querySelectorAll('.sortable-item');
+            
+            // 为每个新添加的元素添加事件监听器
+            sortableItems.forEach(item => {
+                // 检查元素是否已经初始化过事件监听器
+                const itemId = item.dataset.id;
+                if (initializedItems.has(itemId)) {
+                    return;
+                }
+                
+                // 标记元素为已初始化
+                initializedItems.add(itemId);
+                
+                // 确保元素可拖动
+                item.setAttribute('draggable', 'true');
+                
+                // 拖动开始
+                item.addEventListener('dragstart', (e) => {
+                    draggedItem = item;
+                    setTimeout(() => item.classList.add('opacity-50'), 0);
+                });
+                
+                // 拖动结束
+                item.addEventListener('dragend', () => {
+                    draggedItem = null;
+                    document.querySelectorAll('.sortable-item').forEach(el => {
+                        el.classList.remove('opacity-50', 'border-t-4', 'border-secondary');
+                    });
+                });
+                
+                // 允许放置
+                item.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    document.querySelectorAll('.sortable-item').forEach(el => {
+                        el.classList.remove('border-t-4', 'border-secondary');
+                    });
+                    item.classList.add('border-t-4', 'border-secondary');
+                });
+                
+                // 放置
+                item.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    if (draggedItem !== null && draggedItem !== item) {
+                        // 获取当前所有可排序元素（确保使用最新的DOM状态）
+                        const container = item.parentNode;
+                        const currentItems = [...container.querySelectorAll('.sortable-item')];
+                        const draggedIndex = currentItems.indexOf(draggedItem);
+                        const targetIndex = currentItems.indexOf(item);
+                        
+                        // 移除拖动的元素
+                        draggedItem.remove();
+                        
+                        // 根据索引位置重新插入元素
+                        // 如果拖动元素在目标元素前面，则插入到目标元素后面
+                        // 如果拖动元素在目标元素后面，则插入到目标元素前面
+                        if (draggedIndex < targetIndex) {
+                            // 拖动元素从前面拖到后面，插入到目标元素后面
+                            if (item.nextSibling) {
+                                container.insertBefore(draggedItem, item.nextSibling);
+                            } else {
+                                container.appendChild(draggedItem);
+                            }
+                        } else {
+                            // 拖动元素从后面拖到前面，插入到目标元素前面
+                            container.insertBefore(draggedItem, item);
+                        }
+                        
+                        // 更新数组顺序
+                        updateSelectedImagesOrder();
+                    }
+                    
+                    // 清除所有元素的边框高亮
+                    document.querySelectorAll('.sortable-item').forEach(el => {
+                        el.classList.remove('border-t-4', 'border-secondary');
+                    });
+                });
+                
+                // 离开元素时清除高亮
+                item.addEventListener('dragleave', () => {
+                    if (item.classList.contains('border-t-4')) {
+                        item.classList.remove('border-t-4', 'border-secondary');
+                    }
+                });
+            });
+        }
+        
+        // 更新选中图片的顺序
+        function updateSelectedImagesOrder() {
+            const sortableItems = document.querySelectorAll('.sortable-item');
+            const newOrder = [];
+            
+            sortableItems.forEach(item => {
+                const id = parseInt(item.dataset.id);
+                const image = selectedImages.find(img => img.id === id);
+                if (image) {
+                    newOrder.push(image);
+                }
+            });
+            
+            selectedImages = newOrder;
+        }
+        
+        // 从图片名中提取结尾的数字
+        function getNumberFromFileName(filename) {
+            // 尝试从文件名末尾提取数字
+            const match = filename.match(/(\d+)(?=\.[^.]+$)/);
+            if (match && match[1]) {
+                return parseInt(match[1], 10);
+            }
+            // 如果没有匹配到数字，则返回一个很大的数字，让没有数字的文件排在后面
+            return Number.MAX_SAFE_INTEGER;
+        }
+        
+        // 根据图片名结尾数字排序（升序）
+        function sortImagesByNumberAsc() {
+            if (selectedImages.length <= 1) return;
+            
+            // 对selectedImages数组进行排序
+            selectedImages.sort((a, b) => {
+                const numA = getNumberFromFileName(a.name);
+                const numB = getNumberFromFileName(b.name);
+                return numA - numB;
+            });
+            
+            // 重新渲染排序后的图片
+            reRenderImages();
+        }
+        
+        // 根据图片名结尾数字排序（降序）
+        function sortImagesByNumberDesc() {
+            if (selectedImages.length <= 1) return;
+            
+            // 对selectedImages数组进行排序
+            selectedImages.sort((a, b) => {
+                const numA = getNumberFromFileName(a.name);
+                const numB = getNumberFromFileName(b.name);
+                return numB - numA;
+            });
+            
+            // 重新渲染排序后的图片
+            reRenderImages();
+        }
+        
+        // 重新渲染图片预览
+        function reRenderImages() {
+            // 清空已初始化元素集合
+            initializedItems.clear();
+            
+            // 清空当前的图片预览区域
+            imageSortable.innerHTML = '';
+            
+            // 重新添加所有图片预览
+            selectedImages.forEach(img => {
+                addSelectedImagePreview(img.dataUrl, img.id, img.name);
+            });
+            
+            // 重新启用拖放排序
+            enableDragSort();
+        }
+        
+        // 排序按钮事件监听器
+        sortAscBtn.addEventListener('click', sortImagesByNumberAsc);
+        sortDescBtn.addEventListener('click', sortImagesByNumberDesc);
+        
+        // 生成PDF文件
+        createPdfBtn.addEventListener('click', async () => {
+            if (selectedImages.length === 0) {
+                showErrorMessage('请先选择要转换的图片。');
+                return;
+            }
+            
+            imageLoading.classList.remove('hidden');
+            
+            try {
+                // 创建PDF文档
+                const pdf = new jsPDF('portrait', 'mm', 'a4');
+                const pdfWidth = pdf.internal.pageSize.getWidth();
+                const pdfHeight = pdf.internal.pageSize.getHeight();
+                
+                // 获取质量设置
+                const pdfQualitySelect = document.getElementById('pdf-quality');
+                const qualitySetting = pdfQualitySelect.value;
+                
+                // 根据质量设置确定压缩参数
+                let compressionQuality, maxDpi;
+                switch(qualitySetting) {
+                    case 'low':
+                        compressionQuality = 0.5;
+                        maxDpi = 96;
+                        break;
+                    case 'medium':
+                        compressionQuality = 0.7;
+                        maxDpi = 150;
+                        break;
+                    case 'high':
+                        compressionQuality = 0.9;
+                        maxDpi = 200;
+                        break;
+                    case 'best':
+                        compressionQuality = 1.0;
+                        maxDpi = 300;
+                        break;
+                    default:
+                        compressionQuality = 0.9;
+                        maxDpi = 200;
+                }
+                
+                // 处理每张图片
+                for (let i = 0; i < selectedImages.length; i++) {
+                    const imageDataUrl = selectedImages[i].dataUrl;
+                    
+                    // 如果不是第一张图片，添加新页面
+                    if (i > 0) {
+                        pdf.addPage();
+                    }
+                    
+                    // 获取图片尺寸并进行压缩
+                    const compressedImageData = await compressImage(imageDataUrl, compressionQuality, maxDpi);
+                    
+                    // 添加压缩后的图片到PDF
+                    const img = new Image();
+                    img.src = compressedImageData;
+                    
+                    // 等待图片加载完成
+                    await new Promise(resolve => {
+                        img.onload = resolve;
+                    });
+                    
+                    // 计算图片在PDF中的尺寸（保持宽高比）
+                    let imgWidth = img.width;
+                    let imgHeight = img.height;
+                    const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
+                    imgWidth = imgWidth * ratio;
+                    imgHeight = imgHeight * ratio;
+                    
+                    // 计算居中位置
+                    const x = (pdfWidth - imgWidth) / 2;
+                    const y = (pdfHeight - imgHeight) / 2;
+                    
+                    // 添加图片到PDF，使用JPEG格式减少文件大小
+                    pdf.addImage(compressedImageData, 'JPEG', x, y, imgWidth, imgHeight);
+                }
+                
+                // 保存PDF文件
+                pdf.save('images_to_pdf.pdf');
+            } catch (error) {
+                console.error('生成PDF错误:', error);
+                showErrorMessage('PDF生成失败，请稍后再试。');
+            } finally {
+                imageLoading.classList.add('hidden');
+            }
+        });
+        
+        // 压缩图片函数
+        async function compressImage(imageDataUrl, quality, maxDpi) {
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.src = imageDataUrl;
+                
+                img.onload = () => {
+                    // 创建canvas元素
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    
+                    // 计算压缩后的尺寸
+                    let width = img.width;
+                    let height = img.height;
+                    
+                    // 根据DPI限制调整尺寸
+                    // 假设屏幕DPI为96，所以最大像素尺寸 = maxDpi * (英寸尺寸)
+                    // 对于A4纸，大约是 8.27 x 11.69 英寸
+                    const maxWidth = (maxDpi * 8.27); // A4宽度的最大像素
+                    const maxHeight = (maxDpi * 11.69); // A4高度的最大像素
+                    
+                    if (width > maxWidth || height > maxHeight) {
+                        const ratio = Math.min(maxWidth / width, maxHeight / height);
+                        width = width * ratio;
+                        height = height * ratio;
+                    }
+                    
+                    // 设置canvas尺寸
+                    canvas.width = width;
+                    canvas.height = height;
+                    
+                    // 在canvas上绘制图片
+                    ctx.drawImage(img, 0, 0, width, height);
+                    
+                    // 将canvas内容转换为压缩后的图片数据URL
+                    // 使用JPEG格式以获得更好的压缩效果
+                    const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
+                    resolve(compressedDataUrl);
+                };
+            });
+        }
+        
+        // 显示错误消息
+        function showErrorMessage(message) {
+            // 创建错误消息元素
+            const errorMessage = document.createElement('div');
+            errorMessage.className = 'fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 transform transition-all duration-300 translate-y-[-10px] opacity-0';
+            errorMessage.textContent = message;
+            
+            document.body.appendChild(errorMessage);
+            
+            // 显示错误消息
+            setTimeout(() => {
+                errorMessage.classList.remove('translate-y-[-10px]', 'opacity-0');
+            }, 10);
+            
+            // 3秒后自动隐藏
+            setTimeout(() => {
+                errorMessage.classList.add('translate-y-[-10px]', 'opacity-0');
+                setTimeout(() => {
+                    document.body.removeChild(errorMessage);
+                }, 300);
+            }, 3000);
+        }
+        
+        // 帮助模态框
+        helpBtn.addEventListener('click', () => {
+            helpModal.classList.remove('hidden');
+        });
+        
+        closeHelpBtn.addEventListener('click', () => {
+            helpModal.classList.add('hidden');
+        });
+        
+        helpModal.addEventListener('click', (e) => {
+            if (e.target === helpModal) {
+                helpModal.classList.add('hidden');
+            }
+        });
+        
+        // 质量和格式变化时重新转换PDF
+        imageQualitySelect.addEventListener('change', () => {
+            if (currentPDFDoc && pdfUpload.files.length > 0) {
+                // 触发重新上传（这里简化处理，实际项目中可以优化为重新渲染而不重新上传）
+                pdfUpload.dispatchEvent(new Event('change'));
+            }
+        });
+        
+        imageFormatSelect.addEventListener('change', () => {
+            if (currentPDFDoc && pdfUpload.files.length > 0) {
+                // 触发重新上传
+                pdfUpload.dispatchEvent(new Event('change'));
+            }
+        });
+        
+        // 主题切换功能
+        themeToggleBtn.addEventListener('click', () => {
+            // 检查当前是否为暗黑模式
+            const isDarkMode = document.body.classList.contains('bg-gray-900');
+            
+            if (isDarkMode) {
+                // 切换到明亮模式
+                document.body.classList.remove('bg-gray-900', 'text-white');
+                document.body.classList.add('bg-white', 'text-gray-800');
+                
+                // 切换卡片背景色（排除页脚）
+                document.querySelectorAll('.bg-gray-800:not(footer)').forEach(card => {
+                    card.classList.remove('bg-gray-800', 'text-white');
+                    card.classList.add('bg-white', 'text-gray-800');
+                });
+                
+                // 切换按钮颜色
+                document.querySelectorAll('button.bg-gray-700').forEach(button => {
+                    button.classList.remove('bg-gray-700', 'text-white');
+                    button.classList.add('bg-gray-200', 'text-gray-800');
+                });
+                
+                // 切换输入框颜色
+                document.querySelectorAll('input.bg-gray-700').forEach(input => {
+                    input.classList.remove('bg-gray-700', 'text-white');
+                    input.classList.add('bg-gray-100', 'text-gray-800');
+                });
+                
+                // 切换下拉选择框颜色
+                document.querySelectorAll('select.bg-gray-700, select.border-gray-600').forEach(select => {
+                    select.classList.remove('bg-gray-700', 'border-gray-600', 'text-white');
+                    select.classList.add('bg-gray-100', 'border-gray-300', 'text-gray-800');
+                });
+                
+                // 切换工具卡片按钮
+                document.querySelectorAll('div.bg-white button:not(.bg-primary):not(.bg-secondary)').forEach(btn => {
+                    btn.classList.remove('bg-gray-700', 'text-white');
+                    btn.classList.add('bg-gray-200', 'text-gray-800');
+                });
+                
+                // 恢复主色调按钮的原始样式（从暗黑模式切换到明亮模式）
+                document.querySelectorAll('.bg-primary').forEach(btn => {
+                    btn.classList.remove('bg-blue-700');
+                    btn.classList.add('bg-primary');
+                });
+                
+                document.querySelectorAll('.bg-secondary').forEach(btn => {
+                    btn.classList.remove('bg-indigo-700');
+                    btn.classList.add('bg-secondary');
+                });
+                
+                // 恢复工具切换按钮的原始渐变样式
+                const toggleToolBtn = document.getElementById('toggle-tool');
+                if (toggleToolBtn) {
+                    toggleToolBtn.classList.remove('bg-gradient-to-r', 'from-blue-700', 'to-indigo-700');
+                    toggleToolBtn.classList.add('bg-gradient-to-r', 'from-primary', 'to-secondary');
+                }
+                
+                // 切换图标
+                const icon = themeToggleBtn.querySelector('i');
+                icon.classList.remove('fa-sun-o');
+                icon.classList.add('fa-moon-o');
+            } else {
+                // 切换到暗黑模式
+                document.body.classList.remove('bg-white', 'text-gray-800');
+                document.body.classList.add('bg-gray-900', 'text-white');
+                
+                // 切换卡片背景色（排除页脚）
+                document.querySelectorAll('.bg-white:not(footer)').forEach(card => {
+                    card.classList.remove('bg-white', 'text-gray-800');
+                    card.classList.add('bg-gray-800', 'text-white');
+                });
+                
+                // 切换按钮颜色
+                document.querySelectorAll('button.bg-gray-200').forEach(button => {
+                    button.classList.remove('bg-gray-200', 'text-gray-800');
+                    button.classList.add('bg-gray-700', 'text-white');
+                });
+                
+                // 切换输入框颜色
+                document.querySelectorAll('input.bg-gray-100').forEach(input => {
+                    input.classList.remove('bg-gray-100', 'text-gray-800');
+                    input.classList.add('bg-gray-700', 'text-white');
+                });
+                
+                // 切换下拉选择框颜色
+                document.querySelectorAll('select.bg-gray-100, select.border-gray-300').forEach(select => {
+                    select.classList.remove('bg-gray-100', 'border-gray-300', 'text-gray-800');
+                    select.classList.add('bg-gray-700', 'border-gray-600', 'text-white');
+                });
+                
+                // 切换工具卡片按钮
+                document.querySelectorAll('div.bg-gray-800 button:not(.bg-primary):not(.bg-secondary)').forEach(btn => {
+                    btn.classList.remove('bg-gray-200', 'text-gray-800');
+                    btn.classList.add('bg-gray-700', 'text-white');
+                });
+                
+                // 调整主色调按钮在暗黑模式下的样式
+                document.querySelectorAll('.bg-primary').forEach(btn => {
+                    btn.classList.remove('bg-primary');
+                    btn.classList.add('bg-blue-700');
+                });
+                
+                document.querySelectorAll('.bg-secondary').forEach(btn => {
+                    btn.classList.remove('bg-secondary');
+                    btn.classList.add('bg-indigo-700');
+                });
+                
+                // 调整工具切换按钮在暗黑模式下的渐变样式
+                const toggleToolBtn = document.getElementById('toggle-tool');
+                if (toggleToolBtn) {
+                    toggleToolBtn.classList.remove('bg-gradient-to-r', 'from-primary', 'to-secondary');
+                    toggleToolBtn.classList.add('bg-gradient-to-r', 'from-blue-700', 'to-indigo-700');
+                }
+                
+                // 切换图标
+                const icon = themeToggleBtn.querySelector('i');
+                icon.classList.remove('fa-moon-o');
+                icon.classList.add('fa-sun-o');
+            }
+            
+            // 更新页脚背景色、边框颜色和链接颜色以适应主题
+            const footer = document.getElementById('main-footer');
+            const footerLinks = footer.querySelectorAll('a');
+            
+            if (isDarkMode) {
+                // 当前是暗黑模式 -> 切换到明亮模式
+                footer.classList.remove('bg-gray-800', 'border-gray-700');
+                footer.classList.add('bg-white', 'border-gray-200');
+                
+                // 更新链接颜色
+                footerLinks.forEach(link => {
+                    link.classList.remove('text-gray-400');
+                    link.classList.add('text-gray-500');
+                });
+            } else {
+                // 当前是明亮模式 -> 切换到暗黑模式
+                footer.classList.remove('bg-white', 'border-gray-200');
+                footer.classList.add('bg-gray-800', 'border-gray-700');
+                
+                // 更新链接颜色
+                footerLinks.forEach(link => {
+                    link.classList.remove('text-gray-500');
+                    link.classList.add('text-gray-400');
+                });
+            }
+        });
+    </script>
+</body>
+</html>

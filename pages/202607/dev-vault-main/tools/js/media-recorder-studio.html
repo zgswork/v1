@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html tk="title_mediarecorder_studio_scre" lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MediaRecorder Studio - Screen Capture &amp; Recording Playground</title>
+<meta name="description" content="Interactive playground for browser-based audio/video recording using getUserMedia, getDisplayMedia, and MediaRecorder API.">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d1117;--surface:#161b22;--surface2:#21262d;--border:#30363d;
+  --text:#e6edf3;--text2:#8b949e;--accent:#58a6ff;--accent2:#3fb950;
+  --red:#f85149;--orange:#d29922;--purple:#bc8cff;
+  --radius:8px;--shadow:0 2px 8px rgba(0,0,0,.3);
+  --font-mono:'SF Mono','Cascadia Code','Fira Code',monospace;
+}
+html{font-size:15px}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+  background:var(--bg);color:var(--text);min-height:100vh;line-height:1.5}
+h1,h2,h3{font-weight:600}
+a{color:var(--accent);text-decoration:none}
+
+/* Layout */
+.header{padding:1.2rem 1.5rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:1rem;flex-wrap:wrap}
+.header h1{font-size:1.4rem;display:flex;align-items:center;gap:.5rem}
+.header .badge{font-size:.7rem;padding:2px 8px;border-radius:12px;background:var(--accent);color:#000;font-weight:600}
+.browser-support{margin-left:auto;display:flex;gap:.5rem;align-items:center;font-size:.8rem;color:var(--text2)}
+.browser-support .dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+.dot.ok{background:var(--accent2)}.dot.no{background:var(--red)}.dot.partial{background:var(--orange)}
+
+.container{display:grid;grid-template-columns:1fr 1fr;gap:1rem;padding:1.5rem;max-width:1400px;margin:0 auto}
+@media(max-width:900px){.container{grid-template-columns:1fr}}
+
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.panel-header{padding:.75rem 1rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.5rem;font-size:.9rem;font-weight:600}
+.panel-body{padding:1rem}
+.full-width{grid-column:1/-1}
+
+/* Status */
+.status-bar{display:flex;align-items:center;gap:.75rem;padding:.5rem 1rem;background:var(--surface2);border-radius:var(--radius);margin-bottom:1rem;font-size:.85rem}
+.status-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.status-dot.idle{background:var(--text2)}.status-dot.recording{background:var(--red);animation:pulse 1s infinite}
+.status-dot.paused{background:var(--orange)}.status-dot.stopped{background:var(--accent2)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.timer{font-family:var(--font-mono);font-size:1.1rem;font-weight:600;letter-spacing:1px}
+
+/* Controls */
+.controls{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.75rem}
+.btn{padding:.5rem 1rem;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2);color:var(--text);cursor:pointer;font-size:.85rem;font-weight:500;transition:all .15s;display:inline-flex;align-items:center;gap:.4rem}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn:disabled{opacity:.4;cursor:not-allowed;border-color:var(--border);color:var(--text2)}
+.btn.primary{background:var(--accent);color:#000;border-color:var(--accent)}
+.btn.primary:hover{background:#79c0ff}
+.btn.danger{background:var(--red);color:#fff;border-color:var(--red)}
+.btn.danger:hover{background:#ff6e6a}
+
+/* Tabs */
+.tabs{display:flex;border-bottom:1px solid var(--border)}
+.tab{padding:.6rem 1.2rem;cursor:pointer;font-size:.85rem;color:var(--text2);border-bottom:2px solid transparent;transition:all .15s}
+.tab:hover{color:var(--text)}.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tab-content{display:none}.tab-content.active{display:block}
+
+/* Preview */
+.preview-container{position:relative;background:#000;border-radius:var(--radius);overflow:hidden;aspect-ratio:16/9;display:flex;align-items:center;justify-content:center}
+.preview-container video{width:100%;height:100%;object-fit:contain}
+.preview-placeholder{color:var(--text2);text-align:center;font-size:.9rem}
+.preview-placeholder svg{display:block;margin:0 auto .5rem;opacity:.4}
+
+/* Audio Visualizer */
+.audio-viz{width:100%;height:120px;background:#000;border-radius:var(--radius)}
+
+/* Settings */
+.setting-group{margin-bottom:.75rem}
+.setting-group label{display:block;font-size:.8rem;color:var(--text2);margin-bottom:.3rem}
+.setting-group select,.setting-group input[type=number]{width:100%;padding:.4rem .6rem;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:.85rem}
+.setting-group input[type=range]{width:100%;accent-color:var(--accent)}
+.setting-row{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}
+
+/* Codec table */
+.codec-table{width:100%;border-collapse:collapse;font-size:.8rem}
+.codec-table th,.codec-table td{padding:.4rem .6rem;text-align:left;border-bottom:1px solid var(--border)}
+.codec-table th{color:var(--text2);font-weight:500;position:sticky;top:0;background:var(--surface)}
+.codec-table .yes{color:var(--accent2)}.codec-table .no{color:var(--red)}
+.codec-scroll{max-height:300px;overflow-y:auto}
+
+/* Code snippets */
+.code-block{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:.75rem 1rem;font-family:var(--font-mono);font-size:.78rem;line-height:1.6;overflow-x:auto;position:relative;white-space:pre;color:var(--text2);margin-top:.5rem}
+.code-block .kw{color:var(--purple)}.code-block .fn{color:var(--accent)}.code-block .str{color:var(--accent2)}.code-block .cm{color:#484f58}
+.copy-btn{position:absolute;top:.4rem;right:.4rem;padding:.25rem .5rem;font-size:.7rem;background:var(--surface2);border:1px solid var(--border);color:var(--text2);border-radius:4px;cursor:pointer}
+.copy-btn:hover{color:var(--text)}
+
+/* Recordings list */
+.recordings-list{display:flex;flex-direction:column;gap:.5rem;max-height:300px;overflow-y:auto}
+.recording-item{display:flex;align-items:center;gap:.75rem;padding:.5rem .75rem;background:var(--surface2);border-radius:var(--radius);font-size:.85rem}
+.recording-item .meta{flex:1;min-width:0}
+.recording-item .meta .name{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.recording-item .meta .info{font-size:.75rem;color:var(--text2)}
+.empty-state{text-align:center;padding:2rem;color:var(--text2);font-size:.85rem}
+</style>
+</head>
+<body>
+
+
+
+
+
+
+
+<div class="header">
+  <h1>MediaRecorder Studio <span class="badge">Playground</span></h1>
+  <div class="browser-support" id="browserSupport"></div>
+</div>
+
+<div class="container" style="position:relative">
+  <!-- Left Column: Recording Panel -->
+  <div>
+    <!-- Mode Tabs -->
+    <div class="panel" style="margin-bottom:1rem">
+      <div class="tabs" id="modeTabs">
+        <div class="tab active" data-mode="camera">Camera</div>
+        <div class="tab" data-mode="screen">Screen Capture</div>
+        <div class="tab" data-mode="audio">Audio Only</div>
+      </div>
+      <div class="panel-body">
+        <!-- Status Bar -->
+        <div class="status-bar">
+          <span class="status-dot idle" id="statusDot"></span>
+          <span id="statusText">Idle</span>
+          <span style="flex:1"></span>
+          <span class="timer" id="timer">00:00:00</span>
+        </div>
+
+        <!-- Preview -->
+        <div id="previewCamera" class="tab-content active">
+          <div class="preview-container">
+            <video id="cameraPreview" autoplay muted playsinline></video>
+            <div class="preview-placeholder" id="cameraPlaceholder">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9A2.25 2.25 0 0013.5 5.25h-9A2.25 2.25 0 002.25 7.5v9A2.25 2.25 0 004.5 18.75z"/></svg>
+              Click "Start Camera" to begin
+            </div>
+          </div>
+        </div>
+        <div id="previewScreen" class="tab-content">
+          <div class="preview-container">
+            <video id="screenPreview" autoplay muted playsinline></video>
+            <div class="preview-placeholder" id="screenPlaceholder">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+              Click "Share Screen" to begin
+            </div>
+          </div>
+        </div>
+        <div id="previewAudio" class="tab-content">
+          <canvas class="audio-viz" id="audioViz"></canvas>
+        </div>
+
+        <!-- Controls -->
+        <div class="controls">
+          <button class="btn primary" id="btnStart" ti="btn_start" ti="btn_start" ti="btn_start">Start</button>
+          <button class="btn" id="btnPause" disabled ti="btn_pause" ti="btn_pause" ti="btn_pause">Pause</button>
+          <button class="btn danger" id="btnStop" disabled ti="btn_stop" ti="btn_stop" ti="btn_stop">Stop</button>
+          <button class="btn" id="btnSource" ti="btn_start_camera" ti="btn_start_camera" ti="btn_start_camera">Start Camera</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recordings -->
+    <div class="panel">
+      <div class="panel-header">Recordings</div>
+      <div class="panel-body">
+        <div class="recordings-list" id="recordingsList">
+          <div class="empty-state">No recordings yet. Start recording to see them here.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Column: Settings & Info -->
+  <div>
+    <!-- Settings -->
+    <div class="panel" style="margin-bottom:1rem">
+      <div class="panel-header">Settings</div>
+      <div class="panel-body">
+        <div class="setting-group">
+          <label ti="label_mime_type_codec" ti="label_mime_type_codec" ti="label_mime_type_codec">MIME Type / Codec</label>
+          <select id="codecSelect"></select>
+        </div>
+        <div class="setting-row">
+          <div class="setting-group">
+            <label ti="label_resolution" ti="label_resolution" ti="label_resolution">Resolution</label>
+            <select id="resolutionSelect">
+              <option value="3840x2160">4K (3840x2160)</option>
+              <option value="1920x1080" selected>1080p (1920x1080)</option>
+              <option value="1280x720">720p (1280x720)</option>
+              <option value="854x480">480p (854x480)</option>
+              <option value="640x360">360p (640x360)</option>
+            </select>
+          </div>
+          <div class="setting-group">
+            <label ti="label_frame_rate" ti="label_frame_rate" ti="label_frame_rate">Frame Rate</label>
+            <select id="fpsSelect">
+              <option value="60">60 fps</option>
+              <option value="30" selected>30 fps</option>
+              <option value="24">24 fps</option>
+              <option value="15">15 fps</option>
+            </select>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div class="setting-group">
+            <label ti="label_video_bitrate_kbps" ti="label_video_bitrate_kbps" ti="label_video_bitrate_kbps">Video Bitrate (kbps)</label>
+            <input type="number" id="videoBitrate" value="2500" min="100" max="20000" step="100">
+          </div>
+          <div class="setting-group">
+            <label ti="label_audio_bitrate_kbps" ti="label_audio_bitrate_kbps" ti="label_audio_bitrate_kbps">Audio Bitrate (kbps)</label>
+            <input type="number" id="audioBitrate" value="128" min="32" max="320" step="16">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Codec Support -->
+    <div class="panel" style="margin-bottom:1rem">
+      <div class="panel-header">Codec Compatibility</div>
+      <div class="panel-body">
+        <div class="codec-scroll">
+          <table class="codec-table" id="codecTable">
+            <thead><tr><th ti="th_mime_type" ti="th_mime_type" ti="th_mime_type">MIME Type</th><th ti="th_supported" ti="th_supported" ti="th_supported">Supported</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Code Snippets -->
+    <div class="panel">
+      <div class="panel-header">Code Snippets</div>
+      <div class="panel-body">
+        <div class="tabs" id="snippetTabs">
+          <div class="tab active" data-snippet="camera">Camera</div>
+          <div class="tab" data-snippet="screen">Screen</div>
+          <div class="tab" data-snippet="audio">Audio</div>
+        </div>
+        <div id="snippetCamera" class="tab-content active"></div>
+        <div id="snippetScreen" class="tab-content"></div>
+        <div id="snippetAudio" class="tab-content"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+
+<script>var _LANG={'title_mediarecorder_studio_scre':["MediaRecorder Studio - Screen Capture & Recording Playground", "MediaRecorder Studio - 屏幕捕获和录制游乐场"],'metadesc_interactive_playground_fo':["Interactive playground for browser-based audio/video recording using getUserMedia, getDisplayMedia, and MediaRecorder API.", "使用 getUserMedia、getDisplayMedia 和 MediaRecorder API 的基于浏览器的音频/视频录制交互式演示平台。"],'btn_start':["Start", "开始"],'btn_pause':["Pause", "暂停"],'btn_stop':["Stop", "停止"],'btn_start_camera':["Start Camera", "启动相机"],'btn_play':["Play", "玩"],'btn_download':["Download", "下载"],'btn_copy':["Copy", "复制"],'th_mime_type':["MIME Type", "MIME 类型"],'th_supported':["Supported", "支持"],'label_mime_type_codec':["MIME Type / Codec", "MIME 类型/编解码器"],'label_resolution':["Resolution", "解决"],'label_frame_rate':["Frame Rate", "帧率"],'label_video_bitrate_kbps':["Video Bitrate (kbps)", "视频比特率（kbps）"],'label_audio_bitrate_kbps':["Audio Bitrate (kbps)", "音频比特率（kbps）"],'jtc_copied':["Copied!", "已复制！"],'jtc_copy':["Copy", "复制"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>var _LANG={'title_mediarecorder_studio_scre':["MediaRecorder Studio - Screen Capture & Recording Playground", "MediaRecorder Studio - 屏幕捕获和录制游乐场"],'metadesc_interactive_playground_fo':["Interactive playground for browser-based audio/video recording using getUserMedia, getDisplayMedia, and MediaRecorder API.", "使用 getUserMedia、getDisplayMedia 和 MediaRecorder API 的基于浏览器的音频/视频录制交互式演示平台。"],'btn_start':["Start", "开始"],'btn_pause':["Pause", "暂停"],'btn_stop':["Stop", "停止"],'btn_start_camera':["Start Camera", "启动相机"],'btn_play':["Play", "玩"],'btn_download':["Download", "下载"],'btn_copy':["Copy", "复制"],'th_mime_type':["MIME Type", "MIME 类型"],'th_supported':["Supported", "支持"],'label_mime_type_codec':["MIME Type / Codec", "MIME 类型/编解码器"],'label_resolution':["Resolution", "解决"],'label_frame_rate':["Frame Rate", "帧率"],'label_video_bitrate_kbps':["Video Bitrate (kbps)", "视频比特率（kbps）"],'label_audio_bitrate_kbps':["Audio Bitrate (kbps)", "音频比特率（kbps）"],'jtc_copied':["Copied!", "已复制！"],'jtc_copy':["Copy", "复制"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>
+// ── State ──
+const state = {
+  mode: 'camera',        // camera | screen | audio
+  status: 'idle',        // idle | recording | paused | stopped
+  stream: null,
+  recorder: null,
+  chunks: [],
+  recordings: [],
+  timerStart: 0,
+  timerPaused: 0,
+  timerInterval: null,
+  audioCtx: null,
+  analyser: null,
+  animFrame: null,
+};
+
+// ── DOM refs ──
+const $ = id => document.getElementById(id);
+const statusDot = $('statusDot');
+const statusText = $('statusText');
+const timer = $('timer');
+const btnStart = $('btnStart');
+const btnPause = $('btnPause');
+const btnStop = $('btnStop');
+const btnSource = $('btnSource');
+const cameraPreview = $('cameraPreview');
+const screenPreview = $('screenPreview');
+const audioViz = $('audioViz');
+const codecSelect = $('codecSelect');
+const recordingsList = $('recordingsList');
+
+// ── MIME types to check ──
+const MIME_TYPES = [
+  'video/webm',
+  'video/webm;codecs=vp8',
+  'video/webm;codecs=vp8,opus',
+  'video/webm;codecs=vp9',
+  'video/webm;codecs=vp9,opus',
+  'video/webm;codecs=av1',
+  'video/webm;codecs=av1,opus',
+  'video/webm;codecs=h264',
+  'video/mp4',
+  'video/mp4;codecs=avc1',
+  'video/mp4;codecs=avc1.42E01E',
+  'video/mp4;codecs=avc1.4D401F',
+  'video/mp4;codecs=avc1.64001F',
+  'video/mp4;codecs=hvc1',
+  'video/mp4;codecs=av01',
+  'audio/webm',
+  'audio/webm;codecs=opus',
+  'audio/webm;codecs=pcm',
+  'audio/ogg;codecs=opus',
+  'audio/mp4',
+  'audio/mp4;codecs=mp4a.40.2',
+];
+
+// ── Init ──
+function init() {
+  checkBrowserSupport();
+  buildCodecTable();
+  populateCodecSelect();
+  renderSnippets();
+  bindEvents();
+}
+
+function checkBrowserSupport() {
+  const el = $('browserSupport');
+  const checks = [
+    ['getUserMedia', !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)],
+    ['getDisplayMedia', !!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia)],
+    ['MediaRecorder', typeof MediaRecorder !== 'undefined'],
+  ];
+  el.innerHTML = checks.map(([name, ok]) =>
+    `<span class="dot ${ok ? 'ok' : 'no'}"></span>${name}`
+  ).join('');
+}
+
+function buildCodecTable() {
+  const tbody = document.querySelector('#codecTable tbody');
+  const hasRecorder = typeof MediaRecorder !== 'undefined';
+  tbody.innerHTML = MIME_TYPES.map(mime => {
+    const supported = hasRecorder && MediaRecorder.isTypeSupported(mime);
+    return `<tr><td><code>${mime}</code></td><td class="${supported ? 'yes' : 'no'}">${supported ? 'Yes' : 'No'}</td></tr>`;
+  }).join('');
+}
+
+function populateCodecSelect() {
+  const hasRecorder = typeof MediaRecorder !== 'undefined';
+  const supported = MIME_TYPES.filter(m => hasRecorder && MediaRecorder.isTypeSupported(m));
+  // Add "auto" option
+  codecSelect.innerHTML = '<option value="">Auto (browser default)</option>' +
+    supported.map(m => `<option value="${m}">${m}</option>`).join('');
+}
+
+// ── Events ──
+function bindEvents() {
+  // Mode tabs
+  document.querySelectorAll('#modeTabs .tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      if (state.status === 'recording' || state.status === 'paused') return;
+      setMode(tab.dataset.mode);
+    });
+  });
+
+  // Snippet tabs
+  document.querySelectorAll('#snippetTabs .tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('#snippetTabs .tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      document.querySelectorAll('#snippetCamera,#snippetScreen,#snippetAudio').forEach(c => c.classList.remove('active'));
+      $('snippet' + tab.dataset.snippet.charAt(0).toUpperCase() + tab.dataset.snippet.slice(1)).classList.add('active');
+    });
+  });
+
+  btnSource.addEventListener('click', toggleSource);
+  btnStart.addEventListener('click', startRecording);
+  btnPause.addEventListener('click', togglePause);
+  btnStop.addEventListener('click', stopRecording);
+}
+
+function setMode(mode) {
+  state.mode = mode;
+  // Stop any existing stream
+  stopSource();
+
+  document.querySelectorAll('#modeTabs .tab').forEach(t =>
+    t.classList.toggle('active', t.dataset.mode === mode));
+
+  // Show/hide preview panels
+  $('previewCamera').classList.toggle('active', mode === 'camera');
+  $('previewScreen').classList.toggle('active', mode === 'screen');
+  $('previewAudio').classList.toggle('active', mode === 'audio');
+
+  // Update source button text
+  const labels = { camera: 'Start Camera', screen: 'Share Screen', audio: 'Start Mic' };
+  btnSource.textContent = labels[mode];
+
+  updateStatus('idle');
+}
+
+// ── Source (stream) management ──
+async function toggleSource() {
+  if (state.stream) {
+    stopSource();
+    return;
+  }
+  try {
+    const [w, h] = ($('resolutionSelect').value || '1920x1080').split('x').map(Number);
+    const fps = Number($('fpsSelect').value) || 30;
+
+    if (state.mode === 'camera') {
+      state.stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: w }, height: { ideal: h }, frameRate: { ideal: fps } },
+        audio: true
+      });
+      cameraPreview.srcObject = state.stream;
+      $('cameraPlaceholder').style.display = 'none';
+
+    } else if (state.mode === 'screen') {
+      state.stream = await navigator.mediaDevices.getDisplayMedia({
+        video: { width: { ideal: w }, height: { ideal: h }, frameRate: { ideal: fps } },
+        audio: true
+      });
+      screenPreview.srcObject = state.stream;
+      $('screenPlaceholder').style.display = 'none';
+      // Handle user stopping share via browser UI
+      state.stream.getVideoTracks()[0].addEventListener('ended', () => stopSource());
+
+    } else if (state.mode === 'audio') {
+      state.stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      startAudioViz();
+    }
+
+    const labels = { camera: 'Stop Camera', screen: 'Stop Sharing', audio: 'Stop Mic' };
+    btnSource.textContent = labels[state.mode];
+    btnStart.disabled = false;
+
+  } catch (err) {
+    console.error('Source error:', err);
+    // User cancelled or permission denied - silently handle
+  }
+}
+
+function stopSource() {
+  if (state.stream) {
+    state.stream.getTracks().forEach(t => t.stop());
+    state.stream = null;
+  }
+  cameraPreview.srcObject = null;
+  screenPreview.srcObject = null;
+  $('cameraPlaceholder').style.display = '';
+  $('screenPlaceholder').style.display = '';
+  stopAudioViz();
+
+  const labels = { camera: 'Start Camera', screen: 'Share Screen', audio: 'Start Mic' };
+  btnSource.textContent = labels[state.mode];
+
+  if (state.status === 'recording' || state.status === 'paused') {
+    stopRecording();
+  }
+}
+
+// ── Audio Visualization ──
+function startAudioViz() {
+  if (!state.stream) return;
+  state.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const source = state.audioCtx.createMediaStreamSource(state.stream);
+  state.analyser = state.audioCtx.createAnalyser();
+  state.analyser.fftSize = 2048;
+  source.connect(state.analyser);
+  drawWaveform();
+}
+
+function drawWaveform() {
+  if (!state.analyser) return;
+  const canvas = audioViz;
+  const ctx = canvas.getContext('2d');
+  const bufLen = state.analyser.frequencyBinCount;
+  const data = new Uint8Array(bufLen);
+
+  function draw() {
+    state.animFrame = requestAnimationFrame(draw);
+    state.analyser.getByteTimeDomainData(data);
+
+    // Handle canvas sizing
+    canvas.width = canvas.clientWidth * (window.devicePixelRatio || 1);
+    canvas.height = canvas.clientHeight * (window.devicePixelRatio || 1);
+    const w = canvas.width, h = canvas.height;
+
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, w, h);
+    ctx.lineWidth = 2 * (window.devicePixelRatio || 1);
+    ctx.strokeStyle = '#58a6ff';
+    ctx.beginPath();
+
+    const sliceWidth = w / bufLen;
+    let x = 0;
+    for (let i = 0; i < bufLen; i++) {
+      const v = data[i] / 128.0;
+      const y = v * h / 2;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+      x += sliceWidth;
+    }
+    ctx.lineTo(w, h / 2);
+    ctx.stroke();
+  }
+  draw();
+}
+
+function stopAudioViz() {
+  if (state.animFrame) cancelAnimationFrame(state.animFrame);
+  state.animFrame = null;
+  if (state.audioCtx) { state.audioCtx.close(); state.audioCtx = null; }
+  state.analyser = null;
+  // Clear canvas
+  const ctx = audioViz.getContext('2d');
+  audioViz.width = audioViz.clientWidth;
+  audioViz.height = audioViz.clientHeight;
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, audioViz.width, audioViz.height);
+}
+
+// ── Recording ──
+function startRecording() {
+  if (!state.stream) return;
+  state.chunks = [];
+
+  const options = {};
+  const mime = codecSelect.value;
+  if (mime) options.mimeType = mime;
+
+  const vBitrate = Number($('videoBitrate').value);
+  const aBitrate = Number($('audioBitrate').value);
+  if (vBitrate) options.videoBitsPerSecond = vBitrate * 1000;
+  if (aBitrate) options.audioBitsPerSecond = aBitrate * 1000;
+
+  try {
+    state.recorder = new MediaRecorder(state.stream, options);
+  } catch (e) {
+    // Fallback without mimeType
+    console.warn('Codec not supported, falling back:', e);
+    delete options.mimeType;
+    state.recorder = new MediaRecorder(state.stream, options);
+  }
+
+  state.recorder.ondataavailable = e => {
+    if (e.data.size > 0) state.chunks.push(e.data);
+  };
+
+  state.recorder.onstop = () => {
+    const mimeUsed = state.recorder.mimeType || 'video/webm';
+    const blob = new Blob(state.chunks, { type: mimeUsed });
+    const ext = mimeUsed.includes('mp4') ? 'mp4' : mimeUsed.includes('ogg') ? 'ogg' : mimeUsed.includes('audio') ? 'weba' : 'webm';
+    const url = URL.createObjectURL(blob);
+    const name = `recording-${Date.now()}.${ext}`;
+    state.recordings.push({ name, url, blob, mime: mimeUsed, size: blob.size, time: new Date() });
+    renderRecordings();
+  };
+
+  state.recorder.start(1000); // Collect data every second
+  updateStatus('recording');
+  startTimer();
+}
+
+function togglePause() {
+  if (!state.recorder) return;
+  if (state.recorder.state === 'recording') {
+    state.recorder.pause();
+    updateStatus('paused');
+    pauseTimer();
+  } else if (state.recorder.state === 'paused') {
+    state.recorder.resume();
+    updateStatus('recording');
+    resumeTimer();
+  }
+}
+
+function stopRecording() {
+  if (state.recorder && state.recorder.state !== 'inactive') {
+    state.recorder.stop();
+  }
+  state.recorder = null;
+  updateStatus('stopped');
+  stopTimer();
+}
+
+// ── Timer ──
+function startTimer() {
+  state.timerStart = Date.now();
+  state.timerPaused = 0;
+  state.timerInterval = setInterval(updateTimer, 100);
+}
+function pauseTimer() {
+  state.timerPaused = Date.now();
+  clearInterval(state.timerInterval);
+}
+function resumeTimer() {
+  state.timerStart += Date.now() - state.timerPaused;
+  state.timerPaused = 0;
+  state.timerInterval = setInterval(updateTimer, 100);
+}
+function stopTimer() {
+  clearInterval(state.timerInterval);
+}
+function updateTimer() {
+  const elapsed = Date.now() - state.timerStart;
+  const s = Math.floor(elapsed / 1000);
+  const h = String(Math.floor(s / 3600)).padStart(2, '0');
+  const m = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
+  const sec = String(s % 60).padStart(2, '0');
+  timer.textContent = `${h}:${m}:${sec}`;
+}
+
+// ── Status ──
+function updateStatus(status) {
+  state.status = status;
+  statusDot.className = 'status-dot ' + status;
+  const labels = { idle: 'Idle', recording: 'Recording', paused: 'Paused', stopped: 'Stopped' };
+  statusText.textContent = labels[status] || status;
+
+  btnStart.disabled = status === 'recording' || status === 'paused' || !state.stream;
+  btnPause.disabled = status !== 'recording' && status !== 'paused';
+  btnPause.textContent = status === 'paused' ? 'Resume' : 'Pause';
+  btnStop.disabled = status !== 'recording' && status !== 'paused';
+}
+
+// ── Recordings list ──
+function renderRecordings() {
+  if (state.recordings.length === 0) {
+    recordingsList.innerHTML = '<div class="empty-state">No recordings yet.</div>';
+    return;
+  }
+  recordingsList.innerHTML = state.recordings.map((r, i) => `
+    <div class="recording-item">
+      <div class="meta">
+        <div class="name">${r.name}</div>
+        <div class="info">${r.mime} &middot; ${formatSize(r.size)}</div>
+      </div>
+      <button class="btn" onclick="playRecording(${i})" ti="btn_play" ti="btn_play" ti="btn_play">Play</button>
+      <button class="btn primary" onclick="downloadRecording(${i})" ti="btn_download" ti="btn_download" ti="btn_download">Download</button>
+    </div>
+  `).join('');
+}
+
+function formatSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / 1048576).toFixed(1) + ' MB';
+}
+
+function playRecording(i) {
+  const r = state.recordings[i];
+  const w = window.open('', '_blank', 'width=800,height=500');
+  if (r.mime.startsWith('audio')) {
+    w.document.write(`<audio controls autoplay src="${r.url}" style="width:100%;margin-top:20px"></audio>`);
+  } else {
+    w.document.write(`<video controls autoplay src="${r.url}" style="width:100%;height:100%;background:#000"></video>`);
+  }
+}
+
+function downloadRecording(i) {
+  const r = state.recordings[i];
+  const a = document.createElement('a');
+  a.href = r.url;
+  a.download = r.name;
+  a.click();
+}
+
+// ── Code Snippets ──
+function renderSnippets() {
+  $('snippetCamera').innerHTML = codeBlock(`<span class="cm">// Camera + Microphone Recording</span>
+<span class="kw">const</span> stream = <span class="kw">await</span> navigator.mediaDevices.<span class="fn">getUserMedia</span>({
+  video: { width: <span class="str">1920</span>, height: <span class="str">1080</span>, frameRate: <span class="str">30</span> },
+  audio: <span class="str">true</span>
+});
+
+<span class="kw">const</span> recorder = <span class="kw">new</span> <span class="fn">MediaRecorder</span>(stream, {
+  mimeType: <span class="str">'video/webm;codecs=vp9,opus'</span>,
+  videoBitsPerSecond: <span class="str">2500000</span>
+});
+
+<span class="kw">const</span> chunks = [];
+recorder.<span class="fn">ondataavailable</span> = e =&gt; chunks.<span class="fn">push</span>(e.data);
+recorder.<span class="fn">onstop</span> = () =&gt; {
+  <span class="kw">const</span> blob = <span class="kw">new</span> <span class="fn">Blob</span>(chunks, { type: recorder.mimeType });
+  <span class="kw">const</span> url = URL.<span class="fn">createObjectURL</span>(blob);
+  <span class="cm">// Use url for download or playback</span>
+};
+
+recorder.<span class="fn">start</span>(<span class="str">1000</span>); <span class="cm">// collect data every 1s</span>
+<span class="cm">// recorder.pause() / recorder.resume() / recorder.stop()</span>`);
+
+  $('snippetScreen').innerHTML = codeBlock(`<span class="cm">// Screen Capture Recording</span>
+<span class="kw">const</span> stream = <span class="kw">await</span> navigator.mediaDevices.<span class="fn">getDisplayMedia</span>({
+  video: { width: <span class="str">1920</span>, height: <span class="str">1080</span> },
+  audio: <span class="str">true</span>  <span class="cm">// system audio (Chrome only)</span>
+});
+
+<span class="cm">// Detect when user stops sharing</span>
+stream.<span class="fn">getVideoTracks</span>()[<span class="str">0</span>].<span class="fn">addEventListener</span>(<span class="str">'ended'</span>, () =&gt; {
+  recorder.<span class="fn">stop</span>();
+});
+
+<span class="kw">const</span> recorder = <span class="kw">new</span> <span class="fn">MediaRecorder</span>(stream, {
+  mimeType: <span class="str">'video/webm;codecs=vp9'</span>
+});
+
+<span class="kw">const</span> chunks = [];
+recorder.<span class="fn">ondataavailable</span> = e =&gt; chunks.<span class="fn">push</span>(e.data);
+recorder.<span class="fn">onstop</span> = () =&gt; {
+  <span class="kw">const</span> blob = <span class="kw">new</span> <span class="fn">Blob</span>(chunks, { type: <span class="str">'video/webm'</span> });
+  <span class="cm">// download or process blob</span>
+};
+recorder.<span class="fn">start</span>();`);
+
+  $('snippetAudio').innerHTML = codeBlock(`<span class="cm">// Audio-Only Recording with Waveform</span>
+<span class="kw">const</span> stream = <span class="kw">await</span> navigator.mediaDevices.<span class="fn">getUserMedia</span>({
+  audio: <span class="str">true</span>, video: <span class="str">false</span>
+});
+
+<span class="cm">// Audio visualization</span>
+<span class="kw">const</span> audioCtx = <span class="kw">new</span> <span class="fn">AudioContext</span>();
+<span class="kw">const</span> source = audioCtx.<span class="fn">createMediaStreamSource</span>(stream);
+<span class="kw">const</span> analyser = audioCtx.<span class="fn">createAnalyser</span>();
+analyser.fftSize = <span class="str">2048</span>;
+source.<span class="fn">connect</span>(analyser);
+
+<span class="cm">// Draw waveform on canvas</span>
+<span class="kw">const</span> data = <span class="kw">new</span> <span class="fn">Uint8Array</span>(analyser.frequencyBinCount);
+<span class="kw">function</span> <span class="fn">draw</span>() {
+  requestAnimationFrame(draw);
+  analyser.<span class="fn">getByteTimeDomainData</span>(data);
+  <span class="cm">// render data to canvas...</span>
+}
+
+<span class="kw">const</span> recorder = <span class="kw">new</span> <span class="fn">MediaRecorder</span>(stream, {
+  mimeType: <span class="str">'audio/webm;codecs=opus'</span>
+});
+recorder.<span class="fn">start</span>();`);
+}
+
+function codeBlock(html) {
+  return `<div class="code-block"><button class="copy-btn" onclick="copyCode(this)" ti="btn_copy" ti="btn_copy" ti="btn_copy">Copy</button>${html}</div>`;
+}
+
+function copyCode(btn) {
+  const block = btn.parentElement;
+  const text = block.textContent.replace('Copy', '').trim();
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent=T("jtc_copied");
+    setTimeout(() => btn.textContent=T("jtc_copy"), 1500);
+  });
+}
+
+// ── Boot ──
+init();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+</body>
+</html>

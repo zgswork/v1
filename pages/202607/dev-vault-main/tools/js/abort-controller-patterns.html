@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html tk="title_abortcontroller_patterns" lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AbortController Patterns Visualizer</title>
+<meta name="description" content="Interactive AbortController and AbortSignal pattern explorer — fetch cancellation, timeout races, linked signals, and cleanup with live demos">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:system-ui,-apple-system,sans-serif;background:#0a0a0f;color:#e0e0e0;min-height:100vh}
+header{background:linear-gradient(135deg,#1a1a2e,#16213e);padding:1.2rem 2rem;border-bottom:1px solid #333}
+header h1{font-size:1.4rem;color:#00d4ff}
+header p{font-size:.85rem;color:#888;margin-top:.3rem}
+.container{display:grid;grid-template-columns:260px 1fr;height:calc(100vh - 80px)}
+.sidebar{background:#111;border-right:1px solid #222;padding:1rem;overflow-y:auto}
+.sidebar h3{font-size:.85rem;color:#888;text-transform:uppercase;margin-bottom:.8rem}
+.preset{padding:.6rem .8rem;border-radius:6px;cursor:pointer;margin-bottom:.4rem;font-size:.82rem;transition:background .2s;border:1px solid transparent}
+.preset:hover{background:#1a1a2e}
+.preset.active{background:#1a1a3e;border-color:#00d4ff;color:#00d4ff}
+.main{display:flex;flex-direction:column;overflow:hidden}
+.content{flex:1;overflow-y:auto;padding:1.5rem}
+.scenario-desc{background:#1a1a2e;border-left:3px solid #00d4ff;padding:.8rem 1rem;margin-bottom:1rem;font-size:.82rem;border-radius:0 6px 6px 0;line-height:1.5}
+.split{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem}
+.panel{background:#111;border:1px solid #222;border-radius:8px;overflow:hidden}
+.panel-header{background:#1a1a2e;padding:.5rem .8rem;font-size:.82rem;color:#00d4ff;font-weight:bold;border-bottom:1px solid #222}
+.code-area{padding:1rem;font-family:'Fira Code',monospace;font-size:.78rem;line-height:1.7;white-space:pre-wrap;overflow-y:auto;max-height:300px}
+.hl-kw{color:#c792ea}
+.hl-str{color:#c3e88d}
+.hl-fn{color:#82aaff}
+.hl-cm{color:#546e7a}
+.hl-abort{color:#ff5370;font-weight:bold}
+.hl-signal{color:#ffcb6b}
+.hl-num{color:#f78c6c}
+/* Timeline */
+.timeline{position:relative;padding:1rem;min-height:200px}
+.tl-track{display:flex;align-items:center;margin-bottom:.8rem;position:relative}
+.tl-label{font-size:.78rem;min-width:100px;color:#888}
+.tl-bar{flex:1;height:30px;background:#1a1a2e;border-radius:4px;position:relative;overflow:hidden}
+.tl-fill{position:absolute;top:0;left:0;height:100%;border-radius:4px;transition:width .1s linear}
+.tl-fill.active{background:linear-gradient(90deg,#2196f3,#00d4ff)}
+.tl-fill.aborted{background:linear-gradient(90deg,#f44336,#ff5722)}
+.tl-fill.success{background:linear-gradient(90deg,#4caf50,#66bb6a)}
+.tl-fill.timeout{background:linear-gradient(90deg,#ff9800,#ffa726)}
+.tl-event{position:absolute;top:-5px;width:2px;height:40px;z-index:1}
+.tl-event-dot{width:10px;height:10px;border-radius:50%;position:absolute;top:10px;left:-4px}
+.tl-event-label{position:absolute;top:-16px;left:-20px;font-size:.65rem;white-space:nowrap;color:#aaa}
+/* Log */
+.log{padding:.8rem;font-family:monospace;font-size:.78rem;line-height:1.8;max-height:250px;overflow-y:auto}
+.log-entry{padding:.3rem .6rem;border-radius:4px;margin-bottom:.3rem}
+.log-entry.start{border-left:3px solid #2196f3;background:#2196f310}
+.log-entry.abort{border-left:3px solid #f44336;background:#f4433610}
+.log-entry.done{border-left:3px solid #4caf50;background:#4caf5010}
+.log-entry.timeout{border-left:3px solid #ff9800;background:#ff980010}
+.log-entry.info{border-left:3px solid #888;background:#88888810}
+.time-badge{font-size:.7rem;color:#00d4ff;margin-right:.5rem}
+/* Controls */
+.controls{display:flex;gap:.8rem;align-items:center;padding:.8rem 1.5rem;background:#111;border-top:1px solid #222}
+.btn{padding:.5rem 1rem;border-radius:6px;border:1px solid #333;background:#1a1a2e;color:#e0e0e0;cursor:pointer;font-size:.82rem;transition:all .2s}
+.btn:hover{background:#2a2a3e;border-color:#555}
+.btn.primary{background:#00d4ff22;border-color:#00d4ff;color:#00d4ff}
+.btn.run{background:#4caf5022;border-color:#4caf50;color:#4caf50}
+.btn.abort{background:#f4433622;border-color:#f44336;color:#f44336}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.speed-control{display:flex;align-items:center;gap:.3rem;font-size:.78rem;color:#888}
+.speed-control input{width:80px}
+code{background:#1a1a2e;padding:.1rem .4rem;border-radius:3px;font-size:.78rem;color:#ffb74d}
+footer{text-align:center;padding:.8rem;font-size:.75rem;color:#555;border-top:1px solid #222;background:#0a0a0f}
+footer a{color:#00d4ff;text-decoration:none}
+</style>
+</head>
+<body>
+
+
+
+
+<header>
+<h1 ti="title_abortcontroller_patterns" ti="h1_abortcontroller_patterns" ti="title_abortcontroller_patterns" ti="h1_abortcontroller_patterns">AbortController Patterns Visualizer</h1>
+<p>Interactive demos of AbortController & AbortSignal patterns for fetch cancellation, timeouts, and cleanup</p>
+</header>
+<div class="container" style="position:relative">
+<div class="sidebar">
+<h3 ti="h3_patterns" ti="h3_patterns">Patterns</h3>
+<div id="presets"></div>
+</div>
+<div class="main">
+<div class="content">
+<div class="scenario-desc" id="scenarioDesc"></div>
+<div class="split">
+<div>
+<div class="panel">
+<div class="panel-header">Code</div>
+<div class="code-area" id="codeArea"></div>
+</div>
+</div>
+<div>
+<div class="panel">
+<div class="panel-header">Timeline</div>
+<div class="timeline" id="timeline"></div>
+</div>
+<div class="panel" style="margin-top:1rem">
+<div class="panel-header">Event Log</div>
+<div class="log" id="logArea"></div>
+</div>
+</div>
+</div>
+</div>
+<div class="controls">
+<button class="btn run" id="btnRun" ti="btn_run_demo" ti="btn_run_demo">▶ Run Demo</button>
+<button class="btn abort" id="btnAbort" disabled ti="btn_abort" ti="btn_abort">✕ Abort</button>
+<button class="btn" id="btnReset" ti="btn_reset" ti="btn_reset">⟲ Reset</button>
+<div class="speed-control">
+<label ti="label_speed" ti="label_speed">Speed:</label>
+<input type="range" id="speedSlider" min="1" max="5" value="3">
+<span id="speedLabel">1×</span>
+</div>
+</div>
+</div>
+</div>
+<footer>AbortController Patterns Visualizer · Part of <a href="https://gokuscraper.github.io/dev-vault/" ti="footer_dev_vault" ti="link_dev_vault" ti="footer_dev_vault" ti="link_dev_vault">Dev Vault</a></footer>
+
+
+<script>var _LANG={'title_abortcontroller_patterns':["AbortController Patterns Visualizer", "AbortController 模式可视化工具"],'metadesc_interactive_abortcontroll':["Interactive AbortController and AbortSignal pattern explorer — fetch cancellation, timeout races, linked signals, and cleanup with live demos", "交互式 AbortController 与 AbortSignal 模式探索器 — fetch 取消、超时竞态、信号链接及带实时演示的清理"],'h1_abortcontroller_patterns':["AbortController Patterns Visualizer", "AbortController 模式可视化工具"],'h3_patterns':["Patterns", "模式"],'btn_run_demo':["▶ Run Demo", "▶ 运行演示"],'btn_abort':["✕ Abort", "✕ 中止"],'btn_reset':["⟲ Reset", "⟲ 重置"],'label_speed':["Speed:", "速度："],'footer_dev_vault':["Dev Vault", "Dev Vault"],'link_dev_vault':["Dev Vault", "Dev Vault"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>
+const PATTERNS = [
+  {
+    id: 'basic-cancel',
+    name: 'Basic Fetch Cancel',
+    desc: 'The simplest pattern: create an AbortController, pass its signal to fetch(), and call abort() to cancel the request. The fetch promise rejects with AbortError.',
+    code: `<span class="hl-kw">const</span> <span class="hl-abort">controller</span> = <span class="hl-kw">new</span> <span class="hl-fn">AbortController</span>();
+<span class="hl-kw">const</span> <span class="hl-signal">signal</span> = <span class="hl-abort">controller</span>.<span class="hl-signal">signal</span>;
+
+<span class="hl-cm">// Start fetch with signal</span>
+<span class="hl-fn">fetch</span>(<span class="hl-str">'/api/data'</span>, { <span class="hl-signal">signal</span> })
+  .<span class="hl-fn">then</span>(r => r.<span class="hl-fn">json</span>())
+  .<span class="hl-fn">then</span>(data => <span class="hl-fn">console.log</span>(<span class="hl-str">'Got data'</span>, data))
+  .<span class="hl-fn">catch</span>(err => {
+    <span class="hl-kw">if</span> (err.name === <span class="hl-str">'AbortError'</span>) {
+      <span class="hl-fn">console.log</span>(<span class="hl-str">'Fetch cancelled'</span>);
+    }
+  });
+
+<span class="hl-cm">// Cancel after 2 seconds</span>
+<span class="hl-fn">setTimeout</span>(() => <span class="hl-abort">controller</span>.<span class="hl-fn">abort</span>(), <span class="hl-num">2000</span>);`,
+    tracks: [
+      { label: 'fetch()', duration: 5000, abortAt: 2000, status: 'aborted' }
+    ],
+    events: [
+      { t: 0, msg: 'fetch() started with signal', type: 'start' },
+      { t: 2000, msg: 'controller.abort() called', type: 'abort' },
+      { t: 2000, msg: 'AbortError thrown — fetch cancelled', type: 'abort' },
+      { t: 2000, msg: 'catch() handler: "Fetch cancelled"', type: 'info' }
+    ],
+    manualAbort: true
+  },
+  {
+    id: 'timeout',
+    name: 'AbortSignal.timeout()',
+    desc: 'AbortSignal.timeout(ms) creates a signal that auto-aborts after the specified time. Simpler than creating a controller + setTimeout. The error is a TimeoutError (not AbortError).',
+    code: `<span class="hl-cm">// Built-in timeout signal (no controller needed!)</span>
+<span class="hl-kw">const</span> <span class="hl-signal">signal</span> = <span class="hl-fn">AbortSignal.timeout</span>(<span class="hl-num">3000</span>);
+
+<span class="hl-fn">fetch</span>(<span class="hl-str">'/api/slow-endpoint'</span>, { <span class="hl-signal">signal</span> })
+  .<span class="hl-fn">then</span>(r => r.<span class="hl-fn">json</span>())
+  .<span class="hl-fn">then</span>(data => <span class="hl-fn">console.log</span>(<span class="hl-str">'Got data'</span>, data))
+  .<span class="hl-fn">catch</span>(err => {
+    <span class="hl-kw">if</span> (err.name === <span class="hl-str">'TimeoutError'</span>) {
+      <span class="hl-fn">console.log</span>(<span class="hl-str">'Request timed out after 3s'</span>);
+    }
+  });`,
+    tracks: [
+      { label: 'fetch()', duration: 5000, abortAt: 3000, status: 'timeout' }
+    ],
+    events: [
+      { t: 0, msg: 'AbortSignal.timeout(3000) created', type: 'start' },
+      { t: 0, msg: 'fetch() started with timeout signal', type: 'start' },
+      { t: 3000, msg: '⏰ 3000ms elapsed — TimeoutError', type: 'timeout' },
+      { t: 3000, msg: 'catch(): "Request timed out after 3s"', type: 'timeout' }
+    ],
+    manualAbort: false
+  },
+  {
+    id: 'race',
+    name: 'Race: Fetch vs Timeout',
+    desc: 'Use AbortController to implement a race between fetch completion and a timeout. If the fetch completes first, cancel the timeout. If the timeout fires first, cancel the fetch.',
+    code: `<span class="hl-kw">async function</span> <span class="hl-fn">fetchWithTimeout</span>(url, ms) {
+  <span class="hl-kw">const</span> <span class="hl-abort">controller</span> = <span class="hl-kw">new</span> <span class="hl-fn">AbortController</span>();
+  <span class="hl-kw">const</span> timer = <span class="hl-fn">setTimeout</span>(() => {
+    <span class="hl-abort">controller</span>.<span class="hl-fn">abort</span>();
+  }, ms);
+
+  <span class="hl-kw">try</span> {
+    <span class="hl-kw">const</span> res = <span class="hl-kw">await</span> <span class="hl-fn">fetch</span>(url, {
+      <span class="hl-signal">signal</span>: <span class="hl-abort">controller</span>.<span class="hl-signal">signal</span>
+    });
+    <span class="hl-fn">clearTimeout</span>(timer); <span class="hl-cm">// fetch won!</span>
+    <span class="hl-kw">return</span> res;
+  } <span class="hl-kw">catch</span> (err) {
+    <span class="hl-fn">clearTimeout</span>(timer);
+    <span class="hl-kw">throw</span> err;
+  }
+}
+
+<span class="hl-cm">// Fast server (1s) with 3s timeout → success</span>
+<span class="hl-fn">fetchWithTimeout</span>(<span class="hl-str">'/api/fast'</span>, <span class="hl-num">3000</span>);`,
+    tracks: [
+      { label: 'fetch()', duration: 1500, abortAt: null, status: 'success' },
+      { label: 'timeout', duration: 3000, abortAt: 1500, status: 'aborted' }
+    ],
+    events: [
+      { t: 0, msg: 'fetchWithTimeout() called — 3s limit', type: 'start' },
+      { t: 0, msg: 'fetch() started + setTimeout(3000) started', type: 'start' },
+      { t: 1500, msg: '✓ fetch() completed in 1.5s', type: 'done' },
+      { t: 1500, msg: 'clearTimeout() — timeout cancelled', type: 'info' },
+      { t: 1500, msg: 'Result: success (fetch won the race)', type: 'done' }
+    ],
+    manualAbort: false
+  },
+  {
+    id: 'linked',
+    name: 'AbortSignal.any()',
+    desc: 'AbortSignal.any() creates a signal that aborts when ANY of the input signals abort. Useful for combining user cancellation with a timeout.',
+    code: `<span class="hl-kw">const</span> <span class="hl-abort">userController</span> = <span class="hl-kw">new</span> <span class="hl-fn">AbortController</span>();
+<span class="hl-kw">const</span> <span class="hl-signal">timeout</span> = <span class="hl-fn">AbortSignal.timeout</span>(<span class="hl-num">5000</span>);
+
+<span class="hl-cm">// Abort if EITHER user cancels OR timeout</span>
+<span class="hl-kw">const</span> <span class="hl-signal">combined</span> = <span class="hl-fn">AbortSignal.any</span>([
+  <span class="hl-abort">userController</span>.<span class="hl-signal">signal</span>,
+  <span class="hl-signal">timeout</span>
+]);
+
+<span class="hl-fn">fetch</span>(<span class="hl-str">'/api/data'</span>, { <span class="hl-signal">signal</span>: <span class="hl-signal">combined</span> })
+  .<span class="hl-fn">catch</span>(err => {
+    <span class="hl-kw">if</span> (err.name === <span class="hl-str">'AbortError'</span>)
+      <span class="hl-fn">console.log</span>(<span class="hl-str">'User cancelled'</span>);
+    <span class="hl-kw">if</span> (err.name === <span class="hl-str">'TimeoutError'</span>)
+      <span class="hl-fn">console.log</span>(<span class="hl-str">'Timed out'</span>);
+  });
+
+<span class="hl-cm">// User clicks cancel button</span>
+cancelBtn.<span class="hl-fn">addEventListener</span>(<span class="hl-str">'click'</span>, () => {
+  <span class="hl-abort">userController</span>.<span class="hl-fn">abort</span>();
+});`,
+    tracks: [
+      { label: 'fetch()', duration: 8000, abortAt: 2500, status: 'aborted' },
+      { label: 'timeout 5s', duration: 5000, abortAt: 2500, status: 'aborted' },
+      { label: 'user signal', duration: 2500, abortAt: 2500, status: 'aborted' }
+    ],
+    events: [
+      { t: 0, msg: 'AbortSignal.any([userSignal, timeout]) created', type: 'start' },
+      { t: 0, msg: 'fetch() started with combined signal', type: 'start' },
+      { t: 2500, msg: '👆 User clicks Cancel button', type: 'abort' },
+      { t: 2500, msg: 'userController.abort() called', type: 'abort' },
+      { t: 2500, msg: 'combined signal fires — AbortError', type: 'abort' },
+      { t: 2500, msg: 'Timeout signal also cancelled (no longer needed)', type: 'info' }
+    ],
+    manualAbort: true
+  },
+  {
+    id: 'multiple',
+    name: 'Cancel Multiple Fetches',
+    desc: 'One AbortController can cancel multiple requests simultaneously. Share the same signal across parallel fetches.',
+    code: `<span class="hl-kw">const</span> <span class="hl-abort">controller</span> = <span class="hl-kw">new</span> <span class="hl-fn">AbortController</span>();
+<span class="hl-kw">const</span> { <span class="hl-signal">signal</span> } = <span class="hl-abort">controller</span>;
+
+<span class="hl-cm">// Start 3 parallel fetches with same signal</span>
+<span class="hl-kw">const</span> requests = <span class="hl-fn">Promise.all</span>([
+  <span class="hl-fn">fetch</span>(<span class="hl-str">'/api/users'</span>, { <span class="hl-signal">signal</span> }),
+  <span class="hl-fn">fetch</span>(<span class="hl-str">'/api/posts'</span>, { <span class="hl-signal">signal</span> }),
+  <span class="hl-fn">fetch</span>(<span class="hl-str">'/api/comments'</span>, { <span class="hl-signal">signal</span> }),
+]);
+
+<span class="hl-cm">// One abort() cancels ALL three</span>
+<span class="hl-abort">controller</span>.<span class="hl-fn">abort</span>();`,
+    tracks: [
+      { label: '/api/users', duration: 3000, abortAt: 1500, status: 'aborted' },
+      { label: '/api/posts', duration: 2000, abortAt: 1500, status: 'aborted' },
+      { label: '/api/comments', duration: 4000, abortAt: 1500, status: 'aborted' }
+    ],
+    events: [
+      { t: 0, msg: '3 parallel fetch() requests started', type: 'start' },
+      { t: 0, msg: 'All share the same AbortSignal', type: 'info' },
+      { t: 1500, msg: 'controller.abort() — cancels ALL', type: 'abort' },
+      { t: 1500, msg: '/api/users — AbortError', type: 'abort' },
+      { t: 1500, msg: '/api/posts — AbortError', type: 'abort' },
+      { t: 1500, msg: '/api/comments — AbortError', type: 'abort' }
+    ],
+    manualAbort: true
+  },
+  {
+    id: 'event-listener',
+    name: 'Event Listener Cleanup',
+    desc: 'Pass an AbortSignal to addEventListener() to auto-remove the listener when aborted. No more manual removeEventListener() calls!',
+    code: `<span class="hl-kw">const</span> <span class="hl-abort">controller</span> = <span class="hl-kw">new</span> <span class="hl-fn">AbortController</span>();
+
+<span class="hl-cm">// These listeners auto-remove when aborted</span>
+window.<span class="hl-fn">addEventListener</span>(<span class="hl-str">'resize'</span>, handleResize, {
+  <span class="hl-signal">signal</span>: <span class="hl-abort">controller</span>.<span class="hl-signal">signal</span>
+});
+window.<span class="hl-fn">addEventListener</span>(<span class="hl-str">'scroll'</span>, handleScroll, {
+  <span class="hl-signal">signal</span>: <span class="hl-abort">controller</span>.<span class="hl-signal">signal</span>
+});
+document.<span class="hl-fn">addEventListener</span>(<span class="hl-str">'keydown'</span>, handleKey, {
+  <span class="hl-signal">signal</span>: <span class="hl-abort">controller</span>.<span class="hl-signal">signal</span>
+});
+
+<span class="hl-cm">// One call removes ALL three listeners!</span>
+<span class="hl-abort">controller</span>.<span class="hl-fn">abort</span>();
+<span class="hl-cm">// Equivalent to calling removeEventListener × 3</span>`,
+    tracks: [
+      { label: 'resize', duration: 4000, abortAt: 2500, status: 'aborted' },
+      { label: 'scroll', duration: 4000, abortAt: 2500, status: 'aborted' },
+      { label: 'keydown', duration: 4000, abortAt: 2500, status: 'aborted' }
+    ],
+    events: [
+      { t: 0, msg: '3 event listeners added with signal', type: 'start' },
+      { t: 500, msg: '🖱 resize event fired — handled', type: 'done' },
+      { t: 1000, msg: '📜 scroll event fired — handled', type: 'done' },
+      { t: 1500, msg: '⌨ keydown event fired — handled', type: 'done' },
+      { t: 2500, msg: 'controller.abort() — all listeners removed', type: 'abort' },
+      { t: 2500, msg: 'No manual removeEventListener() needed!', type: 'info' }
+    ],
+    manualAbort: true
+  },
+  {
+    id: 'react-cleanup',
+    name: 'React useEffect Cleanup',
+    desc: 'Common pattern in React: create an AbortController in useEffect, pass signal to fetch, and abort in the cleanup function to prevent state updates after unmount.',
+    code: `<span class="hl-kw">function</span> <span class="hl-fn">UserProfile</span>({ userId }) {
+  <span class="hl-kw">const</span> [user, setUser] = <span class="hl-fn">useState</span>(<span class="hl-kw">null</span>);
+
+  <span class="hl-fn">useEffect</span>(() => {
+    <span class="hl-kw">const</span> <span class="hl-abort">controller</span> = <span class="hl-kw">new</span> <span class="hl-fn">AbortController</span>();
+
+    <span class="hl-fn">fetch</span>(<span class="hl-str">\`/api/users/\${userId}\`</span>, {
+      <span class="hl-signal">signal</span>: <span class="hl-abort">controller</span>.<span class="hl-signal">signal</span>
+    })
+      .<span class="hl-fn">then</span>(r => r.<span class="hl-fn">json</span>())
+      .<span class="hl-fn">then</span>(data => <span class="hl-fn">setUser</span>(data))
+      .<span class="hl-fn">catch</span>(err => {
+        <span class="hl-kw">if</span> (err.name !== <span class="hl-str">'AbortError'</span>) <span class="hl-kw">throw</span> err;
+      });
+
+    <span class="hl-cm">// Cleanup: abort fetch on unmount or userId change</span>
+    <span class="hl-kw">return</span> () => <span class="hl-abort">controller</span>.<span class="hl-fn">abort</span>();
+  }, [userId]);
+}`,
+    tracks: [
+      { label: 'fetch user/1', duration: 3000, abortAt: 1500, status: 'aborted' },
+      { label: 'fetch user/2', duration: 3000, abortAt: null, status: 'success' }
+    ],
+    events: [
+      { t: 0, msg: 'useEffect runs — fetch("/api/users/1")', type: 'start' },
+      { t: 1500, msg: 'userId prop changes: 1 → 2', type: 'info' },
+      { t: 1500, msg: 'Cleanup: controller.abort() for user/1', type: 'abort' },
+      { t: 1500, msg: 'useEffect runs again — fetch("/api/users/2")', type: 'start' },
+      { t: 4500, msg: '✓ fetch user/2 completed — setUser(data)', type: 'done' },
+      { t: 4500, msg: 'No stale state update from user/1 request', type: 'done' }
+    ],
+    manualAbort: false
+  }
+];
+
+let current = PATTERNS[0];
+let animFrame = null;
+let startTime = 0;
+let running = false;
+let speed = 1;
+let abortTriggered = false;
+
+function init() {
+  const pre = document.getElementById('presets');
+  PATTERNS.forEach((p, i) => {
+    const d = document.createElement('div');
+    d.className = 'preset' + (i === 0 ? ' active' : '');
+    d.textContent = p.name;
+    d.onclick = () => selectPattern(i);
+    pre.appendChild(d);
+  });
+  document.getElementById('btnRun').onclick = runDemo;
+  document.getElementById('btnAbort').onclick = manualAbort;
+  document.getElementById('btnReset').onclick = resetDemo;
+  document.getElementById('speedSlider').oninput = (e) => {
+    speed = [0.25, 0.5, 1, 2, 4][e.target.value - 1];
+    document.getElementById('speedLabel').textContent = speed + '×';
+  };
+  selectPattern(0);
+}
+
+function selectPattern(idx) {
+  resetDemo();
+  current = PATTERNS[idx];
+  document.querySelectorAll('.preset').forEach((p, i) => p.classList.toggle('active', i === idx));
+  document.getElementById('scenarioDesc').textContent = current.desc;
+  document.getElementById('codeArea').innerHTML = current.code;
+  renderTimeline();
+}
+
+function renderTimeline() {
+  const el = document.getElementById('timeline');
+  el.innerHTML = '';
+  const maxDur = Math.max(...current.tracks.map(t => t.duration));
+  current.tracks.forEach((t, i) => {
+    const track = document.createElement('div');
+    track.className = 'tl-track';
+    track.innerHTML = `<div class="tl-label">${t.label}</div><div class="tl-bar"><div class="tl-fill" id="fill-${i}" style="width:0%"></div></div>`;
+    el.appendChild(track);
+  });
+}
+
+function runDemo() {
+  if (running) return;
+  running = true;
+  abortTriggered = false;
+  document.getElementById('btnRun').disabled = true;
+  document.getElementById('btnAbort').disabled = !current.manualAbort;
+  document.getElementById('logArea').innerHTML = '';
+  startTime = performance.now();
+
+  const maxDur = Math.max(...current.tracks.map(t => t.duration), ...current.events.map(e => e.t)) + 500;
+  const firedEvents = new Set();
+
+  function tick() {
+    const elapsed = (performance.now() - startTime) * speed;
+
+    // Update track bars
+    current.tracks.forEach((t, i) => {
+      const fill = document.getElementById('fill-' + i);
+      if (!fill) return;
+      const effectiveAbort = t.abortAt !== null ? t.abortAt : t.duration;
+      const pct = Math.min(100, (elapsed / effectiveAbort) * 100);
+      fill.style.width = pct + '%';
+      if (elapsed >= effectiveAbort) {
+        fill.className = 'tl-fill ' + t.status;
+      } else {
+        fill.className = 'tl-fill active';
+      }
+    });
+
+    // Fire events
+    current.events.forEach((e, i) => {
+      if (!firedEvents.has(i) && elapsed >= e.t) {
+        firedEvents.add(i);
+        addLog(e.type, e.t, e.msg);
+      }
+    });
+
+    if (elapsed < maxDur) {
+      animFrame = requestAnimationFrame(tick);
+    } else {
+      running = false;
+      document.getElementById('btnRun').disabled = false;
+      document.getElementById('btnAbort').disabled = true;
+    }
+  }
+  animFrame = requestAnimationFrame(tick);
+}
+
+function manualAbort() {
+  if (!running || abortTriggered) return;
+  abortTriggered = true;
+  // Instantly trigger abort events
+  const elapsed = (performance.now() - startTime) * speed;
+  addLog('abort', elapsed, '👆 Manual abort() triggered at ' + Math.round(elapsed) + 'ms');
+}
+
+function resetDemo() {
+  if (animFrame) cancelAnimationFrame(animFrame);
+  running = false;
+  abortTriggered = false;
+  document.getElementById('btnRun').disabled = false;
+  document.getElementById('btnAbort').disabled = true;
+  document.getElementById('logArea').innerHTML = '';
+  renderTimeline();
+}
+
+function addLog(type, t, msg) {
+  const el = document.getElementById('logArea');
+  const entry = document.createElement('div');
+  entry.className = 'log-entry ' + type;
+  entry.innerHTML = `<span class="time-badge">${Math.round(t)}ms</span>${msg}`;
+  el.appendChild(entry);
+  el.scrollTop = el.scrollHeight;
+}
+
+init();
+</script>
+<script>var _LANG={'title_abortcontroller_patterns':["AbortController Patterns Visualizer", "AbortController 模式可视化工具"],'metadesc_interactive_abortcontroll':["Interactive AbortController and AbortSignal pattern explorer — fetch cancellation, timeout races, linked signals, and cleanup with live demos", "交互式 AbortController 与 AbortSignal 模式探索器 — fetch 取消、超时竞态、信号链接及带实时演示的清理"],'h1_abortcontroller_patterns':["AbortController Patterns Visualizer", "AbortController 模式可视化工具"],'h3_patterns':["Patterns", "模式"],'btn_run_demo':["▶ Run Demo", "▶ 运行演示"],'btn_abort':["✕ Abort", "✕ 中止"],'btn_reset':["⟲ Reset", "⟲ 重置"],'label_speed':["Speed:", "速度："],'footer_dev_vault':["Dev Vault", "Dev Vault"],'link_dev_vault':["Dev Vault", "Dev Vault"]};
+
+(function(){var L;try{L=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(L!='zh')L='en'}catch(e){L='en'}
+function T(k){var a=_LANG&&_LANG[k];return a?a[L==='zh'?1:0]:k}
+function applyLang(){
+  document.documentElement.lang=L;
+  var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+  document.querySelectorAll('[ti]').forEach(function(e){
+    var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+    e.textContent=T(k);
+  });
+  document.querySelectorAll('[tp]').forEach(function(e){
+    var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+    e.placeholder=T(k);
+  });
+  document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+}
+function sL(l){L=l;try{localStorage.setItem('_dv_lang',l)}catch(e){}applyLang()}
+if(typeof _LANG==='undefined')var _LANG={};
+applyLang();
+})();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+</body>
+</html>

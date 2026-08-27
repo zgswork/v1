@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html tk="title_js_module_resolution_visu" lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JS Module Resolution Visualizer</title>
+<meta name="description" content="Interactive JavaScript module resolution algorithm visualizer. CJS require() vs ESM import, node_modules traversal, package.json exports, conditional exports, barrel files.">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:system-ui,-apple-system,sans-serif;background:#0a0a1a;color:#e0e0e0;min-height:100vh;display:flex;flex-direction:column}
+header{padding:12px 20px;background:#111128;border-bottom:1px solid #2a2a4a;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+header h1{font-size:1.1rem;color:#69db7c}
+.controls{display:flex;gap:8px;align-items:center;margin-left:auto}
+.controls button{padding:6px 14px;border:1px solid #3a3a6a;border-radius:6px;background:#1a1a3a;color:#e0e0e0;cursor:pointer;font-size:.85rem}
+.controls button:hover{background:#2a2a5a}
+.controls button.primary{background:#2b8a3e;border-color:#37b24d;color:#fff}
+select{padding:6px 10px;border:1px solid #3a3a6a;border-radius:6px;background:#1a1a3a;color:#e0e0e0;font-size:.85rem}
+.main{display:flex;flex:1;overflow:hidden}
+.vis-col{flex:1;overflow:auto;padding:16px}
+.sidebar{width:340px;border-left:1px solid #2a2a4a;display:flex;flex-direction:column;overflow:auto}
+.tab-bar{display:flex;border-bottom:1px solid #2a2a4a}
+.tab-bar button{flex:1;padding:8px;background:none;border:none;color:#888;cursor:pointer;font-size:.8rem;border-bottom:2px solid transparent}
+.tab-bar button.active{color:#69db7c;border-bottom-color:#69db7c}
+.tab-content{flex:1;overflow:auto;padding:12px}
+.panel{background:#111128;border:1px solid #2a2a4a;border-radius:8px;padding:16px;margin-bottom:12px}
+.panel h3{font-size:.9rem;margin-bottom:10px;color:#69db7c}
+.import-stmt{font-family:monospace;font-size:.9rem;padding:10px 14px;background:#0d0d20;border:1px solid #2a2a4a;border-radius:6px;margin-bottom:12px}
+.import-kw{color:#ff79c6}
+.import-str{color:#f1fa8c}
+.import-id{color:#50fa7b}
+.tree{margin:0;padding:0;list-style:none}
+.tree-node{padding:4px 0;margin-left:20px}
+.tree-node-content{display:flex;align-items:center;gap:6px;padding:4px 8px;border-radius:4px;font-size:.8rem;font-family:monospace;cursor:default;transition:all .3s}
+.tree-node-content:hover{background:rgba(100,100,255,.05)}
+.node-icon{font-size:1rem;min-width:18px;text-align:center}
+.node-name{color:#e0e0e0}
+.node-badge{font-size:.65rem;padding:1px 6px;border-radius:8px;font-weight:600}
+.badge-check{background:rgba(105,219,124,.2);color:#69db7c}
+.badge-skip{background:rgba(255,107,107,.2);color:#ff6b6b}
+.badge-current{background:rgba(255,212,59,.2);color:#ffd43b}
+.badge-found{background:rgba(105,219,124,.3);color:#69db7c;font-size:.7rem}
+.step-node{background:rgba(255,212,59,.08);border-left:3px solid #ffd43b}
+.found-node{background:rgba(105,219,124,.08);border-left:3px solid #69db7c}
+.skip-node{opacity:.4}
+.resolve-step{padding:6px 10px;font-size:.78rem;border-radius:4px;margin:3px 0;border-left:3px solid #2a2a4a;transition:all .3s}
+.resolve-step.active{border-left-color:#ffd43b;background:rgba(255,212,59,.08)}
+.resolve-step.success{border-left-color:#69db7c;background:rgba(105,219,124,.08)}
+.resolve-step.fail{border-left-color:#ff6b6b;opacity:.5}
+.info-card{background:#0d0d20;border:1px solid #2a2a4a;border-radius:6px;padding:10px;margin-bottom:8px}
+.info-card h4{font-size:.8rem;margin-bottom:6px;color:#69db7c}
+.info-card p{font-size:.75rem;line-height:1.5;color:#aaa}
+.ref-table{width:100%;border-collapse:collapse;font-size:.75rem}
+.ref-table th{text-align:left;padding:6px 8px;border-bottom:1px solid #2a2a4a;color:#69db7c}
+.ref-table td{padding:6px 8px;border-bottom:1px solid #1a1a3a}
+.vs-table{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.vs-col{background:#0d0d20;border:1px solid #2a2a4a;border-radius:6px;padding:10px}
+.vs-col h4{font-size:.8rem;margin-bottom:6px}
+.vs-col.cjs h4{color:#ffa94d}
+.vs-col.esm h4{color:#4dabf7}
+.vs-col ul{padding-left:16px;font-size:.73rem;line-height:1.6;color:#aaa}
+@media(max-width:900px){.main{flex-direction:column}.sidebar{width:100%;max-height:40vh;border-left:none;border-top:1px solid #2a2a4a}.vs-table{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+
+<header>
+<h1 ti="h1_js_module_resolution">JS Module Resolution</h1>
+<select id="scenarioSelect"></select>
+<div class="controls">
+<button onclick="stepBack()" ti="btn_back">← Back</button>
+<button onclick="stepForward()" class="primary" ti="btn_step">Step →</button>
+<button onclick="autoPlay()" ti="btn_auto">▶ Auto</button>
+<button onclick="reset()" ti="btn_reset">Reset</button>
+</div>
+</header>
+<div class="main">
+<div class="vis-col">
+<div class="panel" id="importPanel"></div>
+<div class="panel"><h3 ti="h3_file_system">File System</h3><ul class="tree" id="fileTree"></ul></div>
+<div class="panel"><h3 ti="h3_resolution_steps">Resolution Steps</h3><div id="resolveSteps"></div></div>
+</div>
+<div class="sidebar">
+<div class="tab-bar">
+<button class="active" onclick="switchTab('detail')" ti="btn_details">Details</button>
+<button onclick="switchTab('reference')" ti="btn_reference">Reference</button>
+</div>
+<div class="tab-content" id="tabContent"></div>
+</div>
+</div>
+
+<script>var _LANG={'title_js_module_resolution_visu':["JS Module Resolution Visualizer", "JS 模块分辨率可视化工具"],'metadesc_interactive_javascript_mo':["Interactive JavaScript module resolution algorithm visualizer. CJS require() vs ESM import, node_modules traversal, package.json exports, conditional exports, barrel files.", "交互式 JavaScript 模块解析算法可视化工具。CJS require() 与 ESM 导入对比、node_modules 遍历、package.json 导出、条件导出、桶形文件。"],'h1_js_module_resolution':["JS Module Resolution", "JS 模块解析"],'h3_file_system':["File System", "文件系统"],'h3_resolution_steps':["Resolution Steps", "解决方法"],'h3_s_type_esm_esm_import_cj':["${s.type==='esm'?'ESM Import':'CJS Require'}", "${s.type===&#39;esm&#39;?&#39;ESM 导入&#39;:&#39;CJS Require&#39;}"],'btn_back':["← Back", "← 返回"],'btn_step':["Step →", "步骤 →"],'btn_auto':["▶ Auto", "▶ 自动"],'btn_reset':["Reset", "重置"],'btn_details':["Details", "细节"],'btn_reference':["Reference", "参考"],'th_field':["Field", "场地"],'th_used_by':["Used by", "使用者"],'th_purpose':["Purpose", "目的"],'th_condition':["Condition", "健康）状况"],'th_matched_by':["Matched by", "匹配"],'jtlword_field':["Field", "场地"],'jtlword_purpose':["Purpose", "目的"],'jtlword_cjs':["CJS", "CJS"],'jtlword_bundlers':["Bundlers", "捆绑商"],'jtlword_esm':["ESM", "欧洲空间站"],'jtlword_bundlers_2':["Bundlers", "捆绑商"],'jtlword_typescript':["TypeScript", "TypeScript"],'jtlword_condition':["Condition", "健康）状况"],'jtlword_typescript_2':["TypeScript", "TypeScript"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>
+const SCENARIOS=[
+{name:'CJS: require("./utils")',
+ type:'cjs',
+ importCode:'const utils = require("./utils");',
+ specifier:'./utils',
+ tree:{name:'project/',icon:'📁',children:[
+  {name:'app.js',icon:'📄',id:'app'},
+  {name:'utils.js',icon:'📄',id:'utils-js'},
+  {name:'utils/',icon:'📁',children:[
+    {name:'index.js',icon:'📄',id:'utils-index'}
+  ]},
+  {name:'node_modules/',icon:'📁',children:[]}
+ ]},
+ steps:[
+  {desc:'Specifier starts with "./" → relative path resolution',check:'app',detail:'CJS require() with "./" or "../" prefix uses relative path resolution. The specifier is resolved relative to the directory of the requiring file.'},
+  {desc:'Try exact file: ./utils',check:null,detail:'First, Node.js tries the exact path as-is. No file named "utils" (without extension) exists.'},
+  {desc:'Try ./utils.js',check:'utils-js',found:true,detail:'Append .js extension. File found! CJS tries extensions in order: .js, .json, .node. The first match wins.'},
+  {desc:'✓ Resolved: ./utils.js',check:'utils-js',detail:'Resolution complete. The module is loaded, compiled, and its module.exports is returned. CJS modules are loaded synchronously and cached by absolute path.'}
+ ]
+},
+{name:'CJS: require("./utils") → index.js',
+ type:'cjs',
+ importCode:'const utils = require("./utils");',
+ specifier:'./utils',
+ tree:{name:'project/',icon:'📁',children:[
+  {name:'app.js',icon:'📄',id:'app'},
+  {name:'utils/',icon:'📁',children:[
+    {name:'index.js',icon:'📄',id:'utils-index'},
+    {name:'helper.js',icon:'📄',id:'helper'}
+  ]},
+  {name:'node_modules/',icon:'📁',children:[]}
+ ]},
+ steps:[
+  {desc:'Specifier starts with "./" → relative path',check:'app',detail:'Relative resolution for ./utils.'},
+  {desc:'Try exact file: ./utils — not found',check:null,detail:'No file named "utils" without extension.'},
+  {desc:'Try ./utils.js — not found',check:null,detail:'No utils.js file exists in this project.'},
+  {desc:'Try ./utils.json — not found',check:null,detail:'CJS tries .json extension. Not found.'},
+  {desc:'Try ./utils.node — not found',check:null,detail:'CJS tries .node (native addon). Not found.'},
+  {desc:'Try directory: ./utils/index.js',check:'utils-index',found:true,detail:'When all file extensions fail, CJS treats the specifier as a directory and looks for index.js, index.json, or index.node inside it. This is the "directory as module" convention.'},
+  {desc:'✓ Resolved: ./utils/index.js',check:'utils-index',detail:'Found via directory index fallback. This pattern is common but considered legacy — ESM does not support implicit index.js resolution.'}
+ ]
+},
+{name:'CJS: require("lodash") — node_modules',
+ type:'cjs',
+ importCode:'const _ = require("lodash");',
+ specifier:'lodash',
+ tree:{name:'project/',icon:'📁',children:[
+  {name:'src/',icon:'📁',children:[
+    {name:'deep/',icon:'📁',children:[
+      {name:'app.js',icon:'📄',id:'app'},
+      {name:'node_modules/',icon:'📁',children:[],id:'nm-deep'}
+    ]},
+    {name:'node_modules/',icon:'📁',children:[],id:'nm-src'}
+  ]},
+  {name:'node_modules/',icon:'📁',id:'nm-root',children:[
+    {name:'lodash/',icon:'📁',children:[
+      {name:'package.json',icon:'📄',id:'lodash-pkg',note:'{"main":"lodash.js"}'},
+      {name:'lodash.js',icon:'📄',id:'lodash-main'}
+    ]}
+  ]}
+ ]},
+ steps:[
+  {desc:'No "./" or "../" prefix → bare specifier (package name)',check:'app',detail:'Bare specifiers (no path prefix) trigger the node_modules resolution algorithm. Node.js searches up the directory tree.'},
+  {desc:'Check ./src/deep/node_modules/lodash — not found',check:'nm-deep',detail:'Start from the requiring file\'s directory. Look for node_modules/lodash here. Not found.'},
+  {desc:'Check ./src/node_modules/lodash — not found',check:'nm-src',detail:'Go up one directory level. Check node_modules/lodash here. Not found.'},
+  {desc:'Check ./node_modules/lodash — found!',check:'nm-root',found:true,detail:'Found node_modules/lodash at project root. This is the standard location where npm/yarn installs packages.'},
+  {desc:'Read package.json → "main": "lodash.js"',check:'lodash-pkg',detail:'Read package.json to find the entry point. The "main" field specifies the CJS entry point. If "main" is missing, defaults to index.js.'},
+  {desc:'✓ Resolved: ./node_modules/lodash/lodash.js',check:'lodash-main',found:true,detail:'Resolution follows: bare specifier → walk up node_modules → package.json "main" field → resolved file. This is how npm packages are found.'}
+ ]
+},
+{name:'ESM: import with package.json "exports"',
+ type:'esm',
+ importCode:'import { helper } from "my-lib/utils";',
+ specifier:'my-lib/utils',
+ tree:{name:'project/',icon:'📁',children:[
+  {name:'app.mjs',icon:'📄',id:'app'},
+  {name:'node_modules/',icon:'📁',children:[
+    {name:'my-lib/',icon:'📁',children:[
+      {name:'package.json',icon:'📄',id:'pkg',note:'{"exports":{".":{"import":"./dist/index.mjs"},"./utils":{"import":"./dist/utils.mjs","require":"./dist/utils.cjs"}}}'},
+      {name:'dist/',icon:'📁',children:[
+        {name:'index.mjs',icon:'📄',id:'dist-index'},
+        {name:'utils.mjs',icon:'📄',id:'dist-utils'},
+        {name:'utils.cjs',icon:'📄',id:'dist-utils-cjs'}
+      ]},
+      {name:'src/',icon:'📁',children:[
+        {name:'utils.js',icon:'📄',id:'src-utils',note:'(internal — not exported)'}
+      ]}
+    ]}
+  ]}
+ ]},
+ steps:[
+  {desc:'Bare specifier "my-lib/utils" → node_modules lookup',check:'app',detail:'ESM also uses node_modules for bare specifiers, but with different resolution rules than CJS.'},
+  {desc:'Found node_modules/my-lib/package.json',check:'pkg',detail:'ESM checks package.json for the "exports" field first. If "exports" exists, it completely replaces "main" and controls all entry points.'},
+  {desc:'"exports" field found → use exports map',check:'pkg',detail:'The exports map defines which paths are public. "./utils" maps to different files for import vs require. This is called "conditional exports".'},
+  {desc:'Match subpath: "./utils" → found in exports',check:'pkg',detail:'The specifier "my-lib/utils" maps to subpath "./utils" in the exports map. Paths not listed in exports are inaccessible (encapsulation).'},
+  {desc:'Condition: "import" → ./dist/utils.mjs',check:'dist-utils',found:true,detail:'Since we\'re using ESM import, the "import" condition is matched. If this were require(), the "require" condition would select ./dist/utils.cjs instead.'},
+  {desc:'✓ Resolved: ./node_modules/my-lib/dist/utils.mjs',check:'dist-utils',detail:'Exports field provides: (1) encapsulation — internal src/utils.js is not accessible, (2) dual package support — ESM and CJS entry points, (3) subpath exports — controlled public API.'}
+ ]
+},
+{name:'ESM: Conditional exports (browser/node)',
+ type:'esm',
+ importCode:'import { fetch } from "my-http";',
+ specifier:'my-http',
+ tree:{name:'project/',icon:'📁',children:[
+  {name:'app.mjs',icon:'📄',id:'app'},
+  {name:'node_modules/',icon:'📁',children:[
+    {name:'my-http/',icon:'📁',children:[
+      {name:'package.json',icon:'📄',id:'pkg',note:'{"exports":{".":{"browser":"./browser.mjs","node":{"import":"./node.mjs","require":"./node.cjs"},"default":"./fallback.mjs"}}}'},
+      {name:'browser.mjs',icon:'📄',id:'browser-entry'},
+      {name:'node.mjs',icon:'📄',id:'node-entry'},
+      {name:'node.cjs',icon:'📄',id:'node-cjs'},
+      {name:'fallback.mjs',icon:'📄',id:'fallback'}
+    ]}
+  ]}
+ ]},
+ steps:[
+  {desc:'Bare specifier "my-http" → find package',check:'pkg',detail:'Found my-http in node_modules with an exports field.'},
+  {desc:'Exports "." with conditional exports',check:'pkg',detail:'The "." export has multiple conditions: "browser", "node" (with nested import/require), and "default" (fallback).'},
+  {desc:'Evaluate conditions in order (top to bottom)',check:'pkg',detail:'Conditions are evaluated top-to-bottom. The first matching condition wins. "browser" is only matched by bundlers that set this condition. "node" is matched by Node.js runtime.'},
+  {desc:'In Node.js: "node" condition matches',check:'pkg',detail:'Node.js environment matches the "node" condition. Inside it, "import" is selected because we\'re using ESM.'},
+  {desc:'Nested: "import" → ./node.mjs',check:'node-entry',found:true,detail:'The resolution: my-http → exports["."] → node → import → ./node.mjs. Bundlers like webpack/vite can match "browser" condition instead, loading browser.mjs.'},
+  {desc:'✓ Resolved: ./node_modules/my-http/node.mjs',check:'node-entry',detail:'Conditional exports enable: single package, different code for different environments. Common conditions: node, browser, import, require, default, types (TypeScript).'}
+ ]
+},
+{name:'ESM strict: no extension, no index.js',
+ type:'esm',
+ importCode:'import { add } from "./math";',
+ specifier:'./math',
+ tree:{name:'project/',icon:'📁',children:[
+  {name:'app.mjs',icon:'📄',id:'app'},
+  {name:'math.mjs',icon:'📄',id:'math-mjs'},
+  {name:'math/',icon:'📁',children:[
+    {name:'index.mjs',icon:'📄',id:'math-index'}
+  ]}
+ ]},
+ steps:[
+  {desc:'ESM relative import: "./math"',check:'app',detail:'ESM (with --experimental-specifier-resolution=node disabled) requires explicit file extensions. "./math" without extension is ambiguous.'},
+  {desc:'Try exact path: ./math — not a file',check:null,detail:'ESM does NOT try appending extensions automatically. "./math" is not a file. In strict ESM, this would throw ERR_MODULE_NOT_FOUND.'},
+  {desc:'❌ ERR_MODULE_NOT_FOUND: ./math',check:null,detail:'Unlike CJS, ESM does not: (1) try .js/.mjs/.json extensions, (2) look for index.js in directories. You must use the full path with extension.'},
+  {desc:'Fix: import from "./math.mjs"',check:'math-mjs',found:true,detail:'The correct import is: import { add } from "./math.mjs". This explicitness is intentional — it matches browser behavior where URLs must be complete.'},
+  {desc:'✓ Correct: import { add } from "./math.mjs"',check:'math-mjs',detail:'ESM design principle: what works in Node.js should also work in browsers. Browsers don\'t have file extension guessing, so ESM doesn\'t either. Bundlers (webpack, vite) may relax this.'}
+ ]
+}
+];
+
+let curScenario=0,curStep=-1,autoInterval=null,currentTab='detail';
+
+function init(){
+  const sel=document.getElementById('scenarioSelect');
+  SCENARIOS.forEach((s,i)=>{const o=document.createElement('option');o.value=i;o.textContent=s.name;sel.appendChild(o)});
+  sel.onchange=()=>{curScenario=+sel.value;reset()};
+  reset();
+}
+
+function reset(){
+  if(autoInterval){clearInterval(autoInterval);autoInterval=null}
+  curStep=-1;render();
+}
+
+function render(){
+  const s=SCENARIOS[curScenario];
+  // Import statement
+  document.getElementById('importPanel').innerHTML=`<h3 ti="h3_s_type_esm_esm_import_cj">${s.type==='esm'?'ESM Import':'CJS Require'}</h3><div class="import-stmt">${formatImport(s.importCode)}</div>`;
+  // File tree
+  const step=s.steps[curStep];
+  document.getElementById('fileTree').innerHTML=renderTree(s.tree,step);
+  // Steps
+  const el=document.getElementById('resolveSteps');
+  el.innerHTML=s.steps.map((st,i)=>{
+    let cls=i<curStep?'fail':i===curStep?'active':'';
+    if(st.found&&i<=curStep)cls='success';
+    if(i<curStep&&!st.found)cls='fail';
+    return `<div class="resolve-step ${cls}">${esc(st.desc)}</div>`;
+  }).join('');
+  renderTab();
+}
+
+function renderTree(node,step,depth=0){
+  const isChecked=step&&step.check===node.id;
+  const isFound=step&&step.found&&step.check===node.id;
+  let cls='';
+  if(isFound)cls='found-node';
+  else if(isChecked)cls='step-node';
+
+  let html=`<li class="tree-node"><div class="tree-node-content ${cls}">`;
+  html+=`<span class="node-icon">${node.icon}</span>`;
+  html+=`<span class="node-name">${esc(node.name)}</span>`;
+  if(isFound)html+=` <span class="node-badge badge-found">✓ FOUND</span>`;
+  else if(isChecked)html+=` <span class="node-badge badge-current">← checking</span>`;
+  if(node.note)html+=` <span style="color:#666;font-size:.7rem">${esc(node.note)}</span>`;
+  html+=`</div>`;
+  if(node.children){
+    html+=`<ul class="tree">`;
+    node.children.forEach(c=>{html+=renderTree(c,step,depth+1)});
+    html+=`</ul>`;
+  }
+  html+=`</li>`;
+  return html;
+}
+
+function formatImport(code){
+  return code.replace(/(import|from|require|const|let|var)/g,'<span class="import-kw">$1</span>')
+    .replace(/("[^"]*"|'[^']*')/g,'<span class="import-str">$1</span>')
+    .replace(/(\w+)\s*=/,'<span class="import-id">$1</span> =');
+}
+
+function renderTab(){
+  const s=SCENARIOS[curScenario];
+  const step=s.steps[curStep];
+  const el=document.getElementById('tabContent');
+
+  if(currentTab==='detail'){
+    let html='';
+    if(step){
+      html+=`<div class="info-card"><h4>Step ${curStep+1} / ${s.steps.length}</h4><p>${esc(step.detail)}</p></div>`;
+    }else{
+      html+=`<div class="info-card"><h4>${s.name}</h4><p>Step through to see how Node.js resolves the module specifier "${esc(s.specifier)}".</p></div>`;
+    }
+    html+=`<div class="info-card"><h4>Resolution Type</h4><p>${s.type==='esm'?'ECMAScript Modules (import)':'CommonJS (require())'}</p></div>`;
+    el.innerHTML=html;
+  }else{
+    el.innerHTML=`
+    <div class="vs-table">
+    <div class="vs-col cjs"><h4>CommonJS (CJS)</h4><ul>
+    <li>require() — synchronous</li>
+    <li>Auto-appends: .js, .json, .node</li>
+    <li>Directory → index.js fallback</li>
+    <li>package.json "main" field</li>
+    <li>module.exports / exports</li>
+    <li>Dynamic: require(variable)</li>
+    <li>Cached by absolute path</li>
+    </ul></div>
+    <div class="vs-col esm"><h4>ESM (import)</h4><ul>
+    <li>import — asynchronous</li>
+    <li>Explicit extensions required</li>
+    <li>No index.js fallback</li>
+    <li>package.json "exports" field</li>
+    <li>export / export default</li>
+    <li>Static: import("expr") for dynamic</li>
+    <li>Cached by URL</li>
+    </ul></div>
+    </div>
+    <div class="info-card"><h4>package.json Fields</h4>
+    <table class="ref-table">
+    <tr><th ti="th_field">Field</th><th ti="th_used_by">Used by</th><th ti="th_purpose">Purpose</th></tr>
+    <tr><td>"main"</td><td>CJS</td><td>Entry point for require()</td></tr>
+    <tr><td>"module"</td><td>Bundlers</td><td>ESM entry (not Node.js)</td></tr>
+    <tr><td>"exports"</td><td>ESM+CJS</td><td>Conditional entry points. Overrides "main"</td></tr>
+    <tr><td>"type"</td><td>Node.js</td><td>"module" = .js files are ESM. "commonjs" = default</td></tr>
+    <tr><td>"imports"</td><td>ESM</td><td>Package-private import aliases (#utils)</td></tr>
+    <tr><td>"browser"</td><td>Bundlers</td><td>Browser-specific entry/overrides</td></tr>
+    <tr><td>"types"</td><td>TypeScript</td><td>.d.ts type definitions entry</td></tr>
+    </table></div>
+    <div class="info-card"><h4>Export Conditions</h4>
+    <table class="ref-table">
+    <tr><th ti="th_condition">Condition</th><th ti="th_matched_by">Matched by</th></tr>
+    <tr><td>"import"</td><td>ESM import statement</td></tr>
+    <tr><td>"require"</td><td>CJS require() call</td></tr>
+    <tr><td>"node"</td><td>Node.js runtime</td></tr>
+    <tr><td>"browser"</td><td>Browser bundlers</td></tr>
+    <tr><td>"default"</td><td>Always (fallback)</td></tr>
+    <tr><td>"types"</td><td>TypeScript</td></tr>
+    <tr><td>"development"</td><td>Dev mode bundlers</td></tr>
+    <tr><td>"production"</td><td>Prod mode bundlers</td></tr>
+    </table></div>
+    <div class="info-card"><h4>CJS Resolution Algorithm</h4>
+    <table class="ref-table">
+    <tr><td>1</td><td>Is specifier a core module? (fs, path, etc.) → done</td></tr>
+    <tr><td>2</td><td>Starts with "./" or "../"? → resolve relative path</td></tr>
+    <tr><td>3</td><td>Try exact path, then +.js, +.json, +.node</td></tr>
+    <tr><td>4</td><td>Try directory: path/index.js, index.json, index.node</td></tr>
+    <tr><td>5</td><td>Bare specifier → walk up node_modules directories</td></tr>
+    <tr><td>6</td><td>Read package.json "main" or default to index.js</td></tr>
+    </table></div>`;
+  }
+}
+
+function stepForward(){
+  const s=SCENARIOS[curScenario];
+  if(curStep<s.steps.length-1){curStep++;render()}
+}
+function stepBack(){if(curStep>=0){curStep--;render()}}
+function autoPlay(){
+  if(autoInterval){clearInterval(autoInterval);autoInterval=null;return}
+  autoInterval=setInterval(()=>{
+    if(curStep>=SCENARIOS[curScenario].steps.length-1){clearInterval(autoInterval);autoInterval=null;return}
+    stepForward();
+  },1200);
+}
+function switchTab(t){
+  currentTab=t;
+  document.querySelectorAll('.tab-bar button').forEach(b=>b.classList.toggle('active',b.textContent.toLowerCase().startsWith(t.slice(0,3))));
+  renderTab();
+}
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+init();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+</body>
+</html>

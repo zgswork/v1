@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图片标签添加工具 - 简单高效的图片标注工具</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3B82F6',
+                        secondary: '#EC4899',
+                        dark: '#1E293B',
+                        light: '#F8FAFC'
+                    },
+                    fontFamily: {
+                        inter: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .transition-transform-opacity {
+                transition-property: transform, opacity;
+            }
+            .shadow-soft {
+                box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+            }
+            .label-dot {
+                width: 12px;
+                height: 12px;
+                border-radius: 50%;
+                position: absolute;
+                transform: translate(-50%, -50%);
+                z-index: 10;
+            }
+            .label-text {
+                position: absolute;
+                padding: 4px 8px;
+                border-radius: 4px;
+                font-size: 14px;
+                z-index: 11;
+                cursor: move;
+                min-width: 80px;
+                text-align: center;
+            }
+            .image-container {
+                position: relative;
+                display: inline-block;
+                max-width: 100%;
+            }
+            .image-wrapper {
+                overflow: auto;
+                max-height: 600px;
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+<body class="font-inter bg-gray-50 text-dark min-h-screen flex flex-col">
+    <!-- 顶部导航 -->
+    <header class="bg-white shadow-md py-4 px-6 sticky top-0 z-50 transition-all duration-300">
+        <div class="container mx-auto flex justify-between items-center">
+            <div class="flex items-center space-x-2">
+                <i class="fa fa-picture-o text-primary text-2xl"></i>
+                <h1 class="text-xl md:text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">图片标签添加工具</h1>
+            </div>
+            <p class="hidden md:block text-gray-600">简单高效的图片标注解决方案</p>
+        </div>
+    </header>
+
+    <!-- 主要内容区 -->
+    <main class="flex-grow container mx-auto px-4 py-8 md:py-16">
+        <!-- 介绍部分 -->
+        <section class="text-center mb-12 max-w-3xl mx-auto">
+            <h2 class="text-[clamp(1.5rem,3vw,2.5rem)] font-bold mb-4">轻松标注图片重点</h2>
+            <p class="text-gray-600 text-lg mb-6">上传图片，添加可自定义的标签，准确定位重点区域，一键导出带标签的图片</p>
+            <div class="flex justify-center flex-wrap gap-4 text-sm text-gray-500">
+                <span class="flex items-center"><i class="fa fa-check-circle text-primary mr-1"></i> 可拖动标签</span>
+                <span class="hidden sm:inline">•</span>
+                <span class="flex items-center"><i class="fa fa-check-circle text-primary mr-1"></i> 内容可编辑</span>
+                <span class="hidden sm:inline">•</span>
+                <span class="flex items-center"><i class="fa fa-check-circle text-primary mr-1"></i> 多标签支持</span>
+                <span class="hidden sm:inline">•</span>
+                <span class="flex items-center"><i class="fa fa-check-circle text-primary mr-1"></i> 高清导出</span>
+            </div>
+        </section>
+
+        <!-- 图片上传区域 -->
+        <section class="max-w-4xl mx-auto bg-white rounded-xl shadow-soft p-6 md:p-8 mb-10 transform transition-all duration-300 hover:shadow-lg">
+            <div id="upload-area" class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center transition-all duration-300 hover:border-primary cursor-pointer">
+                <input type="file" id="image-input" accept="image/*" class="hidden">
+                <i class="fa fa-cloud-upload text-5xl text-gray-400 mb-4 transition-colors duration-300 hover:text-primary"></i>
+                <h3 class="text-xl font-semibold mb-2">上传图片</h3>
+                <p class="text-gray-500 mb-4">支持JPG、PNG等格式，点击或拖放图片到此处</p>
+                <button id="browse-btn" class="bg-primary hover:bg-primary/90 text-white font-medium py-2 px-6 rounded-lg transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-primary/50">
+                    浏览文件
+                </button>
+            </div>
+        </section>
+
+        <!-- 图片编辑区域 -->
+        <section id="editor-section" class="max-w-5xl mx-auto hidden">
+            <div class="bg-white rounded-xl shadow-soft p-6 md:p-8 mb-8">
+                <div class="flex flex-wrap justify-between items-center mb-6 gap-4">
+                    <h3 class="text-xl font-semibold flex items-center">
+                        <i class="fa fa-edit text-primary mr-2"></i> 图片编辑
+                    </h3>
+                    <div class="flex flex-wrap gap-3">
+                        <button id="add-label-btn" class="flex items-center bg-secondary hover:bg-secondary/90 text-white font-medium py-2 px-4 rounded-lg transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-secondary/50">
+                            <i class="fa fa-plus mr-2"></i> 添加标签
+                        </button>
+                        <button id="export-btn" class="flex items-center bg-primary hover:bg-primary/90 text-white font-medium py-2 px-4 rounded-lg transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-primary/50">
+                            <i class="fa fa-download mr-2"></i> 导出图片
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- 图片容器 -->
+                <div class="border border-gray-200 rounded-lg p-4 bg-gray-50 image-wrapper">
+                    <div id="image-container" class="image-container">
+                        <img id="preview-image" class="max-width-full" alt="预览图片">
+                        <!-- 标签将动态添加到这里 -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- 标签样式设置 -->
+            <div class="bg-white rounded-xl shadow-soft p-6 md:p-8 mb-8">
+                <h3 class="text-xl font-semibold mb-6 flex items-center">
+                    <i class="fa fa-sliders text-primary mr-2"></i> 标签样式设置
+                </h3>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- 标签颜色 -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">标签颜色</label>
+                        <div class="flex flex-wrap gap-3">
+                            <button class="label-color-btn w-8 h-8 rounded-full bg-primary border-2 border-transparent hover:border-gray-400 transition-all duration-300 active" data-color="#3B82F6"></button>
+                            <button class="label-color-btn w-8 h-8 rounded-full bg-secondary border-2 border-transparent hover:border-gray-400 transition-all duration-300" data-color="#EC4899"></button>
+                            <button class="label-color-btn w-8 h-8 rounded-full bg-green-500 border-2 border-transparent hover:border-gray-400 transition-all duration-300" data-color="#10B981"></button>
+                            <button class="label-color-btn w-8 h-8 rounded-full bg-yellow-500 border-2 border-transparent hover:border-gray-400 transition-all duration-300" data-color="#EAB308"></button>
+                            <button class="label-color-btn w-8 h-8 rounded-full bg-red-500 border-2 border-transparent hover:border-gray-400 transition-all duration-300" data-color="#EF4444"></button>
+                            <input type="color" id="custom-label-color" class="w-8 h-8 p-0 border-2 border-gray-200 rounded-full cursor-pointer" value="#3B82F6">
+                        </div>
+                    </div>
+                    
+                    <!-- 默认标签文本 -->
+                    <div>
+                        <label for="default-label-text" class="block text-sm font-medium text-gray-700 mb-2">默认标签文本</label>
+                        <input type="text" id="default-label-text" value="重点区域" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all duration-300">
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 操作指南 -->
+        <section class="max-w-3xl mx-auto bg-white rounded-xl shadow-soft p-6 md:p-8">
+            <h3 class="text-xl font-semibold mb-4 flex items-center">
+                <i class="fa fa-lightbulb-o text-primary mr-2"></i> 使用指南
+            </h3>
+            <div class="space-y-4 text-gray-600">
+                <div class="flex items-start">
+                    <div class="bg-primary/10 text-primary rounded-full w-6 h-6 flex items-center justify-center mt-0.5 mr-3 flex-shrink-0">1</div>
+                    <p>点击"浏览文件"或直接拖放图片到上传区域</p>
+                </div>
+                <div class="flex items-start">
+                    <div class="bg-primary/10 text-primary rounded-full w-6 h-6 flex items-center justify-center mt-0.5 mr-3 flex-shrink-0">2</div>
+                    <p>点击"添加标签"按钮，在图片上会出现一个可拖动的标签</p>
+                </div>
+                <div class="flex items-start">
+                    <div class="bg-primary/10 text-primary rounded-full w-6 h-6 flex items-center justify-center mt-0.5 mr-3 flex-shrink-0">3</div>
+                    <p>拖动标签到需要标注的位置，双击标签文本可进行编辑</p>
+                </div>
+                <div class="flex items-start">
+                    <div class="bg-primary/10 text-primary rounded-full w-6 h-6 flex items-center justify-center mt-0.5 mr-3 flex-shrink-0">4</div>
+                    <p>可以通过样式设置面板调整标签颜色和默认文本，完成后点击"导出图片"</p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- 页脚信息 -->
+    <footer class="bg-dark text-gray-400 py-6 mt-12">
+        <div class="container mx-auto px-4 text-center">
+            <p class="text-sm md:text-base">
+                邓文涛(AI版) | <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="0c3b3c3b39383b38383d4c7d7d226f6361">[email&#160;protected]</a> | VX：707547441 | 更多点击➡️
+                <a href="https://dkfile.com/Dx25214" target="_blank" rel="noopener" class="text-primary hover:text-primary/80 transition-colors duration-300">
+                    🌌
+                </a>
+            </p>
+        </div>
+    </footer>
+
+    <!-- 通知提示组件 -->
+    <div id="notification" class="fixed bottom-6 right-6 bg-dark text-white px-6 py-3 rounded-lg shadow-lg transform translate-y-20 opacity-0 transition-transform-opacity duration-300 flex items-center z-50">
+        <i id="notification-icon" class="mr-2"></i>
+        <span id="notification-text"></span>
+    </div>
+
+    <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+        // 获取DOM元素
+        const imageInput = document.getElementById('image-input');
+        const uploadArea = document.getElementById('upload-area');
+        const browseBtn = document.getElementById('browse-btn');
+        const editorSection = document.getElementById('editor-section');
+        const previewImage = document.getElementById('preview-image');
+        const imageContainer = document.getElementById('image-container');
+        const addLabelBtn = document.getElementById('add-label-btn');
+        const exportBtn = document.getElementById('export-btn');
+        const notification = document.getElementById('notification');
+        const notificationIcon = document.getElementById('notification-icon');
+        const notificationText = document.getElementById('notification-text');
+        const colorButtons = document.querySelectorAll('.label-color-btn');
+        const customColorInput = document.getElementById('custom-label-color');
+        const defaultLabelTextInput = document.getElementById('default-label-text');
+        
+        // 全局变量
+        let currentImage = null;
+        let labelColor = '#3B82F6';
+        let labelIdCounter = 0;
+        let activeLabel = null;
+        
+        // 显示通知
+        function showNotification(message, isSuccess = true) {
+            notificationText.textContent = message;
+            notificationIcon.className = isSuccess ? 'fa fa-check-circle mr-2' : 'fa fa-exclamation-circle mr-2 text-red-500';
+            notification.classList.remove('translate-y-20', 'opacity-0');
+            
+            setTimeout(() => {
+                notification.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+
+        // 处理图片上传
+        function handleImageUpload(file) {
+            if (!file) {
+                showNotification('未选择图片文件', false);
+                return;
+            }
+            
+            // 检查文件类型
+            if (!file.type.startsWith('image/')) {
+                showNotification('请上传图片文件', false);
+                return;
+            }
+            
+            // 读取图片文件
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                currentImage = new Image();
+                currentImage.onload = function() {
+                    // 设置预览图片
+                    previewImage.src = e.target.result;
+                    
+                    // 清空现有标签
+                    clearAllLabels();
+                    
+                    // 显示编辑区域
+                    editorSection.classList.remove('hidden');
+                    editorSection.scrollIntoView({ behavior: 'smooth' });
+                    
+                    showNotification('图片加载成功');
+                };
+                currentImage.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // 清除所有标签
+        function clearAllLabels() {
+            const labels = document.querySelectorAll('.label-container');
+            labels.forEach(label => label.remove());
+            labelIdCounter = 0;
+        }
+
+        // 创建新标签
+        function createLabel() {
+            if (!currentImage) return;
+            
+            // 创建标签容器
+            const labelContainer = document.createElement('div');
+            const labelId = `label-${labelIdCounter++}`;
+            labelContainer.id = labelId;
+            labelContainer.className = 'label-container absolute';
+            
+            // 默认位置（图片中心）
+            const containerRect = imageContainer.getBoundingClientRect();
+            const x = containerRect.width / 2;
+            const y = containerRect.height / 2;
+            labelContainer.style.left = `${x}px`;
+            labelContainer.style.top = `${y}px`;
+            
+            // 创建标签点
+            const labelDot = document.createElement('div');
+            labelDot.className = 'label-dot';
+            labelDot.style.backgroundColor = labelColor;
+            
+            // 创建标签文本
+            const labelText = document.createElement('div');
+            labelText.className = 'label-text';
+            labelText.style.backgroundColor = labelColor;
+            labelText.style.color = '#ffffff';
+            labelText.textContent = defaultLabelTextInput.value;
+            labelText.style.top = '15px'; // 文本在点的下方
+            
+            // 添加到容器
+            labelContainer.appendChild(labelDot);
+            labelContainer.appendChild(labelText);
+            imageContainer.appendChild(labelContainer);
+            
+            // 使标签可拖动
+            makeLabelDraggable(labelContainer, labelText);
+            
+            // 使标签文本可编辑
+            makeLabelEditable(labelText);
+            
+            showNotification('标签已添加，可拖动到目标位置');
+        }
+
+        // 使标签可拖动
+        function makeLabelDraggable(labelContainer, labelText) {
+            let isDragging = false;
+            let offsetX, offsetY;
+            
+            // 拖动开始 - 点击标签文本时
+            const startDrag = function(e) {
+                // 防止事件冒泡
+                e.stopPropagation();
+                
+                // 如果有活跃标签，移除活跃状态
+                if (activeLabel) {
+                    activeLabel.style.boxShadow = 'none';
+                }
+                
+                // 设置当前标签为活跃状态
+                activeLabel = labelText;
+                labelText.style.boxShadow = '0 2px 8px rgba(0,0,0,0.2)';
+                
+                isDragging = true;
+                
+                // 计算鼠标位置与标签左上角的偏移
+                const rect = labelContainer.getBoundingClientRect();
+                const containerRect = imageContainer.getBoundingClientRect();
+                
+                offsetX = e.clientX - rect.left;
+                offsetY = e.clientY - rect.top;
+                
+                // 添加事件监听
+                document.addEventListener('mousemove', drag);
+                document.addEventListener('mouseup', stopDrag);
+                document.addEventListener('touchmove', drag, { passive: false });
+                document.addEventListener('touchend', stopDrag);
+            };
+            
+            // 拖动中
+            const drag = function(e) {
+                if (!isDragging) return;
+                e.preventDefault();
+                
+                const containerRect = imageContainer.getBoundingClientRect();
+                
+                // 计算新位置（相对于容器）
+                let newX, newY;
+                
+                if (e.type.includes('mouse')) {
+                    newX = e.clientX - containerRect.left - offsetX;
+                    newY = e.clientY - containerRect.top - offsetY;
+                } else {
+                    // 触摸事件
+                    newX = e.touches[0].clientX - containerRect.left - offsetX;
+                    newY = e.touches[0].clientY - containerRect.top - offsetY;
+                }
+                
+                // 限制在容器内
+                newX = Math.max(0, Math.min(newX, containerRect.width));
+                newY = Math.max(0, Math.min(newY, containerRect.height));
+                
+                // 设置新位置
+                labelContainer.style.left = `${newX}px`;
+                labelContainer.style.top = `${newY}px`;
+            };
+            
+            // 停止拖动
+            const stopDrag = function() {
+                isDragging = false;
+                
+                // 移除事件监听
+                document.removeEventListener('mousemove', drag);
+                document.removeEventListener('mouseup', stopDrag);
+                document.removeEventListener('touchmove', drag);
+                document.removeEventListener('touchend', stopDrag);
+            };
+            
+            // 添加鼠标和触摸事件监听
+            labelText.addEventListener('mousedown', startDrag);
+            labelText.addEventListener('touchstart', startDrag, { passive: false });
+        }
+
+        // 使标签文本可编辑
+        function makeLabelEditable(labelText) {
+            labelText.addEventListener('dblclick', function() {
+                const currentText = labelText.textContent;
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.value = currentText;
+                input.className = 'bg-white text-dark border-none rounded px-2 py-1 font-medium text-sm w-full';
+                
+                // 替换文本为输入框
+                labelText.textContent = '';
+                labelText.appendChild(input);
+                input.focus();
+                
+                // 失去焦点时保存
+                const saveText = function() {
+                    const newText = input.value.trim() || defaultLabelTextInput.value;
+                    labelText.textContent = newText;
+                };
+                
+                input.addEventListener('blur', saveText);
+                input.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter') {
+                        input.blur();
+                    }
+                });
+            });
+        }
+
+        // 导出带标签的图片
+        function exportImageWithLabels() {
+            if (!currentImage) {
+                showNotification('请先上传图片', false);
+                return;
+            }
+            
+            // 创建Canvas
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            // 设置Canvas尺寸为图片实际尺寸
+            canvas.width = currentImage.width;
+            canvas.height = currentImage.height;
+            
+            // 绘制图片
+            ctx.drawImage(currentImage, 0, 0);
+            
+            // 获取所有标签
+            const labels = document.querySelectorAll('.label-container');
+            if (labels.length === 0) {
+                showNotification('请先添加标签', false);
+                return;
+            }
+            
+            // 获取图片容器的尺寸（显示尺寸）
+            const containerRect = imageContainer.getBoundingClientRect();
+            
+            // 计算缩放比例（实际尺寸 / 显示尺寸）
+            const scaleX = currentImage.width / containerRect.width;
+            const scaleY = currentImage.height / containerRect.height;
+            
+            // 绘制每个标签
+            labels.forEach(label => {
+                // 获取标签在显示中的位置
+                const labelRect = label.getBoundingClientRect();
+                const x = (labelRect.left - containerRect.left) * scaleX;
+                const y = (labelRect.top - containerRect.top) * scaleY;
+                
+                // 获取标签点和文本
+                const dot = label.querySelector('.label-dot');
+                const text = label.querySelector('.label-text');
+                const dotColor = dot.style.backgroundColor;
+                const textContent = text.textContent;
+                
+                // 绘制标签点
+                ctx.beginPath();
+                ctx.arc(x + 6, y + 6, 6, 0, Math.PI * 2); // 6是点的一半大小
+                ctx.fillStyle = dotColor;
+                ctx.fill();
+                
+                // 测量文本宽度
+                ctx.font = '14px Inter, sans-serif';
+                const textMetrics = ctx.measureText(textContent);
+                const textWidth = textMetrics.width + 16; // 加上内边距
+                const textHeight = 24; // 文本区域高度
+                
+                // 绘制文本背景
+                ctx.fillStyle = dotColor;
+                ctx.fillRect(x + 6 - textWidth / 2, y + 18, textWidth, textHeight);
+                
+                // 绘制文本
+                ctx.fillStyle = '#ffffff';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(textContent, x + 6, y + 18 + textHeight / 2);
+            });
+            
+            // 创建下载链接
+            const link = document.createElement('a');
+            link.download = `image-with-labels-${new Date().toISOString().replace(/:/g, '-').slice(0, 19)}.png`;
+            link.href = canvas.toDataURL('image/png');
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            showNotification('图片导出成功');
+        }
+
+        // 事件监听
+        browseBtn.addEventListener('click', () => {
+            imageInput.click();
+        });
+
+        imageInput.addEventListener('change', (e) => {
+            handleImageUpload(e.target.files[0]);
+        });
+
+        // 拖放功能
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('border-primary', 'bg-primary/5');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('border-primary', 'bg-primary/5');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('border-primary', 'bg-primary/5');
+            handleImageUpload(e.dataTransfer.files[0]);
+        });
+
+        uploadArea.addEventListener('click', () => {
+            imageInput.click();
+        });
+
+        // 添加标签
+        addLabelBtn.addEventListener('click', createLabel);
+
+        // 导出图片
+        exportBtn.addEventListener('click', exportImageWithLabels);
+
+        // 颜色选择
+        colorButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                // 更新活跃状态
+                colorButtons.forEach(btn => btn.classList.remove('active', 'border-gray-400'));
+                button.classList.add('active', 'border-gray-400');
+                
+                // 更新颜色配置
+                labelColor = button.getAttribute('data-color');
+                customColorInput.value = labelColor;
+            });
+        });
+
+        // 自定义颜色
+        customColorInput.addEventListener('input', () => {
+            // 更新颜色配置
+            labelColor = customColorInput.value;
+            
+            // 更新按钮状态
+            colorButtons.forEach(btn => btn.classList.remove('active', 'border-gray-400'));
+        });
+
+        // 窗口滚动效果 - 改变导航栏样式
+        window.addEventListener('scroll', () => {
+            const header = document.querySelector('header');
+            if (window.scrollY > 10) {
+                header.classList.add('py-2');
+                header.classList.remove('py-4');
+            } else {
+                header.classList.add('py-4');
+                header.classList.remove('py-2');
+            }
+        });
+
+        // 初始化样式按钮状态
+        document.querySelector('.label-color-btn[data-color="#3B82F6"]').classList.add('active', 'border-gray-400');
+    </script>
+</body>
+</html>
+    

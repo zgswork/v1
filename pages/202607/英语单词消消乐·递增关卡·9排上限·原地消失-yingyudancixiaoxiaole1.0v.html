@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>英语单词消消乐 · 递增关卡 · 9排上限 · 原地消失</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Segoe+UI:400,600">
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+/* ===== 基础布局 ===== */
+body{margin:0;font-family:'Segoe UI',sans-serif;background:radial-gradient(circle,#fdfbfb,#ebedee);display:flex;flex-direction:column;align-items:center;color:#333;}
+header{text-align:center;margin-top:14px;}
+h1{font-size:2rem;color:#4a90e2;margin:0;}
+#stats{margin:10px 0;font-size:1rem;}
+#menuBar{margin:10px 0;display:flex;flex-wrap:wrap;gap:8px;justify-content:center;}
+#menuBar .btn{padding:8px 16px;border:none;background:#4a90e2;color:#fff;border-radius:20px;cursor:pointer;font-size:0.9rem;transition:background .25s;}
+#menuBar .btn:hover{background:#357ABD;}
+#menuBar .btn.ghost{background:#aaa;}
+.progress-wrap{width:92%;max-width:980px;background:#ddd;height:14px;border-radius:10px;overflow:hidden;margin:8px auto;}
+.progress{height:14px;background:linear-gradient(to right,#4facfe,#00f2fe);width:0%;transition:width .5s;}
+.main{width:92%;max-width:980px;margin:14px auto 24px;}
+
+/* ===== 网格：每排最多5个；最多9排（JS控制元素数量），自适应 ===== */
+.grid{
+  display:grid;
+  grid-template-columns:repeat(5, minmax(120px,1fr));
+  gap:18px;
+}
+@media (max-width: 992px){
+  .grid{ grid-template-columns:repeat(4, minmax(120px,1fr)); }
+}
+@media (max-width: 768px){
+  .grid{ grid-template-columns:repeat(3, minmax(110px,1fr)); }
+  .bubble{ width:110px;height:110px; font-size:1.2rem; }
+}
+@media (max-width: 480px){
+  .grid{ grid-template-columns:repeat(2, minmax(100px,1fr)); }
+  .bubble{ width:100px;height:100px; font-size:1.1rem; }
+}
+
+/* ===== 泡泡（字体更大） ===== */
+.bubble{
+  width:120px;height:120px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;text-align:center;
+  padding:12px;line-height:1.2;
+  font-weight:700;
+  font-size:1.35rem; /* 字更大更醒目 */
+  color:#fff;user-select:none;cursor:pointer;
+  box-shadow:0 8px 15px rgba(0,0,0,0.2);
+  transition:transform .2s,box-shadow .2s,filter .2s;
+  animation:float 3s ease-in-out infinite;
+}
+
+/* 英文泡泡：浅蓝色 */
+.bubble.en{
+  background:linear-gradient(145deg,#6ec6ff,#2196f3);
+}
+
+/* 中文泡泡：粉红色 */
+.bubble.cn{
+  background:linear-gradient(145deg,#ffb6c1,#ff69b4);
+}
+
+.bubble:hover{transform:scale(1.06);box-shadow:0 12px 20px rgba(0,0,0,0.3);}
+.selected{outline:3px solid rgba(255,255,255,0.9);box-shadow:0 0 22px rgba(255,255,255,0.8),0 10px 18px rgba(0,0,0,0.25);transform:scale(1.1);filter:saturate(1.2);}
+@keyframes float{0%,100%{transform:translateY(0);}50%{transform:translateY(-8px);}}
+
+/* 原地消失：仍占位但不可见、不可点 */
+.vanish{opacity:0;visibility:hidden;pointer-events:none;}
+
+/* ===== 弹窗 ===== */
+.modal{position:fixed;inset:0;background:rgba(0,0,0,0.6);display:none;align-items:center;justify-content:center;z-index:1000;padding:10px;}
+.card{background:#fff;padding:20px 24px;border-radius:12px;text-align:center;width:380px;animation:popIn .25s ease;position:relative;}
+.closeX{position:absolute;top:8px;right:12px;background:none;border:none;font-size:1.2rem;cursor:pointer;}
+.btn{padding:8px 14px;border:none;background:#4a90e2;color:white;border-radius:20px;cursor:pointer;font-size:0.9rem;}
+.btn.ghost{background:#aaa;}
+.stars{margin:8px 0;font-size:1.8rem;color:#f5c518;letter-spacing:2px;}
+.list{max-height:240px;overflow-y:auto;text-align:left;padding-left:18px;}
+textarea{width:100%;height:140px;resize:vertical;}
+.small{font-size:0.85rem;color:#666;}
+.badge{display:inline-block;margin:4px 4px 0;padding:4px 10px;border-radius:999px;background:#eef5ff;color:#2a62d0;font-size:.8rem;font-weight:600;}
+</style>
+</head>
+<body>
+<header>
+  <h1>英语单词消消乐</h1>
+  <div id="stats">
+    关卡 <span id="levelNo">1</span>/<span id="levelTotal">1</span>
+    ｜ 每关最多 <b>9 排</b>（每排 5 个）
+    ｜ 时间 <span id="time">0</span>s
+    ｜ 错误 <span id="errors">0</span>
+    ｜ 总分 <span id="totalScore">0</span>
+  </div>
+  <div id="menuBar">
+    <button class="btn" id="btn-new">开始/重开当前关</button>
+    <button class="btn ghost" id="btn-wrong">错题本</button>
+    <button class="btn ghost" id="btn-manage">单词管理/导入</button>
+    <button class="btn" id="btn-reset">从第一关重新开始</button>
+  </div>
+  <div class="progress-wrap"><div class="progress" id="progress"></div></div>
+</header>
+
+<main class="main">
+  <section class="grid" id="grid"></section>
+</main>
+
+<!-- 关卡完成 -->
+<div class="modal" id="modal-level">
+  <div class="card">
+    <button class="closeX" data-close="modal-level">✕</button>
+    <h2 id="level-result-title">关卡完成！</h2>
+    <div><h4>用时</h4><div class="big" id="m-time">0s</div></div>
+    <div><h4>错误率</h4><div class="big" id="m-err">0%</div></div>
+    <div><h4>本关得分</h4><div class="big" id="m-score">0</div></div>
+    <div class="stars" id="m-stars">★</div>
+    <div id="m-badges"></div>
+    <div style="margin-top:10px;">
+      <button class="btn" id="btn-next">下一关</button>
+      <button class="btn ghost" data-close="modal-level">关闭</button>
+    </div>
+    <div class="small" style="margin-top:6px;">
+      评分=基础分(120) - 时间惩罚 - 失误惩罚 + 加成；映射为 1~4 星与称号
+    </div>
+  </div>
+</div>
+
+<!-- 错题本 -->
+<div class="modal" id="modal-wrong">
+  <div class="card">
+    <button class="closeX" data-close="modal-wrong">✕</button>
+    <h2>错题本</h2>
+    <ul class="list" id="wrong-list"></ul>
+    <div style="margin-top:10px;">
+      <button class="btn" id="btn-clear-wrong">清空错题本</button>
+      <button class="btn ghost" data-close="modal-wrong">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- 单词管理 / 导入 -->
+<div class="modal" id="modal-manage">
+  <div class="card">
+    <button class="closeX" data-close="modal-manage">✕</button>
+    <h2>单词管理 / 导入</h2>
+    <textarea id="ta-words" placeholder="每行：英文 - 中文"></textarea>
+    <div class="small" style="text-align:left;margin:6px 0 10px;">
+      支持：Excel/CSV/TXT 导入；或直接粘贴文本，如：<code>tidy - 整理；整洁的</code>
+    </div>
+    <div>
+      <input type="file" id="file" accept=".xlsx,.xls,.csv,.txt"/>
+      <button class="btn" id="btn-import">导入文件</button>
+      <button class="btn ghost" id="btn-apply">覆盖保存并重新开始</button>
+      <button class="btn" id="btn-clear-words" style="background:#ff6b6b">清空单词</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ========== 初始词库（示例，可被覆盖） ========== */
+let wordLibrary = [
+  {en:"apple", cn:"苹果"}, {en:"banana", cn:"香蕉"}, {en:"cat", cn:"猫"}, {en:"dog", cn:"狗"},
+  {en:"book", cn:"书"}, {en:"pen", cn:"笔"}, {en:"tree", cn:"树"}, {en:"car", cn:"汽车"},
+  {en:"fish", cn:"鱼"}, {en:"milk", cn:"牛奶"}, {en:"rice", cn:"米饭"}, {en:"sun", cn:"太阳"},
+  {en:"moon", cn:"月亮"}, {en:"star", cn:"星星"}, {en:"phone", cn:"电话"}, {en:"computer", cn:"电脑"},
+  {en:"water", cn:"水"}, {en:"fire", cn:"火"}, {en:"earth", cn:"地球"}, {en:"wind", cn:"风"}
+];
+
+/* ========== 常量与状态 ========== */
+const MAX_COLS = 5;
+const MAX_ROWS = 9;
+const MAX_BUBBLES = MAX_COLS * MAX_ROWS;      // 45
+const MAX_PAIRS_PER_LEVEL = Math.floor(MAX_BUBBLES/2); // 22 对
+
+let wrongBook = [];
+let levelPlan = [];    // 每关多少对
+let levelsWords = [];  // 每关分到哪些单词（对）
+let state = { level:1, totalScore:0, errors:0, matched:0, startTime:0, timer:null };
+
+const el = {
+  levelNo: document.getElementById('levelNo'),
+  levelTotal: document.getElementById('levelTotal'),
+  time: document.getElementById('time'),
+  errors: document.getElementById('errors'),
+  totalScore: document.getElementById('totalScore'),
+  progress: document.getElementById('progress'),
+  grid: document.getElementById('grid'),
+  mTime: document.getElementById('m-time'),
+  mErr: document.getElementById('m-err'),
+  mScore: document.getElementById('m-score'),
+  mStars: document.getElementById('m-stars'),
+  mBadges: document.getElementById('m-badges'),
+  wrongList: document.getElementById('wrong-list'),
+  taWords: document.getElementById('ta-words'),
+  resultTitle: document.getElementById('level-result-title')
+};
+
+/* ========== 工具函数 ========== */
+function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
+
+/* 生成关卡计划：递增数量，最多22对/关，直到用完全部单词 */
+function buildLevelPlan(totalPairs){
+  const arr = [];
+  let start = Math.min(6, Math.max(4, Math.ceil(totalPairs*0.08))); // 起始6（总量很小则4~6）
+  let step = 2;
+  let remain = totalPairs;
+  while(remain > 0){
+    const next = Math.min(MAX_PAIRS_PER_LEVEL, Math.min(remain, start));
+    arr.push(next);
+    remain -= next;
+    start = Math.min(MAX_PAIRS_PER_LEVEL, start + step);
+  }
+  return arr;
+}
+
+/* 根据 plan 把词分给每关 */
+function distributeLevels(){
+  const words = shuffle([...wordLibrary]); // 每个元素是 {en,cn}
+  const totalPairs = words.length;
+  levelPlan = buildLevelPlan(totalPairs);
+  levelsWords = [];
+  let idx = 0;
+  for(const nPairs of levelPlan){
+    levelsWords.push(words.slice(idx, idx + nPairs));
+    idx += nPairs;
+  }
+  el.levelTotal.textContent = levelPlan.length;
+}
+
+/* 开始/刷新当前关（若空关则跳过） */
+function startLevel(){
+  // 跳过空关
+  while(state.level <= levelPlan.length && (levelsWords[state.level-1]?.length||0) === 0){
+    state.level++;
+  }
+  if(state.level > levelPlan.length){
+    endLevel(true);
+    return;
+  }
+
+  el.grid.innerHTML = '';
+  state.errors = 0;
+  state.matched = 0;
+  el.errors.textContent = 0;
+  el.time.textContent = 0;
+  el.levelNo.textContent = state.level;
+
+  const pairs = levelsWords[state.level-1];
+  // 关卡安全校验：不超过9排×5列（由 plan 保证）
+  const bubbles = [];
+  pairs.forEach(w=>{
+    bubbles.push({text:w.en, lang:'en', cn:w.cn});
+    bubbles.push({text:w.cn, lang:'cn', en:w.en});
+  });
+
+  shuffle(bubbles).forEach(b=>{
+    const d = document.createElement('div');
+    d.className = 'bubble ' + b.lang;
+    d.textContent = b.text;
+    d.dataset.lang = b.lang;
+    d.dataset.en = b.lang==='en' ? b.text : b.en;
+    d.dataset.cn = b.lang==='cn' ? b.text : b.cn;
+    d.addEventListener('click', onBubbleClick);
+    el.grid.appendChild(d);
+  });
+
+  // 计时
+  state.startTime = Date.now();
+  clearInterval(state.timer);
+  state.timer = setInterval(()=>{
+    el.time.textContent = Math.floor((Date.now()-state.startTime)/1000);
+  }, 500);
+
+  // 进度条
+  el.progress.style.width = ((state.level-1)/levelPlan.length*100).toFixed(2)+'%';
+}
+
+/* 点击匹配：配对成功原地“消失”，不重排 */
+let firstSel = null;
+function onBubbleClick(e){
+  const t = e.currentTarget;
+  if(!firstSel){
+    firstSel = t;
+    t.classList.add('selected');
+    return;
+  }
+  if(firstSel===t){
+    t.classList.remove('selected');
+    firstSel = null;
+    return;
+  }
+  if(firstSel.dataset.en===t.dataset.en && firstSel.dataset.lang!==t.dataset.lang){
+    // 原地消失：加 .vanish，不 remove
+    firstSel.classList.remove('selected');
+    firstSel.classList.add('vanish');
+    t.classList.add('vanish');
+    firstSel.style.pointerEvents='none';
+    t.style.pointerEvents='none';
+
+    state.matched++;
+    if(state.matched === levelsWords[state.level-1].length){
+      endLevel();
+    }
+  }else{
+    state.errors++;
+    el.errors.textContent = state.errors;
+    wrongBook.push({en:t.dataset.en, cn:t.dataset.cn});
+    if(firstSel) firstSel.classList.remove('selected');
+  }
+  firstSel = null;
+}
+
+/* 关卡结束 & 趣味评分/星级/称号/加成 */
+function endLevel(forceAllDone=false){
+  clearInterval(state.timer);
+  const totalPairs = levelsWords[state.level-1]?.length || 0;
+
+  let timeUsed = Math.floor((Date.now()-state.startTime)/1000);
+  let errRate = totalPairs>0 ? (state.errors / totalPairs) : 0; // 每对错一次计1
+  let raw = 120;                         // 基础分
+  let timePenalty = Math.round(timeUsed * 1.5);          // 时间惩罚
+  let missPenalty = Math.round(errRate * 100 * 0.8);     // 失误惩罚（按百分比）
+  let bonus = 0;
+  let badges = [];
+
+  // 加成：速清（平均<3s/对）、零错、低错
+  if(totalPairs>0 && (timeUsed/totalPairs) < 3){ bonus += 10; badges.push("⚡ 速清 +10"); }
+  if(state.errors === 0 && totalPairs>0){ bonus += 15; badges.push("💎 零错 +15"); }
+  if(errRate <= 0.10 && state.errors>0){ bonus += 5; badges.push("🧠 低错 +5"); }
+
+  // 强制通关（所有关都空）的兜底
+  if(forceAllDone){ timeUsed = 0; errRate = 0; raw = 0; timePenalty = 0; missPenalty = 0; bonus = 0; badges=[]; }
+
+  let score = clamp(Math.round(raw - timePenalty - missPenalty + bonus), 0, 200);
+
+  // 星级&称号
+  let stars = '★', title = '学徒新秀';
+  if(score >= 140){ stars='★★★★'; title='完美大师'; }
+  else if(score >= 100){ stars='★★★'; title='小火箭'; }
+  else if(score >= 60){ stars='★★'; title='稳健达人'; }
+
+  state.totalScore += score;
+  el.totalScore.textContent = state.totalScore;
+
+  el.mTime.textContent = timeUsed+'s';
+  el.mErr.textContent = Math.round(errRate*100)+'%';
+  el.mScore.textContent = score;
+  el.mStars.textContent = stars + '  ' + title;
+  el.mBadges.innerHTML = badges.map(b=>`<span class="badge">${b}</span>`).join('') || '<span class="small">继续加油，下一关更精彩！</span>';
+
+  const isLast = state.level>=levelPlan.length || forceAllDone;
+  el.resultTitle.textContent = isLast ? '全部通关！' : '关卡完成！';
+  document.getElementById('modal-level').style.display='flex';
+}
+
+/* ========== 按钮与事件 ========== */
+// 下一关
+document.getElementById('btn-next').addEventListener('click', ()=>{
+  document.getElementById('modal-level').style.display='none';
+  if(state.level < levelPlan.length){
+    state.level++;
+    startLevel();
+  }
+});
+
+// 从第一关重新开始（保留词库）
+document.getElementById('btn-reset').addEventListener('click', ()=>{
+  state.level = 1;
+  state.totalScore = 0;
+  el.totalScore.textContent = 0;
+  distributeLevels();
+  startLevel();
+});
+
+// 开始/重开当前关
+document.getElementById('btn-new').addEventListener('click', ()=>startLevel());
+
+// 错题本
+document.getElementById('btn-wrong').addEventListener('click', ()=>{
+  el.wrongList.innerHTML = wrongBook.length
+    ? wrongBook.map(w=>`<li>${w.en} - ${w.cn}</li>`).join('')
+    : '<li>空空如也～</li>';
+  document.getElementById('modal-wrong').style.display='flex';
+});
+document.getElementById('btn-clear-wrong').addEventListener('click', ()=>{
+  wrongBook = [];
+  el.wrongList.innerHTML = '<li>空空如也～</li>';
+});
+
+// 单词管理/导入
+document.getElementById('btn-manage').addEventListener('click', ()=>{
+  el.taWords.value = wordLibrary.map(w=>`${w.en} - ${w.cn}`).join('\n');
+  document.getElementById('modal-manage').style.display='flex';
+});
+
+// 清空词库
+document.getElementById('btn-clear-words').addEventListener('click', ()=>{
+  if(confirm('确定要清空所有单词吗？')){
+    wordLibrary = [];
+    el.taWords.value = '';
+  }
+});
+
+// 覆盖保存（文本区）并重新开始
+document.getElementById('btn-apply').addEventListener('click', ()=>{
+  const parsed = parseTextLines(el.taWords.value);
+  if(parsed.length===0){ alert('没有解析到有效的单词'); return; }
+  wordLibrary = dedupeWords(parsed);
+  state.level = 1;
+  state.totalScore = 0;
+  el.totalScore.textContent = 0;
+  distributeLevels();
+  document.getElementById('modal-manage').style.display='none';
+  startLevel();
+});
+
+// 导入文件到文本区（Excel/CSV/TXT）
+document.getElementById('btn-import').addEventListener('click', ()=>{
+  const file = document.getElementById('file').files[0];
+  if(!file){ alert('请选择文件'); return; }
+  const reader = new FileReader();
+  reader.onload = e=>{
+    try{
+      const data = new Uint8Array(e.target.result);
+      const wb = XLSX.read(data, {type:'array'});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const arr = XLSX.utils.sheet_to_json(ws, {header:1});
+      const lines = arr
+        .filter(r=>r && r.length>0)
+        .map(r => r.map(c => (c??'').toString().trim()))
+        .filter(r=>r.join('').length>0)
+        .map(r => (r[0]||'') + ' - ' + (r[1]||''));
+      if(lines.length>0){ el.taWords.value = lines.join('\n'); return; }
+    }catch(err){}
+    // 不是Excel就按文本读取
+    const asText = new TextDecoder('utf-8').decode(e.target.result);
+    el.taWords.value = asText;
+  };
+  reader.readAsArrayBuffer(file);
+});
+
+// 关闭弹窗
+document.querySelectorAll('.closeX,[data-close]').forEach(btn=>{
+  btn.addEventListener('click', ()=> {
+    const id = btn.getAttribute('data-close');
+    if(id) document.getElementById(id).style.display='none';
+    else btn.parentElement.parentElement.style.display='none';
+  });
+});
+
+/* ========== 文本解析与去重 ========== */
+function parseTextLines(txt){
+  return txt.split(/\n/)
+    .map(l=>l.trim())
+    .filter(l=>l)
+    .map(l=>{
+      // 支持 "en - cn" / "en, cn" / "en\tcn"
+      const parts = l.split(/[-,\t]/).map(p=>p.trim()).filter(Boolean);
+      if(parts.length>=2) return {en:parts[0], cn:parts.slice(1).join(' ')};
+      return null;
+    })
+    .filter(Boolean);
+}
+function dedupeWords(arr){
+  const seen = new Set();
+  return arr.filter(w=>{
+    const k = (w.en||'').toLowerCase();
+    if(!k) return false;
+    if(seen.has(k)) return false;
+    seen.add(k); return true;
+  });
+}
+
+/* ========== 初始化 ========== */
+distributeLevels();
+startLevel();
+</script>

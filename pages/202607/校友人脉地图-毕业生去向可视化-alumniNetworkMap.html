@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>校友人脉地图 - 毕业生去向可视化</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        :root {
+            --primary: #4361ee;
+            --secondary: #3f37c9;
+            --accent: #4895ef;
+            --light: #f8f9fa;
+            --dark: #212529;
+            --success: #4cc9f0;
+            --warning: #f72585;
+            --card-bg: rgba(255, 255, 255, 0.9);
+        }
+        
+        body {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            color: var(--dark);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        header {
+            text-align: center;
+            padding: 20px 0;
+            margin-bottom: 30px;
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .logo i {
+            font-size: 2.5rem;
+            color: var(--primary);
+        }
+        
+        .logo h1 {
+            font-size: 2.2rem;
+            font-weight: 700;
+            color: var(--secondary);
+            text-shadow: 1px 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .subtitle {
+            font-size: 1.2rem;
+            color: #555;
+            max-width: 700px;
+            margin: 0 auto;
+            line-height: 1.6;
+        }
+        
+        .dashboard {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 25px;
+        }
+        
+        .panel {
+            background: var(--card-bg);
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+            padding: 25px;
+            height: fit-content;
+        }
+        
+        .panel-title {
+            font-size: 1.4rem;
+            margin-bottom: 20px;
+            color: var(--secondary);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .panel-title i {
+            color: var(--accent);
+        }
+        
+        .filters {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .filter-group label {
+            font-weight: 600;
+            color: #444;
+        }
+        
+        select, input {
+            padding: 12px 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: white;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+        
+        select:focus, input:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.2);
+        }
+        
+        .stats-cards {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .stat-card {
+            background: white;
+            border-radius: 12px;
+            padding: 15px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+        
+        .stat-label {
+            font-size: 0.9rem;
+            color: #666;
+        }
+        
+        .map-container {
+            height: 600px;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+        
+        #alumniMap {
+            height: 100%;
+            width: 100%;
+        }
+        
+        .alumni-list {
+            margin-top: 25px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .alumni-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            transition: transform 0.3s ease;
+        }
+        
+        .alumni-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .avatar {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: var(--accent);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+        
+        .alumni-info {
+            flex: 1;
+        }
+        
+        .alumni-name {
+            font-weight: 700;
+            font-size: 1.2rem;
+            margin-bottom: 5px;
+        }
+        
+        .alumni-details {
+            color: #666;
+            font-size: 0.95rem;
+            margin-bottom: 10px;
+        }
+        
+        .alumni-tags {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        
+        .tag {
+            background: #e0e7ff;
+            color: var(--primary);
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        
+        .connect-btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        
+        .connect-btn:hover {
+            background: var(--secondary);
+            transform: scale(1.05);
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal-content {
+            background: white;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 500px;
+            padding: 30px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .modal-title {
+            font-size: 1.5rem;
+            color: var(--secondary);
+        }
+        
+        .close-modal {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #777;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #444;
+        }
+        
+        .form-group textarea {
+            width: 100%;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            resize: vertical;
+            min-height: 120px;
+            font-family: inherit;
+        }
+        
+        .checkbox-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .submit-btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 1rem;
+            width: 100%;
+            transition: background 0.3s ease;
+        }
+        
+        .submit-btn:hover {
+            background: var(--secondary);
+        }
+        
+        .legend {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-top: 15px;
+            padding: 15px;
+            background: rgba(255,255,255,0.8);
+            border-radius: 10px;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 0.9rem;
+        }
+        
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+        }
+        
+        .color-1 { background: #4361ee; }
+        .color-2 { background: #4895ef; }
+        .color-3 { background: #4cc9f0; }
+        .color-4 { background: #3a0ca3; }
+        .color-5 { background: #7209b7; }
+        
+        @media (max-width: 992px) {
+            .dashboard {
+                grid-template-columns: 1fr;
+            }
+            
+            .map-container {
+                height: 400px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">
+                <i class="fas fa-graduation-cap"></i>
+                <h1>校友人脉地图</h1>
+            </div>
+            <p class="subtitle">可视化探索校友职业发展轨迹，精准连接行业人脉，为你的职业规划提供数据支持</p>
+        </header>
+        
+        <div class="dashboard">
+            <div class="panel">
+                <h2 class="panel-title"><i class="fas fa-filter"></i> 筛选条件</h2>
+                
+                <div class="filters">
+                    <div class="filter-group">
+                        <label for="industry">行业</label>
+                        <select id="industry">
+                            <option value="all">全部行业</option>
+                            <option value="tech">互联网/科技</option>
+                            <option value="finance">金融/银行</option>
+                            <option value="education">教育/科研</option>
+                            <option value="healthcare">医疗健康</option>
+                            <option value="manufacturing">制造业</option>
+                            <option value="government">政府/公共事业</option>
+                        </select>
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label for="company">公司/组织</label>
+                        <input type="text" id="company" placeholder="输入公司名称...">
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label for="position">职位类型</label>
+                        <select id="position">
+                            <option value="all">全部职位</option>
+                            <option value="tech">技术/研发</option>
+                            <option value="product">产品/设计</option>
+                            <option value="marketing">市场/销售</option>
+                            <option value="finance">金融/财务</option>
+                            <option value="hr">人力资源</option>
+                            <option value="management">管理/行政</option>
+                        </select>
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label for="graduation">毕业年份</label>
+                        <select id="graduation">
+                            <option value="all">全部年份</option>
+                            <option value="2020-2023">2020-2023</option>
+                            <option value="2015-2019">2015-2019</option>
+                            <option value="2010-2014">2010-2014</option>
+                            <option value="2005-2009">2005-2009</option>
+                            <option value="before-2005">2005年以前</option>
+                        </select>
+                    </div>
+                    
+                    <button class="connect-btn" id="applyFilters">
+                        <i class="fas fa-search"></i> 应用筛选
+                    </button>
+                </div>
+                
+                <div class="stats-cards">
+                    <div class="stat-card">
+                        <div class="stat-value">15,832</div>
+                        <div class="stat-label">校友总数</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">1,243</div>
+                        <div class="stat-label">本周活跃</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">86</div>
+                        <div class="stat-label">新增校友</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">42%</div>
+                        <div class="stat-label">请求接受率</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="panel">
+                <h2 class="panel-title"><i class="fas fa-map-marked-alt"></i> 校友分布地图</h2>
+                
+                <div class="map-container">
+                    <div id="alumniMap"></div>
+                </div>
+                
+                <div class="legend">
+                    <div class="legend-item">
+                        <div class="legend-color color-1"></div>
+                        <span>互联网/科技</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color color-2"></div>
+                        <span>金融/银行</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color color-3"></div>
+                        <span>教育/科研</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color color-4"></div>
+                        <span>医疗健康</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color color-5"></div>
+                        <span>制造业</span>
+                    </div>
+                </div>
+                
+                <h2 class="panel-title" style="margin-top: 30px;"><i class="fas fa-users"></i> 校友列表</h2>
+                
+                <div class="alumni-list">
+                    <div class="alumni-card">
+                        <div class="avatar">张</div>
+                        <div class="alumni-info">
+                            <div class="alumni-name">张明</div>
+                            <div class="alumni-details">2020届 · 计算机科学 · 腾讯 · 高级产品经理</div>
+                            <div class="alumni-tags">
+                                <div class="tag">互联网</div>
+                                <div class="tag">产品经理</div>
+                                <div class="tag">深圳</div>
+                            </div>
+                        </div>
+                        <button class="connect-btn connect-alumni" data-name="张明">请求联系</button>
+                    </div>
+                    
+                    <div class="alumni-card">
+                        <div class="avatar">李</div>
+                        <div class="alumni-info">
+                            <div class="alumni-name">李华</div>
+                            <div class="alumni-details">2018届 · 金融学 · 高盛 · 投资分析师</div>
+                            <div class="alumni-tags">
+                                <div class="tag">金融</div>
+                                <div class="tag">投资分析</div>
+                                <div class="tag">纽约</div>
+                            </div>
+                        </div>
+                        <button class="connect-btn connect-alumni" data-name="李华">请求联系</button>
+                    </div>
+                    
+                    <div class="alumni-card">
+                        <div class="avatar">王</div>
+                        <div class="alumni-info">
+                            <div class="alumni-name">王芳</div>
+                            <div class="alumni-details">2022届 · 生物医学 · 北京大学 · 研究员</div>
+                            <div class="alumni-tags">
+                                <div class="tag">教育</div>
+                                <div class="tag">科研</div>
+                                <div class="tag">北京</div>
+                            </div>
+                        </div>
+                        <button class="connect-btn connect-alumni" data-name="王芳">请求联系</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="modal" id="connectionModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">联系校友</h3>
+                <button class="close-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="margin-bottom: 20px;">你正在联系 <strong id="alumniName">张明</strong>，请说明你的请求：</p>
+                
+                <div class="form-group">
+                    <label>请求类型</label>
+                    <div class="checkbox-group">
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="type1" checked>
+                            <label for="type1">求职建议</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="type2">
+                            <label for="type2">内推机会</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="type3">
+                            <label for="type3">行业咨询</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="type4">
+                            <label for="type4">职业规划</label>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="message">个性化消息</label>
+                    <textarea id="message" placeholder="请简要介绍自己并说明请求目的...">您好，我是2024届计算机专业的学生，对产品经理岗位很感兴趣。希望能向您请教腾讯产品岗的面试经验和行业趋势，非常感谢！</textarea>
+                </div>
+                
+                <div class="checkbox-item">
+                    <input type="checkbox" id="consent" checked>
+                    <label for="consent">我同意按照平台规则联系校友，并承诺不进行任何骚扰行为</label>
+                </div>
+                
+                <button class="submit-btn">发送请求</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // 初始化地图
+        const map = L.map('alumniMap').setView([35, 105], 4);
+        
+        // 添加地图图层
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+        
+        // 模拟校友位置数据
+        const alumniData = [
+            {name: "张明", lat: 22.5431, lng: 114.0579, industry: "tech", company: "腾讯", position: "高级产品经理", gradYear: 2020},
+            {name: "李华", lat: 40.7128, lng: -74.0060, industry: "finance", company: "高盛", position: "投资分析师", gradYear: 2018},
+            {name: "王芳", lat: 39.9042, lng: 116.4074, industry: "education", company: "北京大学", position: "研究员", gradYear: 2022},
+            {name: "陈强", lat: 31.2304, lng: 121.4737, industry: "finance", company: "中国银行", position: "风险控制", gradYear: 2017},
+            {name: "刘洋", lat: 23.1291, lng: 113.2644, industry: "tech", company: "网易", position: "前端开发", gradYear: 2021},
+            {name: "赵雪", lat: 30.5728, lng: 104.0668, industry: "healthcare", company: "华西医院", position: "主治医师", gradYear: 2015},
+            {name: "孙伟", lat: 34.3416, lng: 108.9398, industry: "manufacturing", company: "比亚迪", position: "生产管理", gradYear: 2019},
+            {name: "周婷", lat: 22.3193, lng: 114.1694, industry: "finance", company: "汇丰银行", position: "客户经理", gradYear: 2020}
+        ];
+        
+        // 行业颜色映射
+        const industryColors = {
+            tech: '#4361ee',
+            finance: '#4895ef',
+            education: '#4cc9f0',
+            healthcare: '#3a0ca3',
+            manufactoring: '#7209b7',
+            government: '#f72585'
+        };
+        
+        // 添加校友标记
+        alumniData.forEach(alumni => {
+            const marker = L.circleMarker([alumni.lat, alumni.lng], {
+                radius: 8,
+                fillColor: industryColors[alumni.industry] || '#4361ee',
+                color: '#fff',
+                weight: 2,
+                opacity: 1,
+                fillOpacity: 0.8
+            }).addTo(map);
+            
+            marker.bindPopup(`
+                <div style="font-weight:bold;margin-bottom:5px;">${alumni.name}</div>
+                <div>${alumni.company} · ${alumni.position}</div>
+                <div>${alumni.gradYear}届毕业生</div>
+                <button style="margin-top:10px;background:#4361ee;color:white;border:none;padding:5px 10px;border-radius:4px;cursor:pointer;">
+                    查看详情
+                </button>
+            `);
+        });
+        
+        // 添加主要城市标记
+        const majorCities = [
+            {name: "北京", lat: 39.9042, lng: 116.4074, count: 2850},
+            {name: "上海", lat: 31.2304, lng: 121.4737, count: 2240},
+            {name: "深圳", lat: 22.5431, lng: 114.0579, count: 1920},
+            {name: "广州", lat: 23.1291, lng: 113.2644, count: 1560},
+            {name: "杭州", lat: 30.25, lng: 120.16, count: 980},
+            {name: "纽约", lat: 40.7128, lng: -74.0060, count: 420},
+            {name: "伦敦", lat: 51.5074, lng: -0.1278, count: 380},
+            {name: "新加坡", lat: 1.3521, lng: 103.8198, count: 310}
+        ];
+        
+        majorCities.forEach(city => {
+            L.circle([city.lat, city.lng], {
+                color: '#4361ee',
+                fillColor: '#4895ef',
+                radius: 20000 * Math.log(city.count),
+                fillOpacity: 0.2,
+                weight: 1
+            }).addTo(map);
+            
+            L.marker([city.lat, city.lng]).addTo(map)
+                .bindPopup(`<b>${city.name}</b><br>校友: ${city.count}人`);
+        });
+        
+        // 模态框功能
+        const modal = document.getElementById('connectionModal');
+        const connectButtons = document.querySelectorAll('.connect-alumni');
+        const closeModal = document.querySelector('.close-modal');
+        const alumniNameElement = document.getElementById('alumniName');
+        
+        connectButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                const alumniName = button.getAttribute('data-name');
+                alumniNameElement.textContent = alumniName;
+                modal.style.display = 'flex';
+            });
+        });
+        
+        closeModal.addEventListener('click', () => {
+            modal.style.display = 'none';
+        });
+        
+        window.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.style.display = 'none';
+            }
+        });
+        
+        // 应用筛选按钮
+        document.getElementById('applyFilters').addEventListener('click', () => {
+            alert('筛选条件已应用！实际产品中这里会更新地图和列表数据');
+        });
+        
+        // 提交请求按钮
+        document.querySelector('.submit-btn').addEventListener('click', () => {
+            alert('请求已发送！该校友将收到你的联系请求');
+            modal.style.display = 'none';
+        });
+    </script>
+</body>
+</html>

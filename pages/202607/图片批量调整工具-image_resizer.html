@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图片批量调整工具</title>
+    <style>
+        :root {
+            --primary-color: #4361ee;
+            --secondary-color: #3f37c9;
+            --accent-color: #4895ef;
+            --light-color: #f8f9fa;
+            --dark-color: #212529;
+            --success-color: #4cc9f0;
+            --warning-color: #f72585;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 30px;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            color: var(--dark-color);
+            line-height: 1.6;
+        }
+        
+        h1 {
+            color: var(--secondary-color);
+            text-align: center;
+            margin-bottom: 30px;
+            font-weight: 600;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+        }
+        
+        h2 {
+            color: var(--primary-color);
+            margin-top: 20px;
+            font-weight: 500;
+        }
+        
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            padding: 20px;
+            background-color: var(--light-color);
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        label {
+            font-weight: 500;
+            color: var(--dark-color);
+        }
+        
+        .preview-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 15px;
+            margin-top: 25px;
+        }
+        
+        .preview-item {
+            border: 1px solid rgba(0,0,0,0.1);
+            padding: 10px;
+            text-align: center;
+            background-color: white;
+            border-radius: 6px;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        
+        .preview-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        
+        .preview-item img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 4px;
+        }
+        
+        button {
+            padding: 10px 20px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            letter-spacing: 0.5px;
+            transition: background-color 0.2s, transform 0.2s;
+        }
+        
+        button:hover {
+            background-color: var(--secondary-color);
+            transform: translateY(-1px);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        #downloadAllBtn {
+            background-color: var(--success-color);
+        }
+        
+        #downloadAllBtn:hover {
+            background-color: #3aa8d8;
+        }
+        
+        input, select {
+            padding: 10px;
+            border: 1px solid rgba(0,0,0,0.1);
+            border-radius: 6px;
+            background-color: white;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        
+        input:focus, select:focus {
+            outline: none;
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 2px rgba(72, 149, 239, 0.2);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>图片批量调整工具</h1>
+        
+        <div class="controls">
+            <h2>上传图片</h2>
+            <input type="file" id="fileInput" multiple accept="image/*">
+            <div id="fileCount" style="margin-top: 8px; color: var(--secondary-color); font-weight: 500;">已选择 0 张图片</div>
+            
+            <h2>调整设置</h2>
+            <div>
+                <label for="resizeMode">调整模式:</label>
+                <select id="resizeMode">
+                    <option value="width">按宽度缩放</option>
+                    <option value="height">按高度缩放</option>
+                    <option value="both">同时调整宽高</option>
+                    <option value="crop">裁剪</option>
+                </select>
+            </div>
+            
+            <div>
+                <label for="width">宽度(px):</label>
+                <input type="number" id="width" value="800" min="1">
+            </div>
+            
+            <div>
+                <label for="height">高度(px):</label>
+                <input type="number" id="height" value="600" min="1">
+            </div>
+            
+            <div>
+                <label for="quality">质量(0-1):</label>
+                <input type="number" id="quality" value="0.8" min="0.1" max="1" step="0.1">
+            </div>
+            
+            <button id="processBtn">处理图片</button>
+            <div id="processStatus" style="margin-top: 10px; color: var(--accent-color); display: none;">
+                <span id="processedCount">0</span>/<span id="totalCount">0</span> 图片已处理完成
+            </div>
+            <button id="downloadAllBtn" disabled>下载全部</button>
+            <button id="clearAllBtn">清除全部</button>
+        </div>
+        
+        <div class="preview-container" id="previewContainer"></div>
+    </div>
+
+    <script>
+        const fileInput = document.getElementById('fileInput');
+        const resizeMode = document.getElementById('resizeMode');
+        const widthInput = document.getElementById('width');
+        const heightInput = document.getElementById('height');
+        const qualityInput = document.getElementById('quality');
+        const processBtn = document.getElementById('processBtn');
+        const downloadAllBtn = document.getElementById('downloadAllBtn');
+        const previewContainer = document.getElementById('previewContainer');
+        
+        let originalImages = [];
+        let processedImages = [];
+        
+        fileInput.addEventListener('change', function(e) {
+            const files = Array.from(e.target.files);
+            // 不清空已有图片，只追加新图片
+            if (files.length === 0) return;
+            
+            if (files.length === 0) return;
+            document.getElementById('fileCount').textContent = `已选择 ${originalImages.length} 张图片`;
+            document.getElementById('processStatus').style.display = 'none';
+            
+            files.forEach(file => {
+                if (!file.type.match('image.*')) return;
+                
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const img = new Image();
+                    img.onload = function() {
+                        originalImages.push({
+                            file: file,
+                            element: img,
+                            originalWidth: img.width,
+                            originalHeight: img.height
+                        });
+                        
+                        const previewItem = document.createElement('div');
+                        previewItem.className = 'preview-item';
+                        previewItem.innerHTML = `
+                            <img src="${e.target.result}" alt="${file.name}">
+                            <p>${file.name}</p>
+                            <p>${img.width} × ${img.height}</p>
+                            <p>待处理</p>
+                        `;
+                        previewContainer.appendChild(previewItem);
+                        addClearButton(previewItem, originalImages.length - 1);
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            });
+        });
+        
+        processBtn.addEventListener('click', function() {
+            if (originalImages.length === 0) {
+                alert('请先上传图片');
+                return;
+            }
+            
+            processedImages = [];
+            const mode = resizeMode.value;
+            const targetWidth = parseInt(widthInput.value);
+            const targetHeight = parseInt(heightInput.value);
+            const quality = parseFloat(qualityInput.value);
+            
+            originalImages.forEach(imgData => {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                
+                let width, height;
+                
+                switch(mode) {
+                    case 'width':
+                        width = targetWidth;
+                        height = (imgData.originalHeight * targetWidth) / imgData.originalWidth;
+                        break;
+                    case 'height':
+                        height = targetHeight;
+                        width = (imgData.originalWidth * targetHeight) / imgData.originalHeight;
+                        break;
+                    case 'both':
+                        width = targetWidth;
+                        height = targetHeight;
+                        break;
+                    case 'crop':
+                        const aspectRatio = imgData.originalWidth / imgData.originalHeight;
+                        const targetAspectRatio = targetWidth / targetHeight;
+                        
+                        if (aspectRatio > targetAspectRatio) {
+                            // 原图更宽，裁剪左右
+                            width = imgData.originalHeight * targetAspectRatio;
+                            height = imgData.originalHeight;
+                        } else {
+                            // 原图更高，裁剪上下
+                            width = imgData.originalWidth;
+                            height = imgData.originalWidth / targetAspectRatio;
+                        }
+                        break;
+                }
+                
+                canvas.width = mode === 'crop' ? targetWidth : width;
+                canvas.height = mode === 'crop' ? targetHeight : height;
+                
+                if (mode === 'crop') {
+                    // 裁剪时先绘制裁剪区域，然后缩放
+                    const sx = (imgData.originalWidth - width) / 2;
+                    const sy = (imgData.originalHeight - height) / 2;
+                    ctx.drawImage(
+                        imgData.element, 
+                        sx, sy, width, height,
+                        0, 0, canvas.width, canvas.height
+                    );
+                } else {
+                    // 直接缩放
+                    ctx.drawImage(imgData.element, 0, 0, canvas.width, canvas.height);
+                }
+                
+                const processedDataURL = canvas.toDataURL('image/jpeg', quality);
+                processedImages.push({
+                    name: imgData.file.name,
+                    dataURL: processedDataURL
+                });
+                
+                // 更新处理进度
+                document.getElementById('processedCount').textContent = processedImages.length;
+                document.getElementById('totalCount').textContent = originalImages.length;
+                document.getElementById('processStatus').style.display = 'block';
+            });
+            
+            // 更新预览
+            previewContainer.innerHTML = '';
+            processedImages.forEach(img => {
+                const previewItem = document.createElement('div');
+                previewItem.className = 'preview-item';
+                previewItem.innerHTML = `
+                    <img src="${img.dataURL}" alt="${img.name}">
+                    <p>${img.name}</p>
+                    <p>已处理完成</p>
+                `;
+                previewContainer.appendChild(previewItem);
+            });
+            
+            downloadAllBtn.disabled = false;
+        });
+        
+        // 清除全部图片
+        document.getElementById('clearAllBtn').addEventListener('click', function() {
+            originalImages = [];
+            processedImages = [];
+            previewContainer.innerHTML = '';
+            document.getElementById('fileCount').textContent = '已选择 0 张图片';
+            document.getElementById('processStatus').style.display = 'none';
+            downloadAllBtn.disabled = true;
+        });
+
+        // 为每个预览项添加清除按钮
+        function addClearButton(previewItem, index) {
+            const clearBtn = document.createElement('button');
+            clearBtn.textContent = '清除';
+            clearBtn.style.marginTop = '5px';
+            clearBtn.addEventListener('click', function() {
+                originalImages.splice(index, 1);
+                processedImages = processedImages.filter(img => img.name !== originalImages[index]?.file.name);
+                previewContainer.removeChild(previewItem);
+                document.getElementById('fileCount').textContent = `已选择 ${originalImages.length} 张图片`;
+                if (originalImages.length === 0) {
+                    downloadAllBtn.disabled = true;
+                    document.getElementById('processStatus').style.display = 'none';
+                }
+            });
+            previewItem.appendChild(clearBtn);
+        }
+
+        downloadAllBtn.addEventListener('click', function() {
+            if (processedImages.length === 0) {
+                alert('没有可下载的图片');
+                return;
+            }
+            
+            processedImages.forEach(img => {
+                const link = document.createElement('a');
+                link.href = img.dataURL;
+                link.download = 'resized_' + img.name;
+                link.click();
+            });
+        });
+    </script>
+</body>
+</html>

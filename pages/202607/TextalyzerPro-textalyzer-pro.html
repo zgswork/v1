@@ -1,0 +1,1312 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Textalyzer Pro</title>
+  <meta name="description" content="高级文本分析工具：多维度统计、关键词、句长分布、难度评估，自动识别中英日韩" />
+  <!-- 工具名称: Textalyzer Pro -->
+  <!-- 工具描述: 高级文本分析工具，提供多维度文本统计与分析功能 -->
+  
+  <!-- 外部库 CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/wordcloud@1.2.2/src/wordcloud2.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  
+  <style>
+    /* === 设计常量（iOS 风格） === */
+    :root {
+      --primary: #007AFF;
+      --bg: #f6f8fb;
+      --card-bg: rgba(255, 255, 255, 0.75);
+      --border: rgba(0, 0, 0, 0.06);
+      --text: #0f172a;
+      --muted: #64748b;
+      --shadow: 0 8px 30px rgba(0, 0, 0, 0.06);
+      --radius: 16px;
+      --radius-sm: 12px;
+      --transition: 180ms ease;
+    }
+
+    /* === 深色模式变量 === */
+    [data-theme="dark"] {
+      --primary: #0A84FF;
+      --bg: #000000;
+      --card-bg: rgba(28, 28, 30, 0.85);
+      --border: rgba(255, 255, 255, 0.1);
+      --text: #ffffff;
+      --muted: #8e8e93;
+      --shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+    }
+
+    [data-theme="dark"] body {
+      background: radial-gradient(1200px 600px at 10% -10%, #1a1a2e 0%, transparent 60%),
+                  radial-gradient(1200px 600px at 110% 10%, #16213e 0%, transparent 50%),
+                  var(--bg);
+    }
+
+    [data-theme="dark"] .textarea {
+      background: rgba(28, 28, 30, 0.85);
+      color: var(--text);
+    }
+
+    [data-theme="dark"] .btn-ghost {
+      background: rgba(255, 255, 255, 0.1);
+      color: var(--text);
+    }
+
+    [data-theme="dark"] .btn-ghost:hover {
+      background: rgba(255, 255, 255, 0.15);
+    }
+
+    [data-theme="dark"] .stat-row {
+      background: rgba(28, 28, 30, 0.6);
+    }
+
+    [data-theme="dark"] .chip {
+      background: rgba(255, 255, 255, 0.1);
+      color: var(--text);
+    }
+
+    [data-theme="dark"] .progress {
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    [data-theme="dark"] .wordcloud-container {
+      background: rgba(28, 28, 30, 0.5);
+    }
+
+    /* === 基础样式重置与排版 === */
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      color: var(--text);
+      background: radial-gradient(1200px 600px at 10% -10%, #e8f0ff 0%, transparent 60%),
+                  radial-gradient(1200px 600px at 110% 10%, #e9fbff 0%, transparent 50%),
+                  var(--bg);
+    }
+    a { color: var(--primary); text-decoration: none; }
+    a:focus { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 6px; }
+
+    /* 容器与响应式网格 */
+    .container { max-width: 1100px; margin: 0 auto; padding: 24px; }
+    header { padding: 8px 0 16px; }
+    .title { font-size: 28px; font-weight: 700; letter-spacing: 0.2px; }
+    .subtitle { color: var(--muted); margin-top: 6px; font-size: 14px; }
+
+    .grid { display: grid; gap: 16px; }
+    @media (min-width: 768px) {
+      .grid { grid-template-columns: 1fr 1fr; }
+    }
+
+    /* 卡片与玻璃风格 */
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      -webkit-backdrop-filter: saturate(180%) blur(12px);
+      backdrop-filter: saturate(180%) blur(12px);
+    }
+    .card-header { padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+    .card-title { font-weight: 600; font-size: 15px; }
+    .card-body { padding: 16px; }
+
+    /* 输入区域 */
+    .textarea {
+      width: 100%; min-height: 240px; resize: vertical; padding: 14px 16px; border-radius: var(--radius);
+      border: 1px solid var(--border); background: rgba(255,255,255,0.85);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.4), var(--shadow);
+      transition: border-color var(--transition), box-shadow var(--transition);
+      font-size: 15px; line-height: 1.6;
+    }
+    .textarea:focus {
+      outline: none; border-color: rgba(0, 122, 255, 0.5);
+      box-shadow: 0 0 0 4px rgba(0, 122, 255, 0.12), var(--shadow);
+    }
+
+    /* 按钮 */
+    .actions { display: flex; gap: 10px; margin-top: 12px; }
+    .btn {
+      appearance: none; border: none; cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent;
+      padding: 10px 16px; border-radius: 12px; font-weight: 600; font-size: 14px;
+      transition: transform 120ms ease, box-shadow var(--transition), background-color var(--transition), color var(--transition);
+    }
+    .btn-primary { background: var(--primary); color: white; box-shadow: 0 4px 16px rgba(0, 122, 255, 0.25); }
+    .btn-primary:hover { box-shadow: 0 6px 22px rgba(0, 122, 255, 0.3); }
+    .btn-primary:active { transform: scale(0.98); }
+    .btn-ghost { background: rgba(0,0,0,0.04); color: #0f172a; }
+    .btn-ghost:hover { background: rgba(0,0,0,0.06); }
+
+    /* 统计行 */
+    .stat-list { display: grid; gap: 10px; }
+    .stat-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border: 1px dashed var(--border); border-radius: 12px; background: rgba(255,255,255,0.6); }
+    .stat-label { color: var(--muted); font-size: 13px; }
+    .stat-value { font-weight: 700; }
+
+    /* 关键词 chips */
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chip { background: rgba(0,0,0,0.04); border: 1px solid var(--border); border-radius: 999px; padding: 6px 10px; font-size: 12px; }
+    .chip strong { margin-right: 6px; }
+
+    /* 进度条 */
+    .progress { width: 100%; height: 8px; background: rgba(0,0,0,0.06); border-radius: 999px; overflow: hidden; }
+    .progress-inner { height: 100%; background: var(--primary); width: 0%; transition: width 280ms ease; }
+    .progress-secondary { background: #60a5fa; }
+    .progress-tertiary { background: #93c5fd; }
+
+    /* 徽章 */
+    .badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 999px; background: rgba(0,122,255,0.1); color: var(--primary); font-weight: 600; font-size: 12px; }
+
+    /* 动画 */
+    .fade-in { animation: fadeIn 360ms ease; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* 文件上传区域 */
+    .file-upload { border: 2px dashed var(--border); border-radius: var(--radius); padding: 20px; text-align: center; transition: border-color var(--transition), background-color var(--transition); cursor: pointer; }
+    .file-upload:hover { border-color: var(--primary); background: rgba(0,122,255,0.02); }
+    .file-upload.dragover { border-color: var(--primary); background: rgba(0,122,255,0.05); }
+    .file-input { display: none; }
+    .upload-icon { font-size: 24px; margin-bottom: 8px; color: var(--muted); }
+    .upload-text { color: var(--muted); font-size: 14px; }
+    .upload-text strong { color: var(--text); }
+
+    /* 图表容器 */
+    .chart-container { position: relative; height: 300px; margin: 16px 0; }
+    .chart-grid { display: grid; gap: 16px; }
+    @media (min-width: 768px) {
+      .chart-grid { grid-template-columns: 1fr 1fr; }
+    }
+    .wordcloud-container { height: 250px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: rgba(255,255,255,0.5); }
+
+    /* 深色模式切换按钮 */
+    .theme-toggle {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      width: 44px;
+      height: 44px;
+      border: none;
+      border-radius: 50%;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      transition: transform var(--transition), box-shadow var(--transition);
+      z-index: 1000;
+      -webkit-backdrop-filter: saturate(180%) blur(12px);
+      backdrop-filter: saturate(180%) blur(12px);
+    }
+
+    .theme-toggle:hover {
+      transform: scale(1.05);
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+    }
+
+    .theme-toggle:active {
+      transform: scale(0.95);
+    }
+
+    /* 页脚 */
+    footer { margin-top: 24px; }
+    .footer { border-top: 1px solid #e5e7eb; background: #fff; }
+    .footer-inner { max-width: 72rem; margin: 0 auto; padding: 16px; text-align: center; font-size: 12px; color: #6b7280; }
+
+    [data-theme="dark"] .footer {
+      border-top: 1px solid var(--border);
+      background: var(--card-bg);
+    }
+
+    [data-theme="dark"] .footer-inner {
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <!-- 深色模式切换按钮 -->
+  <button id="themeToggle" class="theme-toggle" aria-label="切换深色模式" title="切换深色模式">
+    <span id="themeIcon">🌙</span>
+  </button>
+
+  <header class="container" role="banner">
+    <div class="title" aria-label="应用名称">Textalyzer Pro</div>
+    <p class="subtitle">高级文本分析工具：多维度统计、关键词、句长分布、难度评估，自动识别中英日韩</p>
+  </header>
+
+  <main class="container" role="main">
+    <div class="grid" aria-label="布局容器">
+      <!-- 左侧：输入区 -->
+      <section class="card" aria-label="文本输入区">
+        <div class="card-header">
+          <div class="card-title">输入文本</div>
+        </div>
+        <div class="card-body">
+          <!-- 文件上传区域 -->
+          <div class="file-upload" id="fileUpload" aria-label="文件上传区域">
+            <input type="file" id="fileInput" class="file-input" accept=".txt,.docx,.pdf" aria-label="选择文件">
+            <div class="upload-icon">📄</div>
+            <div class="upload-text">
+              <strong>点击选择文件</strong> 或拖拽文件到此处<br>
+              支持 .txt, .docx, .pdf 格式
+            </div>
+          </div>
+          
+          <div style="margin: 16px 0; text-align: center; color: var(--muted); font-size: 14px;">或</div>
+          
+          <label for="inputText" class="sr-only">请输入要分析的文本</label>
+          <textarea id="inputText" class="textarea" placeholder="在此粘贴或输入文本，支持中文、英文、日文、韩文混合分析。可按 Ctrl/Cmd + Enter 快速分析。" aria-label="文本输入框"></textarea>
+          <div class="actions">
+            <button id="analyzeBtn" class="btn btn-primary" aria-label="开始分析" title="分析 (Ctrl/Cmd + Enter)">分析</button>
+            <button id="clearBtn" class="btn btn-ghost" aria-label="清空文本" title="清空文本">清空</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 右侧：结果展示区 -->
+      <section class="card" aria-label="结果展示区">
+        <div class="card-header">
+          <div class="card-title">分析结果</div>
+          <span id="languageBadge" class="badge" aria-live="polite">语言：--</span>
+        </div>
+        <div class="card-body">
+          <!-- 基础统计 -->
+          <div class="card fade-in" aria-label="基础统计">
+            <div class="card-header"><div class="card-title">基础统计</div></div>
+            <div class="card-body">
+              <div class="stat-list">
+                <div class="stat-row"><span class="stat-label">中文字符数</span><span id="cnChars" class="stat-value">0</span></div>
+                <div class="stat-row"><span class="stat-label">英文单词数</span><span id="enWords" class="stat-value">0</span></div>
+                <div class="stat-row"><span class="stat-label">字符数（含空格）</span><span id="charsWithSpace" class="stat-value">0</span></div>
+                <div class="stat-row"><span class="stat-label">字符数（不含空格）</span><span id="charsNoSpace" class="stat-value">0</span></div>
+                <div class="stat-row"><span class="stat-label">段落数（空行分隔）</span><span id="paragraphs" class="stat-value">0</span></div>
+                <div class="stat-row"><span class="stat-label">预计阅读时间</span><span id="readingTime" class="stat-value">00:00</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 关键词频率 -->
+          <div class="card fade-in" style="margin-top:12px;" aria-label="关键词频率">
+            <div class="card-header"><div class="card-title">关键词 Top 10</div></div>
+            <div class="card-body">
+              <div id="keywords" class="chips" aria-live="polite" aria-label="关键词列表"></div>
+            </div>
+          </div>
+
+          <!-- 句子统计 -->
+          <div class="card fade-in" style="margin-top:12px;" aria-label="句子统计">
+            <div class="card-header"><div class="card-title">句子长度分布（按英文词/中文字符）</div></div>
+            <div class="card-body">
+              <div class="stat-list">
+                <div>
+                  <div class="stat-row" style="margin-bottom:8px;">
+                    <span class="stat-label">短句</span><span id="shortPct" class="stat-value">0%</span>
+                  </div>
+                  <div class="progress" aria-hidden="true"><div id="shortBar" class="progress-inner"></div></div>
+                </div>
+                <div>
+                  <div class="stat-row" style="margin:10px 0 8px;">
+                    <span class="stat-label">中句</span><span id="mediumPct" class="stat-value">0%</span>
+                  </div>
+                  <div class="progress" aria-hidden="true"><div id="mediumBar" class="progress-inner progress-secondary"></div></div>
+                </div>
+                <div>
+                  <div class="stat-row" style="margin:10px 0 8px;">
+                    <span class="stat-label">长句</span><span id="longPct" class="stat-value">0%</span>
+                  </div>
+                  <div class="progress" aria-hidden="true"><div id="longBar" class="progress-inner progress-tertiary"></div></div>
+                </div>
+                <div class="stat-row"><span class="stat-label">平均句长（字符）</span><span id="avgSentenceLen" class="stat-value">0</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 难度评估 -->
+          <div class="card fade-in" style="margin-top:12px;" aria-label="难度评估">
+            <div class="card-header"><div class="card-title">文本难度评估</div></div>
+            <div class="card-body">
+              <div class="stat-list">
+                <div class="stat-row"><span class="stat-label">评分</span><span id="difficultyLabel" class="stat-value">--</span></div>
+                <div class="progress" style="margin-top:10px;" aria-hidden="true"><div id="difficultyBar" class="progress-inner" style="width:0%"></div></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 情感分析 -->
+          <div class="card fade-in" style="margin-top:12px;" aria-label="情感分析">
+            <div class="card-header"><div class="card-title">情感倾向分析</div></div>
+            <div class="card-body">
+              <div class="stat-list">
+                <div class="stat-row"><span class="stat-label">整体情感</span><span id="sentimentLabel" class="stat-value">--</span></div>
+                <div>
+                  <div class="stat-row" style="margin:10px 0 8px;">
+                    <span class="stat-label">积极 😊</span><span id="positivePct" class="stat-value">0%</span>
+                  </div>
+                  <div class="progress" aria-hidden="true"><div id="positiveBar" class="progress-inner" style="background:#10b981;"></div></div>
+                </div>
+                <div>
+                  <div class="stat-row" style="margin:10px 0 8px;">
+                    <span class="stat-label">中性 😐</span><span id="neutralPct" class="stat-value">0%</span>
+                  </div>
+                  <div class="progress" aria-hidden="true"><div id="neutralBar" class="progress-inner" style="background:#6b7280;"></div></div>
+                </div>
+                <div>
+                  <div class="stat-row" style="margin:10px 0 8px;">
+                    <span class="stat-label">消极 😔</span><span id="negativePct" class="stat-value">0%</span>
+                  </div>
+                  <div class="progress" aria-hidden="true"><div id="negativeBar" class="progress-inner" style="background:#ef4444;"></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- 可视化图表区域 -->
+    <section class="card fade-in" style="margin-top:16px;" aria-label="可视化图表">
+      <div class="card-header">
+        <div class="card-title">可视化分析</div>
+        <div style="display: flex; gap: 8px;">
+          <button id="exportBtn" class="btn btn-ghost" style="font-size:12px; padding:6px 12px;" aria-label="导出文本报告">导出TXT</button>
+          <button id="exportPdfBtn" class="btn btn-ghost" style="font-size:12px; padding:6px 12px;" aria-label="导出PDF报告">导出PDF</button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="chart-grid">
+          <!-- 关键词词云 -->
+          <div class="card">
+            <div class="card-header"><div class="card-title">关键词词云</div></div>
+            <div class="card-body">
+              <div id="wordcloudContainer" class="wordcloud-container" aria-label="关键词词云图"></div>
+            </div>
+          </div>
+
+          <!-- 句长分布图 -->
+          <div class="card">
+            <div class="card-header"><div class="card-title">句长分布</div></div>
+            <div class="card-body">
+              <div class="chart-container">
+                <canvas id="sentenceLengthChart" aria-label="句长分布柱状图"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <!-- 语言占比图 -->
+          <div class="card">
+            <div class="card-header"><div class="card-title">语言构成</div></div>
+            <div class="card-body">
+              <div class="chart-container">
+                <canvas id="languageChart" aria-label="语言占比饼图"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <!-- 文本特征雷达图 -->
+          <div class="card">
+            <div class="card-header"><div class="card-title">文本特征</div></div>
+            <div class="card-body">
+              <div class="chart-container">
+                <canvas id="featureChart" aria-label="文本特征雷达图"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer" role="contentinfo">
+    <div class="footer-inner">
+      LGO赵哥 | <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="9fe5f8ebf0efaaadaeaadff8f2fef6f3b1fcf0f2">[email&#160;protected]</a> | WX:LGOzhaoge | 更多点击➡️ <a href="https://deepseek.idoxu.com/LGOzhaoge" target="_blank" rel="noopener noreferrer" aria-label="打开 LGO赵哥的主页" title="打开 LGO赵哥的主页" class="underline decoration-dotted align-middle">🔗</a>
+    </div>
+  </footer>
+
+  <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+    // ====== 文本分析核心工具函数 ======
+    const HAN_RE = /[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF]/g; // 中日韩统一表意文字扩展
+    const HIRAGANA_RE = /[\u3040-\u309F]/g;
+    const KATAKANA_RE = /[\u30A0-\u30FF\u31F0-\u31FF]/g;
+    const HANGUL_RE = /[\uAC00-\uD7AF]/g;
+    const LATIN_RE = /[A-Za-z]/g;
+
+    const tokenizeEnglishWords = (text) => {
+      if (!text) return [];
+      const words = text.match(/[A-Za-z]+(?:'[A-Za-z]+)*/g);
+      return words ? words.map(w => w.toLowerCase()) : [];
+    };
+
+    const countChineseChars = (text) => {
+      if (!text) return 0;
+      const m = text.match(HAN_RE);
+      return m ? m.length : 0;
+    };
+
+    const extractCJKSequences = (text) => {
+      if (!text) return [];
+      // 提取连续 CJK 序列（汉字、平假名、片假名、韩文）
+      const seqRe = /[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF\u3040-\u309F\u30A0-\u30FF\u31F0-\u31FF\uAC00-\uD7AF]+/g;
+      const matches = text.match(seqRe);
+      return matches ? matches : [];
+    };
+
+    const buildBigrams = (sequence) => {
+      const arr = Array.from(sequence);
+      const out = [];
+      for (let i = 0; i < arr.length - 1; i++) {
+        const bi = arr[i] + arr[i + 1];
+        out.push(bi);
+      }
+      return out;
+    };
+
+    const frequencyMap = (tokens) => {
+      const map = new Map();
+      for (const t of tokens) {
+        if (!t) continue;
+        map.set(t, (map.get(t) || 0) + 1);
+      }
+      return map;
+    };
+
+    const englishStopwords = new Set([
+      'the','and','a','an','to','of','in','on','for','with','at','by','from','as','is','are','was','were','be','been','being',
+      'that','this','it','its','or','but','not','no','so','if','then','than','too','very','can','could','should','would',
+      'do','does','did','doing','have','has','had','having','you','your','yours','we','our','ours','they','their','theirs','he','his','she','her','i','me','my','mine','them','us'
+    ]);
+
+    // ====== 情感分析词典 ======
+    const positiveWords = new Set([
+      // 中文积极词汇
+      '好', '棒', '优秀', '完美', '美好', '快乐', '开心', '高兴', '兴奋', '满意', '喜欢', '爱', '赞', '棒极了', '太好了',
+      '成功', '胜利', '优异', '杰出', '卓越', '精彩', '美丽', '漂亮', '帅', '可爱', '温暖', '舒适', '安全', '放心',
+      '希望', '乐观', '积极', '正面', '向上', '进步', '提升', '改善', '增长', '发展', '创新', '突破', '收获', '成就',
+      // 英文积极词汇
+      'good', 'great', 'excellent', 'perfect', 'amazing', 'wonderful', 'fantastic', 'awesome', 'brilliant', 'outstanding',
+      'happy', 'joy', 'love', 'like', 'enjoy', 'pleased', 'satisfied', 'excited', 'thrilled', 'delighted',
+      'success', 'win', 'victory', 'achieve', 'accomplish', 'improve', 'better', 'best', 'beautiful', 'nice',
+      'hope', 'optimistic', 'positive', 'confident', 'proud', 'grateful', 'thankful', 'blessed', 'lucky', 'fortunate'
+    ]);
+
+    const negativeWords = new Set([
+      // 中文消极词汇
+      '坏', '差', '糟糕', '失败', '错误', '问题', '困难', '痛苦', '难过', '伤心', '生气', '愤怒', '讨厌', '恨', '烦',
+      '担心', '焦虑', '害怕', '恐惧', '紧张', '压力', '疲惫', '累', '病', '痛', '危险', '风险', '损失', '浪费',
+      '落后', '退步', '下降', '减少', '缺乏', '不足', '缺点', '弱点', '缺陷', '毛病', '故障', '破坏', '损坏',
+      // 英文消极词汇
+      'bad', 'terrible', 'awful', 'horrible', 'worst', 'fail', 'failure', 'wrong', 'error', 'mistake', 'problem',
+      'difficult', 'hard', 'tough', 'sad', 'unhappy', 'angry', 'mad', 'hate', 'dislike', 'annoying', 'boring',
+      'worried', 'anxious', 'scared', 'afraid', 'fear', 'stress', 'tired', 'exhausted', 'sick', 'pain', 'hurt',
+      'dangerous', 'risk', 'loss', 'lose', 'waste', 'lack', 'missing', 'broken', 'damage', 'destroy', 'negative'
+    ]);
+
+    const neutralWords = new Set([
+      // 中文中性词汇
+      '是', '的', '在', '有', '和', '与', '或', '但', '然而', '因为', '所以', '如果', '当', '时候', '可能', '也许',
+      '说', '讲', '告诉', '表示', '认为', '觉得', '想', '知道', '了解', '明白', '看', '听', '做', '进行', '开始',
+      // 英文中性词汇
+      'is', 'are', 'was', 'were', 'have', 'has', 'had', 'will', 'would', 'could', 'should', 'may', 'might',
+      'say', 'said', 'tell', 'told', 'think', 'thought', 'know', 'knew', 'see', 'saw', 'hear', 'heard', 'do', 'did'
+    ]);
+
+    // 情感分析函数
+    const analyzeSentiment = (text) => {
+      if (!text) return { positive: 0, negative: 0, neutral: 0, overall: 'neutral' };
+
+      // 分词处理
+      const words = text.toLowerCase()
+        .replace(/[^\u4e00-\u9fa5a-zA-Z\s]/g, ' ')
+        .split(/\s+/)
+        .filter(word => word.length > 0);
+
+      let positiveCount = 0;
+      let negativeCount = 0;
+      let neutralCount = 0;
+
+      words.forEach(word => {
+        if (positiveWords.has(word)) {
+          positiveCount++;
+        } else if (negativeWords.has(word)) {
+          negativeCount++;
+        } else if (neutralWords.has(word)) {
+          neutralCount++;
+        }
+      });
+
+      const total = positiveCount + negativeCount + neutralCount;
+      if (total === 0) {
+        return { positive: 33.3, negative: 33.3, neutral: 33.4, overall: 'neutral' };
+      }
+
+      const positive = (positiveCount / total) * 100;
+      const negative = (negativeCount / total) * 100;
+      const neutral = (neutralCount / total) * 100;
+
+      let overall = 'neutral';
+      if (positive > negative && positive > neutral) {
+        overall = 'positive';
+      } else if (negative > positive && negative > neutral) {
+        overall = 'negative';
+      }
+
+      return { positive, negative, neutral, overall };
+    };
+
+    const topNFromMap = (map, n, exclude = new Set()) => {
+      const arr = [];
+      for (const [k, v] of map.entries()) {
+        if (exclude.has(k)) continue;
+        arr.push({ key: k, count: v });
+      }
+      arr.sort((a, b) => b.count - a.count || a.key.localeCompare(b.key));
+      return arr.slice(0, n);
+    };
+
+    const splitSentences = (text) => {
+      if (!text) return [];
+      // 按中英常见句号/问号/感叹号分割，保留内容
+      const parts = text
+        .replace(/\s+/g, ' ')
+        .split(/[\.\!\?。！？]+/)
+        .map(s => s.trim())
+        .filter(Boolean);
+      return parts;
+    };
+
+    const detectLanguage = (text) => {
+      if (!text || !text.trim()) return { lang: 'unknown', scores: { zh:0,en:0,ja:0,ko:0 } };
+      const counts = {
+        zh: (text.match(HAN_RE) || []).length,
+        ja: (text.match(HIRAGANA_RE) || []).length + (text.match(KATAKANA_RE) || []).length,
+        ko: (text.match(HANGUL_RE) || []).length,
+        en: (text.match(LATIN_RE) || []).length,
+      };
+      const total = counts.zh + counts.ja + counts.ko + counts.en;
+      if (!total) return { lang: 'unknown', scores: { zh:0,en:0,ja:0,ko:0 } };
+      const entries = Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+      const [topLang, topCount] = entries[0];
+      const ratio = topCount / total;
+      const lang = ratio >= 0.6 ? ({ zh:'zh', en:'en', ja:'ja', ko:'ko' }[topLang]) : 'mixed';
+      return { lang, scores: counts };
+    };
+
+    const classifySentences = (sentences, lang) => {
+      const result = { short: 0, medium: 0, long: 0, total: sentences.length };
+      for (const s of sentences) {
+        const trimmed = s.trim();
+        if (!trimmed) continue;
+        if (lang === 'en') {
+          const words = tokenizeEnglishWords(trimmed);
+          const len = words.length;
+          if (len <= 10) result.short++; else if (len <= 20) result.medium++; else result.long++;
+        } else {
+          const len = Array.from(trimmed).length;
+          if (len <= 15) result.short++; else if (len <= 30) result.medium++; else result.long++;
+        }
+      }
+      return result;
+    };
+
+    const averageSentenceLengthChars = (sentences) => {
+      if (!sentences.length) return 0;
+      const sum = sentences.reduce((acc, s) => acc + Array.from(s).length, 0);
+      return Math.round((sum / sentences.length) * 10) / 10; // 一位小数
+    };
+
+    const averageTokenLength = (text, lang) => {
+      if (!text || !text.trim()) return 0;
+      if (lang === 'en') {
+        const words = tokenizeEnglishWords(text).filter(w => !englishStopwords.has(w));
+        if (!words.length) return 0;
+        const sum = words.reduce((acc, w) => acc + w.length, 0);
+        return Math.round((sum / words.length) * 10) / 10;
+      }
+      const seqs = extractCJKSequences(text);
+      if (!seqs.length) return 0;
+      const lengths = seqs.map(s => Array.from(s).length).filter(n => n > 0);
+      if (!lengths.length) return 0;
+      const sum = lengths.reduce((a,b)=>a+b,0);
+      return Math.round((sum / lengths.length) * 10) / 10;
+    };
+
+    const difficultyScore = (avgSentenceChars, avgTokenLen, lang) => {
+      const isEN = lang === 'en';
+      const S_norm = isEN ? 100 : 40;
+      const W_norm = isEN ? 5 : 2;
+      const score = 0.7 * (avgSentenceChars / S_norm) + 0.3 * (avgTokenLen / W_norm);
+      let label = '中等';
+      if (score <= 0.8) label = '简单';
+      else if (score > 1.2) label = '困难';
+      const percent = Math.max(0, Math.min(100, Math.round(score * 100)));
+      return { score: Math.round(score * 100) / 100, label, percent };
+    };
+
+    const readingTime = (cnChars, enWords) => {
+      const seconds = (cnChars / 300) * 60 + (enWords / 200) * 60;
+      const total = Math.round(seconds);
+      const mm = String(Math.floor(total / 60)).padStart(2, '0');
+      const ss = String(total % 60).padStart(2, '0');
+      return `${mm}:${ss}`;
+    };
+
+    const paragraphCount = (text) => {
+      if (!text || !text.trim()) return 0;
+      const parts = text.trim().split(/\n\s*\n+/).map(s => s.trim()).filter(Boolean);
+      return parts.length;
+    };
+
+    const charCounts = (text) => {
+      const withSpaces = text.length;
+      const noSpaces = text.replace(/\s+/g, '').length;
+      return { withSpaces, noSpaces };
+    };
+
+    // ====== DOM 获取 ======
+    const $ = (sel) => document.querySelector(sel);
+    const inputEl = $('#inputText');
+    const analyzeBtn = $('#analyzeBtn');
+    const clearBtn = $('#clearBtn');
+    const fileUploadEl = $('#fileUpload');
+    const fileInputEl = $('#fileInput');
+    const exportBtn = $('#exportBtn');
+    const exportPdfBtn = $('#exportPdfBtn');
+    const themeToggleEl = $('#themeToggle');
+    const themeIconEl = $('#themeIcon');
+
+    const cnCharsEl = $('#cnChars');
+    const enWordsEl = $('#enWords');
+    const charsWithSpaceEl = $('#charsWithSpace');
+    const charsNoSpaceEl = $('#charsNoSpace');
+    const paragraphsEl = $('#paragraphs');
+    const readingTimeEl = $('#readingTime');
+
+    const keywordsEl = $('#keywords');
+
+    const shortBar = $('#shortBar');
+    const mediumBar = $('#mediumBar');
+    const longBar = $('#longBar');
+    const shortPct = $('#shortPct');
+    const mediumPct = $('#mediumPct');
+    const longPct = $('#longPct');
+    const avgSentenceLenEl = $('#avgSentenceLen');
+
+    const difficultyBar = $('#difficultyBar');
+    const difficultyLabel = $('#difficultyLabel');
+    const languageBadge = $('#languageBadge');
+
+    const sentimentLabel = $('#sentimentLabel');
+    const positivePct = $('#positivePct');
+    const neutralPct = $('#neutralPct');
+    const negativePct = $('#negativePct');
+    const positiveBar = $('#positiveBar');
+    const neutralBar = $('#neutralBar');
+    const negativeBar = $('#negativeBar');
+
+    // ====== 更新 UI 辅助 ======
+    const applyFade = (el) => {
+      if (!el) return;
+      el.classList.remove('fade-in');
+      // 强制回流以重触发动画
+      void el.offsetWidth;
+      el.classList.add('fade-in');
+    };
+
+    const renderKeywords = (list) => {
+      keywordsEl.innerHTML = '';
+      list.forEach(({ key, count }) => {
+        const chip = document.createElement('span');
+        chip.className = 'chip';
+        chip.innerHTML = `<strong>${escapeHtml(key)}</strong><span title="出现次数">${count}</span>`;
+        keywordsEl.appendChild(chip);
+      });
+      if (list.length === 0) {
+        const hint = document.createElement('div');
+        hint.className = 'stat-label';
+        hint.textContent = '暂无关键词';
+        keywordsEl.appendChild(hint);
+      }
+      applyFade(keywordsEl.parentElement?.parentElement);
+    };
+
+    const escapeHtml = (s) => s.replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;' }[c]));
+
+    // ====== 文件处理功能 ======
+    const handleFileUpload = async (file) => {
+      if (!file) return;
+      
+      try {
+        let text = '';
+        const fileName = file.name.toLowerCase();
+        
+        if (fileName.endsWith('.txt')) {
+          text = await file.text();
+        } else if (fileName.endsWith('.docx')) {
+          const arrayBuffer = await file.arrayBuffer();
+          const result = await mammoth.extractRawText({ arrayBuffer });
+          text = result.value;
+        } else if (fileName.endsWith('.pdf')) {
+          // 简化的 PDF 处理 - 实际项目中需要 PDF.js
+          alert('PDF 文件支持正在开发中，请先转换为 .txt 或 .docx 格式');
+          return;
+        }
+        
+        if (text.trim()) {
+          inputEl.value = text;
+          analyze();
+        }
+      } catch (error) {
+        console.error('文件处理错误:', error);
+        alert('文件处理失败，请检查文件格式是否正确');
+      }
+    };
+
+    // ====== 图表渲染功能 ======
+    let charts = {}; // 存储图表实例
+
+    const renderWordCloud = (keywords) => {
+      const container = $('#wordcloudContainer');
+      container.innerHTML = '';
+      
+      if (!keywords.length) {
+        container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);">暂无关键词数据</div>';
+        return;
+      }
+      
+      const wordList = keywords.map(({ key, count }) => [key, count * 10]);
+      
+      try {
+        WordCloud(container, {
+          list: wordList,
+          gridSize: 8,
+          weightFactor: 3,
+          fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif',
+          color: () => `hsl(${Math.random() * 60 + 200}, 70%, 50%)`,
+          backgroundColor: 'transparent',
+          rotateRatio: 0.3,
+          rotationSteps: 2,
+        });
+      } catch (error) {
+        console.error('词云渲染错误:', error);
+        container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);">词云渲染失败</div>';
+      }
+    };
+
+    const renderSentenceLengthChart = (distribution) => {
+      const ctx = $('#sentenceLengthChart').getContext('2d');
+      
+      if (charts.sentenceLength) {
+        charts.sentenceLength.destroy();
+      }
+      
+      charts.sentenceLength = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: ['短句', '中句', '长句'],
+          datasets: [{
+            label: '句子数量',
+            data: [distribution.short, distribution.medium, distribution.long],
+            backgroundColor: ['#007AFF', '#60a5fa', '#93c5fd'],
+            borderRadius: 8,
+            borderSkipped: false,
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false }
+          },
+          scales: {
+            y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' } },
+            x: { grid: { display: false } }
+          }
+        }
+      });
+    };
+
+    const renderLanguageChart = (scores) => {
+      const ctx = $('#languageChart').getContext('2d');
+      
+      if (charts.language) {
+        charts.language.destroy();
+      }
+      
+      const data = Object.entries(scores).filter(([_, count]) => count > 0);
+      const labels = data.map(([lang]) => ({ zh: '中文', en: '英文', ja: '日文', ko: '韩文' }[lang] || lang));
+      const values = data.map(([_, count]) => count);
+      
+      charts.language = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels,
+          datasets: [{
+            data: values,
+            backgroundColor: ['#007AFF', '#60a5fa', '#93c5fd', '#c7d2fe'],
+            borderWidth: 0,
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'bottom', labels: { padding: 15, usePointStyle: true } }
+          }
+        }
+      });
+    };
+
+    const renderFeatureChart = (features) => {
+      const ctx = $('#featureChart').getContext('2d');
+      
+      if (charts.feature) {
+        charts.feature.destroy();
+      }
+      
+      charts.feature = new Chart(ctx, {
+        type: 'radar',
+        data: {
+          labels: ['词汇丰富度', '句式复杂度', '文本长度', '语言混合度', '信息密度'],
+          datasets: [{
+            label: '文本特征',
+            data: [
+              Math.min(100, features.vocabularyRichness || 0),
+              Math.min(100, features.sentenceComplexity || 0),
+              Math.min(100, features.textLength || 0),
+              Math.min(100, features.languageMixing || 0),
+              Math.min(100, features.informationDensity || 0)
+            ],
+            backgroundColor: 'rgba(0, 122, 255, 0.1)',
+            borderColor: '#007AFF',
+            borderWidth: 2,
+            pointBackgroundColor: '#007AFF',
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2,
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false }
+          },
+          scales: {
+            r: {
+              beginAtZero: true,
+              max: 100,
+              grid: { color: 'rgba(0,0,0,0.1)' },
+              angleLines: { color: 'rgba(0,0,0,0.1)' },
+              pointLabels: { font: { size: 11 } }
+            }
+          }
+        }
+      });
+    };
+
+    const calculateTextFeatures = (text, keywords, sentences, lang) => {
+      const totalChars = text.length;
+      const uniqueWords = new Set(tokenizeEnglishWords(text.toLowerCase())).size;
+      const totalWords = tokenizeEnglishWords(text).length;
+      
+      return {
+        vocabularyRichness: totalWords > 0 ? Math.min(100, (uniqueWords / totalWords) * 200) : 0,
+        sentenceComplexity: sentences.length > 0 ? Math.min(100, averageSentenceLengthChars(sentences) / 2) : 0,
+        textLength: Math.min(100, totalChars / 50),
+        languageMixing: lang === 'mixed' ? 80 : 20,
+        informationDensity: keywords.length > 0 ? Math.min(100, keywords.length * 8) : 0
+      };
+    };
+
+    // ====== 主分析流程 ======
+    const analyze = () => {
+      const text = inputEl.value || '';
+      const { lang, scores } = detectLanguage(text);
+      languageBadge.textContent = `语言：${lang}`;
+
+      const cnCount = countChineseChars(text);
+      const enTokens = tokenizeEnglishWords(text);
+      const enCount = enTokens.length;
+      const { withSpaces, noSpaces } = charCounts(text);
+      const paraCount = paragraphCount(text);
+      const readTime = readingTime(cnCount, enCount);
+
+      cnCharsEl.textContent = String(cnCount);
+      enWordsEl.textContent = String(enCount);
+      charsWithSpaceEl.textContent = String(withSpaces);
+      charsNoSpaceEl.textContent = String(noSpaces);
+      paragraphsEl.textContent = String(paraCount);
+      readingTimeEl.textContent = readTime;
+
+      // 关键词
+      let keywords = [];
+      if (lang === 'en') {
+        const filtered = enTokens.filter(w => !englishStopwords.has(w));
+        const map = frequencyMap(filtered);
+        keywords = topNFromMap(map, 10);
+      } else {
+        const seqs = extractCJKSequences(text);
+        const bigramsAll = seqs.flatMap(buildBigrams).filter(Boolean);
+        const map = frequencyMap(bigramsAll);
+        keywords = topNFromMap(map, 10);
+      }
+      renderKeywords(keywords);
+
+      // 句子与分布
+      const sentences = splitSentences(text);
+      const dist = classifySentences(sentences, lang);
+      const total = Math.max(1, dist.total);
+      const pct = (n) => Math.round((n / total) * 100);
+      shortPct.textContent = `${pct(dist.short)}%`;
+      mediumPct.textContent = `${pct(dist.medium)}%`;
+      longPct.textContent = `${pct(dist.long)}%`;
+      shortBar.style.width = `${pct(dist.short)}%`;
+      mediumBar.style.width = `${pct(dist.medium)}%`;
+      longBar.style.width = `${pct(dist.long)}%`;
+      applyFade(shortBar.parentElement?.parentElement);
+
+      const avgSentChars = averageSentenceLengthChars(sentences);
+      avgSentenceLenEl.textContent = String(avgSentChars);
+
+      // 难度评估
+      const avgTokLen = averageTokenLength(text, lang === 'unknown' ? 'zh' : (lang === 'mixed' ? 'zh' : lang));
+      const baseLang = (lang === 'en') ? 'en' : 'zh';
+      const diff = difficultyScore(avgSentChars, avgTokLen, baseLang);
+      difficultyBar.style.width = `${diff.percent}%`;
+      difficultyLabel.textContent = `${diff.label}（${diff.score}）`;
+      applyFade(difficultyBar.parentElement?.parentElement);
+
+      // 情感分析
+      const sentiment = analyzeSentiment(text);
+      const sentimentLabels = {
+        positive: '积极 😊',
+        negative: '消极 😔',
+        neutral: '中性 😐'
+      };
+      sentimentLabel.textContent = sentimentLabels[sentiment.overall];
+      positivePct.textContent = `${sentiment.positive.toFixed(1)}%`;
+      neutralPct.textContent = `${sentiment.neutral.toFixed(1)}%`;
+      negativePct.textContent = `${sentiment.negative.toFixed(1)}%`;
+      positiveBar.style.width = `${sentiment.positive}%`;
+      neutralBar.style.width = `${sentiment.neutral}%`;
+      negativeBar.style.width = `${sentiment.negative}%`;
+      applyFade(positiveBar.parentElement?.parentElement?.parentElement);
+
+      // 渲染可视化图表
+      if (keywords.length > 0) {
+        renderWordCloud(keywords);
+      }
+      
+      renderSentenceLengthChart(dist);
+      renderLanguageChart(scores);
+      
+      const textFeatures = calculateTextFeatures(text, keywords, sentences, lang);
+      renderFeatureChart(textFeatures);
+    };
+
+    // ====== PDF导出功能 ======
+    const exportPdfReport = () => {
+      const text = inputEl.value || '';
+      if (!text.trim()) {
+        alert('请先输入或导入文本内容');
+        return;
+      }
+
+      try {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        
+        // 设置中文字体支持
+        doc.setFont('helvetica');
+        
+        let yPos = 20;
+        const lineHeight = 8;
+        const pageHeight = 280;
+        
+        // 标题
+        doc.setFontSize(18);
+        doc.text('Textalyzer Pro 分析报告', 20, yPos);
+        yPos += lineHeight * 2;
+        
+        // 生成时间
+        doc.setFontSize(10);
+        doc.text(`生成时间: ${new Date().toLocaleString()}`, 20, yPos);
+        yPos += lineHeight * 2;
+        
+        // 基础统计
+        const { lang, scores } = detectLanguage(text);
+        const cnCount = countChineseChars(text);
+        const enTokens = tokenizeEnglishWords(text);
+        const enCount = enTokens.length;
+        const { withSpaces, noSpaces } = charCounts(text);
+        const paraCount = paragraphCount(text);
+        const sentences = splitSentences(text);
+        
+        doc.setFontSize(14);
+        doc.text('基础统计', 20, yPos);
+        yPos += lineHeight;
+        
+        doc.setFontSize(10);
+        const basicStats = [
+          `语言类型: ${lang === 'zh' ? '中文' : lang === 'en' ? '英文' : '混合'}`,
+          `总字符数: ${withSpaces.toLocaleString()}`,
+          `不含空格: ${noSpaces.toLocaleString()}`,
+          `中文字符: ${cnCount.toLocaleString()}`,
+          `英文单词: ${enCount.toLocaleString()}`,
+          `段落数: ${paraCount}`,
+          `句子数: ${sentences.length}`
+        ];
+        
+        basicStats.forEach(stat => {
+          doc.text(stat, 25, yPos);
+          yPos += lineHeight;
+        });
+        yPos += lineHeight;
+        
+        // 关键词分析
+        let keywords = [];
+        if (lang === 'en') {
+          const filtered = enTokens.filter(w => !englishStopwords.has(w));
+          const map = frequencyMap(filtered);
+          keywords = topNFromMap(map, 10);
+        } else {
+          const seqs = extractCJKSequences(text);
+          const bigramsAll = seqs.flatMap(buildBigrams).filter(Boolean);
+          const map = frequencyMap(bigramsAll);
+          keywords = topNFromMap(map, 10);
+        }
+        
+        if (keywords.length > 0) {
+          doc.setFontSize(14);
+          doc.text('关键词分析', 20, yPos);
+          yPos += lineHeight;
+          
+          doc.setFontSize(10);
+          keywords.slice(0, 10).forEach((kw, i) => {
+            doc.text(`${i + 1}. ${kw.word} (${kw.count})`, 25, yPos);
+            yPos += lineHeight;
+          });
+          yPos += lineHeight;
+        }
+        
+        // 句子分析
+        const dist = sentenceLengthDistribution(sentences);
+        const avgLength = sentences.length > 0 ? 
+          sentences.reduce((sum, s) => sum + s.length, 0) / sentences.length : 0;
+        
+        doc.setFontSize(14);
+        doc.text('句子分析', 20, yPos);
+        yPos += lineHeight;
+        
+        doc.setFontSize(10);
+        doc.text(`平均句长: ${avgLength.toFixed(1)} 字符`, 25, yPos);
+        yPos += lineHeight;
+        doc.text(`短句 (≤20): ${dist.short} 句`, 25, yPos);
+        yPos += lineHeight;
+        doc.text(`中句 (21-50): ${dist.medium} 句`, 25, yPos);
+        yPos += lineHeight;
+        doc.text(`长句 (>50): ${dist.long} 句`, 25, yPos);
+        yPos += lineHeight * 2;
+        
+        // 难度评估
+        const diff = assessDifficulty(text, keywords, sentences, lang);
+        doc.setFontSize(14);
+        doc.text('难度评估', 20, yPos);
+        yPos += lineHeight;
+        
+        doc.setFontSize(10);
+        doc.text(`难度等级: ${diff.label}`, 25, yPos);
+        yPos += lineHeight;
+        doc.text(`难度分数: ${diff.score}`, 25, yPos);
+        yPos += lineHeight * 2;
+        
+        // 情感分析
+        const sentiment = analyzeSentiment(text);
+        doc.setFontSize(14);
+        doc.text('情感分析', 20, yPos);
+        yPos += lineHeight;
+        
+        doc.setFontSize(10);
+        const sentimentLabels = {
+          positive: '积极',
+          negative: '消极',
+          neutral: '中性'
+        };
+        doc.text(`整体情感: ${sentimentLabels[sentiment.overall]}`, 25, yPos);
+        yPos += lineHeight;
+        doc.text(`积极情感: ${sentiment.positive.toFixed(1)}%`, 25, yPos);
+        yPos += lineHeight;
+        doc.text(`中性情感: ${sentiment.neutral.toFixed(1)}%`, 25, yPos);
+        yPos += lineHeight;
+        doc.text(`消极情感: ${sentiment.negative.toFixed(1)}%`, 25, yPos);
+        yPos += lineHeight * 2;
+        
+        // 页脚
+        if (yPos > pageHeight - 20) {
+          doc.addPage();
+          yPos = 20;
+        }
+        
+        doc.setFontSize(8);
+        doc.text('Generated by Textalyzer Pro', 20, pageHeight);
+        
+        // 保存PDF
+        doc.save('textalyzer-report.pdf');
+        
+      } catch (error) {
+        console.error('PDF导出失败:', error);
+        alert('PDF导出失败，请检查浏览器兼容性');
+      }
+    };
+
+    // ====== 导出功能 ======
+    const exportReport = () => {
+      const text = inputEl.value || '';
+      if (!text.trim()) {
+        alert('请先输入或导入文本内容');
+        return;
+      }
+      
+      // 简化的导出功能 - 生成文本报告
+      const { lang, scores } = detectLanguage(text);
+      const cnCount = countChineseChars(text);
+      const enTokens = tokenizeEnglishWords(text);
+      const enCount = enTokens.length;
+      const { withSpaces, noSpaces } = charCounts(text);
+      const paraCount = paragraphCount(text);
+      const sentences = splitSentences(text);
+      
+      let keywords = [];
+      if (lang === 'en') {
+        const filtered = enTokens.filter(w => !englishStopwords.has(w));
+        const map = frequencyMap(filtered);
+        keywords = topNFromMap(map, 10);
+      } else {
+        const seqs = extractCJKSequences(text);
+        const bigramsAll = seqs.flatMap(buildBigrams).filter(Boolean);
+        const map = frequencyMap(bigramsAll);
+        keywords = topNFromMap(map, 10);
+      }
+      
+      const report = `
+Textalyzer Pro 分析报告
+======================
+
+基础统计：
+- 中文字符数：${cnCount}
+- 英文单词数：${enCount}
+- 字符数（含空格）：${withSpaces}
+- 字符数（不含空格）：${noSpaces}
+- 段落数：${paraCount}
+- 句子数：${sentences.length}
+
+语言分析：
+- 主要语言：${lang}
+- 语言分布：${Object.entries(scores).map(([l, s]) => `${l}: ${s}`).join(', ')}
+
+关键词（前10个）：
+${keywords.slice(0, 10).map(({ key, count }) => `- ${key}: ${count}次`).join('\n')}
+
+生成时间：${new Date().toLocaleString()}
+      `.trim();
+      
+      const blob = new Blob([report], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `textalyzer-report-${Date.now()}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    };
+
+    // ====== 深色模式功能 ======
+    const initTheme = () => {
+      const savedTheme = localStorage.getItem('theme') || 'light';
+      setTheme(savedTheme);
+    };
+
+    const setTheme = (theme) => {
+      document.documentElement.setAttribute('data-theme', theme);
+      themeIconEl.textContent = theme === 'dark' ? '☀️' : '🌙';
+      localStorage.setItem('theme', theme);
+    };
+
+    const toggleTheme = () => {
+      const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
+      const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+      setTheme(newTheme);
+    };
+
+    // ====== 事件绑定 ======
+    analyzeBtn.addEventListener('click', analyze);
+    clearBtn.addEventListener('click', () => {
+      inputEl.value = '';
+      analyze();
+      inputEl.focus();
+      
+      // 清理图表
+      Object.values(charts).forEach(chart => chart?.destroy?.());
+      charts = {};
+      $('#wordcloudContainer').innerHTML = '';
+    });
+
+    // 文件上传事件
+    fileInputEl.addEventListener('change', (e) => {
+      const file = e.target.files?.[0];
+      if (file) {
+        handleFileUpload(file);
+      }
+    });
+
+    // 拖拽上传
+    fileUploadEl.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      fileUploadEl.classList.add('dragover');
+    });
+
+    fileUploadEl.addEventListener('dragleave', (e) => {
+      e.preventDefault();
+      fileUploadEl.classList.remove('dragover');
+    });
+
+    fileUploadEl.addEventListener('drop', (e) => {
+      e.preventDefault();
+      fileUploadEl.classList.remove('dragover');
+      const file = e.dataTransfer?.files?.[0];
+      if (file) {
+        handleFileUpload(file);
+      }
+    });
+
+    fileUploadEl.addEventListener('click', () => {
+      fileInputEl.click();
+    });
+
+    // 导出按钮
+    exportBtn.addEventListener('click', exportReport);
+    exportPdfBtn.addEventListener('click', exportPdfReport);
+
+    // 深色模式切换
+    themeToggleEl.addEventListener('click', toggleTheme);
+
+    inputEl.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'enter') {
+        e.preventDefault();
+        analyzeBtn.click();
+      }
+    });
+
+    // 初始化主题
+    initTheme();
+
+    // 初始渲染
+    analyze();
+  </script>
+</body>
+</html>

@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Markdown 渲染工具</title>
+
+    <!-- 引入 marked.js 用于 Markdown 解析 -->
+    <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
+
+    <!-- 引入 html2canvas 用于导出图片 -->
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+
+    <!-- 引入 jsPDF 用于导出 PDF -->
+    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+
+    <!-- 引入 highlight.js 用于代码高亮 -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/highlight.min.js"></script>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
+                         'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+            margin-bottom: 100px;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 32px;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .header p {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+
+        .toolbar {
+            background: #f8f9fa;
+            padding: 15px 30px;
+            border-bottom: 1px solid #e9ecef;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .toolbar button {
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+        }
+
+        .toolbar button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .toolbar button:active {
+            transform: translateY(0);
+        }
+
+        .toolbar .btn-secondary {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            box-shadow: 0 2px 8px rgba(245, 87, 108, 0.3);
+        }
+
+        .toolbar .btn-secondary:hover {
+            box-shadow: 0 4px 12px rgba(245, 87, 108, 0.4);
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0;
+            height: calc(100vh - 240px);
+            min-height: 600px;
+        }
+
+        .editor-panel,
+        .preview-panel {
+            padding: 30px;
+            overflow-y: auto;
+        }
+
+        .editor-panel {
+            background: #f8f9fa;
+            border-right: 1px solid #e9ecef;
+        }
+
+        .panel-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #495057;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .panel-title::before {
+            content: '';
+            width: 4px;
+            height: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 2px;
+        }
+
+        #markdown-input {
+            width: 100%;
+            min-height: 500px;
+            padding: 20px;
+            border: 2px solid #e9ecef;
+            border-radius: 12px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            resize: vertical;
+            background: white;
+            color: #212529;
+            transition: border-color 0.3s ease;
+        }
+
+        #markdown-input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .preview-panel {
+            background: white;
+        }
+
+        #preview-content {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            border: 2px solid #e9ecef;
+            min-height: 500px;
+        }
+
+        /* Markdown 渲染样式 */
+        #preview-content h1,
+        #preview-content h2,
+        #preview-content h3,
+        #preview-content h4,
+        #preview-content h5,
+        #preview-content h6 {
+            margin-top: 24px;
+            margin-bottom: 16px;
+            font-weight: 600;
+            line-height: 1.25;
+            color: #1a202c;
+        }
+
+        #preview-content h1 {
+            font-size: 2em;
+            border-bottom: 2px solid #e9ecef;
+            padding-bottom: 8px;
+        }
+
+        #preview-content h2 {
+            font-size: 1.5em;
+            border-bottom: 1px solid #e9ecef;
+            padding-bottom: 6px;
+        }
+
+        #preview-content h3 { font-size: 1.25em; }
+        #preview-content h4 { font-size: 1.1em; }
+        #preview-content h5 { font-size: 1em; }
+        #preview-content h6 { font-size: 0.9em; color: #6c757d; }
+
+        #preview-content p {
+            margin-bottom: 16px;
+            line-height: 1.7;
+            color: #2d3748;
+        }
+
+        #preview-content a {
+            color: #667eea;
+            text-decoration: none;
+            border-bottom: 1px solid transparent;
+            transition: border-color 0.3s ease;
+        }
+
+        #preview-content a:hover {
+            border-bottom-color: #667eea;
+        }
+
+        #preview-content ul,
+        #preview-content ol {
+            margin-bottom: 16px;
+            padding-left: 2em;
+            line-height: 1.7;
+        }
+
+        #preview-content li {
+            margin-bottom: 8px;
+        }
+
+        #preview-content code {
+            background: #f6f8fa;
+            padding: 3px 6px;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.9em;
+            color: #e83e8c;
+        }
+
+        #preview-content pre {
+            background: #f6f8fa;
+            padding: 16px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin-bottom: 16px;
+            border: 1px solid #e9ecef;
+        }
+
+        #preview-content pre code {
+            background: none;
+            padding: 0;
+            color: inherit;
+            font-size: 0.95em;
+        }
+
+        #preview-content blockquote {
+            border-left: 4px solid #667eea;
+            padding-left: 16px;
+            margin: 16px 0;
+            color: #6c757d;
+            font-style: italic;
+        }
+
+        #preview-content table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 16px;
+        }
+
+        #preview-content table th,
+        #preview-content table td {
+            border: 1px solid #e9ecef;
+            padding: 10px 12px;
+            text-align: left;
+        }
+
+        #preview-content table th {
+            background: #f8f9fa;
+            font-weight: 600;
+        }
+
+        #preview-content table tr:hover {
+            background: #f8f9fa;
+        }
+
+        #preview-content img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            margin: 16px 0;
+        }
+
+        #preview-content hr {
+            border: none;
+            border-top: 2px solid #e9ecef;
+            margin: 24px 0;
+        }
+
+        .stats {
+            font-size: 14px;
+            color: #6c757d;
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 992px) {
+            .main-content {
+                grid-template-columns: 1fr;
+                height: auto;
+            }
+
+            .editor-panel {
+                border-right: none;
+                border-bottom: 1px solid #e9ecef;
+            }
+
+            #markdown-input {
+                min-height: 300px;
+            }
+        }
+
+        /* 加载动画 */
+        .loading {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* 提示信息 */
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #28a745;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+            opacity: 0;
+            transform: translateY(-20px);
+            transition: all 0.3s ease;
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* Footer 样式 */
+        .footer {
+            position: fixed;
+            bottom: 55px;
+            left: 0;
+            width: 100%;
+            padding: .75rem 1rem;
+            font-size: 14px;
+            background: #fafafa;
+            border-top: 1px solid #eaeaea;
+            display: flex;
+            flex-wrap: wrap;
+            gap: .5rem;
+            justify-content: center;
+            align-items: center;
+            z-index: 999;
+        }
+
+        @media (max-width: 768px) {
+            .footer {
+                bottom: 47px;
+            }
+        }
+
+        .footer a { color: #0077cc; text-decoration: none; }
+        .footer a:hover { text-decoration: underline; }
+
+        .qr-wrapper { position: relative; display: inline-block; }
+        .qr-img {
+            display: none;
+            position: absolute;
+            bottom: 1.8rem;
+            left: 50%;
+            transform: translateX(-50%);
+            max-width: 140px;
+            border: 1px solid #ddd;
+            background: #fff;
+            padding: 4px;
+            border-radius: 6px;
+            box-shadow: 0 4px 12px rgba(0,0,0,.15);
+        }
+        .qr-wrapper:hover .qr-img { display: block; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Markdown 渲染工具</h1>
+            <p>实时渲染你的 Markdown 文本,支持导出为图片和PDF</p>
+        </div>
+
+        <div class="toolbar">
+            <div class="stats">
+                字符数: <span id="char-count">0</span> |
+                单词数: <span id="word-count">0</span> |
+                行数: <span id="line-count">0</span>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button onclick="clearAll()">清空内容</button>
+                <button onclick="loadSample()">加载示例</button>
+                <button class="btn-secondary" onclick="exportAsImage()">导出为图片</button>
+                <button class="btn-secondary" onclick="exportAsPDF()">导出为PDF</button>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="editor-panel">
+                <div class="panel-title">Markdown 编辑器</div>
+                <textarea id="markdown-input" placeholder="在这里输入 Markdown 文本...
+
+# 欢迎使用 Markdown 渲染工具
+
+开始输入你的 Markdown 内容,右侧会实时显示渲染效果。
+
+## 支持的功能
+
+- 标题 (H1-H6)
+- **粗体** 和 *斜体*
+- 列表(有序和无序)
+- 代码块和行内代码
+- 链接和图片
+- 表格
+- 引用
+- 分隔线
+
+点击"导出为图片"即可下载渲染后的内容!"></textarea>
+            </div>
+
+            <div class="preview-panel">
+                <div class="panel-title">预览效果</div>
+                <div id="preview-content"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <!-- Footer 模板 -->
+    <template id="site-footer">
+        <div class="footer card">
+            Created&nbsp;by：
+            <!-- 广告示例 1 -->
+            <span class="qr-wrapper">
+                <a class="qr-link"
+                    href="https://mp.weixin.qq.com/mp/profile_ext?action=home&__biz=MzI0MzUzOTEwMw==&scene=124#wechat_redirect"
+                    target="_blank"
+                    data-img="https://raw.githubusercontent.com/anneeeee/programming_exercise/refs/heads/main/ad_pics/qrcode_for_gh_87351941139e_258%20(2).jpg">系统1与系统2</a>
+                <img class="qr-img" alt="系统1与系统2公众号二维码">
+            </span>
+            &nbsp;||&nbsp;广告位：
+            <!-- 广告示例 1 -->
+            <span class="qr-wrapper">
+                <a class="qr-link"
+                    href="https://t.zsxq.com/SjYuX"
+                    target="_blank"
+                    data-img="https://raw.githubusercontent.com/anneeeee/programming_exercise/refs/heads/main/ad_pics/AI_programming.pic.jpg">AI编程星球</a>
+                <img class="qr-img" alt="AI编程星球二维码">
+            </span> |
+            <!-- 广告示例 2 -->
+            <span class="qr-wrapper">
+                <a class="qr-link"
+                    href="https://t.zsxq.com/VTCya"
+                    target="_blank"
+                    data-img="https://raw.githubusercontent.com/anneeeee/programming_exercise/refs/heads/main/ad_pics/laoxu.pic.jpg">副业避坑星球</a>
+                <img class="qr-img" alt="副业避坑星球二维码">
+            </span> |
+            <!-- 广告示例 3 -->
+            <span class="qr-wrapper">
+                <a class="qr-link"
+                    href="https://www.xiaobot.net/p/ai08?refer=a9625ad2-ec04-4cc8-8549-7511079cb3b5"
+                    target="_blank"
+                    data-img="https://raw.githubusercontent.com/anneeeee/programming_exercise/refs/heads/main/ad_pics/hani-xiaobot-8.png">AI&nbsp;产品日报</a>
+                <img class="qr-img" alt="AI产品日报二维码">
+            </span> |
+            <span class="qr-wrapper">
+                <a class="qr-link"
+                    href="https://t.zsxq.com/jcaEa"
+                    target="_blank"
+                    data-img="https://raw.githubusercontent.com/anneeeee/programming_exercise/refs/heads/main/ad_pics/aipm.pic.jpg">AI&nbsp;产品经理大本营</a>
+                <img class="qr-img" alt="AI产品经理大本营二维码">
+            </span>
+        </div>
+    </template>
+
+    <script>
+        // 配置 marked
+        marked.setOptions({
+            breaks: true,
+            gfm: true,
+            highlight: function(code, lang) {
+                if (lang && hljs.getLanguage(lang)) {
+                    try {
+                        return hljs.highlight(code, { language: lang }).value;
+                    } catch (err) {}
+                }
+                return hljs.highlightAuto(code).value;
+            }
+        });
+
+        const markdownInput = document.getElementById('markdown-input');
+        const previewContent = document.getElementById('preview-content');
+        const charCount = document.getElementById('char-count');
+        const wordCount = document.getElementById('word-count');
+        const lineCount = document.getElementById('line-count');
+
+        // 实时渲染 Markdown
+        function renderMarkdown() {
+            const markdownText = markdownInput.value;
+            previewContent.innerHTML = marked.parse(markdownText);
+            updateStats(markdownText);
+        }
+
+        // 更新统计信息
+        function updateStats(text) {
+            charCount.textContent = text.length;
+            wordCount.textContent = text.trim() ? text.trim().split(/\s+/).length : 0;
+            lineCount.textContent = text.split('\n').length;
+        }
+
+        // 监听输入
+        markdownInput.addEventListener('input', renderMarkdown);
+
+        // 清空内容
+        function clearAll() {
+            if (confirm('确定要清空所有内容吗?')) {
+                markdownInput.value = '';
+                renderMarkdown();
+                showToast('内容已清空');
+            }
+        }
+
+        // 加载示例
+        function loadSample() {
+            const sample = `# Markdown 示例文档
+
+## 1. 文本格式
+
+这是一段普通文本。你可以使用 **粗体**、*斜体*、~~删除线~~ 来强调内容。
+
+你也可以使用 \`行内代码\` 来标记代码片段。
+
+## 2. 列表
+
+### 无序列表
+- 项目 1
+- 项目 2
+  - 子项目 2.1
+  - 子项目 2.2
+- 项目 3
+
+### 有序列表
+1. 第一步
+2. 第二步
+3. 第三步
+
+## 3. 代码块
+
+\`\`\`javascript
+function greet(name) {
+    console.log(\`Hello, \${name}!\`);
+}
+
+greet('World');
+\`\`\`
+
+\`\`\`python
+def fibonacci(n):
+    if n <= 1:
+        return n
+    return fibonacci(n-1) + fibonacci(n-2)
+
+print(fibonacci(10))
+\`\`\`
+
+## 4. 引用
+
+> 这是一段引用文本。
+>
+> 引用可以包含多个段落。
+
+## 5. 链接和图片
+
+这是一个 [链接示例](https://www.example.com)
+
+## 6. 表格
+
+| 姓名 | 年龄 | 职业 |
+|------|------|------|
+| 张三 | 28 | 工程师 |
+| 李四 | 32 | 设计师 |
+| 王五 | 25 | 产品经理 |
+
+## 7. 分隔线
+
+---
+
+## 8. 任务列表
+
+- [x] 完成需求分析
+- [x] 设计界面
+- [ ] 编写代码
+- [ ] 测试功能
+
+---
+
+**提示**: 点击"导出为图片"按钮可以将渲染后的内容保存为图片!`;
+
+            markdownInput.value = sample;
+            renderMarkdown();
+            showToast('示例已加载');
+        }
+
+        // 导出为图片
+        async function exportAsImage() {
+            const button = event.target;
+            const originalText = button.textContent;
+
+            try {
+                button.textContent = '生成中...';
+                button.disabled = true;
+
+                // 创建临时容器用于导出
+                const exportContainer = document.createElement('div');
+                exportContainer.style.cssText = `
+                    position: fixed;
+                    left: -9999px;
+                    top: 0;
+                    background: white;
+                    padding: 40px;
+                    width: 800px;
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
+                                 'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+                    line-height: 1.7;
+                    color: #2d3748;
+                `;
+                exportContainer.innerHTML = previewContent.innerHTML;
+                document.body.appendChild(exportContainer);
+
+                // 使用 html2canvas 生成图片
+                const canvas = await html2canvas(exportContainer, {
+                    backgroundColor: '#ffffff',
+                    scale: 2,
+                    logging: false,
+                    useCORS: true
+                });
+
+                // 移除临时容器
+                document.body.removeChild(exportContainer);
+
+                // 下载图片
+                const link = document.createElement('a');
+                const timestamp = new Date().toISOString().slice(0, 19).replace(/[:-]/g, '');
+                link.download = `markdown-export-${timestamp}.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+
+                showToast('图片已导出成功!');
+            } catch (error) {
+                console.error('导出失败:', error);
+                showToast('导出失败,请重试', 'error');
+            } finally {
+                button.textContent = originalText;
+                button.disabled = false;
+            }
+        }
+
+        // 导出为 PDF
+        async function exportAsPDF() {
+            const button = event.target;
+            const originalText = button.textContent;
+
+            try {
+                button.textContent = '生成中...';
+                button.disabled = true;
+
+                // 创建临时容器用于导出
+                const exportContainer = document.createElement('div');
+                exportContainer.style.cssText = `
+                    position: fixed;
+                    left: -9999px;
+                    top: 0;
+                    background: white;
+                    padding: 40px;
+                    width: 800px;
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
+                                 'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+                    line-height: 1.7;
+                    color: #2d3748;
+                `;
+                exportContainer.innerHTML = previewContent.innerHTML;
+                document.body.appendChild(exportContainer);
+
+                // 使用 html2canvas 生成图片
+                const canvas = await html2canvas(exportContainer, {
+                    backgroundColor: '#ffffff',
+                    scale: 2,
+                    logging: false,
+                    useCORS: true
+                });
+
+                // 移除临时容器
+                document.body.removeChild(exportContainer);
+
+                // 创建 PDF
+                const { jsPDF } = window.jspdf;
+                const imgData = canvas.toDataURL('image/png');
+
+                // A4 纸张尺寸 (210mm x 297mm)
+                const pdfWidth = 210;
+                const pdfHeight = 297;
+
+                // 计算图片在 PDF 中的尺寸
+                const imgWidth = pdfWidth;
+                const imgHeight = (canvas.height * pdfWidth) / canvas.width;
+
+                // 创建 PDF 文档
+                const pdf = new jsPDF({
+                    orientation: imgHeight > pdfWidth ? 'portrait' : 'portrait',
+                    unit: 'mm',
+                    format: 'a4'
+                });
+
+                // 如果内容高度超过一页,需要分页
+                let heightLeft = imgHeight;
+                let position = 0;
+
+                // 添加第一页
+                pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                heightLeft -= pdfHeight;
+
+                // 添加剩余页面
+                while (heightLeft > 0) {
+                    position = heightLeft - imgHeight;
+                    pdf.addPage();
+                    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                    heightLeft -= pdfHeight;
+                }
+
+                // 下载 PDF
+                const timestamp = new Date().toISOString().slice(0, 19).replace(/[:-]/g, '');
+                pdf.save(`markdown-export-${timestamp}.pdf`);
+
+                showToast('PDF已导出成功!');
+            } catch (error) {
+                console.error('导出失败:', error);
+                showToast('导出失败,请重试', 'error');
+            } finally {
+                button.textContent = originalText;
+                button.disabled = false;
+            }
+        }
+
+        // 显示提示信息
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.style.background = type === 'success' ? '#28a745' : '#dc3545';
+            toast.classList.add('show');
+
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        // 页面加载时渲染初始内容
+        window.addEventListener('load', () => {
+            renderMarkdown();
+        });
+
+        // 支持 Tab 键缩进
+        markdownInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                const start = this.selectionStart;
+                const end = this.selectionEnd;
+                this.value = this.value.substring(0, start) + '    ' + this.value.substring(end);
+                this.selectionStart = this.selectionEnd = start + 4;
+            }
+        });
+
+        // Footer 初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            const tpl = document.getElementById('site-footer');
+            if (tpl && 'content' in tpl) {
+                document.body.appendChild(tpl.content.cloneNode(true));
+            }
+
+            // 用 data-img 填充 <img src>
+            document.querySelectorAll('.qr-wrapper').forEach(w => {
+                const link = w.querySelector('.qr-link');
+                const img  = w.querySelector('.qr-img');
+                if (link && img && link.dataset.img) {
+                    img.src = link.dataset.img.trim();
+                }
+            });
+        });
+    </script>
+</body>
+</html>

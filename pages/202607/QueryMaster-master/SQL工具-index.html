@@ -1,0 +1,1588 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SQL QueryMaster - 离线 SQL 查询编辑器</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Header */
+        .header {
+            background: #252526;
+            border-bottom: 1px solid #333;
+            padding: 0 16px;
+            height: 48px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .header-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        /* Tabs */
+        .tabs-container {
+            background: #2d2d30;
+            border-bottom: 1px solid #333;
+            display: flex;
+            overflow-x: auto;
+        }
+
+        .tab {
+            background: #2d2d30;
+            border: none;
+            border-right: 1px solid #333;
+            padding: 8px 16px;
+            color: #858585;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            white-space: nowrap;
+        }
+
+        .tab.active {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            border-bottom: 2px solid #0e639c;
+        }
+
+        .tab-close {
+            background: none;
+            border: none;
+            color: #858585;
+            cursor: pointer;
+            padding: 2px;
+            border-radius: 3px;
+        }
+
+        .tab-close:hover {
+            background: #606060;
+            color: #fff;
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* Editor Panel */
+        .editor-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid #333;
+        }
+
+        .editor-toolbar {
+            background: #2d2d30;
+            border-bottom: 1px solid #333;
+            padding: 8px 16px;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .dialect-selector {
+            background: #3c3c3c;
+            border: 1px solid #4e4e4e;
+            color: #d4d4d4;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .btn {
+            background: #0e639c;
+            border: none;
+            color: #fff;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .btn:hover {
+            background: #1177bb;
+        }
+
+        .btn:disabled {
+            background: #3c3c3c;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: #3c3c3c;
+        }
+
+        .btn-secondary:hover {
+            background: #4e4e4e;
+        }
+
+        /* CodeMirror */
+        .editor-container {
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .cm-editor {
+            height: 100% !important;
+            font-size: 14px;
+        }
+
+        /* Results Panel */
+        .results-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #1e1e1e;
+        }
+
+        .results-header {
+            background: #2d2d30;
+            border-bottom: 1px solid #333;
+            padding: 8px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .results-content {
+            flex: 1;
+            overflow: auto;
+            padding: 16px;
+        }
+
+        /* Tables */
+        .results-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #252526;
+        }
+
+        .results-table th,
+        .results-table td {
+            padding: 8px 12px;
+            text-align: left;
+            border-bottom: 1px solid #333;
+        }
+
+        .results-table th {
+            background: #2d2d30;
+            font-weight: 600;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .results-table th:hover {
+            background: #37373d;
+        }
+
+        .results-table th.sorted::after {
+            content: ' ↑';
+        }
+
+        .results-table th.sorted.desc::after {
+            content: ' ↓';
+        }
+
+        /* Explain Plan */
+        .explain-plan {
+            background: #252526;
+            padding: 16px;
+            border-radius: 4px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .explain-step {
+            margin: 8px 0;
+            padding: 8px;
+            border-left: 3px solid #0e639c;
+            background: #2d2d30;
+        }
+
+        .explain-step.warning {
+            border-left-color: #ca5100;
+            background: #372a21;
+        }
+
+        /* Upload Panel */
+        .upload-panel {
+            background: #252526;
+            padding: 16px;
+            border-radius: 4px;
+            margin-bottom: 16px;
+        }
+
+        .upload-panel h3 {
+            margin-bottom: 12px;
+            color: #fff;
+        }
+
+        .upload-area {
+            border: 2px dashed #4e4e4e;
+            border-radius: 4px;
+            padding: 24px;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+
+        .upload-area:hover {
+            border-color: #0e639c;
+        }
+
+        .upload-area input[type="file"] {
+            display: none;
+        }
+
+        .table-name-input {
+            background: #3c3c3c;
+            border: 1px solid #4e4e4e;
+            color: #d4d4d4;
+            padding: 8px 12px;
+            border-radius: 4px;
+            margin-top: 12px;
+            width: 100%;
+            max-width: 400px;
+        }
+
+        /* History Panel */
+        .history-panel {
+            background: #252526;
+            padding: 16px;
+            border-radius: 4px;
+            max-height: 300px;
+            overflow: auto;
+        }
+
+        .history-panel h3 {
+            margin-bottom: 12px;
+            color: #fff;
+        }
+
+        .history-item {
+            padding: 8px;
+            border-bottom: 1px solid #333;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .history-item:hover {
+            background: #2d2d30;
+        }
+
+        .history-item-info {
+            font-size: 12px;
+            color: #858585;
+            margin-bottom: 4px;
+        }
+
+        .history-item-sql {
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 12px;
+            color: #d4d4d4;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: #252526;
+            border-radius: 8px;
+            padding: 24px;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-header {
+            font-size: 18px;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 16px;
+        }
+
+        .modal-body {
+            margin-bottom: 20px;
+        }
+
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+
+        /* Utilities */
+        .hidden {
+            display: none !important;
+        }
+
+        .error {
+            color: #f48771;
+        }
+
+        .success {
+            color: #86c886;
+        }
+
+        .info {
+            color: #7cb7ff;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 10px;
+            height: 10px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #2d2d30;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #4e4e4e;
+            border-radius: 5px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #606060;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <div class="header-title">SQL QueryMaster</div>
+        <div class="header-actions">
+            <button class="btn btn-secondary" onclick="showUploadPanel()">📂 上传数据</button>
+            <button class="btn btn-secondary" onclick="showHistoryPanel()">📜 查询历史</button>
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs-container">
+        <button class="tab active" data-tab="0">
+            <span>Query 1</span>
+            <button class="tab-close" onclick="closeTab(0, event)">×</button>
+        </button>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <!-- Editor Panel -->
+        <div class="editor-panel">
+            <div class="editor-toolbar">
+                <select class="dialect-selector" id="dialectSelector" onchange="changeDialect()">
+                    <option value="mysql">MySQL</option>
+                    <option value="postgresql">PostgreSQL</option>
+                    <option value="sqlite">SQLite</option>
+                    <option value="oracle">Oracle</option>
+                </select>
+                <button class="btn" onclick="formatSQL()">🔧 格式化</button>
+                <button class="btn" onclick="executeSQL()">▶️ 执行</button>
+                <button class="btn" onclick="explainSQL()">📊 执行计划</button>
+                <button class="btn btn-secondary" onclick="exportSQL()">💾 导出 SQL</button>
+            </div>
+            <div class="editor-container">
+                <textarea id="editor"></textarea>
+            </div>
+        </div>
+
+        <!-- Results Panel -->
+        <div class="results-panel">
+            <div class="results-header">
+                <span id="resultsTitle">结果</span>
+                <div>
+                    <button class="btn btn-secondary hidden" id="exportResultsBtn" onclick="exportResults()">📥 导出结果</button>
+                </div>
+            </div>
+            <div class="results-content" id="resultsContent">
+                <div class="info">上传数据文件后开始查询</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Upload Modal -->
+    <div class="modal" id="uploadModal">
+        <div class="modal-content">
+            <div class="modal-header">📂 上传数据文件</div>
+            <div class="modal-body">
+                <div class="upload-panel">
+                    <div class="upload-area" onclick="document.getElementById('fileInput').click()">
+                        <div>📤 拖拽文件到此处或点击选择</div>
+                        <div style="margin-top: 8px; font-size: 12px; color: #858585;">支持 CSV 和 JSON 格式</div>
+                        <input type="file" id="fileInput" accept=".csv,.json" onchange="handleFileSelect(event)">
+                    </div>
+                    <input type="text" class="table-name-input" id="tableNameInput" placeholder="输入表名（可选）" style="margin-top: 12px;">
+                </div>
+                <div id="uploadMessage" style="margin-top: 12px;"></div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="hideUploadPanel()">取消</button>
+                <button class="btn" onclick="uploadFile()">上传</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- History Modal -->
+    <div class="modal" id="historyModal">
+        <div class="modal-content">
+            <div class="modal-header">📜 查询历史</div>
+            <div class="modal-body">
+                <div class="history-panel" id="historyPanel">
+                    <h3>最近执行的查询</h3>
+                    <div id="historyList">
+                        <div class="info">暂无查询历史</div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="clearHistory()">清空历史</button>
+                <button class="btn" onclick="hideHistoryPanel()">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Rename Modal -->
+    <div class="modal" id="renameModal">
+        <div class="modal-content">
+            <div class="modal-header">重命名标签页</div>
+            <div class="modal-body">
+                <input type="text" class="table-name-input" id="newTabName" placeholder="输入新标签名" style="width: 100%;">
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="hideRenamePanel()">取消</button>
+                <button class="btn" onclick="renameTab()">确定</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script>
+        // Global variables
+        let currentTab = 0;
+        let tabs = [{ id: 0, name: 'Query 1', content: '' }];
+        let virtualTables = {};
+        let queryHistory = [];
+        let currentDialect = 'mysql';
+        let currentResults = null;
+        let renameTabId = null;
+
+        // CodeMirror instance
+        let editor = null;
+
+        // Initialize app
+        function init() {
+            // Load from localStorage
+            loadFromStorage();
+
+            // Initialize simple editor with syntax highlighting
+     initEditor();
+
+            // Load sample data if first time
+            if (Object.keys(virtualTables).length === 0) {
+                loadSampleData();
+            }
+
+            // Load preset queries
+            loadPresetQueries();
+
+            // Update UI
+            updateTabsUI();
+            updateHistoryUI();
+        }
+
+        // Initialize simple editor with syntax highlighting
+ function initEditor() {
+            // Use a simple textarea editor with basic styling
+            const textarea = document.getElementById('editor');
+
+            // Apply styling to make it look like a code editor
+            textarea.style.fontFamily = 'Consolas, Monaco, monospace';
+            textarea.style.fontSize = '14px';
+            textarea.style.lineHeight = '1.5';
+            textarea.style.padding = '10px';
+            textarea.style.border = 'none';
+            textarea.style.resize = 'none';
+            textarea.style.outline = 'none';
+            textarea.style.background = '#1e1e1e';
+            textarea.style.color = '#d4d4d4';
+            textarea.style.tabSize = '4';
+            textarea.style.indentUnit = '4';
+            textarea.style.indentWithTabs = 'false';
+            textarea.style.width = '100%';
+            textarea.style.height = '100%';
+
+            // Set initial content
+            textarea.value = tabs[currentTab].content;
+
+            // Listen for changes
+            textarea.addEventListener('input', () => {
+                tabs[currentTab].content = textarea.value;
+                saveToStorage();
+            });
+
+            // Store reference to editor
+            editor = {
+                getValue: () => textarea.value,
+                setValue: (value) => { textarea.value = value; },
+                on: (event, callback) => {
+                    if (event === 'change') {
+                        textarea.addEventListener('input', callback);
+                    }
+                }
+            };
+        }
+
+        // Change SQL dialect
+        function changeDialect() {
+            currentDialect = document.getElementById('dialectSelector').value;
+            // CodeMirror handles dialect highlighting through SQL mode
+            saveToStorage();
+        }
+
+        // Tab management
+        function createNewTab() {
+            const newTabId = tabs.length;
+            const newTabName = `Query ${newTabId + 1}`;
+            tabs.push({ id: newTabId, name: newTabName, content: '' });
+            switchTab(newTabId);
+            updateTabsUI();
+            saveToStorage();
+        }
+
+        function switchTab(tabId) {
+            if (currentTab !== tabId) {
+                // Save current content
+                if (editor) {
+                    tabs[currentTab].content = editor.getValue();
+                }
+                currentTab = tabId;
+                // Load new content
+                if (editor) {
+                    editor.setValue(tabs[currentTab].content);
+                }
+                updateTabsUI();
+                saveToStorage();
+            }
+        }
+
+        function closeTab(tabId, event) {
+            event.stopPropagation();
+            if (tabs.length <= 1) {
+                showMessage('至少需要保留一个标签页', 'error');
+                return;
+            }
+            // Remove tab
+            const index = tabs.findIndex(t => t.id === tabId);
+            tabs.splice(index, 1);
+            // Update tab IDs
+            tabs.forEach((tab, i) => {
+                tab.id = i;
+            });
+            // Switch to another tab
+            if (currentTab === tabId) {
+                currentTab = Math.max(0, index - 1);
+                if (editor) {
+                    editor.setValue(tabs[currentTab].content);
+                }
+            } else if (currentTab > tabId) {
+                currentTab--;
+            }
+            updateTabsUI();
+            saveToStorage();
+        }
+
+        function renameTabPrompt(tabId, event) {
+            event.stopPropagation();
+            renameTabId = tabId;
+            const tab = tabs.find(t => t.id === tabId);
+            document.getElementById('newTabName').value = tab.name;
+            document.getElementById('renameModal').classList.add('active');
+        }
+
+        function renameTab() {
+            const newName = document.getElementById('newTabName').value.trim();
+            if (!newName) {
+                showMessage('标签名不能为空', 'error');
+                return;
+            }
+            const tab = tabs.find(t => t.id === renameTabId);
+            tab.name = newName;
+            updateTabsUI();
+            saveToStorage();
+            hideRenamePanel();
+        }
+
+        function updateTabsUI() {
+            const container = document.querySelector('.tabs-container');
+            container.innerHTML = '';
+
+            tabs.forEach(tab => {
+                const tabElement = document.createElement('button');
+                tabElement.className = `tab ${tab.id === currentTab ? 'active' : ''}`;
+                tabElement.dataset.tab = tab.id;
+                tabElement.innerHTML = `
+                    <span>${tab.name}</span>
+                    <button class="tab-close" onclick="closeTab(${tab.id}, event)">×</button>
+                `;
+                tabElement.addEventListener('click', () => switchTab(tab.id));
+                tabElement.addEventListener('dblclick', (e) => renameTabPrompt(tab.id, e));
+                container.appendChild(tabElement);
+            });
+
+            // Add new tab button
+            const newTabBtn = document.createElement('button');
+            newTabBtn.className = 'tab';
+            newTabBtn.innerHTML = '+';
+            newTabBtn.style.width = '40px';
+            newTabBtn.style.justifyContent = 'center';
+            newTabBtn.addEventListener('click', createNewTab);
+            container.appendChild(newTabBtn);
+        }
+
+        // SQL Formatting (using simple built-in formatter)
+        function formatSQL() {
+            const sql = editor.getValue();
+            if (!sql.trim()) {
+                showMessage('没有可格式化的 SQL', 'info');
+                return;
+            }
+
+            try {
+                const formatted = formatSQLSimple(sql);
+                editor.setValue(formatted);
+                showMessage('SQL 格式化成功', 'success');
+            } catch (error) {
+                showMessage('SQL 格式化失败: ' + error.message, 'error');
+            }
+        }
+
+        function formatSQLSimple(sql) {
+            // Simple SQL formatter
+            let formatted = sql
+                // Replace multiple spaces with single
+                .replace(/\s+/g, ' ')
+                // Add newline after keywords
+                .replace(/\b(SELECT|FROM|WHERE|JOIN|LEFT|RIGHT|INNER|OUTER|ON|GROUP BY|HAVING|ORDER BY|LIMIT|OFFSET|UNION|ALL)\b/gi, '\n$1')
+                // Add newline after commas in SELECT
+                .replace(/(SELECT\s+.*?)(?:,\s+)(?!\s*FROM)/g, '$1,\n    ')
+                // Indent lines
+                .split('\n')
+                .map((line, i) => {
+                    const trimmed = line.trim();
+                    if (i === 0 || trimmed.match(/^(SELECT|FROM|WHERE|JOIN|GROUP BY|HAVING|ORDER BY|LIMIT|OFFSET|UNION|ALL)$/i)) {
+                        return trimmed;
+                    }
+                    return '    ' + trimmed;
+                })
+                .join('\n')
+                // Uppercase keywords
+                .replace(/\b(SELECT|FROM|WHERE|JOIN|LEFT|RIGHT|INNER|OUTER|ON|GROUP BY|HAVING|ORDER BY|LIMIT|OFFSET|UNION|ALL|AND|OR|NOT|IN|LIKE|ILIKE|BETWEEN|IS|NULL|TRUE|FALSE)\b/gi, match => match.toUpperCase())
+                // Trim whitespace
+                .trim();
+
+            return formatted;
+        }
+
+        // CSV/JSON Upload
+        function showUploadPanel() {
+            document.getElementById('uploadModal').classList.add('active');
+            document.getElementById('fileInput').value = '';
+            document.getElementById('tableNameInput').value = '';
+            document.getElementById('uploadMessage').innerHTML = '';
+        }
+
+        function hideUploadPanel() {
+            document.getElementById('uploadModal').classList.remove('active');
+        }
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                // Auto-generate table name
+                const fileName = file.name.replace(/\.[^/.]+$/, '');
+                const tableName = fileName.replace(/[^a-zA-Z0-9_]/g, '_');
+                document.getElementById('tableNameInput').value = tableName;
+            }
+        }
+
+        function uploadFile() {
+            const fileInput = document.getElementById('fileInput');
+            const tableNameInput = document.getElementById('tableNameInput');
+
+            if (!fileInput.files.length) {
+                showMessage('请选择一个文件', 'error');
+                return;
+            }
+
+            let tableName = tableNameInput.value.trim();
+            if (!tableName) {
+                const fileName = fileInput.files[0].name.replace(/\.[^/.]+$/, '');
+                tableName = fileName.replace(/[^a-zA-Z0-9_]/g, '_');
+            }
+
+            // Validate table name
+            if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(tableName)) {
+                showMessage('表名只能包含字母、数字和下划线，且不能以数字开头', 'error');
+                return;
+            }
+
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+
+            reader.onload = function(e) {
+                try {
+                    let data;
+                    if (file.name.endsWith('.csv')) {
+                        data = parseCSV(e.target.result);
+                    } else if (file.name.endsWith('.json')) {
+                        data = JSON.parse(e.target.result);
+                    } else {
+                        throw new Error('不支持的文件格式');
+                    }
+
+                    if (!Array.isArray(data) || data.length === 0) {
+                        throw new Error('文件内容为空或格式不正确');
+                    }
+
+                    virtualTables[tableName] = {
+                        name: tableName,
+                        data: data,
+                        columns: Object.keys(data[0])
+                    };
+
+                    showMessage(`文件上传成功！表名：${tableName}，数据行数：${data.length}`, 'success');
+                    saveToStorage();
+
+                    // Reset form
+                    fileInput.value = '';
+                    tableNameInput.value = '';
+
+                } catch (error) {
+                    showMessage('文件解析失败: ' + error.message, 'error');
+                }
+            };
+
+            reader.onerror = function() {
+                showMessage('文件读取失败', 'error');
+            };
+
+            if (file.name.endsWith('.csv')) {
+                reader.readAsText(file);
+            } else if (file.name.endsWith('.json')) {
+                reader.readAsText(file);
+            }
+        }
+
+        function parseCSV(csvText) {
+            // Simple CSV parser
+            const lines = csvText.split('\n').map(line => line.trim()).filter(line => line);
+            if (lines.length === 0) return [];
+
+            const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+            const data = [];
+
+            for (let i = 1; i < lines.length; i++) {
+                const values = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+                const row = {};
+                headers.forEach((header, j) => {
+                    row[header] = values[j] || '';
+                });
+                data.push(row);
+            }
+
+            return data;
+        }
+
+        // Query Execution Simulation
+        function executeSQL() {
+            const sql = editor.getValue().trim();
+            if (!sql) {
+                showMessage('请输入 SQL 查询', 'error');
+                return;
+            }
+
+            if (!sql.toLowerCase().startsWith('select')) {
+                showMessage('仅支持 SELECT 查询', 'error');
+                return;
+            }
+
+            if (Object.keys(virtualTables).length === 0) {
+                showMessage('请先上传数据文件', 'error');
+                return;
+            }
+
+            try {
+                const results = simulateQueryExecution(sql);
+                displayResults(results);
+                saveQueryToHistory(sql, true, results);
+                showMessage(`查询成功！返回 ${results.length} 行数据`, 'success');
+            } catch (error) {
+                displayError(error.message);
+                saveQueryToHistory(sql, false);
+                showMessage('查询失败: ' + error.message, 'error');
+            }
+        }
+
+        function simulateQueryExecution(sql) {
+            // Very simple SELECT query parser and executor
+            const lowerSql = sql.toLowerCase();
+
+            // Extract FROM table
+            const fromIndex = lowerSql.indexOf(' from ');
+            if (fromIndex === -1) throw new Error('FROM 子句缺失');
+
+            let fromPart = lowerSql.substring(fromIndex + 6);
+            const whereIndex = fromPart.indexOf(' where ');
+            const groupByIndex = fromPart.indexOf(' group by ');
+            const orderByIndex = fromPart.indexOf(' order by ');
+            const limitIndex = fromPart.indexOf(' limit ');
+
+            // Get table name
+            const tableEndIndex = Math.min(
+                whereIndex !== -1 ? whereIndex : Infinity,
+                groupByIndex !== -1 ? groupByIndex : Infinity,
+                orderByIndex !== -1 ? orderByIndex : Infinity,
+                limitIndex !== -1 ? limitIndex : Infinity
+            );
+            const tableName = fromPart.substring(0, tableEndIndex).trim().split(' ')[0];
+
+            // Get table data
+            const table = virtualTables[tableName];
+            if (!table) throw new Error(`表 ${tableName} 不存在`);
+
+            // Get SELECT columns
+            const selectPart = sql.substring(7, fromIndex).trim();
+            const columns = selectPart === '*'
+                ? table.columns
+                : selectPart.split(',').map(col => col.trim().split(/\s+as\s+/i)[0]);
+
+            // Filter data (simple WHERE clause parsing)
+            let filteredData = [...table.data];
+            if (whereIndex !== -1) {
+                const wherePart = fromPart.substring(whereIndex + 7, tableEndIndex).trim();
+                filteredData = filterData(filteredData, wherePart);
+            }
+
+            // Project columns
+            const projectedData = filteredData.map(row => {
+                const newRow = {};
+                columns.forEach(col => {
+                    if (row.hasOwnProperty(col)) {
+                        newRow[col] = row[col];
+                    }
+                });
+                return newRow;
+            });
+
+            // Handle ORDER BY
+            if (orderByIndex !== -1) {
+                const orderByPart = fromPart.substring(orderByIndex + 10);
+                const orderEndIndex = limitIndex !== -1 ? limitIndex - orderByIndex - 10 : Infinity;
+                const orderColumns = orderByPart.substring(0, orderEndIndex).split(',').map(col => {
+                    const parts = col.trim().split(/\s+(asc|desc)\s*$/i);
+                    return {
+                        column: parts[0].trim(),
+                        direction: parts[1] ? parts[1].toLowerCase() : 'asc'
+                    };
+                });
+
+                projectedData.sort((a, b) => {
+                    for (const orderCol of orderColumns) {
+                        const col = orderCol.column;
+                        const aVal = a[col] || '';
+                        const bVal = b[col] || '';
+
+                        let comparison = 0;
+                        if (aVal < bVal) comparison = -1;
+                        if (aVal > bVal) comparison = 1;
+
+                        if (comparison !== 0) {
+                            return orderCol.direction === 'asc' ? comparison : -comparison;
+                        }
+                    }
+                    return 0;
+                });
+            }
+
+            // Handle LIMIT
+            if (limitIndex !== -1) {
+                const limitPart = fromPart.substring(limitIndex + 6).trim().split(' ')[0];
+                const limit = parseInt(limitPart);
+                if (!isNaN(limit) && limit > 0) {
+                    return projectedData.slice(0, limit);
+                }
+            }
+
+            return projectedData;
+        }
+
+        function filterData(data, whereClause) {
+            // Simple WHERE clause evaluator
+            // Only supports basic comparisons: =, !=, <, >, <=, >=, LIKE
+            return data.filter(row => {
+                try {
+                    // Replace column names with their values
+                    let evaluatedClause = whereClause;
+                    for (const col in row) {
+                        const regex = new RegExp(`\\b${col}\\b`, 'g');
+                        const value = row[col];
+                        // Quote string values
+                        evaluatedClause = evaluatedClause.replace(regex, typeof value === 'string' ? `'${value}'` : value);
+                    }
+
+                    // Simple evaluation (unsafe, but for offline simulation only)
+                    // eslint-disable-next-line no-eval
+                    return eval(evaluatedClause.replace(/like/gi, 'includes'));
+                } catch (e) {
+                    return false;
+                }
+            });
+        }
+
+        function displayResults(results) {
+            currentResults = results;
+            const content = document.getElementById('resultsContent');
+
+            if (!results || results.length === 0) {
+                content.innerHTML = '<div class="info">查询返回 0 行数据</div>';
+                document.getElementById('exportResultsBtn').classList.add('hidden');
+                return;
+            }
+
+            // Create table
+            const columns = Object.keys(results[0]);
+            let html = '<table class="results-table">';
+            html += '<thead><tr>';
+            columns.forEach(col => {
+                html += `<th onclick="sortResults('${col}')">${col}</th>`;
+            });
+            html += '</tr></thead><tbody>';
+
+            results.forEach(row => {
+                html += '<tr>';
+                columns.forEach(col => {
+                    html += `<td>${escapeHtml(row[col])}</td>`;
+                });
+                html += '</tr>';
+            });
+
+            html += '</tbody></table>';
+            content.innerHTML = html;
+
+            // Show export button
+            document.getElementById('exportResultsBtn').classList.remove('hidden');
+        }
+
+        function displayError(message) {
+            const content = document.getElementById('resultsContent');
+            content.innerHTML = `<div class="error">❌ 查询错误: ${escapeHtml(message)}</div>`;
+            document.getElementById('exportResultsBtn').classList.add('hidden');
+        }
+
+        function sortResults(column) {
+            if (!currentResults || currentResults.length === 0) return;
+
+            const headers = document.querySelectorAll('.results-table th');
+            let sortedAsc = true;
+
+            // Check current sort state
+            headers.forEach(th => {
+                if (th.textContent === column && th.classList.contains('sorted')) {
+                    sortedAsc = !th.classList.contains('desc');
+                }
+            });
+
+            // Remove all sort indicators
+            headers.forEach(th => {
+                th.classList.remove('sorted', 'desc');
+            });
+
+            // Sort data
+            currentResults.sort((a, b) => {
+                const aVal = a[column] || '';
+                const bVal = b[column] || '';
+
+                let comparison = 0;
+                if (aVal < bVal) comparison = -1;
+                if (aVal > bVal) comparison = 1;
+
+                return sortedAsc ? comparison : -comparison;
+            });
+
+            // Update UI
+            displayResults(currentResults);
+            const currentHeader = Array.from(headers).find(th => th.textContent === column);
+            if (currentHeader) {
+                currentHeader.classList.add('sorted');
+                if (!sortedAsc) {
+                    currentHeader.classList.add('desc');
+                }
+            }
+        }
+
+        // Explain Plan Simulator
+        function explainSQL() {
+            const sql = editor.getValue().trim();
+            if (!sql) {
+                showMessage('请输入 SQL 查询', 'error');
+                return;
+            }
+
+            if (!sql.toLowerCase().startsWith('select')) {
+                showMessage('仅支持 SELECT 查询', 'error');
+                return;
+            }
+
+            try {
+                const plan = generateExplainPlan(sql);
+                displayExplainPlan(plan);
+                showMessage('执行计划生成成功', 'success');
+            } catch (error) {
+                displayError(error.message);
+                showMessage('执行计划生成失败: ' + error.message, 'error');
+            }
+        }
+
+        function generateExplainPlan(sql) {
+            const lowerSql = sql.toLowerCase();
+            const plan = [];
+
+            // Extract tables
+            const fromIndex = lowerSql.indexOf(' from ');
+            if (fromIndex === -1) throw new Error('FROM 子句缺失');
+
+            const fromPart = lowerSql.substring(fromIndex + 6);
+            const tables = fromPart.split(/\s+join\s+/i).map(part => {
+                return part.split(/\s+/)[0].trim();
+            });
+
+            // Check for WHERE clause
+            const hasWhere = lowerSql.includes(' where ');
+            const hasOrderBy = lowerSql.includes(' order by ');
+            const hasLimit = lowerSql.includes(' limit ');
+
+            // Estimate row counts
+            let totalRows = 0;
+            tables.forEach(table => {
+                if (virtualTables[table]) {
+                    const rows = virtualTables[table].data.length;
+                    totalRows += rows;
+                    plan.push({
+                        operation: 'Table Scan',
+                        table: table,
+                        rows: rows,
+                        comment: `扫描表 ${table} 的 ${rows} 行数据`
+                    });
+                } else {
+                    plan.push({
+                        operation: 'Table Scan (Estimated)',
+                        table: table,
+                        rows: 1000,
+                        comment: `扫描表 ${table}（估计 1000 行）`
+                    });
+                    totalRows += 1000;
+                }
+            });
+
+            // Join operations
+            if (tables.length > 1) {
+                plan.push({
+                    operation: 'Join',
+                    table: tables.join(', '),
+                    rows: totalRows,
+                    comment: `关联 ${tables.length} 个表，返回约 ${totalRows} 行`
+                });
+            }
+
+            // Filter operation
+            if (hasWhere) {
+                const filteredRows = Math.floor(totalRows * 0.3); // Estimate 30% filtering
+                plan.push({
+                    operation: 'Filter',
+                    table: '',
+                    rows: filteredRows,
+                    comment: `根据 WHERE 条件过滤数据，返回约 ${filteredRows} 行`
+                });
+                totalRows = filteredRows;
+            }
+
+            // Order by
+            if (hasOrderBy) {
+                plan.push({
+                    operation: 'Sort',
+                    table: '',
+                    rows: totalRows,
+                    comment: '根据 ORDER BY 条件排序结果'
+                });
+            }
+
+            // Limit
+            if (hasLimit) {
+                const limitMatch = sql.match(/limit\s+(\d+)/i);
+                const limit = limitMatch ? parseInt(limitMatch[1]) : 100;
+                plan.push({
+                    operation: 'Limit',
+                    table: '',
+                    rows: Math.min(limit, totalRows),
+                    comment: `限制结果集为 ${limit} 行`
+                });
+            }
+
+            // Add recommendations
+            if (!hasWhere) {
+                plan.push({
+                    operation: 'Recommendation',
+                    table: '',
+                    rows: 0,
+                    comment: '警告：查询没有 WHERE 条件，可能导致全表扫描',
+                    warning: true
+                });
+            }
+
+            // Suggest indexes
+            if (hasWhere) {
+                const whereClause = lowerSql.substring(lowerSql.indexOf(' where ') + 7);
+                // Simple column extraction from WHERE clause
+                const columnRegex = /\b([a-zA-Z_][a-zA-Z0-9_]*)\s*(=|!=|<|>|<=|>=|like)\b/gi;
+                const columns = new Set();
+                let match;
+                while ((match = columnRegex.exec(whereClause)) !== null) {
+                    columns.add(match[1]);
+                }
+
+                if (columns.size > 0) {
+                    plan.push({
+                        operation: 'Index Recommendation',
+                        table: '',
+                        rows: 0,
+                        comment: `建议为以下列创建索引：${Array.from(columns).join(', ')}`,
+                        warning: false
+                    });
+                }
+            }
+
+            return plan;
+        }
+
+        function displayExplainPlan(plan) {
+            const content = document.getElementById('resultsContent');
+            let html = '<div class="explain-plan">';
+            html += '<h3>执行计划模拟</h3>';
+
+            plan.forEach(step => {
+                const className = step.warning ? 'explain-step warning' : 'explain-step';
+                html += `<div class="${className}">`;
+                if (step.operation) {
+                    html += `<strong>${step.operation}</strong>`;
+                    if (step.table) {
+                        html += ` on ${step.table}`;
+                    }
+                    if (step.rows > 0) {
+                        html += ` (${step.rows} rows)`;
+                    }
+                }
+                if (step.comment) {
+                    html += `<div style="margin-top: 4px; color: #858585;">${step.comment}</div>`;
+                }
+                html += '</div>';
+            });
+
+            html += '</div>';
+            content.innerHTML = html;
+
+            // Hide export button
+            document.getElementById('exportResultsBtn').classList.add('hidden');
+        }
+
+        // Query History
+        function showHistoryPanel() {
+            updateHistoryUI();
+            document.getElementById('historyModal').classList.add('active');
+        }
+
+        function hideHistoryPanel() {
+            document.getElementById('historyModal').classList.remove('active');
+        }
+
+        function saveQueryToHistory(sql, success, results) {
+            const historyItem = {
+                id: Date.now(),
+                sql: sql,
+                dialect: currentDialect,
+                success: success,
+                timestamp: new Date().toISOString(),
+                rows: success && results ? results.length : 0
+            };
+
+            queryHistory.unshift(historyItem);
+
+            // Keep only last 20 items
+            if (queryHistory.length > 20) {
+                queryHistory = queryHistory.slice(0, 20);
+            }
+
+            saveToStorage();
+        }
+
+        function loadQueryFromHistory(id) {
+            const item = queryHistory.find(h => h.id === id);
+            if (item) {
+                // Create new tab or replace current
+                createNewTab();
+                editor.setValue(item.sql);
+                document.getElementById('dialectSelector').value = item.dialect;
+                currentDialect = item.dialect;
+                hideHistoryPanel();
+                showMessage('已加载历史查询', 'success');
+            }
+        }
+
+        function clearHistory() {
+            queryHistory = [];
+            saveToStorage();
+            updateHistoryUI();
+            showMessage('查询历史已清空', 'success');
+        }
+
+        function updateHistoryUI() {
+            const list = document.getElementById('historyList');
+
+            if (queryHistory.length === 0) {
+                list.innerHTML = '<div class="info">暂无查询历史</div>';
+                return;
+            }
+
+            let html = '';
+            queryHistory.forEach(item => {
+                const time = new Date(item.timestamp).toLocaleString('zh-CN');
+                const status = item.success ? '<span class="success">✅ 成功</span>' : '<span class="error">❌ 失败</span>';
+                const rows = item.success && item.rows > 0 ? `<span class="info"> (${item.rows} 行)</span>` : '';
+                html += `
+                    <div class="history-item" onclick="loadQueryFromHistory(${item.id})">
+                        <div class="history-item-info">
+                            ${status} ${item.dialect.toUpperCase()} ${time}${rows}
+                        </div>
+                        <div class="history-item-sql">${escapeHtml(item.sql)}</div>
+                    </div>
+                `;
+            });
+
+            list.innerHTML = html;
+        }
+
+        // Export functionality
+        function exportSQL() {
+            const sql = editor.getValue().trim();
+            if (!sql) {
+                showMessage('没有可导出的 SQL', 'error');
+                return;
+            }
+
+            const blob = new Blob([sql], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `query_${new Date().getTime()}.sql`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            showMessage('SQL 导出成功', 'success');
+        }
+
+        function exportResults() {
+            if (!currentResults || currentResults.length === 0) {
+                showMessage('没有可导出的结果', 'error');
+                return;
+            }
+
+            // Convert to CSV with BOM for Chinese support
+            const columns = Object.keys(currentResults[0]);
+            let csv = '\uFEFF' + columns.join(',') + '\n';
+
+            currentResults.forEach(row => {
+                const values = columns.map(col => {
+                    const value = row[col] || '';
+                    // Quote values containing commas or quotes
+                    if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
+                        return `"${value.replace(/"/g, '""')}"`;
+                    }
+                    return value;
+                });
+                csv += values.join(',') + '\n';
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `results_${new Date().getTime()}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            showMessage('查询结果导出成功', 'success');
+        }
+
+        // LocalStorage
+        function saveToStorage() {
+            const data = {
+                tabs: tabs,
+                currentTab: currentTab,
+                virtualTables: virtualTables,
+                queryHistory: queryHistory,
+                currentDialect: currentDialect
+            };
+            localStorage.setItem('sqlQueryMaster', JSON.stringify(data));
+        }
+
+        function loadFromStorage() {
+            const data = localStorage.getItem('sqlQueryMaster');
+            if (data) {
+                try {
+                    const parsed = JSON.parse(data);
+                    tabs = parsed.tabs || tabs;
+                    currentTab = parsed.currentTab !== undefined ? parsed.currentTab : currentTab;
+                    virtualTables = parsed.virtualTables || virtualTables;
+                    queryHistory = parsed.queryHistory || queryHistory;
+                    currentDialect = parsed.currentDialect || currentDialect;
+
+                    // Update dialect selector
+                    document.getElementById('dialectSelector').value = currentDialect;
+                } catch (error) {
+                    console.error('Failed to load from storage:', error);
+                }
+            }
+        }
+
+        // Load sample data and preset queries
+        function loadSampleData() {
+            // Sample customers data (CSV format)
+            const sampleCustomersCSV = `id,name,email,age,city
+1,张三,zhangsan@example.com,25,北京
+2,李四,lisi@example.com,30,上海
+3,王五,wangwu@example.com,28,广州
+4,赵六,zhaoliu@example.com,32,深圳
+5,钱七,qianqi@example.com,26,杭州`;
+
+            // Sample orders data (JSON format)
+            const sampleOrdersJSON = [
+                { id: 1, customer_id: 1, product: '手机', amount: 2999, order_date: '2024-01-01' },
+                { id: 2, customer_id: 1, product: '耳机', amount: 299, order_date: '2024-01-05' },
+                { id: 3, customer_id: 2, product: '电脑', amount: 5999, order_date: '2024-01-10' },
+                { id: 4, customer_id: 3, product: '平板', amount: 2499, order_date: '2024-01-15' },
+                { id: 5, customer_id: 4, product: '手表', amount: 1999, order_date: '2024-01-20' }
+            ];
+
+            // Load sample data
+            try {
+                const customersData = parseCSV(sampleCustomersCSV);
+                virtualTables['customers'] = {
+                    name: 'customers',
+                    data: customersData,
+                    columns: Object.keys(customersData[0])
+                };
+
+                virtualTables['orders'] = {
+                    name: 'orders',
+                    data: sampleOrdersJSON,
+                    columns: Object.keys(sampleOrdersJSON[0])
+                };
+
+                saveToStorage();
+            } catch (error) {
+                console.error('Failed to load sample data:', error);
+            }
+        }
+
+        function loadPresetQueries() {
+            // Only load if no tabs exist or first tab is empty
+            if (tabs.length === 1 && !tabs[0].content.trim()) {
+                const presetQueries = [
+                    // Simple SELECT
+                    `-- 简单查询：获取所有客户信息
+SELECT * FROM customers;`,
+
+                    // JOIN query
+                    `-- JOIN 查询：获取客户的订单信息
+SELECT c.name, c.email, o.product, o.amount, o.order_date
+FROM customers c
+JOIN orders o ON c.id = o.customer_id;`,
+
+                    // GROUP BY + HAVING
+                    `-- 分组查询：统计每个客户的订单总数和总金额
+SELECT c.name, COUNT(o.id) as order_count, SUM(o.amount) as total_amount
+FROM customers c
+JOIN orders o ON c.id = o.customer_id
+GROUP BY c.name
+HAVING COUNT(o.id) >= 1;`,
+
+                    // Subquery
+                    `-- 子查询：获取订单金额大于平均金额的订单
+SELECT * FROM orders
+WHERE amount > (SELECT AVG(amount) FROM orders);`,
+
+                    // Dialect-specific queries
+                    `-- PostgreSQL 特有语法：类型转换
+SELECT id, name, email, age::text as age_str
+FROM customers;
+
+-- Oracle 特有语法：使用 DUAL 表
+SELECT 'Hello World' as message FROM DUAL;
+
+-- MySQL 特有语法：LIMIT 分页
+SELECT * FROM customers LIMIT 2 OFFSET 1;
+
+-- SQLite 特有语法：日期函数
+SELECT id, product, amount, DATE(order_date) as order_date
+FROM orders;`
+                ];
+
+                // Replace first tab content
+                tabs[0].content = presetQueries.join('\n\n');
+                if (editor) {
+                    editor.setValue(tabs[0].content);
+                }
+                saveToStorage();
+            }
+        }
+
+        function hideRenamePanel() {
+            document.getElementById('renameModal').classList.remove('active');
+            renameTabId = null;
+        }
+
+        // Utility functions
+        function showMessage(message, type) {
+            // Create a simple toast message
+            const toast = document.createElement('div');
+            toast.style.cssText = `
+                position: fixed;
+                top: 60px;
+                right: 20px;
+                padding: 12px 20px;
+                border-radius: 4px;
+                color: white;
+                font-size: 14px;
+                z-index: 2000;
+                opacity: 0;
+                transform: translateY(-10px);
+                transition: opacity 0.3s, transform 0.3s;
+            `;
+
+            switch (type) {
+                case 'success':
+                    toast.style.background = '#0e7a0d';
+                    break;
+                case 'error':
+                    toast.style.background = '#a8071a';
+                    break;
+                case 'info':
+                    toast.style.background = '#0e639c';
+                    break;
+                default:
+                    toast.style.background = '#3c3c3c';
+            }
+
+            toast.textContent = message;
+            document.body.appendChild(toast);
+
+            // Animate in
+            setTimeout(() => {
+                toast.style.opacity = '1';
+                toast.style.transform = 'translateY(0)';
+            }, 100);
+
+            // Animate out and remove
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateY(-10px)';
+                setTimeout(() => {
+                    document.body.removeChild(toast);
+                }, 300);
+            }, 3000);
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Initialize on page load
+        window.addEventListener('DOMContentLoaded', init);
+
+        // Make functions globally accessible
+        window.createNewTab = createNewTab;
+        window.switchTab = switchTab;
+        window.closeTab = closeTab;
+        window.renameTabPrompt = renameTabPrompt;
+        window.renameTab = renameTab;
+        window.hideRenamePanel = hideRenamePanel;
+        window.formatSQL = formatSQL;
+        window.executeSQL = executeSQL;
+        window.explainSQL = explainSQL;
+        window.showUploadPanel = showUploadPanel;
+        window.hideUploadPanel = hideUploadPanel;
+        window.uploadFile = uploadFile;
+        window.handleFileSelect = handleFileSelect;
+        window.showHistoryPanel = showHistoryPanel;
+        window.hideHistoryPanel = hideHistoryPanel;
+        window.loadQueryFromHistory = loadQueryFromHistory;
+        window.clearHistory = clearHistory;
+        window.exportSQL = exportSQL;
+        window.exportResults = exportResults;
+        window.sortResults = sortResults;
+        window.changeDialect = changeDialect;
+    </script>
+</body>
+</html>

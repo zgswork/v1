@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>手写体OCR转换工具</title>
+    <!-- 引入Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入Font Awesome -->
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <!-- 引入Tesseract.js -->
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.1.1/dist/tesseract.min.js"></script>
+    
+    <!-- 配置Tailwind -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3B82F6',
+                        secondary: '#F97316',
+                        neutral: {
+                            100: '#F3F4F6',
+                            200: '#E5E7EB',
+                            300: '#D1D5DB',
+                            700: '#374151',
+                            800: '#1F2937',
+                            900: '#111827'
+                        }
+                    },
+                    fontFamily: {
+                        inter: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                    animation: {
+                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    }
+                },
+            }
+        }
+    </script>
+    
+    <!-- 自定义样式 -->
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .text-shadow {
+                text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
+            .transition-custom {
+                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            }
+            .backdrop-blur {
+                backdrop-filter: blur(8px);
+            }
+        }
+    </style>
+</head>
+<body class="font-inter bg-neutral-100 text-neutral-800 min-h-screen flex flex-col">
+    <!-- 顶部导航栏 -->
+    <header class="bg-white shadow-md shadow-sm shadow shadow-md transition-custom">
+        <div class="container mx-auto px-4 py-4 flex justify-between items-center">
+            <div class="flex items-center space-x-2">
+                <i class="fa fa-file-text-o text-primary text-2xl"></i>
+                <h1 class="text-xl md:text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">手写体OCR转换工具</h1>
+            </div>
+            <nav class="hidden md:flex items-center space-x-6">
+                <a href="#" class="text-neutral-700 hover:text-primary transition-custom font-medium">首页</a>
+                <a href="#templates" class="text-neutral-700 hover:text-primary transition-custom font-medium">模板</a>
+                <a href="#about" class="text-neutral-700 hover:text-primary transition-custom font-medium">关于</a>
+                <button class="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg shadow-md hover:shadow-lg transition-custom">
+                    <i class="fa fa-history mr-1"></i> 历史记录
+                </button>
+            </nav>
+            <button class="md:hidden text-neutral-700 text-xl">
+                <i class="fa fa-bars"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- 主要内容 -->
+    <main class="flex-grow container mx-auto px-4 py-8">
+        <!-- 介绍部分 -->
+        <section class="text-center mb-12 max-w-3xl mx-auto">
+            <h2 class="text-[clamp(1.5rem,3vw,2.5rem)] font-bold text-neutral-800 mb-4 text-shadow">快速将手写笔记转换为电子文本</h2>
+            <p class="text-neutral-700 text-lg mb-6">告别繁琐的手动输入，轻松将手写笔记、会议记录、课堂笔记转换为可编辑的电子文本</p>
+            <div class="flex flex-wrap justify-center gap-4 text-sm text-neutral-600">
+                <div class="flex items-center"><i class="fa fa-check-circle text-primary mr-2"></i> 支持中文手写识别</div>
+                <div class="flex items-center"><i class="fa fa-check-circle text-primary mr-2"></i> 支持英文手写识别</div>
+                <div class="flex items-center"><i class="fa fa-check-circle text-primary mr-2"></i> 无需安装，在线使用</div>
+                <div class="flex items-center"><i class="fa fa-check-circle text-primary mr-2"></i> 多种模板可选</div>
+            </div>
+        </section>
+
+        <!-- 主要功能区 -->
+        <section class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-16">
+            <!-- 左侧：上传和预览区 -->
+            <div class="bg-white rounded-xl shadow-lg p-6 transform hover:shadow-xl transition-custom">
+                <h3 class="text-xl font-bold mb-4 flex items-center">
+                    <i class="fa fa-upload text-primary mr-2"></i> 上传手写图片
+                </h3>
+                
+                <!-- 上传区域 -->
+                <div id="upload-area" class="border-2 border-dashed border-neutral-300 rounded-lg p-8 text-center mb-6 cursor-pointer hover:border-primary transition-custom bg-neutral-50">
+                    <input type="file" id="image-upload" accept="image/*" class="hidden">
+                    <i class="fa fa-picture-o text-5xl text-neutral-400 mb-4"></i>
+                    <p class="text-neutral-600 mb-2">点击或拖拽图片到此处上传</p>
+                    <p class="text-xs text-neutral-500">支持 JPG, PNG, WEBP 格式</p>
+                </div>
+                
+                <!-- 预览区域 -->
+                <div id="preview-container" class="hidden">
+                    <h4 class="font-medium text-neutral-700 mb-2">预览</h4>
+                    <div class="relative bg-neutral-100 rounded-lg overflow-hidden">
+                        <img id="preview-image" src="" alt="预览图片" class="w-full h-auto max-h-64 object-contain">
+                        <button id="remove-image" class="absolute top-2 right-2 bg-white/80 backdrop-blur text-neutral-700 p-1 rounded-full hover:bg-white transition-custom">
+                            <i class="fa fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="mt-4 flex justify-center">
+                        <button id="start-ocr" class="bg-primary hover:bg-primary/90 text-white px-6 py-2 rounded-lg shadow hover:shadow-md transition-custom flex items-center">
+                            <i class="fa fa-magic mr-2"></i> 开始识别
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- 识别中状态 -->
+                <div id="processing-container" class="hidden text-center py-8">
+                    <div class="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mb-4"></div>
+                    <p class="text-neutral-700">正在识别中，请稍候...</p>
+                    <p class="text-sm text-neutral-500 mt-2">识别时间取决于图片大小和内容复杂度</p>
+                </div>
+            </div>
+            
+            <!-- 右侧：结果展示区 -->
+            <div class="bg-white rounded-xl shadow-lg p-6 transform hover:shadow-xl transition-custom">
+                <h3 class="text-xl font-bold mb-4 flex items-center">
+                    <i class="fa fa-file-text text-primary mr-2"></i> 识别结果
+                </h3>
+                
+                <!-- 初始状态 -->
+                <div id="result-initial" class="text-center py-12 text-neutral-500">
+                    <i class="fa fa-file-o text-5xl mb-4"></i>
+                    <p>识别结果将显示在这里</p>
+                </div>
+                
+                <!-- 结果展示 -->
+                <div id="result-container" class="hidden">
+                    <div class="mb-4 flex justify-between items-center">
+                        <div class="flex items-center text-sm text-neutral-600">
+                            <span id="confidence" class="flex items-center bg-green-100 text-green-800 px-2 py-0.5 rounded-full">
+                                <i class="fa fa-check-circle mr-1"></i> 置信度: <span id="confidence-value">0</span>%
+                            </span>
+                        </div>
+                        <div class="flex space-x-2">
+                            <button id="copy-result" class="text-primary hover:text-primary/80 p-1.5 rounded hover:bg-primary/10 transition-custom" title="复制文本">
+                                <i class="fa fa-copy"></i>
+                            </button>
+                            <button id="download-result" class="text-primary hover:text-primary/80 p-1.5 rounded hover:bg-primary/10 transition-custom" title="下载文本">
+                                <i class="fa fa-download"></i>
+                            </button>
+                            <button id="clear-result" class="text-neutral-600 hover:text-neutral-800 p-1.5 rounded hover:bg-neutral-100 transition-custom" title="清空结果">
+                                <i class="fa fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="border border-neutral-200 rounded-lg">
+                        <textarea id="ocr-result" class="w-full p-4 min-h-[200px] focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none" placeholder="识别的文本将显示在这里..." readonly></textarea>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <button id="edit-result" class="bg-neutral-100 hover:bg-neutral-200 text-neutral-800 px-4 py-2 rounded-lg transition-custom mr-2">
+                            <i class="fa fa-pencil mr-1"></i> 编辑文本
+                        </button>
+                        <button id="apply-template" class="bg-secondary hover:bg-secondary/90 text-white px-4 py-2 rounded-lg transition-custom">
+                            <i class="fa fa-file-text-o mr-1"></i> 应用模板
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- 模板区域 -->
+        <section id="templates" class="mb-16">
+            <h3 class="text-2xl font-bold mb-6 text-center">行业模板</h3>
+            <p class="text-center text-neutral-600 mb-8 max-w-2xl mx-auto">选择适合的模板，快速将识别结果格式化为专业文档</p>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- 汇报模板 -->
+                <div class="bg-white rounded-xl shadow-md hover:shadow-lg transition-custom overflow-hidden border border-neutral-200">
+                    <div class="h-3 bg-primary"></div>
+                    <div class="p-6">
+                        <div class="flex items-center mb-4">
+                            <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center mr-3">
+                                <i class="fa fa-line-chart text-primary"></i>
+                            </div>
+                            <h4 class="font-bold text-lg">汇报模板</h4>
+                        </div>
+                        <p class="text-neutral-600 text-sm mb-4">适用于工作汇报、项目总结，包含标题、概述、重点、结论等结构</p>
+                        <button class="template-btn w-full py-2 border border-primary text-primary hover:bg-primary hover:text-white rounded-lg transition-custom text-sm font-medium" data-template="report">
+                            应用模板
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- 演讲模板 -->
+                <div class="bg-white rounded-xl shadow-md hover:shadow-lg transition-custom overflow-hidden border border-neutral-200">
+                    <div class="h-3 bg-secondary"></div>
+                    <div class="p-6">
+                        <div class="flex items-center mb-4">
+                            <div class="w-10 h-10 rounded-full bg-secondary/10 flex items-center justify-center mr-3">
+                                <i class="fa fa-microphone text-secondary"></i>
+                            </div>
+                            <h4 class="font-bold text-lg">演讲模板</h4>
+                        </div>
+                        <p class="text-neutral-600 text-sm mb-4">适用于演讲稿、演示文稿，包含开场、主体、结尾、问答等部分</p>
+                        <button class="template-btn w-full py-2 border border-secondary text-secondary hover:bg-secondary hover:text-white rounded-lg transition-custom text-sm font-medium" data-template="speech">
+                            应用模板
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- 笔记模板 -->
+                <div class="bg-white rounded-xl shadow-md hover:shadow-lg transition-custom overflow-hidden border border-neutral-200">
+                    <div class="h-3 bg-green-500"></div>
+                    <div class="p-6">
+                        <div class="flex items-center mb-4">
+                            <div class="w-10 h-10 rounded-full bg-green-500/10 flex items-center justify-center mr-3">
+                                <i class="fa fa-book text-green-500"></i>
+                            </div>
+                            <h4 class="font-bold text-lg">笔记模板</h4>
+                        </div>
+                        <p class="text-neutral-600 text-sm mb-4">适用于课堂笔记、阅读笔记，包含主题、要点、疑问、总结等模块</p>
+                        <button class="template-btn w-full py-2 border border-green-500 text-green-500 hover:bg-green-500 hover:text-white rounded-lg transition-custom text-sm font-medium" data-template="notes">
+                            应用模板
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- 模板预览区域 -->
+        <section id="template-preview" class="hidden mb-16 bg-white rounded-xl shadow-lg p-6">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold flex items-center">
+                    <i class="fa fa-eye text-primary mr-2"></i> 模板预览
+                </h3>
+                <button id="close-template" class="text-neutral-500 hover:text-neutral-700 transition-custom">
+                    <i class="fa fa-times"></i>
+                </button>
+            </div>
+            
+            <div id="template-content" class="prose max-w-none">
+                <!-- 模板内容将在这里动态生成 -->
+            </div>
+            
+            <div class="mt-6 flex justify-end">
+                <button id="save-template" class="bg-primary hover:bg-primary/90 text-white px-6 py-2 rounded-lg shadow hover:shadow-md transition-custom">
+                    <i class="fa fa-save mr-2"></i> 保存为文档
+                </button>
+            </div>
+        </section>
+        
+        <!-- 特点介绍 -->
+        <section id="about" class="mb-16">
+            <h3 class="text-2xl font-bold mb-8 text-center">为什么选择我们的OCR工具</h3>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div class="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-custom text-center">
+                    <div class="w-14 h-14 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center">
+                        <i class="fa fa-bolt text-primary text-2xl"></i>
+                    </div>
+                    <h4 class="font-bold text-lg mb-2">快速高效</h4>
+                    <p class="text-neutral-600">本地处理识别，无需上传服务器，保护隐私的同时提供快速识别体验</p>
+                </div>
+                
+                <div class="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-custom text-center">
+                    <div class="w-14 h-14 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center">
+                        <i class="fa fa-language text-primary text-2xl"></i>
+                    </div>
+                    <h4 class="font-bold text-lg mb-2">多语言支持</h4>
+                    <p class="text-neutral-600">精准识别中文和英文手写体，满足学习、工作等多种场景需求</p>
+                </div>
+                
+                <div class="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-custom text-center">
+                    <div class="w-14 h-14 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center">
+                        <i class="fa fa-paint-brush text-primary text-2xl"></i>
+                    </div>
+                    <h4 class="font-bold text-lg mb-2">格式多样</h4>
+                    <p class="text-neutral-600">多种专业模板可选，一键格式化识别结果，快速生成规范文档</p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- 页脚 -->
+    <footer class="bg-neutral-800 text-white py-8">
+        <div class="container mx-auto px-4">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
+                <div>
+                    <div class="flex items-center space-x-2 mb-4">
+                        <i class="fa fa-file-text-o text-primary text-2xl"></i>
+                        <h3 class="text-xl font-bold">手写体OCR转换工具</h3>
+                    </div>
+                    <p class="text-neutral-400 text-sm">轻松将手写内容转换为可编辑文本，提高工作学习效率</p>
+                </div>
+                
+                <div>
+                    <h4 class="font-bold mb-4">快速链接</h4>
+                    <ul class="space-y-2 text-neutral-400">
+                        <li><a href="#" class="hover:text-primary transition-custom">首页</a></li>
+                        <li><a href="#templates" class="hover:text-primary transition-custom">模板</a></li>
+                        <li><a href="#about" class="hover:text-primary transition-custom">关于我们</a></li>
+                        <li><a href="#" class="hover:text-primary transition-custom">使用帮助</a></li>
+                    </ul>
+                </div>
+                
+                <div>
+                    <h4 class="font-bold mb-4">联系我们</h4>
+                    <ul class="space-y-2 text-neutral-400">
+                        <li class="flex items-center"><i class="fa fa-envelope-o mr-2 text-primary"></i> <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="cfbcbabfbfa0bdbb8fa0acbdbba0a0a3e1aca0a2">[email&#160;protected]</a></li>
+                        <li class="flex items-center"><i class="fa fa-github mr-2 text-primary"></i> github.com/ocrtool</li>
+                    </ul>
+                    <div class="mt-4 flex space-x-4">
+                        <a href="#" class="w-8 h-8 rounded-full bg-neutral-700 hover:bg-primary flex items-center justify-center transition-custom">
+                            <i class="fa fa-twitter"></i>
+                        </a>
+                        <a href="#" class="w-8 h-8 rounded-full bg-neutral-700 hover:bg-primary flex items-center justify-center transition-custom">
+                            <i class="fa fa-github"></i>
+                        </a>
+                        <a href="#" class="w-8 h-8 rounded-full bg-neutral-700 hover:bg-primary flex items-center justify-center transition-custom">
+                            <i class="fa fa-linkedin"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="border-t border-neutral-700 pt-6 text-center text-neutral-500 text-sm">
+                <p>&copy; 2023 手写体OCR转换工具 - 保留所有权利</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- 通知提示 -->
+    <div id="notification" class="fixed bottom-4 right-4 bg-neutral-800 text-white px-4 py-3 rounded-lg shadow-lg transform translate-y-20 opacity-0 transition-all duration-300 flex items-center z-50">
+        <i id="notification-icon" class="fa fa-check-circle mr-2 text-green-400"></i>
+        <span id="notification-message"></span>
+    </div>
+
+    <!-- JavaScript -->
+    <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+        // DOM元素
+        const uploadArea = document.getElementById('upload-area');
+        const imageUpload = document.getElementById('image-upload');
+        const previewContainer = document.getElementById('preview-container');
+        const previewImage = document.getElementById('preview-image');
+        const removeImage = document.getElementById('remove-image');
+        const startOcr = document.getElementById('start-ocr');
+        const processingContainer = document.getElementById('processing-container');
+        const resultInitial = document.getElementById('result-initial');
+        const resultContainer = document.getElementById('result-container');
+        const ocrResult = document.getElementById('ocr-result');
+        const confidence = document.getElementById('confidence');
+        const confidenceValue = document.getElementById('confidence-value');
+        const copyResult = document.getElementById('copy-result');
+        const downloadResult = document.getElementById('download-result');
+        const clearResult = document.getElementById('clear-result');
+        const editResult = document.getElementById('edit-result');
+        const applyTemplate = document.getElementById('apply-template');
+        const templatePreview = document.getElementById('template-preview');
+        const templateContent = document.getElementById('template-content');
+        const closeTemplate = document.getElementById('close-template');
+        const saveTemplate = document.getElementById('save-template');
+        const templateBtns = document.querySelectorAll('.template-btn');
+        const notification = document.getElementById('notification');
+        const notificationIcon = document.getElementById('notification-icon');
+        const notificationMessage = document.getElementById('notification-message');
+        
+        // 上传区域点击事件
+        uploadArea.addEventListener('click', () => {
+            imageUpload.click();
+        });
+        
+        // 拖拽事件
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('border-primary');
+            uploadArea.classList.add('bg-primary/5');
+        });
+        
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('border-primary');
+            uploadArea.classList.remove('bg-primary/5');
+        });
+        
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('border-primary');
+            uploadArea.classList.remove('bg-primary/5');
+            
+            if (e.dataTransfer.files.length) {
+                imageUpload.files = e.dataTransfer.files;
+                handleImageUpload();
+            }
+        });
+        
+        // 图片上传处理
+        imageUpload.addEventListener('change', handleImageUpload);
+        
+        function handleImageUpload() {
+            const file = imageUpload.files[0];
+            if (!file) return;
+            
+            // 检查文件类型
+            if (!file.type.startsWith('image/')) {
+                showNotification('请上传图片文件', 'error');
+                return;
+            }
+            
+            // 预览图片
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                previewImage.src = e.target.result;
+                previewContainer.classList.remove('hidden');
+                uploadArea.classList.add('hidden');
+            };
+            reader.readAsDataURL(file);
+        }
+        
+        // 移除图片
+        removeImage.addEventListener('click', () => {
+            imageUpload.value = '';
+            previewContainer.classList.add('hidden');
+            uploadArea.classList.remove('hidden');
+            resultContainer.classList.add('hidden');
+            resultInitial.classList.remove('hidden');
+            templatePreview.classList.add('hidden');
+        });
+        
+        // 开始OCR识别
+        startOcr.addEventListener('click', startOcrRecognition);
+        
+        function startOcrRecognition() {
+            const imageSrc = previewImage.src;
+            if (!imageSrc) return;
+            
+            // 显示处理状态
+            previewContainer.classList.add('hidden');
+            processingContainer.classList.remove('hidden');
+            
+            // 使用Tesseract.js进行OCR识别
+            Tesseract.recognize(
+                imageSrc,
+                'chi_sim+eng', // 识别中文和英文
+                {
+                    logger: (m) => console.log(m),
+                }
+            ).then(({ data: { text, confidence: conf } }) => {
+                // 处理完成，显示结果
+                processingContainer.classList.add('hidden');
+                previewContainer.classList.remove('hidden');
+                resultInitial.classList.add('hidden');
+                resultContainer.classList.remove('hidden');
+                
+                // 显示识别结果和置信度
+                ocrResult.value = text;
+                confidenceValue.textContent = Math.round(conf);
+                
+                // 根据置信度显示不同颜色
+                if (conf < 50) {
+                    confidence.classList.remove('bg-green-100', 'text-green-800');
+                    confidence.classList.add('bg-red-100', 'text-red-800');
+                } else if (conf < 75) {
+                    confidence.classList.remove('bg-green-100', 'text-green-800', 'bg-red-100', 'text-red-800');
+                    confidence.classList.add('bg-yellow-100', 'text-yellow-800');
+                } else {
+                    confidence.classList.remove('bg-red-100', 'text-red-800', 'bg-yellow-100', 'text-yellow-800');
+                    confidence.classList.add('bg-green-100', 'text-green-800');
+                }
+                
+                showNotification('识别完成', 'success');
+            }).catch((err) => {
+                console.error('识别错误:', err);
+                processingContainer.classList.add('hidden');
+                previewContainer.classList.remove('hidden');
+                showNotification('识别失败，请重试', 'error');
+            });
+        }
+        
+        // 复制结果
+        copyResult.addEventListener('click', () => {
+            ocrResult.select();
+            document.execCommand('copy');
+            showNotification('已复制到剪贴板', 'success');
+        });
+        
+        // 下载结果
+        downloadResult.addEventListener('click', () => {
+            const text = ocrResult.value;
+            if (!text.trim()) {
+                showNotification('没有可下载的内容', 'error');
+                return;
+            }
+            
+            const blob = new Blob([text], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'ocr_result.txt';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            showNotification('文件已下载', 'success');
+        });
+        
+        // 清空结果
+        clearResult.addEventListener('click', () => {
+            ocrResult.value = '';
+            resultContainer.classList.add('hidden');
+            resultInitial.classList.remove('hidden');
+            templatePreview.classList.add('hidden');
+        });
+        
+        // 编辑结果
+        editResult.addEventListener('click', () => {
+            if (ocrResult.readOnly) {
+                ocrResult.readOnly = false;
+                ocrResult.focus();
+                editResult.innerHTML = '<i class="fa fa-check mr-1"></i> 保存编辑';
+                editResult.classList.remove('bg-neutral-100', 'hover:bg-neutral-200', 'text-neutral-800');
+                editResult.classList.add('bg-green-500', 'hover:bg-green-600', 'text-white');
+            } else {
+                ocrResult.readOnly = true;
+                editResult.innerHTML = '<i class="fa fa-pencil mr-1"></i> 编辑文本';
+                editResult.classList.remove('bg-green-500', 'hover:bg-green-600', 'text-white');
+                editResult.classList.add('bg-neutral-100', 'hover:bg-neutral-200', 'text-neutral-800');
+                showNotification('已保存编辑', 'success');
+            }
+        });
+        
+        // 应用模板按钮
+        applyTemplate.addEventListener('click', () => {
+            const text = ocrResult.value.trim();
+            if (!text) {
+                showNotification('没有识别结果可应用模板', 'error');
+                return;
+            }
+            
+            // 默认应用汇报模板
+            applyTemplateByType('report');
+        });
+        
+        // 模板按钮点击事件
+        templateBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const text = ocrResult.value.trim();
+                if (!text) {
+                    showNotification('请先上传图片并识别文本', 'error');
+                    return;
+                }
+                
+                const templateType = btn.getAttribute('data-template');
+                applyTemplateByType(templateType);
+            });
+        });
+        
+        // 根据类型应用模板
+        function applyTemplateByType(type) {
+            const text = ocrResult.value;
+            let title = "文档标题";
+            let content = text;
+            
+            // 简单提取标题（取前10个字符）
+            if (text.length > 10) {
+                title = text.substring(0, 10) + "...";
+            } else {
+                title = text;
+            }
+            
+            // 根据关键词简单拆分内容
+            const sections = extractSections(text);
+            
+            let templateHtml = '';
+            
+            // 不同模板的HTML结构
+            switch(type) {
+                case 'report':
+                    templateHtml = `
+                        <h2>${title}</h2>
+                        <h3>概述</h3>
+                        <p>${sections.intro || "此处为概述内容..."}</p>
+                        
+                        <h3>主要内容</h3>
+                        <p>${sections.main || "此处为主要内容..."}</p>
+                        
+                        <h3>关键要点</h3>
+                        <ul>
+                            ${sections.keyPoints.length > 0 
+                                ? sections.keyPoints.map(point => `<li>${point}</li>`).join('') 
+                                : '<li>要点1</li><li>要点2</li>'}
+                        </ul>
+                        
+                        <h3>结论</h3>
+                        <p>${sections.conclusion || "此处为结论内容..."}</p>
+                    `;
+                    break;
+                    
+                case 'speech':
+                    templateHtml = `
+                        <h2>${title}</h2>
+                        <h3>开场</h3>
+                        <p>${sections.intro || "尊敬的各位，大家好！今天我想分享的是..."}</p>
+                        
+                        <h3>主要内容</h3>
+                        <p>${sections.main || "接下来，我将详细介绍..."}</p>
+                        
+                        <h3>重点强调</h3>
+                        <p>${sections.keyPoints.length > 0 ? sections.keyPoints.join(' ') : "需要重点强调的是..."}</p>
+                        
+                        <h3>结尾</h3>
+                        <p>${sections.conclusion || "感谢大家的聆听，期待您的提问与反馈。"}</p>
+                    `;
+                    break;
+                    
+                case 'notes':
+                    templateHtml = `
+                        <h2>${title}</h2>
+                        <h3>主题</h3>
+                        <p>${sections.intro || "笔记主题..."}</p>
+                        
+                        <h3>核心要点</h3>
+                        <ul>
+                            ${sections.keyPoints.length > 0 
+                                ? sections.keyPoints.map(point => `<li>${point}</li>`).join('') 
+                                : '<li>要点1</li><li>要点2</li><li>要点3</li>'}
+                        </ul>
+                        
+                        <h3>疑问与思考</h3>
+                        <p>此处记录相关疑问和思考...</p>
+                        
+                        <h3>总结</h3>
+                        <p>${sections.conclusion || "总结内容..."}</p>
+                    `;
+                    break;
+            }
+            
+            // 显示模板预览
+            templateContent.innerHTML = templateHtml;
+            templatePreview.classList.remove('hidden');
+            
+            // 平滑滚动到模板预览区域
+            templatePreview.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+        
+        // 根据关键词简单提取内容段落
+        function extractSections(text) {
+            // 简单的关键词匹配，实际应用中可以更复杂
+            const introKeywords = ['介绍', '概述', '背景', '开始', '首先'];
+            const conclusionKeywords = ['结论', '总结', '最后', '结束', '总之'];
+            
+            const lines = text.split('\n').filter(line => line.trim() !== '');
+            const keyPoints = [];
+            let intro = '';
+            let main = '';
+            let conclusion = '';
+            
+            // 简单分类
+            lines.forEach(line => {
+                // 检查是否是引言
+                if (!intro && introKeywords.some(keyword => line.includes(keyword))) {
+                    intro = line;
+                }
+                // 检查是否是结论
+                else if (!conclusion && conclusionKeywords.some(keyword => line.includes(keyword))) {
+                    conclusion = line;
+                }
+                // 短行视为要点
+                else if (line.length < 50) {
+                    keyPoints.push(line);
+                }
+                // 其他视为主要内容
+                else {
+                    main += line + '\n';
+                }
+            });
+            
+            // 如果没有识别到引言，取前几行
+            if (!intro && lines.length > 0) {
+                intro = lines.slice(0, 2).join('\n');
+            }
+            
+            // 如果没有识别到结论，取后几行
+            if (!conclusion && lines.length > 0) {
+                conclusion = lines.slice(-2).join('\n');
+            }
+            
+            return {
+                intro,
+                main: main.trim(),
+                keyPoints: keyPoints.slice(0, 5), // 最多取5个要点
+                conclusion
+            };
+        }
+        
+        // 关闭模板预览
+        closeTemplate.addEventListener('click', () => {
+            templatePreview.classList.add('hidden');
+        });
+        
+        // 保存模板文档
+        saveTemplate.addEventListener('click', () => {
+            const htmlContent = templateContent.innerHTML;
+            // 简单转换HTML为文本
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = htmlContent;
+            const textContent = tempDiv.textContent;
+            
+            const blob = new Blob([textContent], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'formatted_document.txt';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            showNotification('文档已保存', 'success');
+        });
+        
+        // 显示通知
+        function showNotification(message, type = 'success') {
+            notificationMessage.textContent = message;
+            
+            if (type === 'success') {
+                notificationIcon.className = 'fa fa-check-circle mr-2 text-green-400';
+            } else if (type === 'error') {
+                notificationIcon.className = 'fa fa-exclamation-circle mr-2 text-red-400';
+            } else if (type === 'info') {
+                notificationIcon.className = 'fa fa-info-circle mr-2 text-blue-400';
+            }
+            
+            // 显示通知
+            notification.classList.remove('translate-y-20', 'opacity-0');
+            notification.classList.add('translate-y-0', 'opacity-100');
+            
+            // 3秒后隐藏
+            setTimeout(() => {
+                notification.classList.remove('translate-y-0', 'opacity-100');
+                notification.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+        
+        // 页面滚动时改变导航栏样式
+        window.addEventListener('scroll', () => {
+            const header = document.querySelector('header');
+            if (window.scrollY > 10) {
+                header.classList.add('py-2');
+                header.classList.remove('py-4');
+            } else {
+                header.classList.add('py-4');
+                header.classList.remove('py-2');
+            }
+        });
+    </script>
+</body>
+</html>

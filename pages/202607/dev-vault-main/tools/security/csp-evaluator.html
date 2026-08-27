@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html tk="title_csp_evaluator_analyzer" lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CSP Evaluator &amp; Analyzer</title>
+<meta name="description" content="Analyze Content Security Policy headers. Get security scores, weakness detection, recommended fixes, and nonce/hash migration guidance.">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0a0a0a; --surface: #141414; --surface-2: #1e1e1e; --surface-3: #282828;
+  --border: #333; --text: #e0e0e0; --text-dim: #888;
+  --accent: #ef4444; --accent-dim: #dc2626;
+  --good: #4caf50; --warn: #ff9800; --error: #f44336; --info: #2196f3;
+  --radius: 8px;
+  --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --mono: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+}
+body { font-family: var(--font); background: var(--bg); color: var(--text); line-height: 1.6; min-height: 100vh; }
+header {
+  text-align: center; padding: 2rem 1rem; border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, var(--surface) 0%, var(--bg) 100%);
+}
+header h1 { font-size: 1.8rem; font-weight: 700; margin-bottom: 0.3rem; }
+header h1 span { color: var(--accent); }
+header p { color: var(--text-dim); font-size: 0.95rem; }
+main { max-width: 1200px; margin: 0 auto; padding: 1.5rem 1rem; }
+.tabs {
+  display: flex; gap: 0.25rem; border-bottom: 2px solid var(--border);
+  margin-bottom: 1.5rem; overflow-x: auto;
+}
+.tab {
+  padding: 0.6rem 1.2rem; background: none; border: none; color: var(--text-dim);
+  cursor: pointer; font-size: 0.9rem; font-family: var(--font); white-space: nowrap;
+  border-bottom: 2px solid transparent; margin-bottom: -2px; transition: color 0.2s, border-color 0.2s;
+}
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.panel { display: none; }
+.panel.active { display: block; }
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 1.25rem; margin-bottom: 1rem;
+}
+.card h2 { font-size: 1.1rem; margin-bottom: 0.75rem; color: var(--accent); }
+.card h3 { font-size: 0.95rem; margin-bottom: 0.5rem; }
+label { display: block; font-size: 0.85rem; color: var(--text-dim); margin-bottom: 0.3rem; }
+input[type="text"], select, textarea {
+  width: 100%; padding: 0.5rem 0.75rem; background: var(--surface-2);
+  border: 1px solid var(--border); border-radius: var(--radius); color: var(--text);
+  font-family: var(--mono); font-size: 0.85rem; outline: none; transition: border-color 0.2s;
+}
+input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+textarea { resize: vertical; min-height: 100px; }
+.form-group { margin-bottom: 0.75rem; }
+button {
+  padding: 0.5rem 1rem; background: var(--accent); color: white; border: none;
+  border-radius: var(--radius); cursor: pointer; font-family: var(--font);
+  font-size: 0.85rem; font-weight: 600; transition: background 0.2s;
+}
+button:hover { background: var(--accent-dim); }
+button.secondary { background: var(--surface-3); color: var(--text); }
+button.secondary:hover { background: var(--border); }
+.btn-row { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.75rem; }
+pre {
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 1rem; overflow-x: auto; font-family: var(--mono); font-size: 0.82rem;
+  line-height: 1.5; color: #c5c5c5; position: relative; white-space: pre-wrap;
+}
+pre .copy-btn {
+  position: absolute; top: 0.5rem; right: 0.5rem; padding: 0.25rem 0.6rem;
+  font-size: 0.75rem; background: var(--surface-3);
+}
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.score-circle {
+  width: 100px; height: 100px; border-radius: 50%; display: flex; align-items: center;
+  justify-content: center; margin: 0 auto 0.75rem; font-size: 2rem; font-weight: 700;
+  border: 4px solid;
+}
+.finding {
+  padding: 0.75rem; margin-bottom: 0.5rem; border-radius: var(--radius);
+  border-left: 3px solid; font-size: 0.85rem;
+}
+.finding-critical { background: rgba(244,67,54,0.08); border-color: var(--error); }
+.finding-warning { background: rgba(255,152,0,0.08); border-color: var(--warn); }
+.finding-info { background: rgba(33,150,243,0.08); border-color: var(--info); }
+.finding-good { background: rgba(76,175,80,0.08); border-color: var(--good); }
+.finding strong { display: block; margin-bottom: 0.25rem; }
+.directive-card {
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 0.75rem; margin-bottom: 0.5rem;
+}
+.directive-card .dir-name { font-family: var(--mono); color: var(--accent); font-weight: 600; font-size: 0.9rem; }
+.directive-card .dir-values { font-family: var(--mono); font-size: 0.82rem; color: var(--text-dim); margin-top: 0.25rem; word-break: break-all; }
+.directive-card .dir-desc { font-size: 0.82rem; color: var(--text-dim); margin-top: 0.25rem; }
+.badge {
+  display: inline-block; padding: 0.1rem 0.4rem; border-radius: 4px;
+  font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem;
+}
+.badge-safe { background: rgba(76,175,80,0.15); color: var(--good); }
+.badge-risky { background: rgba(255,152,0,0.15); color: var(--warn); }
+.badge-danger { background: rgba(244,67,54,0.15); color: var(--error); }
+.level-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.level-table th, .level-table td { padding: 0.5rem; text-align: left; border-bottom: 1px solid var(--border); }
+.level-table th { color: var(--accent); }
+@media (max-width: 768px) {
+  .two-col { grid-template-columns: 1fr; }
+  .tab { padding: 0.5rem 0.8rem; font-size: 0.82rem; }
+  header h1 { font-size: 1.4rem; }
+}
+</style>
+</head>
+<body>
+
+
+
+
+
+
+
+
+
+<header>
+  <h1>CSP <span>Evaluator</span></h1>
+  <p>Analyze Content Security Policy headers &mdash; find weaknesses, get fixes</p>
+</header>
+
+<main>
+  <div class="tabs" role="tablist">
+    <button class="tab active" data-panel="analyzer" role="tab" ti="btn_analyzer" ti="btn_analyzer" ti="btn_analyzer" ti="btn_analyzer">Analyzer</button>
+    <button class="tab" data-panel="directives" role="tab" ti="btn_directives" ti="btn_directives" ti="btn_directives" ti="btn_directives">Directives</button>
+    <button class="tab" data-panel="levels" role="tab" ti="btn_csp_levels" ti="btn_csp_levels" ti="btn_csp_levels" ti="btn_csp_levels">CSP Levels</button>
+    <button class="tab" data-panel="nonce" role="tab" ti="btn_nonce_hash_guide" ti="btn_nonce_hash_guide" ti="btn_nonce_hash_guide" ti="btn_nonce_hash_guide">Nonce/Hash Guide</button>
+    <button class="tab" data-panel="reporting" role="tab" ti="btn_reporting" ti="btn_reporting" ti="btn_reporting" ti="btn_reporting">Reporting</button>
+  </div>
+
+  <!-- Analyzer Panel -->
+  <div class="panel active" id="analyzer">
+    <div class="card">
+      <h2 ti="h2_paste_your_csp_header" ti="h2_paste_your_csp_header" ti="h2_paste_your_csp_header" ti="h2_paste_your_csp_header">Paste Your CSP Header</h2>
+      <div class="form-group">
+        <textarea id="cspInput" tp="placeholder_default_src_self_script_s" tp="placeholder_default_src_self_script_s" tp="placeholder_default_src_self_script_s" tp="placeholder_default_src_self_script_s" placeholder="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.example.com; style-src 'self' 'unsafe-inline'; img-src * data:; font-src 'self'; connect-src 'self' https://api.example.com; frame-src 'none';">default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.example.com; style-src 'self' 'unsafe-inline'; img-src * data:; font-src 'self'; connect-src 'self' https://api.example.com; frame-src 'none';</textarea>
+      </div>
+      <div class="btn-row">
+        <button onclick="analyzeCSP()" ti="btn_analyze_csp" ti="btn_analyze_csp" ti="btn_analyze_csp" ti="btn_analyze_csp">Analyze CSP</button>
+        <button class="secondary" onclick="loadExample('strict')" ti="btn_load_strict_example" ti="btn_load_strict_example" ti="btn_load_strict_example" ti="btn_load_strict_example">Load Strict Example</button>
+        <button class="secondary" onclick="loadExample('moderate')" ti="btn_load_moderate_example" ti="btn_load_moderate_example" ti="btn_load_moderate_example" ti="btn_load_moderate_example">Load Moderate Example</button>
+        <button class="secondary" onclick="loadExample('weak')" ti="btn_load_weak_example" ti="btn_load_weak_example" ti="btn_load_weak_example" ti="btn_load_weak_example">Load Weak Example</button>
+      </div>
+    </div>
+
+    <div id="analysisResults" style="display:none;">
+      <div class="two-col">
+        <div class="card" style="text-align:center;">
+          <h3 ti="h3_security_score" ti="h3_security_score" ti="h3_security_score" ti="h3_security_score">Security Score</h3>
+          <div class="score-circle" id="scoreCircle">--</div>
+          <p id="scoreLabel" style="font-size:0.9rem;font-weight:600;"></p>
+        </div>
+        <div class="card">
+          <h3 ti="h3_summary" ti="h3_summary" ti="h3_summary" ti="h3_summary">Summary</h3>
+          <div id="summaryStats"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 ti="h3_parsed_directives" ti="h3_parsed_directives" ti="h3_parsed_directives" ti="h3_parsed_directives">Parsed Directives</h3>
+        <div id="parsedDirectives"></div>
+      </div>
+
+      <div class="card">
+        <h3 ti="h3_findings" ti="h3_findings" ti="h3_findings" ti="h3_findings">Findings</h3>
+        <div id="findings"></div>
+      </div>
+
+      <div class="card">
+        <h3 ti="h3_recommended_fixes" ti="h3_recommended_fixes" ti="h3_recommended_fixes" ti="h3_recommended_fixes">Recommended Fixes</h3>
+        <pre id="fixedCSP"><button class="copy-btn" onclick="copyCode('fixedCSP')" ti="btn_copy" ti="btn_copy_2" ti="btn_copy_3" ti="btn_copy_4" ti="btn_copy" ti="btn_copy_2" ti="btn_copy_3" ti="btn_copy_4" ti="btn_copy" ti="btn_copy_2" ti="btn_copy_3" ti="btn_copy_4" ti="btn_copy" ti="btn_copy_2" ti="btn_copy_3" ti="btn_copy_4">Copy</button></pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- Directives Reference Panel -->
+  <div class="panel" id="directives">
+    <div class="card">
+      <h2 ti="h2_csp_directive_reference" ti="h2_csp_directive_reference" ti="h2_csp_directive_reference" ti="h2_csp_directive_reference">CSP Directive Reference</h2>
+      <div id="directiveList"></div>
+    </div>
+  </div>
+
+  <!-- CSP Levels Panel -->
+  <div class="panel" id="levels">
+    <div class="card">
+      <h2 ti="h2_csp_level_2_vs_level_3" ti="h2_csp_level_2_vs_level_3" ti="h2_csp_level_2_vs_level_3" ti="h2_csp_level_2_vs_level_3">CSP Level 2 vs Level 3</h2>
+      <table class="level-table">
+        <tr><th ti="th_feature" ti="th_feature" ti="th_feature" ti="th_feature">Feature</th><th ti="th_level_2" ti="th_level_2" ti="th_level_2" ti="th_level_2">Level 2</th><th ti="th_level_3" ti="th_level_3" ti="th_level_3" ti="th_level_3">Level 3</th></tr>
+        <tr><td>Nonce sources</td><td>Yes</td><td>Yes (improved)</td></tr>
+        <tr><td>Hash sources</td><td>Yes</td><td>Yes</td></tr>
+        <tr><td><code>strict-dynamic</code></td><td>---</td><td>Yes</td></tr>
+        <tr><td><code>report-to</code></td><td>---</td><td>Yes</td></tr>
+        <tr><td><code>worker-src</code></td><td>---</td><td>Yes</td></tr>
+        <tr><td><code>navigate-to</code></td><td>---</td><td>Yes (draft)</td></tr>
+        <tr><td><code>script-src-elem</code></td><td>---</td><td>Yes</td></tr>
+        <tr><td><code>script-src-attr</code></td><td>---</td><td>Yes</td></tr>
+        <tr><td><code>style-src-elem</code></td><td>---</td><td>Yes</td></tr>
+        <tr><td><code>style-src-attr</code></td><td>---</td><td>Yes</td></tr>
+        <tr><td>Multiple policies</td><td>Yes (intersection)</td><td>Yes (intersection)</td></tr>
+        <tr><td><code>report-uri</code></td><td>Yes</td><td>Deprecated (use report-to)</td></tr>
+      </table>
+    </div>
+
+    <div class="card">
+      <h3><code>strict-dynamic</code> Explained</h3>
+      <p style="font-size:0.85rem;color:var(--text-dim);margin-bottom:0.75rem;">
+        When <code>'strict-dynamic'</code> is present in <code>script-src</code>, it tells the browser to trust scripts loaded by already-trusted scripts (via nonce or hash), regardless of the allowlist. Host-based allowlists and <code>'self'</code> are ignored.
+      </p>
+      <pre>script-src 'nonce-abc123' 'strict-dynamic' https://cdn.example.com 'self';
+
+/* With strict-dynamic:
+   - 'nonce-abc123' → trusted (nonce matches)
+   - Scripts loaded BY nonce'd scripts → trusted
+   - https://cdn.example.com → IGNORED (host allowlist)
+   - 'self' → IGNORED
+   - 'unsafe-inline' → IGNORED (if nonce present)
+*/</pre>
+    </div>
+  </div>
+
+  <!-- Nonce/Hash Guide Panel -->
+  <div class="panel" id="nonce">
+    <div class="card">
+      <h2>Nonce &amp; Hash Migration Guide</h2>
+      <p style="color:var(--text-dim);font-size:0.85rem;margin-bottom:1rem;">
+        Migrate from <code>'unsafe-inline'</code> to nonces or hashes for stronger security.
+      </p>
+
+      <h3 ti="h3_step_1_choose_your_approa" ti="h3_step_1_choose_your_approa" ti="h3_step_1_choose_your_approa" ti="h3_step_1_choose_your_approa">Step 1: Choose Your Approach</h3>
+      <div class="two-col" style="margin-top:0.75rem;margin-bottom:1rem;">
+        <div class="directive-card">
+          <div class="dir-name">Nonce-based (recommended)</div>
+          <div class="dir-desc">Generate a unique nonce per response. Add it to the CSP header and each inline script/style tag.</div>
+          <pre style="margin-top:0.5rem;font-size:0.8rem;">// Server generates per-request
+Content-Security-Policy: script-src 'nonce-abc123'
+
+// HTML
+&lt;script nonce="abc123"&gt;
+  console.log("Allowed!");
+&lt;/script&gt;</pre>
+        </div>
+        <div class="directive-card">
+          <div class="dir-name">Hash-based</div>
+          <div class="dir-desc">Pre-compute SHA hashes of inline scripts. No server-side nonce generation needed, but scripts cannot change.</div>
+          <pre style="margin-top:0.5rem;font-size:0.8rem;">// CSP header with hash
+Content-Security-Policy: script-src 'sha256-base64hash...'
+
+// HTML (exact content must match hash)
+&lt;script&gt;
+  console.log("Allowed!");
+&lt;/script&gt;</pre>
+        </div>
+      </div>
+
+      <h3 ti="h3_step_2_generate_hash" ti="h3_step_2_generate_hash" ti="h3_step_2_generate_hash" ti="h3_step_2_generate_hash">Step 2: Generate Hash</h3>
+      <div class="form-group">
+        <label for="hashInput" ti="label_paste_inline_script_style" ti="label_paste_inline_script_style" ti="label_paste_inline_script_style" ti="label_paste_inline_script_style">Paste inline script/style content:</label>
+        <textarea id="hashInput" tp="placeholder_console_log_hello" tp="placeholder_console_log_hello" tp="placeholder_console_log_hello" tp="placeholder_console_log_hello" placeholder="console.log('hello');"></textarea>
+      </div>
+      <div class="form-group">
+        <label for="hashAlgo" ti="label_algorithm" ti="label_algorithm" ti="label_algorithm" ti="label_algorithm">Algorithm:</label>
+        <select id="hashAlgo" style="width:200px;">
+          <option value="SHA-256">SHA-256</option>
+          <option value="SHA-384">SHA-384</option>
+          <option value="SHA-512">SHA-512</option>
+        </select>
+      </div>
+      <button onclick="generateHash()" ti="btn_generate_hash" ti="btn_generate_hash" ti="btn_generate_hash" ti="btn_generate_hash">Generate Hash</button>
+      <pre id="hashOutput" style="margin-top:0.75rem;display:none;"></pre>
+
+      <h3 style="margin-top:1.5rem;" ti="h3_step_3_server_implementat" ti="h3_step_3_server_implementat" ti="h3_step_3_server_implementat" ti="h3_step_3_server_implementat">Step 3: Server Implementation Examples</h3>
+      <pre>// Node.js / Express
+const crypto = require('crypto');
+
+app.use((req, res, next) => {
+  const nonce = crypto.randomBytes(16).toString('base64');
+  res.locals.nonce = nonce;
+  res.setHeader('Content-Security-Policy',
+    `script-src 'nonce-${nonce}' 'strict-dynamic'; style-src 'self' 'nonce-${nonce}';`
+  );
+  next();
+});
+
+// In template: &lt;script nonce="&lt;%= nonce %&gt;"&gt;...&lt;/script&gt;</pre>
+
+      <pre style="margin-top:0.75rem;">// Python / Django (middleware)
+import secrets, base64
+
+class CSPMiddleware:
+    def __call__(self, request):
+        nonce = base64.b64encode(secrets.token_bytes(16)).decode()
+        request.csp_nonce = nonce
+        response = self.get_response(request)
+        response['Content-Security-Policy'] = (
+            f"script-src 'nonce-{nonce}' 'strict-dynamic'; "
+            f"style-src 'self' 'nonce-{nonce}';"
+        )
+        return response</pre>
+    </div>
+  </div>
+
+  <!-- Reporting Panel -->
+  <div class="panel" id="reporting">
+    <div class="card">
+      <h2 ti="h2_csp_reporting_configurati" ti="h2_csp_reporting_configurati" ti="h2_csp_reporting_configurati" ti="h2_csp_reporting_configurati">CSP Reporting Configuration</h2>
+
+      <h3 ti="h3_report_uri_deprecated_but" ti="h3_report_uri_deprecated_but" ti="h3_report_uri_deprecated_but" ti="h3_report_uri_deprecated_but">report-uri (deprecated, but widely supported)</h3>
+      <pre>Content-Security-Policy: default-src 'self';
+  report-uri https://your-domain.com/csp-report;</pre>
+
+      <h3 style="margin-top:1rem;" ti="h3_report_to_csp_level_3" ti="h3_report_to_csp_level_3" ti="h3_report_to_csp_level_3" ti="h3_report_to_csp_level_3">report-to (CSP Level 3)</h3>
+      <pre>// Step 1: Set the Reporting-Endpoints header
+Reporting-Endpoints: csp-endpoint="https://your-domain.com/csp-report"
+
+// Step 2: Reference in CSP
+Content-Security-Policy: default-src 'self';
+  report-to csp-endpoint;</pre>
+
+      <h3 style="margin-top:1rem;" ti="h3_report_only_mode_testing" ti="h3_report_only_mode_testing" ti="h3_report_only_mode_testing" ti="h3_report_only_mode_testing">Report-Only Mode (testing without enforcement)</h3>
+      <pre>// Reports violations but does NOT block content
+Content-Security-Policy-Report-Only: default-src 'self';
+  script-src 'self';
+  report-to csp-endpoint;</pre>
+
+      <h3 style="margin-top:1rem;" ti="h3_report_format_json" ti="h3_report_format_json" ti="h3_report_format_json" ti="h3_report_format_json">Report Format (JSON)</h3>
+      <pre>{
+  "csp-report": {
+    "document-uri": "https://example.com/page",
+    "referrer": "",
+    "violated-directive": "script-src",
+    "effective-directive": "script-src",
+    "original-policy": "default-src 'self'; script-src 'self'",
+    "blocked-uri": "https://evil.com/malicious.js",
+    "status-code": 200,
+    "source-file": "https://example.com/page",
+    "line-number": 42,
+    "column-number": 8
+  }
+}</pre>
+
+      <h3 style="margin-top:1rem;" ti="h3_configuration_generator" ti="h3_configuration_generator" ti="h3_configuration_generator" ti="h3_configuration_generator">Configuration Generator</h3>
+      <div class="form-group">
+        <label for="reportUrl" ti="label_report_endpoint_url" ti="label_report_endpoint_url" ti="label_report_endpoint_url" ti="label_report_endpoint_url">Report Endpoint URL</label>
+        <input type="tex
+
+<script>var _LANG={'title_csp_evaluator_analyzer':["CSP Evaluator & Analyzer", "CSP评估器和分析器"],'metadesc_analyze_content_security':["Analyze Content Security Policy headers. Get security scores, weakness detection, recommended fixes, and nonce/hash migration guidance.", "分析内容安全策略标头。获取安全评分、漏洞检测结果、推荐修复方案以及 nonce/哈希迁移指南。"],'h2_paste_your_csp_header':["Paste Your CSP Header", "粘贴您的 CSP 标头"],'h2_csp_directive_reference':["CSP Directive Reference", "CSP 指令参考"],'h2_csp_level_2_vs_level_3':["CSP Level 2 vs Level 3", "CSP 2级与3级"],'h2_nonce_hash_migration_guid':["Nonce & Hash Migration Guide", "Nonce 和哈希迁移指南"],'h2_csp_reporting_configurati':["CSP Reporting Configuration", "CSP 报告配置"],'h3_security_score':["Security Score", "安全评分"],'h3_summary':["Summary", "概括"],'h3_parsed_directives':["Parsed Directives", "已解析指令"],'h3_findings':["Findings", "发现"],'h3_recommended_fixes':["Recommended Fixes", "推荐的修复方案"],'h3_step_1_choose_your_approa':["Step 1: Choose Your Approach", "第一步：选择你的方法"],'h3_step_2_generate_hash':["Step 2: Generate Hash", "步骤 2：生成哈希值"],'h3_step_3_server_implementat':["Step 3: Server Implementation Examples", "步骤 3：服务器实现示例"],'h3_report_uri_deprecated_but':["report-uri (deprecated, but widely supported)", "report-uri（已弃用，但仍被广泛支持）"],'h3_report_to_csp_level_3':["report-to (CSP Level 3)", "汇报对象（CSP 3级）"],'h3_report_only_mode_testing':["Report-Only Mode (testing without enforcement)", "仅报告模式（测试而不强制执行）"],'h3_report_format_json':["Report Format (JSON)", "报告格式（JSON）"],'h3_configuration_generator':["Configuration Generator", "配置生成器"],'btn_analyzer':["Analyzer", "分析器"],'btn_directives':["Directives", "指令"],'btn_csp_levels':["CSP Levels", "CSP 等级"],'btn_nonce_hash_guide':["Nonce/Hash Guide", "Nonce/哈希指南"],'btn_reporting':["Reporting", "报告"],'btn_analyze_csp':["Analyze CSP", "分析 CSP"],'btn_load_strict_example':["Load Strict Example", "加载严格示例"],'btn_load_moderate_example':["Load Moderate Example", "加载适中示例"],'btn_load_weak_example':["Load Weak Example", "加载弱示例"],'btn_copy':["Copy", "复制"],'btn_generate_hash':["Generate Hash", "生成哈希值"],'btn_generate_config':["Generate Config", "生成配置"],'btn_copy_2':["Copy", "复制"],'btn_copy_3':["Copy", "复制"],'btn_copy_4':["Copy", "复制"],'placeholder_default_src_self_script_s':["default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.example.com; style-src 'self' 'unsafe-inline'; img-src * data:; font-src 'self'; connect-src 'self' https://api.example.com; frame-src 'none';", "default-src &#39;self&#39;; script-src &#39;self&#39; &#39;unsafe-inline&#39; https://cdn.example.com; style-src &#39;self&#39; &#39;unsafe-inline&#39;; img-src * data:; font-src &#39;self&#39;; connect-src &#39;self&#39; https://api.example.com; frame-src &#39;none&#39;;"],'placeholder_console_log_hello':["console.log('hello');", "console.log(&#39;hello&#39;);"],'placeholder_https':["https://...", "https://..."],'strong_f_severity_good_f_severi':["${f.severity === 'good' ? '✓' : f.severity === 'critical' ? '✗' : '⚠'} ${escapeHtml(f.title)}", "${f.severity === &#39;good&#39; ? &#39;✓&#39; : f.severity === &#39;critical&#39; ? &#39;✗&#39; : &#39;⚠&#39;} ${escapeHtml(f.title)}"],'strong_fix':["Fix:", "使固定："],'th_feature':["Feature", "特征"],'th_level_2':["Level 2", "二级"],'th_level_3':["Level 3", "3级"],'label_paste_inline_script_style':["Paste inline script/style content:", "粘贴内联脚本/样式内容："],'label_algorithm':["Algorithm:", "算法："],'label_report_endpoint_url':["Report Endpoint URL", "报告端点 URL"],'jtc_copied':["Copied!", "已复制！"],'jtc_copy':["Copy", "复制"],'jalert_please_enter_a_csp_header':["Please enter a CSP header.", "请输入CSP标头。"],'jalert_enter_script_style_conten':["Enter script/style content.", "输入脚本/样式内容。"],'jtlword_copy':["Copy", "复制"],'jtlword_copy_2':["Copy", "复制"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>var _LANG={'title_csp_evaluator_analyzer':["CSP Evaluator & Analyzer", "CSP评估器和分析器"],'metadesc_analyze_content_security':["Analyze Content Security Policy headers. Get security scores, weakness detection, recommended fixes, and nonce/hash migration guidance.", "分析内容安全策略标头。获取安全评分、漏洞检测结果、推荐修复方案以及 nonce/哈希迁移指南。"],'h2_paste_your_csp_header':["Paste Your CSP Header", "粘贴您的 CSP 标头"],'h2_csp_directive_reference':["CSP Directive Reference", "CSP 指令参考"],'h2_csp_level_2_vs_level_3':["CSP Level 2 vs Level 3", "CSP 2级与3级"],'h2_nonce_hash_migration_guid':["Nonce & Hash Migration Guide", "Nonce 和哈希迁移指南"],'h2_csp_reporting_configurati':["CSP Reporting Configuration", "CSP 报告配置"],'h3_security_score':["Security Score", "安全评分"],'h3_summary':["Summary", "概括"],'h3_parsed_directives':["Parsed Directives", "已解析指令"],'h3_findings':["Findings", "发现"],'h3_recommended_fixes':["Recommended Fixes", "推荐的修复方案"],'h3_step_1_choose_your_approa':["Step 1: Choose Your Approach", "第一步：选择你的方法"],'h3_step_2_generate_hash':["Step 2: Generate Hash", "步骤 2：生成哈希值"],'h3_step_3_server_implementat':["Step 3: Server Implementation Examples", "步骤 3：服务器实现示例"],'h3_report_uri_deprecated_but':["report-uri (deprecated, but widely supported)", "report-uri（已弃用，但仍被广泛支持）"],'h3_report_to_csp_level_3':["report-to (CSP Level 3)", "汇报对象（CSP 3级）"],'h3_report_only_mode_testing':["Report-Only Mode (testing without enforcement)", "仅报告模式（测试而不强制执行）"],'h3_report_format_json':["Report Format (JSON)", "报告格式（JSON）"],'h3_configuration_generator':["Configuration Generator", "配置生成器"],'btn_analyzer':["Analyzer", "分析器"],'btn_directives':["Directives", "指令"],'btn_csp_levels':["CSP Levels", "CSP 等级"],'btn_nonce_hash_guide':["Nonce/Hash Guide", "Nonce/哈希指南"],'btn_reporting':["Reporting", "报告"],'btn_analyze_csp':["Analyze CSP", "分析 CSP"],'btn_load_strict_example':["Load Strict Example", "加载严格示例"],'btn_load_moderate_example':["Load Moderate Example", "加载适中示例"],'btn_load_weak_example':["Load Weak Example", "加载弱示例"],'btn_copy':["Copy", "复制"],'btn_generate_hash':["Generate Hash", "生成哈希值"],'btn_generate_config':["Generate Config", "生成配置"],'btn_copy_2':["Copy", "复制"],'btn_copy_3':["Copy", "复制"],'btn_copy_4':["Copy", "复制"],'placeholder_default_src_self_script_s':["default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.example.com; style-src 'self' 'unsafe-inline'; img-src * data:; font-src 'self'; connect-src 'self' https://api.example.com; frame-src 'none';", "default-src &#39;self&#39;; script-src &#39;self&#39; &#39;unsafe-inline&#39; https://cdn.example.com; style-src &#39;self&#39; &#39;unsafe-inline&#39;; img-src * data:; font-src &#39;self&#39;; connect-src &#39;self&#39; https://api.example.com; frame-src &#39;none&#39;;"],'placeholder_console_log_hello':["console.log('hello');", "console.log(&#39;hello&#39;);"],'placeholder_https':["https://...", "https://..."],'strong_f_severity_good_f_severi':["${f.severity === 'good' ? '✓' : f.severity === 'critical' ? '✗' : '⚠'} ${escapeHtml(f.title)}", "${f.severity === &#39;good&#39; ? &#39;✓&#39; : f.severity === &#39;critical&#39; ? &#39;✗&#39; : &#39;⚠&#39;} ${escapeHtml(f.title)}"],'strong_fix':["Fix:", "使固定："],'th_feature':["Feature", "特征"],'th_level_2':["Level 2", "二级"],'th_level_3':["Level 3", "3级"],'label_paste_inline_script_style':["Paste inline script/style content:", "粘贴内联脚本/样式内容："],'label_algorithm':["Algorithm:", "算法："],'label_report_endpoint_url':["Report Endpoint URL", "报告端点 URL"],'jtc_copied':["Copied!", "已复制！"],'jtc_copy':["Copy", "复制"],'jalert_please_enter_a_csp_header':["Please enter a CSP header.", "请输入CSP标头。"],'jalert_enter_script_style_conten':["Enter script/style content.", "输入脚本/样式内容。"],'jtlword_copy':["Copy", "复制"],'jtlword_copy_2':["Copy", "复制"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+t" id="reportUrl" value="https://your-domain.com/csp-report" tp="placeholder_https" tp="placeholder_https" tp="placeholder_https" tp="placeholder_https" placeholder="https://...">
+      </div>
+      <div class="form-group">
+        <label>
+          <input type="checkbox" id="reportOnly" style="width:18px;height:18px;accent-color:var(--accent);vertical-align:middle;">
+          Report-Only mode (testing)
+        </label>
+      </div>
+      <button onclick="generateReportConfig()" ti="btn_generate_config" ti="btn_generate_config" ti="btn_generate_config" ti="btn_generate_config">Generate Config</button>
+      <pre id="reportConfig" style="margin-top:0.75rem;display:none;"><button class="copy-btn" onclick="copyCode('reportConfig')">Copy</button></pre>
+    </div>
+  </div>
+</main>
+
+
+<script>var _LANG={'title_csp_evaluator_analyzer':["CSP Evaluator & Analyzer", "CSP评估器和分析器"],'metadesc_analyze_content_security':["Analyze Content Security Policy headers. Get security scores, weakness detection, recommended fixes, and nonce/hash migration guidance.", "分析内容安全策略标头。获取安全评分、漏洞检测结果、推荐修复方案以及 nonce/哈希迁移指南。"],'h2_paste_your_csp_header':["Paste Your CSP Header", "粘贴您的 CSP 标头"],'h2_csp_directive_reference':["CSP Directive Reference", "CSP 指令参考"],'h2_csp_level_2_vs_level_3':["CSP Level 2 vs Level 3", "CSP 2级与3级"],'h2_nonce_hash_migration_guid':["Nonce & Hash Migration Guide", "Nonce 和哈希迁移指南"],'h2_csp_reporting_configurati':["CSP Reporting Configuration", "CSP 报告配置"],'h3_security_score':["Security Score", "安全评分"],'h3_summary':["Summary", "概括"],'h3_parsed_directives':["Parsed Directives", "已解析指令"],'h3_findings':["Findings", "发现"],'h3_recommended_fixes':["Recommended Fixes", "推荐的修复方案"],'h3_step_1_choose_your_approa':["Step 1: Choose Your Approach", "第一步：选择你的方法"],'h3_step_2_generate_hash':["Step 2: Generate Hash", "步骤 2：生成哈希值"],'h3_step_3_server_implementat':["Step 3: Server Implementation Examples", "步骤 3：服务器实现示例"],'h3_report_uri_deprecated_but':["report-uri (deprecated, but widely supported)", "report-uri（已弃用，但仍被广泛支持）"],'h3_report_to_csp_level_3':["report-to (CSP Level 3)", "汇报对象（CSP 3级）"],'h3_report_only_mode_testing':["Report-Only Mode (testing without enforcement)", "仅报告模式（测试而不强制执行）"],'h3_report_format_json':["Report Format (JSON)", "报告格式（JSON）"],'h3_configuration_generator':["Configuration Generator", "配置生成器"],'btn_analyzer':["Analyzer", "分析器"],'btn_directives':["Directives", "指令"],'btn_csp_levels':["CSP Levels", "CSP 等级"],'btn_nonce_hash_guide':["Nonce/Hash Guide", "Nonce/哈希指南"],'btn_reporting':["Reporting", "报告"],'btn_analyze_csp':["Analyze CSP", "分析 CSP"],'btn_load_strict_example':["Load Strict Example", "加载严格示例"],'btn_load_moderate_example':["Load Moderate Example", "加载适中示例"],'btn_load_weak_example':["Load Weak Example", "加载弱示例"],'btn_copy':["Copy", "复制"],'btn_generate_hash':["Generate Hash", "生成哈希值"],'btn_generate_config':["Generate Config", "生成配置"],'btn_copy_2':["Copy", "复制"],'btn_copy_3':["Copy", "复制"],'btn_copy_4':["Copy", "复制"],'placeholder_default_src_self_script_s':["default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.example.com; style-src 'self' 'unsafe-inline'; img-src * data:; font-src 'self'; connect-src 'self' https://api.example.com; frame-src 'none';", "default-src &#39;self&#39;; script-src &#39;self&#39; &#39;unsafe-inline&#39; https://cdn.example.com; style-src &#39;self&#39; &#39;unsafe-inline&#39;; img-src * data:; font-src &#39;self&#39;; connect-src &#39;self&#39; https://api.example.com; frame-src &#39;none&#39;;"],'placeholder_console_log_hello':["console.log('hello');", "console.log(&#39;hello&#39;);"],'placeholder_https':["https://...", "https://..."],'strong_f_severity_good_f_severi':["${f.severity === 'good' ? '✓' : f.severity === 'critical' ? '✗' : '⚠'} ${escapeHtml(f.title)}", "${f.severity === &#39;good&#39; ? &#39;✓&#39; : f.severity === &#39;critical&#39; ? &#39;✗&#39; : &#39;⚠&#39;} ${escapeHtml(f.title)}"],'strong_fix':["Fix:", "使固定："],'th_feature':["Feature", "特征"],'th_level_2':["Level 2", "二级"],'th_level_3':["Level 3", "3级"],'label_paste_inline_script_style':["Paste inline script/style content:", "粘贴内联脚本/样式内容："],'label_algorithm':["Algorithm:", "算法："],'label_report_endpoint_url':["Report Endpoint URL", "报告端点 URL"],'jtc_copied':["Copied!", "已复制！"],'jtc_copy':["Copy", "复制"],'jalert_please_enter_a_csp_header':["Please enter a CSP header.", "请输入CSP标头。"],'jalert_enter_script_style_conten':["Enter script/style content.", "输入脚本/样式内容。"],'jtlword_copy':["Copy", "复制"],'jtlword_copy_2':["Copy", "复制"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>
+// === Tab Navigation ===
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById(tab.dataset.panel).classList.add('active');
+  });
+});
+
+function copyCode(preId) {
+  const pre = document.getElementById(preId);
+  const text = pre.textContent.replace(/^Copy/, '').trim();
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = pre.querySelector('.copy-btn');
+    if (btn) { btn.textContent=T("jtc_copied"); setTimeout(() => btn.textContent=T("jtc_copy"), 1500); }
+  });
+}
+
+function escapeHtml(str) { const d = document.createElement('div'); d.textContent = str; return d.innerHTML; }
+
+// === CSP Examples ===
+const examples = {
+  strict: "default-src 'none'; script-src 'nonce-abc123' 'strict-dynamic'; style-src 'self' 'nonce-abc123'; img-src 'self'; font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; upgrade-insecure-requests;",
+  moderate: "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.example.com; style-src 'self' 'unsafe-inline'; img-src * data:; font-src 'self'; connect-src 'self' https://api.example.com; frame-src 'none';",
+  weak: "default-src *; script-src * 'unsafe-inline' 'unsafe-eval'; style-src * 'unsafe-inline'; img-src * data: blob:; object-src *;"
+};
+
+function loadExample(name) {
+  document.getElementById('cspInput').value = examples[name];
+  analyzeCSP();
+}
+
+// === CSP Parser & Analyzer ===
+function parseCSP(csp) {
+  const directives = {};
+  csp.split(';').forEach(part => {
+    const trimmed = part.trim();
+    if (!trimmed) return;
+    const tokens = trimmed.split(/\s+/);
+    const name = tokens[0].toLowerCase();
+    directives[name] = tokens.slice(1);
+  });
+  return directives;
+}
+
+// Weakness checks
+const weaknessChecks = [
+  {
+    check: (dirs) => dirs['script-src']?.includes("'unsafe-inline'") && !dirs['script-src']?.some(v => v.startsWith("'nonce-") || v.startsWith("'sha")),
+    severity: 'critical',
+    title: "unsafe-inline in script-src without nonce/hash",
+    desc: "Allows execution of arbitrary inline scripts. This is the most common XSS vector.",
+    fix: "Replace 'unsafe-inline' with nonce-based or hash-based source. Use 'strict-dynamic' for modern CSP."
+  },
+  {
+    check: (dirs) => dirs['script-src']?.includes("'unsafe-eval'"),
+    severity: 'critical',
+    title: "unsafe-eval in script-src",
+    desc: "Allows eval(), Function(), setTimeout(string), and setInterval(string). Enables code injection attacks.",
+    fix: "Remove 'unsafe-eval'. Refactor code to avoid eval() and related functions."
+  },
+  {
+    check: (dirs) => dirs['script-src']?.includes('*') || dirs['default-src']?.includes('*'),
+    severity: 'critical',
+    title: "Wildcard (*) in script sources",
+    desc: "Allows scripts from ANY origin. CSP provides no protection against XSS.",
+    fix: "Replace * with specific trusted domains. Use 'self' and explicit origins."
+  },
+  {
+    check: (dirs) => !dirs['default-src'],
+    severity: 'warning',
+    title: "Missing default-src directive",
+    desc: "Without default-src, directives not explicitly set have no fallback restriction.",
+    fix: "Add default-src 'none' or default-src 'self' as a baseline."
+  },
+  {
+    check: (dirs) => !dirs['object-src'] && (!dirs['default-src'] || dirs['default-src'].includes('*')),
+    severity: 'warning',
+    title: "Missing object-src restriction",
+    desc: "Plugins (Flash, Java) can be loaded, which can bypass CSP protections.",
+    fix: "Add object-src 'none' to block plugin content."
+  },
+  {
+    check: (dirs) => !dirs['base-uri'],
+    severity: 'warning',
+    title: "Missing base-uri directive",
+    desc: "Without base-uri, an attacker who can inject a <base> tag can redirect relative URLs.",
+    fix: "Add base-uri 'none' or base-uri 'self'."
+  },
+  {
+    check: (dirs) => dirs['style-src']?.includes("'unsafe-inline'"),
+    severity: 'warning',
+    title: "unsafe-inline in style-src",
+    desc: "Allows inline styles. While less dangerous than script unsafe-inline, it can enable data exfiltration via CSS.",
+    fix: "Use nonces or hashes for inline styles, or move styles to external files."
+  },
+  {
+    check: (dirs) => dirs['img-src']?.includes('*'),
+    severity: 'info',
+    title: "Wildcard in img-src",
+    desc: "Allows images from any origin. While lower risk, it can be used for tracking and data exfiltration.",
+    fix: "Restrict to specific trusted image sources if possible."
+  },
+  {
+    check: (dirs) => dirs['img-src']?.includes('data:') || dirs['default-src']?.includes('data:'),
+    severity: 'info',
+    title: "data: URIs allowed for images",
+    desc: "Data URIs in images are generally safe but can be abused in some contexts.",
+    fix: "Consider if data: URIs are necessary. Remove if not needed."
+  },
+  {
+    check: (dirs) => !dirs['frame-ancestors'],
+    severity: 'info',
+    title: "Missing frame-ancestors",
+    desc: "Without frame-ancestors, your page can be embedded in iframes on any site (clickjacking risk).",
+    fix: "Add frame-ancestors 'none' or frame-ancestors 'self'."
+  },
+  {
+    check: (dirs) => !dirs['upgrade-insecure-requests'],
+    severity: 'info',
+    title: "No upgrade-insecure-requests",
+    desc: "HTTP resources won't be automatically upgraded to HTTPS.",
+    fix: "Add upgrade-insecure-requests to automatically upgrade HTTP to HTTPS."
+  },
+  {
+    check: (dirs) => dirs['script-src']?.includes("'strict-dynamic'"),
+    severity: 'good',
+    title: "strict-dynamic is used",
+    desc: "Trust propagation via nonce — scripts loaded by trusted scripts are also trusted. This is the recommended modern approach.",
+    fix: null
+  },
+  {
+    check: (dirs) => dirs['script-src']?.some(v => v.startsWith("'nonce-")),
+    severity: 'good',
+    title: "Nonce-based script-src detected",
+    desc: "Using per-request nonces for inline scripts. This is significantly more secure than 'unsafe-inline'.",
+    fix: null
+  },
+];
+
+function calculateScore(findings) {
+  let score = 100;
+  findings.forEach(f => {
+    if (f.severity === 'critical') score -= 25;
+    else if (f.severity === 'warning') score -= 10;
+    else if (f.severity === 'info') score -= 3;
+  });
+  return Math.max(0, Math.min(100, score));
+}
+
+function analyzeCSP() {
+  const csp = document.getElementById('cspInput').value.trim();
+  if (!csp) { T("jalert_please_enter_a_csp_header"); return; }
+
+  const directives = parseCSP(csp);
+  const findings = [];
+
+  weaknessChecks.forEach(wc => {
+    if (wc.check(directives)) {
+      findings.push(wc);
+    }
+  });
+
+  const score = calculateScore(findings);
+  const resultsEl = document.getElementById('analysisResults');
+  resultsEl.style.display = 'block';
+
+  // Score
+  const scoreEl = document.getElementById('scoreCircle');
+  scoreEl.textContent = score;
+  if (score >= 80) { scoreEl.style.borderColor = 'var(--good)'; scoreEl.style.color = 'var(--good)'; }
+  else if (score >= 50) { scoreEl.style.borderColor = 'var(--warn)'; scoreEl.style.color = 'var(--warn)'; }
+  else { scoreEl.style.borderColor = 'var(--error)'; scoreEl.style.color = 'var(--error)'; }
+
+  document.getElementById('scoreLabel').textContent =
+    score >= 80 ? 'Strong CSP' : score >= 50 ? 'Moderate CSP — improvements needed' : 'Weak CSP — significant risks';
+
+  // Summary
+  const criticals = findings.filter(f => f.severity === 'critical').length;
+  const warnings = findings.filter(f => f.severity === 'warning').length;
+  const infos = findings.filter(f => f.severity === 'info').length;
+  const goods = findings.filter(f => f.severity === 'good').length;
+
+  document.getElementById('summaryStats').innerHTML = `
+    <p style="font-size:0.85rem;margin-bottom:0.25rem;"><span style="color:var(--error);">${criticals} Critical</span> | <span style="color:var(--warn);">${warnings} Warnings</span> | <span style="color:var(--info);">${infos} Info</span> | <span style="color:var(--good);">${goods} Good Practices</span></p>
+    <p style="font-size:0.85rem;color:var(--text-dim);">${Object.keys(directives).length} directives parsed</p>
+  `;
+
+  // Parsed directives
+  document.getElementById('parsedDirectives').innerHTML = Object.entries(directives).map(([name, values]) => {
+    const hasRisk = values.some(v => ["'unsafe-inline'", "'unsafe-eval'", '*'].includes(v));
+    return `
+      <div class="directive-card">
+        <span class="dir-name">${escapeHtml(name)}</span>
+        ${hasRisk ? '<span class="badge badge-danger">Risk</span>' : ''}
+        <div class="dir-values">${values.map(v => {
+          const isRisky = ["'unsafe-inline'", "'unsafe-eval'", '*', 'data:', 'blob:'].includes(v);
+          return `<span style="color:${isRisky ? 'var(--error)' : 'var(--text)'};">${escapeHtml(v)}</span>`;
+        }).join(' ')}</div>
+      </div>
+    `;
+  }).join('');
+
+  // Findings
+  document.getElementById('findings').innerHTML = findings.map(f => `
+    <div class="finding finding-${f.severity}">
+      <strong>${f.severity === 'good' ? '&#10003;' : f.severity === 'critical' ? '&#10007;' : '&#9888;'} ${escapeHtml(f.title)}</strong>
+      <span>${escapeHtml(f.desc)}</span>
+      ${f.fix ? `<span style="display:block;margin-top:0.25rem;color:var(--good);"><strong ti="strong_fix" ti="strong_fix" ti="strong_fix" ti="strong_fix">Fix:</strong> ${escapeHtml(f.fix)}</span>` : ''}
+    </div>
+  `).join('');
+
+  // Generate fixed CSP
+  let fixedDirectives = { ...directives };
+  // Apply fixes
+  if (!fixedDirectives['default-src']) fixedDirectives['default-src'] = ["'self'"];
+  if (!fixedDirectives['object-src']) fixedDirectives['object-src'] = ["'none'"];
+  if (!fixedDirectives['base-uri']) fixedDirectives['base-uri'] = ["'none'"];
+  if (!fixedDirectives['frame-ancestors']) fixedDirectives['frame-ancestors'] = ["'none'"];
+  if (fixedDirectives['script-src']) {
+    fixedDirectives['script-src'] = fixedDirectives['script-src'].filter(v => v !== "'unsafe-inline'" && v !== "'unsafe-eval'" && v !== '*');
+    if (!fixedDirectives['script-src'].some(v => v.startsWith("'nonce-"))) {
+      fixedDirectives['script-src'].unshift("'nonce-{RANDOM}'");
+    }
+    if (!fixedDirectives['script-src'].includes("'strict-dynamic'")) {
+      fixedDirectives['script-src'].push("'strict-dynamic'");
+    }
+  }
+  if (fixedDirectives['style-src']) {
+    fixedDirectives['style-src'] = fixedDirectives['style-src'].filter(v => v !== "'unsafe-inline'" && v !== '*');
+    if (!fixedDirectives['style-src'].some(v => v.startsWith("'nonce-"))) {
+      fixedDirectives['style-src'].unshift("'nonce-{RANDOM}'");
+    }
+  }
+  if (!fixedDirectives['upgrade-insecure-requests']) fixedDirectives['upgrade-insecure-requests'] = [];
+
+  const fixedCSP = Object.entries(fixedDirectives).map(([name, values]) => {
+    return values.length > 0 ? `${name} ${values.join(' ')}` : name;
+  }).join(';\n  ');
+
+  document.getElementById('fixedCSP').innerHTML = `<button class="copy-btn" onclick="copyCode('fixedCSP')">Copy</button>${escapeHtml(fixedCSP + ';')}`;
+}
+
+// === Directives Reference ===
+const directiveData = [
+  { name: 'default-src', desc: 'Fallback for other directives. Controls loading of all resource types not covered by more specific directives.', example: "default-src 'self'", level: 1 },
+  { name: 'script-src', desc: 'Controls which scripts can be executed. Most critical directive for XSS prevention.', example: "script-src 'self' 'nonce-abc123' 'strict-dynamic'", level: 1 },
+  { name: 'style-src', desc: 'Controls which stylesheets can be applied.', example: "style-src 'self' 'nonce-abc123'", level: 1 },
+  { name: 'img-src', desc: 'Controls which images can be loaded.', example: "img-src 'self' https://images.example.com", level: 1 },
+  { name: 'font-src', desc: 'Controls which fonts can be loaded.', example: "font-src 'self' https://fonts.gstatic.com", level: 1 },
+  { name: 'connect-src', desc: 'Controls URLs loaded via fetch, XHR, WebSocket, EventSource.', example: "connect-src 'self' https://api.example.com", level: 1 },
+  { name: 'media-src', desc: 'Controls which audio/video sources can be loaded.', example: "media-src 'self'", level: 1 },
+  { name: 'object-src', desc: 'Controls plugins (Flash, Java applets). Should be set to none.', example: "object-src 'none'", level: 1 },
+  { name: 'frame-src', desc: 'Controls which URLs can be loaded in frames.', example: "frame-src 'self'", level: 1 },
+  { name: 'frame-ancestors', desc: 'Controls which sites can embed this page in frames. Replaces X-Frame-Options.', example: "frame-ancestors 'none'", level: 2 },
+  { name: 'base-uri', desc: 'Restricts URLs for the <base> element. Prevents base tag injection.', example: "base-uri 'none'", level: 2 },
+  { name: 'form-action', desc: 'Controls where forms can submit data.', example: "form-action 'self'", level: 2 },
+  { name: 'worker-src', desc: 'Controls which scripts can be used as workers.', example: "worker-src 'self'", level: 3 },
+  { name: 'script-src-elem', desc: 'Controls script elements specifically (not inline event handlers).', example: "script-src-elem 'self'", level: 3 },
+  { name: 'script-src-attr', desc: 'Controls inline event handler attributes (onclick, etc.).', example: "script-src-attr 'none'", level: 3 },
+  { name: 'style-src-elem', desc: 'Controls style elements and link[rel=stylesheet].', example: "style-src-elem 'self'", level: 3 },
+  { name: 'style-src-attr', desc: 'Controls the style attribute on elements.', example: "style-src-attr 'none'", level: 3 },
+  { name: 'upgrade-insecure-requests', desc: 'Upgrades HTTP requests to HTTPS automatically.', example: "upgrade-insecure-requests", level: 2 },
+  { name: 'report-uri', desc: '(Deprecated) URL to send violation reports. Use report-to instead.', example: "report-uri /csp-report", level: 1 },
+  { name: 'report-to', desc: 'Group name for Reporting API. Requires Reporting-Endpoints header.', example: "report-to csp-endpoint", level: 3 },
+];
+
+function renderDirectiveList() {
+  document.getElementById('directiveList').innerHTML = directiveData.map(d => `
+    <div class="directive-card">
+      <span class="dir-name">${d.name}</span>
+      <span class="badge" style="background:rgba(33,150,243,0.15);color:var(--info);">Level ${d.level}</span>
+      <div class="dir-desc">${d.desc}</div>
+      <div class="dir-values" style="margin-top:0.25rem;color:var(--accent);">${escapeHtml(d.example)}</div>
+    </div>
+  `).join('');
+}
+renderDirectiveList();
+
+// === Hash Generator ===
+async function generateHash() {
+  const input = document.getElementById('hashInput').value;
+  if (!input) { T("jalert_enter_script_style_conten"); return; }
+
+  const algo = document.getElementById('hashAlgo').value;
+  const encoder = new TextEncoder();
+  const data = encoder.encode(input);
+  const hashBuffer = await crypto.subtle.digest(algo, data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const base64Hash = btoa(String.fromCharCode(...hashArray));
+  const algoLower = algo.replace('-', '').toLowerCase();
+
+  const output = document.getElementById('hashOutput');
+  output.style.display = 'block';
+  output.textContent = `CSP directive value:\n'${algoLower}-${base64Hash}'\n\nFull directive example:\nscript-src '${algoLower}-${base64Hash}';\n\nHTML meta tag:\n<meta http-equiv="Content-Security-Policy" content="script-src '${algoLower}-${base64Hash}';">`;
+}
+
+// === Report Config Generator ===
+function generateReportConfig() {
+  const url = document.getElementById('reportUrl').value;
+  const reportOnly = document.getElementById('reportOnly').checked;
+  const headerName = reportOnly ? 'Content-Security-Policy-Report-Only' : 'Content-Security-Policy';
+
+  const config = `// HTTP Headers to set:
+
+// 1. Reporting Endpoints header (required for report-to)
+Reporting-Endpoints: csp-endpoint="${url}"
+
+// 2. CSP header with reporting
+${headerName}: default-src 'self';
+  script-src 'self' 'nonce-{RANDOM}' 'strict-dynamic';
+  style-src 'self' 'nonce-{RANDOM}';
+  object-src 'none';
+  base-uri 'none';
+  report-to csp-endpoint;
+
+// Legacy fallback (for browsers without report-to support)
+// Add this alongside report-to:
+  report-uri ${url};
+
+${reportOnly ? '\n// NOTE: Report-Only mode does NOT block violations.\n// Use this to test your CSP before enforcing it.' : ''}`;
+
+  const pre = document.getElementById('reportConfig');
+  pre.style.display = 'block';
+  pre.innerHTML = `<button class="copy-btn" onclick="copyCode('reportConfig')">Copy</button>${escapeHtml(config)}`;
+}
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+</body>
+</html>

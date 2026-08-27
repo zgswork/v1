@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>僵尸生存 - Zombie Survival</title>
+    <style>
+        /* 
+        游戏介绍：末世风格的僵尸生存游戏
+        游戏规则：在末日世界中生存，击败僵尸群体
+        详细玩法：
+        1. 使用鼠标瞄准，点击射击僵尸
+        2. 收集弹药和血包维持生存
+        3. 僵尸会从各个方向靠近玩家
+        4. 血量归零或被僵尸抓到游戏结束
+        5. 末世主题的暗黑视觉风格
+        */
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: linear-gradient(135deg, #2c1810 0%, #1a0e0a 50%, #0d0706 100%);
+            font-family: 'Arial Black', 'Arial', sans-serif;
+            color: #cc3333;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding-bottom: 90px;
+            overflow: hidden;
+        }
+
+        .game-container {
+            background: radial-gradient(circle at center, rgba(204, 51, 51, 0.1) 0%, transparent 70%),
+                        linear-gradient(135deg, #1a0e0a 0%, #2c1810 100%);
+            border: 3px solid #cc3333;
+            border-radius: 10px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 
+                0 0 30px rgba(204, 51, 51, 0.5),
+                inset 0 0 30px rgba(0, 0, 0, 0.8);
+        }
+
+        .title {
+            font-size: 2.5em;
+            text-align: center;
+            margin-bottom: 10px;
+            background: linear-gradient(45deg, #cc3333, #ff6666, #994444);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-shadow: 0 0 20px rgba(204, 51, 51, 0.8);
+            animation: bloodPulse 2s infinite;
+            letter-spacing: 2px;
+            font-weight: bold;
+        }
+
+        @keyframes bloodPulse {
+            0%, 100% { 
+                filter: brightness(1);
+                text-shadow: 0 0 20px rgba(204, 51, 51, 0.8);
+            }
+            50% { 
+                filter: brightness(1.3);
+                text-shadow: 0 0 30px rgba(204, 51, 51, 1);
+            }
+        }
+
+        .hud {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            padding: 0 15px;
+            font-size: 1.1em;
+            color: #cc3333;
+            text-shadow: 0 0 10px #cc3333;
+            font-weight: bold;
+        }
+
+        .health-bar {
+            width: 100px;
+            height: 10px;
+            background: #333;
+            border: 1px solid #cc3333;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+
+        .health-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #ff3333, #cc3333);
+            transition: width 0.3s;
+        }
+
+        #gameCanvas {
+            display: block;
+            border: 2px solid #994444;
+            cursor: crosshair;
+            margin: 0 auto;
+            background: 
+                radial-gradient(circle at 30% 30%, rgba(204, 51, 51, 0.05) 0%, transparent 50%),
+                linear-gradient(135deg, #0d0706 0%, #1a0e0a 100%);
+        }
+
+        .controls {
+            margin-top: 10px;
+            text-align: center;
+            font-size: 1em;
+            color: #cc3333;
+            text-shadow: 0 0 5px #cc3333;
+        }
+
+        .game-over {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(13, 7, 6, 0.95);
+            color: #cc3333;
+            padding: 30px;
+            border: 3px solid #cc3333;
+            border-radius: 15px;
+            text-align: center;
+            display: none;
+            box-shadow: 
+                0 0 40px rgba(204, 51, 51, 0.8),
+                inset 0 0 20px rgba(0, 0, 0, 0.8);
+        }
+
+        .restart-btn {
+            background: linear-gradient(45deg, #cc3333, #ff3333);
+            color: #ffffff;
+            border: none;
+            padding: 12px 32px;
+            font-family: 'Arial Black', 'Arial', sans-serif;
+            font-size: 1em;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 15px;
+            border-radius: 5px;
+            transition: all 0.3s;
+            box-shadow: 0 0 15px rgba(204, 51, 51, 0.5);
+            letter-spacing: 1px;
+            white-space: nowrap;
+            min-width: 160px;
+        }
+
+        .restart-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 25px rgba(204, 51, 51, 0.8);
+        }
+
+        @media (max-width: 768px) {
+            .game-container {
+                width: 90vw;
+                height: 60vh;
+            }
+            
+            .title {
+                font-size: 2em;
+            }
+            
+            #gameCanvas {
+                cursor: default;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="title">🧟 僵尸生存 🧟</div>
+        <div class="hud">
+            <span>击杀: <span id="kills">0</span></span>
+            <span>弹药: <span id="ammo">30</span></span>
+            <span>波数: <span id="wave">1</span></span>
+            <span>最佳: <span id="bestScore">0</span></span>
+            <div>
+                生命: <div class="health-bar"><div class="health-fill" id="healthFill" style="width: 100%"></div></div>
+            </div>
+        </div>
+        <canvas id="gameCanvas" width="400" height="500"></canvas>
+        <div class="controls">
+            WASD/方向键移动 | 空格键射击(自动瞄准) | 收集补给 | 生存下去！
+        </div>
+        
+        <div class="game-over" id="gameOver">
+            <h2 style="white-space: nowrap;">💀 Game Over 💀</h2>
+            <p>僵尸击杀: <span id="finalKills">0</span></p>
+            <p>生存时间: <span id="survivalTime">0</span>秒</p>
+            <button class="restart-btn" onclick="restartGame()">🔄 重新生存</button>
+        </div>
+    </div>
+
+    <template id="site-footer">
+        <style>
+            .footer {
+            position: fixed;
+            bottom: 55.5px;
+            left: 0;
+            width: 100%;
+            padding: .75rem 1rem;
+            font-size: 14px;
+            background: #fafafa;
+            border-top: 1px solid #eaeaea;
+            display: flex;
+            flex-wrap: wrap;
+            gap: .5rem;
+            justify-content: center;
+            align-items: center;
+            z-index: 999;
+            }
+
+            
+            .footer a { color: #0077cc; text-decoration: none; }
+            .footer a:hover { text-decoration: underline; }
+
+            .qr-wrapper { position: relative; display: inline-block; }
+            .qr-img {
+            display: none;
+            position: absolute;
+            bottom: 1.8rem;
+            left: 50%;
+            transform: translateX(-50%);
+            max-width: 140px;
+            border: 1px solid #ddd;
+            background: #fff;
+            padding: 4px;
+            border-radius: 6px;
+            box-shadow: 0 4px 12px rgba(0,0,0,.15);
+            }
+            .qr-wrapper:hover .qr-img { display: block; }
+        </style>
+
+        <div class="footer card">
+            Created&nbsp;by：
+            <!-- 广告示例 1 -->
+                <span class="qr-wrapper">
+                <a class="qr-link"
+                    href="https://mp.weixin.qq.com/mp/profile_ext?action=home&__biz=MzI0MzUzOTEwMw==&scene=124#wechat_redirect"
+                    target="_blank"
+                    data-img="https://raw.githubusercontent.com/anneeeee/programming_exercise/refs/heads/main/ad_pics/qrcode_for_gh_87351941139e_258%20(2).jpg">系统1与系统2</a>
+                <img class="qr-img" alt="系统1与系统2公众号二维码">
+                </span>
+            &nbsp;||&nbsp;广告位：
+            <!-- 广告示例 1 -->
+            <span class="qr-wrapper">
+            <a class="qr-link"
+                href="https://t.zsxq.com/SjYuX"
+                target="_blank"
+                data-img="https://raw.githubusercontent.com/anneeeee/programming_exercise/refs/heads/main/ad_pics/AI_programming.pic.jpg">AI编程星球</a>
+            <img class="qr-img" alt="AI编程星球二维码">
+            </span> |
+            <!-- 广告示例 2 -->
+            <span class="qr-wrapper">
+            <a class="qr-link"
+                href="https://t.zsxq.com/VTCya"
+                target="_blank"
+                data-img="https://raw.githubusercontent.com/anneeeee/programming_exercise/refs/heads/main/ad_pics/laoxu.pic.jpg">副业避坑星球</a>
+            <img class="qr-img" alt="副业避坑星球二维码">
+            </span> |
+            <!-- 广告示例 3（如果没有 data-img 就不会弹出图片） -->
+            <span class="qr-wrapper">
+            <a class="qr-link"
+                href="https://www.xiaobot.net/p/ai08?refer=a9625ad2-ec04-4cc8-8549-7511079cb3b5"
+                target="_blank"
+                data-img="https://raw.githubusercontent.com/anneeeee/programming_exercise/refs/heads/main/ad_pics/hani-xiaobot-8.png">AI&nbsp;产品日报</a>
+            <img class="qr-img" alt="AI产品日报二维码">
+            </span> |
+            <span class="qr-wrapper">
+            <a class="qr-link"
+                href="https://t.zsxq.com/jcaEa"
+                target="_blank"
+                data-img="https://raw.githubusercontent.com/anneeeee/programming_exercise/refs/heads/main/ad_pics/aipm.pic.jpg">AI&nbsp;产品经理大本营</a>
+            <img class="qr-img" alt="AI产品经理大本营二维码">
+            </span>
+        </div>
+        </template>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const killsElement = document.getElementById('kills');
+        const ammoElement = document.getElementById('ammo');
+        const waveElement = document.getElementById('wave');
+        const healthFill = document.getElementById('healthFill');
+        const gameOverElement = document.getElementById('gameOver');
+        const finalKillsElement = document.getElementById('finalKills');
+        const survivalTimeElement = document.getElementById('survivalTime');
+
+        // 游戏状态
+        let gameRunning = true;
+        let kills = 0;
+        let ammo = 30;
+        let health = 100;
+        let frameCount = 0;
+        let survivalTime = 0;
+        let bestScore = parseInt(localStorage.getItem('zombieSurvivalBest') || '0');
+        let zombieSpawnRate = 180; // 僵尸生成速度（降低初始速度）
+        let waveNumber = 1; // 波数
+        document.getElementById('bestScore').textContent = bestScore;
+
+        // 玩家
+        let player = {
+            x: canvas.width / 2,
+            y: canvas.height / 2,
+            radius: 15,
+            color: '#4a90e2',
+            speed: 2
+        };
+
+        // 僵尸数组
+        let zombies = [];
+        
+        // 子弹数组
+        let bullets = [];
+        
+        // 补给品数组
+        let supplies = [];
+        
+        // 血迹效果
+        let bloodSplats = [];
+        
+        // 粒子系统
+        let particles = [];
+
+        // 鼠标位置
+        let mouseX = canvas.width / 2;
+        let mouseY = canvas.height / 2;
+
+        // 键盘按键状态
+        let keys = {
+            w: false, a: false, s: false, d: false,
+            ArrowUp: false, ArrowLeft: false, ArrowDown: false, ArrowRight: false
+        };
+
+        // 创建僵尸
+        function createZombie() {
+            const side = Math.floor(Math.random() * 4);
+            // 增加更多血量变化，60%概率血量较少，40%概率血量较多
+            const healthType = Math.random();
+            let health, maxHealth;
+            if (healthType < 0.6) {
+                // 血量较少的僵尸(1-2血)
+                health = 1 + Math.floor(Math.random() * 2);
+                maxHealth = health;
+            } else {
+                // 血量较多的僵尸(3-4血)
+                health = 3 + Math.floor(Math.random() * 2);
+                maxHealth = health;
+            }
+            
+            let zombie = {
+                radius: 12 + Math.random() * 8,
+                speed: 0.5 + Math.random() * 1,
+                health: health,
+                maxHealth: maxHealth,
+                color: getRandomZombieColor(),
+                rotation: 0
+            };
+
+            // 从屏幕边缘生成
+            switch(side) {
+                case 0: // 上边
+                    zombie.x = Math.random() * canvas.width;
+                    zombie.y = -zombie.radius;
+                    break;
+                case 1: // 右边
+                    zombie.x = canvas.width + zombie.radius;
+                    zombie.y = Math.random() * canvas.height;
+                    break;
+                case 2: // 下边
+                    zombie.x = Math.random() * canvas.width;
+                    zombie.y = canvas.height + zombie.radius;
+                    break;
+                case 3: // 左边
+                    zombie.x = -zombie.radius;
+                    zombie.y = Math.random() * canvas.height;
+                    break;
+            }
+
+            zombies.push(zombie);
+        }
+
+        function getRandomZombieColor() {
+            const colors = ['#663333', '#336633', '#333366', '#666633'];
+            return colors[Math.floor(Math.random() * colors.length)];
+        }
+
+        // 创建补给品
+        function createSupply() {
+            // 根据当前弹药和血量调整补给品类型几率
+            let ammoChance = 0.7;
+            if (ammo < 10) ammoChance = 0.8; // 弹药少时增加弹药几率
+            if (health < 50) ammoChance = 0.5; // 血量少时增加血包几率
+            
+            const type = Math.random() < ammoChance ? 'ammo' : 'health';
+            supplies.push({
+                x: Math.random() * (canvas.width - 40) + 20,
+                y: Math.random() * (canvas.height - 40) + 20,
+                type: type,
+                size: 12,
+                rotation: 0,
+                collected: false
+            });
+        }
+
+        // 创建子弹 - 自动瞄准最近的僵尸
+        function createBullet() {
+            if (ammo <= 0 || zombies.length === 0) return;
+            
+            // 找到最近的僵尸
+            let nearestZombie = null;
+            let nearestDistance = Infinity;
+            
+            zombies.forEach(zombie => {
+                const distance = Math.sqrt((zombie.x - player.x) ** 2 + (zombie.y - player.y) ** 2);
+                if (distance < nearestDistance) {
+                    nearestDistance = distance;
+                    nearestZombie = zombie;
+                }
+            });
+            
+            if (nearestZombie) {
+                const dx = nearestZombie.x - player.x;
+                const dy = nearestZombie.y - player.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                bullets.push({
+                    x: player.x,
+                    y: player.y,
+                    vx: (dx / distance) * 10,
+                    vy: (dy / distance) * 10,
+                    life: 100,
+                    size: 3
+                });
+                
+                ammo--;
+                ammoElement.textContent = ammo;
+            }
+        }
+
+        // 创建血迹
+        function createBloodSplat(x, y) {
+            bloodSplats.push({
+                x: x,
+                y: y,
+                size: 10 + Math.random() * 15,
+                life: 1,
+                decay: 0.005
+            });
+        }
+
+        // 创建粒子
+        function createParticle(x, y, color, count = 6) {
+            for (let i = 0; i < count; i++) {
+                particles.push({
+                    x: x + (Math.random() - 0.5) * 20,
+                    y: y + (Math.random() - 0.5) * 20,
+                    vx: (Math.random() - 0.5) * 8,
+                    vy: (Math.random() - 0.5) * 8,
+                    life: 1,
+                    decay: 0.02,
+                    color: color,
+                    size: Math.random() * 4 + 1
+                });
+            }
+        }
+
+        // 绘制废墟背景
+        function drawBackground() {
+            // 地面裂缝
+            ctx.strokeStyle = 'rgba(153, 68, 68, 0.3)';
+            ctx.lineWidth = 2;
+            for (let i = 0; i < 5; i++) {
+                ctx.beginPath();
+                ctx.moveTo(Math.random() * canvas.width, Math.random() * canvas.height);
+                ctx.lineTo(Math.random() * canvas.width, Math.random() * canvas.height);
+                ctx.stroke();
+            }
+        }
+
+        // 绘制血迹
+        function drawBloodSplats() {
+            bloodSplats.forEach(splat => {
+                ctx.fillStyle = `rgba(153, 51, 51, ${splat.life * 0.8})`;
+                ctx.beginPath();
+                ctx.arc(splat.x, splat.y, splat.size, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 血迹细节
+                for (let i = 0; i < 3; i++) {
+                    ctx.beginPath();
+                    ctx.arc(
+                        splat.x + (Math.random() - 0.5) * splat.size,
+                        splat.y + (Math.random() - 0.5) * splat.size,
+                        Math.random() * 3 + 1,
+                        0, Math.PI * 2
+                    );
+                    ctx.fill();
+                }
+            });
+        }
+
+        // 绘制玩家
+        function drawPlayer() {
+            ctx.save();
+            ctx.translate(player.x, player.y);
+            
+            // 玩家身体
+            ctx.fillStyle = player.color;
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(0, 0, player.radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            
+            // 玩家武器（指向最近的僵尸）
+            let angle = 0;
+            if (zombies.length > 0) {
+                let nearestZombie = null;
+                let nearestDistance = Infinity;
+                
+                zombies.forEach(zombie => {
+                    const distance = Math.sqrt((zombie.x - player.x) ** 2 + (zombie.y - player.y) ** 2);
+                    if (distance < nearestDistance) {
+                        nearestDistance = distance;
+                        nearestZombie = zombie;
+                    }
+                });
+                
+                if (nearestZombie) {
+                    angle = Math.atan2(nearestZombie.y - player.y, nearestZombie.x - player.x);
+                }
+            }
+            ctx.rotate(angle);
+            
+            ctx.fillStyle = '#666666';
+            ctx.fillRect(player.radius, -2, 20, 4);
+            
+            ctx.restore();
+        }
+
+        // 绘制僵尸
+        function drawZombies() {
+            zombies.forEach(zombie => {
+                ctx.save();
+                ctx.translate(zombie.x, zombie.y);
+                ctx.rotate(zombie.rotation);
+                
+                // 僵尸身体
+                ctx.fillStyle = zombie.color;
+                ctx.strokeStyle = '#994444';
+                ctx.lineWidth = 2;
+                
+                // 不规则僵尸形状
+                ctx.beginPath();
+                const sides = 6;
+                for (let i = 0; i < sides; i++) {
+                    const angle = (i / sides) * Math.PI * 2;
+                    const radius = zombie.radius * (0.8 + Math.random() * 0.4);
+                    const x = Math.cos(angle) * radius;
+                    const y = Math.sin(angle) * radius;
+                    
+                    if (i === 0) {
+                        ctx.moveTo(x, y);
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
+                }
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+                
+                // 僵尸眼睛
+                ctx.fillStyle = '#ff3333';
+                ctx.beginPath();
+                ctx.arc(-zombie.radius/3, -zombie.radius/3, 2, 0, Math.PI * 2);
+                ctx.arc(zombie.radius/3, -zombie.radius/3, 2, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 血条
+                if (zombie.health < zombie.maxHealth) {
+                    const barWidth = zombie.radius * 2;
+                    const barHeight = 4;
+                    const healthPercent = zombie.health / zombie.maxHealth;
+                    
+                    ctx.fillStyle = '#333333';
+                    ctx.fillRect(-barWidth/2, -zombie.radius - 10, barWidth, barHeight);
+                    
+                    ctx.fillStyle = '#cc3333';
+                    ctx.fillRect(-barWidth/2, -zombie.radius - 10, barWidth * healthPercent, barHeight);
+                }
+                
+                ctx.restore();
+            });
+        }
+
+        // 绘制子弹
+        function drawBullets() {
+            ctx.fillStyle = '#ffff00';
+            ctx.shadowColor = '#ffff00';
+            ctx.shadowBlur = 5;
+            
+            bullets.forEach(bullet => {
+                ctx.beginPath();
+                ctx.arc(bullet.x, bullet.y, bullet.size, 0, Math.PI * 2);
+                ctx.fill();
+            });
+            
+            ctx.shadowBlur = 0;
+        }
+
+        // 绘制补给品
+        function drawSupplies() {
+            supplies.forEach(supply => {
+                if (!supply.collected) {
+                    ctx.save();
+                    ctx.translate(supply.x, supply.y);
+                    ctx.rotate(supply.rotation);
+                    
+                    if (supply.type === 'ammo') {
+                        ctx.fillStyle = '#ffaa00';
+                        ctx.fillRect(-supply.size/2, -supply.size/2, supply.size, supply.size);
+                        
+                        ctx.fillStyle = '#ff6600';
+                        ctx.font = '10px Arial';
+                        ctx.textAlign = 'center';
+                        ctx.fillText('A', 0, 3);
+                    } else {
+                        ctx.fillStyle = '#33aa33';
+                        ctx.beginPath();
+                        ctx.arc(0, 0, supply.size/2, 0, Math.PI * 2);
+                        ctx.fill();
+                        
+                        ctx.fillStyle = '#ffffff';
+                        ctx.fillRect(-2, -6, 4, 12);
+                        ctx.fillRect(-6, -2, 12, 4);
+                    }
+                    
+                    supply.rotation += 0.05;
+                    ctx.restore();
+                }
+            });
+        }
+
+        // 绘制粒子
+        function drawParticles() {
+            particles.forEach(particle => {
+                ctx.fillStyle = particle.color + Math.floor(particle.life * 255).toString(16).padStart(2, '0');
+                ctx.beginPath();
+                ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+
+        // 更新玩家位置
+        function updatePlayer() {
+            let moveX = 0;
+            let moveY = 0;
+            
+            // WASD 或方向键移动
+            if (keys.w || keys.ArrowUp) moveY -= player.speed;
+            if (keys.s || keys.ArrowDown) moveY += player.speed;
+            if (keys.a || keys.ArrowLeft) moveX -= player.speed;
+            if (keys.d || keys.ArrowRight) moveX += player.speed;
+            
+            // 对角线移动时速度归一化
+            if (moveX !== 0 && moveY !== 0) {
+                moveX *= 0.707; // 1/√2
+                moveY *= 0.707;
+            }
+            
+            // 更新位置并限制在画布范围内
+            player.x = Math.max(player.radius, Math.min(canvas.width - player.radius, player.x + moveX));
+            player.y = Math.max(player.radius, Math.min(canvas.height - player.radius, player.y + moveY));
+        }
+
+        // 更新游戏逻辑
+        function update() {
+            if (!gameRunning) return;
+
+            frameCount++;
+            
+            // 更新玩家位置
+            updatePlayer();
+            
+            // 更新生存时间
+            if (frameCount % 60 === 0) {
+                survivalTime++;
+            }
+
+            // 生成僵尸，降低生成速度让游戏更轻松
+            zombieSpawnRate = Math.max(60, 180 - survivalTime * 2);
+            if (frameCount % zombieSpawnRate === 0) {
+                createZombie();
+                // 每15秒增加一波（延长波次间隔）
+                if (survivalTime % 15 === 0 && survivalTime > 0) {
+                    const newWave = Math.floor(survivalTime / 15) + 1;
+                    if (newWave > waveNumber) {
+                        waveNumber = newWave;
+                        waveElement.textContent = waveNumber;
+                        // 每波额外生成僵尸，但数量更少
+                        for(let i = 0; i < Math.min(waveNumber - 1, 2); i++) {
+                            createZombie();
+                        }
+                    }
+                }
+            }
+
+            // 生成补给品，随时间频率提高
+            const supplyRate = Math.max(300, 600 - survivalTime * 10);
+            if (frameCount % supplyRate === 0) {
+                createSupply();
+            }
+
+            // 更新僵尸
+            zombies.forEach((zombie, index) => {
+                // 移动向玩家
+                const dx = player.x - zombie.x;
+                const dy = player.y - zombie.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                if (distance > 0) {
+                    zombie.x += (dx / distance) * zombie.speed;
+                    zombie.y += (dy / distance) * zombie.speed;
+                }
+                
+                zombie.rotation += 0.02;
+
+                // 检查是否接触玩家
+                if (distance < player.radius + zombie.radius) {
+                    // 根据僵尸大小调整伤害
+                    const damage = Math.floor(zombie.radius / 2); // 更大的僵尸造成更多伤害
+                    health -= damage;
+                    healthFill.style.width = Math.max(0, health) + '%';
+                    createParticle(player.x, player.y, '#cc3333', 8);
+                    zombies.splice(index, 1);
+                    
+                    if (health <= 0) {
+                        gameOver();
+                    }
+                }
+            });
+
+            // 更新子弹
+            bullets.forEach((bullet, bulletIndex) => {
+                bullet.x += bullet.vx;
+                bullet.y += bullet.vy;
+                bullet.life--;
+
+                if (bullet.life <= 0 || bullet.x < 0 || bullet.x > canvas.width || 
+                    bullet.y < 0 || bullet.y > canvas.height) {
+                    bullets.splice(bulletIndex, 1);
+                    return;
+                }
+
+                // 子弹击中僵尸
+                zombies.forEach((zombie, zombieIndex) => {
+                    const dist = Math.sqrt((bullet.x - zombie.x) ** 2 + (bullet.y - zombie.y) ** 2);
+                    if (dist < zombie.radius + bullet.size) {
+                        zombie.health--;
+                        createParticle(zombie.x, zombie.y, '#cc3333', 4);
+                        bullets.splice(bulletIndex, 1);
+
+                        if (zombie.health <= 0) {
+                            createParticle(zombie.x, zombie.y, zombie.color, 10);
+                            kills++;
+                            killsElement.textContent = kills;
+                            zombies.splice(zombieIndex, 1);
+                        }
+                    }
+                });
+            });
+
+            // 更新补给品收集
+            supplies.forEach((supply, index) => {
+                if (!supply.collected) {
+                    const dist = Math.sqrt((player.x - supply.x) ** 2 + (player.y - supply.y) ** 2);
+                    if (dist < player.radius + supply.size) {
+                        supply.collected = true;
+                        
+                        if (supply.type === 'ammo') {
+                            ammo += 15; // 增加更多弹药
+                            ammoElement.textContent = ammo;
+                        } else {
+                            health = Math.min(100, health + 30); // 增加更多血量
+                            healthFill.style.width = health + '%';
+                        }
+                        
+                        createParticle(supply.x, supply.y, supply.type === 'ammo' ? '#ffaa00' : '#33aa33', 6);
+                        supplies.splice(index, 1);
+                    }
+                }
+            });
+
+            // 更新血迹
+            bloodSplats = bloodSplats.filter(splat => {
+                splat.life -= splat.decay;
+                return splat.life > 0;
+            });
+
+            // 更新粒子
+            particles = particles.filter(particle => {
+                particle.x += particle.vx;
+                particle.y += particle.vy;
+                particle.vx *= 0.95;
+                particle.vy *= 0.95;
+                particle.life -= particle.decay;
+                return particle.life > 0;
+            });
+        }
+
+        // 绘制游戏画面
+        function draw() {
+            // 清空画布
+            ctx.fillStyle = 'rgba(13, 7, 6, 0.3)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            drawBackground();
+
+            if (gameRunning) {
+                drawSupplies();
+                drawParticles();
+                drawZombies();
+                drawBullets();
+                drawPlayer();
+            }
+        }
+
+        // 游戏循环
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // 游戏结束
+        function gameOver() {
+            gameRunning = false;
+            finalKillsElement.textContent = kills;
+            survivalTimeElement.textContent = survivalTime;
+            
+            // 更新最佳成绩
+            if (kills > bestScore) {
+                bestScore = kills;
+                localStorage.setItem('zombieSurvivalBest', bestScore.toString());
+                document.getElementById('bestScore').textContent = bestScore;
+            }
+            
+            gameOverElement.style.display = 'block';
+        }
+
+        // 重新开始游戏
+        function restartGame() {
+            gameRunning = true;
+            kills = 0;
+            ammo = 30;
+            health = 100;
+            frameCount = 0;
+            survivalTime = 0;
+            zombieSpawnRate = 180;
+            waveNumber = 1;
+            
+            killsElement.textContent = kills;
+            ammoElement.textContent = ammo;
+            waveElement.textContent = waveNumber;
+            healthFill.style.width = '100%';
+            gameOverElement.style.display = 'none';
+            
+            // 清空所有数组
+            zombies = [];
+            bullets = [];
+            supplies = [];
+            bloodSplats = [];
+            particles = [];
+        }
+
+        // 鼠标事件
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            mouseX = e.clientX - rect.left;
+            mouseY = e.clientY - rect.top;
+        });
+
+        canvas.addEventListener('click', (e) => {
+            if (gameRunning) {
+                createBullet();
+            }
+        });
+
+        // 触摸事件
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            mouseX = e.touches[0].clientX - rect.left;
+            mouseY = e.touches[0].clientY - rect.top;
+        });
+
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            mouseX = e.touches[0].clientX - rect.left;
+            mouseY = e.touches[0].clientY - rect.top;
+            if (gameRunning) {
+                createBullet();
+            }
+        });
+
+        // 键盘事件
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space' && gameRunning) {
+                e.preventDefault();
+                createBullet();
+            }
+            // 移动键
+            if (keys.hasOwnProperty(e.key) || keys.hasOwnProperty(e.code)) {
+                e.preventDefault();
+                if (keys.hasOwnProperty(e.key)) keys[e.key] = true;
+                if (keys.hasOwnProperty(e.code)) keys[e.code] = true;
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            if (keys.hasOwnProperty(e.key)) keys[e.key] = false;
+            if (keys.hasOwnProperty(e.code)) keys[e.code] = false;
+        });
+
+        // 响应式画布
+        function resizeCanvas() {
+            if (window.innerWidth <= 768) {
+                canvas.width = Math.min(350, window.innerWidth - 20);
+                canvas.height = Math.min(450, window.innerHeight * 0.6);
+            } else {
+                canvas.width = 400;
+                canvas.height = 500;
+            }
+            // 重置玩家位置到中心
+            player.x = canvas.width / 2;
+            player.y = canvas.height / 2;
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // 开始游戏循环
+        gameLoop();
+
+        // Footer 脚本
+        document.addEventListener('DOMContentLoaded', () => {
+            const tpl = document.getElementById('site-footer');
+            if (tpl && 'content' in tpl) {
+                document.body.appendChild(tpl.content.cloneNode(true));
+            }
+
+            document.querySelectorAll('.qr-wrapper').forEach(w => {
+                const link = w.querySelector('.qr-link');
+                const img = w.querySelector('.qr-img');
+                if (link && img && link.dataset.img) {
+                    img.src = link.dataset.img.trim();
+                }
+            });
+        });
+    </script>
+</body>
+</html>

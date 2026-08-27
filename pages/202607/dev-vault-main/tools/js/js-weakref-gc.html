@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html tk="title_weakref_gc_visualizer" lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WeakRef & GC Visualizer</title>
+<meta name="description" content="Interactive WeakRef, WeakMap, WeakSet, and FinalizationRegistry visualizer. Watch garbage collection reclaim weak references. Simulate object lifecycle and memory management.">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0a0a;color:#e6e6e6;min-height:100vh}
+.container{max-width:1200px;margin:0 auto;padding:16px}
+header{text-align:center;padding:20px 0 16px}
+header h1{font-size:1.6rem;color:#fff;margin-bottom:4px}
+header p{color:#888;font-size:0.85rem}
+.tabs{display:flex;gap:4px;margin-bottom:16px;border-bottom:1px solid #333;padding-bottom:8px}
+.tab{padding:8px 16px;border-radius:8px 8px 0 0;border:1px solid transparent;background:none;color:#888;cursor:pointer;font-size:0.85rem;font-weight:600}
+.tab.active{background:#1a1a2e;color:#4da6ff;border-color:#333;border-bottom-color:#1a1a2e}
+.panel{display:none}.panel.active{display:block}
+
+.split{display:grid;grid-template-columns:1fr 1fr;gap:16px;min-height:500px}
+.viz-panel{background:#111;border:1px solid #333;border-radius:12px;padding:16px;overflow-y:auto}
+.viz-panel h3{font-size:0.9rem;color:#aaa;margin-bottom:12px}
+.log-panel{background:#111;border:1px solid #333;border-radius:12px;padding:16px;display:flex;flex-direction:column}
+.log-panel h3{font-size:0.9rem;color:#aaa;margin-bottom:8px}
+
+.controls{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.btn{padding:6px 14px;border-radius:8px;border:1px solid #333;background:#1a1a2e;color:#4da6ff;cursor:pointer;font-size:0.8rem;font-weight:600;transition:background 0.2s}
+.btn:hover{background:#243b6e}
+.btn.danger{background:#2a1a1a;color:#ef4444;border-color:#4a2222}
+.btn.danger:hover{background:#3a2222}
+.btn.success{background:#1a2a1a;color:#22c55e;border-color:#224a22}
+
+/* Object cards */
+.obj-card{background:#1a1a1a;border:2px solid #333;border-radius:8px;padding:12px;margin-bottom:8px;transition:all 0.5s}
+.obj-card.alive{border-color:#22c55e}
+.obj-card.collected{border-color:#ef4444;opacity:0.3;background:#ef44440a}
+.obj-card.weak-only{border-color:#f59e0b;border-style:dashed}
+.obj-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.obj-name{font-family:'Fira Code',monospace;font-weight:700;font-size:0.9rem}
+.obj-status{font-size:0.7rem;padding:2px 6px;border-radius:4px;font-weight:700}
+.obj-status.alive{background:#22c55e33;color:#22c55e}
+.obj-status.collected{background:#ef444433;color:#ef4444}
+.obj-status.weak{background:#f59e0b33;color:#f59e0b}
+.ref-list{margin-top:6px}
+.ref-item{display:flex;align-items:center;gap:6px;padding:3px 0;font-size:0.8rem}
+.ref-arrow{width:20px;height:2px;position:relative;display:inline-block}
+.ref-arrow.strong{background:#22c55e}
+.ref-arrow.weak{background:#f59e0b;background:repeating-linear-gradient(90deg,#f59e0b 0,#f59e0b 4px,transparent 4px,transparent 8px)}
+.ref-label{color:#888;font-size:0.75rem}
+.ref-type{font-size:0.7rem;padding:1px 4px;border-radius:3px}
+.ref-type.strong{background:#22c55e22;color:#22c55e}
+.ref-type.weak{background:#f59e0b22;color:#f59e0b}
+
+/* Event log */
+.event-log{flex:1;overflow-y:auto;background:#0a0a0a;border:1px solid #222;border-radius:8px;padding:8px;font-family:'Fira Code',monospace;font-size:0.75rem;max-height:350px}
+.log-entry{padding:4px 6px;border-radius:4px;margin-bottom:2px}
+.log-entry.create{color:#22c55e}
+.log-entry.gc{color:#ef4444}
+.log-entry.release{color:#f59e0b}
+.log-entry.finalize{color:#8b5cf6}
+.log-entry.info{color:#4da6ff}
+
+/* Memory meter */
+.memory-meter{margin-bottom:16px}
+.meter-bar{height:20px;background:#1a1a1a;border-radius:4px;overflow:hidden;border:1px solid #333;position:relative}
+.meter-fill{height:100%;background:linear-gradient(90deg,#22c55e,#f59e0b,#ef4444);transition:width 0.5s;border-radius:4px}
+.meter-label{display:flex;justify-content:space-between;font-size:0.75rem;color:#888;margin-top:2px}
+
+/* Legend */
+.legend{display:flex;gap:16px;margin-bottom:12px;flex-wrap:wrap}
+.legend-item{display:flex;align-items:center;gap:4px;font-size:0.75rem;color:#888}
+.legend-line{width:16px;height:3px;border-radius:2px}
+.legend-line.strong{background:#22c55e}
+.legend-line.weak{background:#f59e0b;background:repeating-linear-gradient(90deg,#f59e0b 0,#f59e0b 3px,transparent 3px,transparent 6px)}
+
+/* Preset cards */
+.preset-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+.preset-card{background:#161616;border:1px solid #222;border-radius:12px;padding:16px;cursor:pointer;transition:border-color 0.2s}
+.preset-card:hover{border-color:#4da6ff}
+.preset-card h4{color:#fff;font-size:0.9rem;margin-bottom:6px}
+.preset-card p{color:#888;font-size:0.8rem;line-height:1.4}
+
+/* Reference */
+.ref-section{margin-bottom:20px}
+.ref-section h3{color:#4da6ff;font-size:1rem;margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid #222}
+.ref-section p,.ref-section li{color:#bbb;font-size:0.85rem;line-height:1.6}
+.ref-section ul{padding-left:20px}
+.ref-section code{background:#1a1a2e;padding:2px 6px;border-radius:4px;color:#4da6ff;font-size:0.8rem}
+</style>
+</head>
+<body>
+
+
+<div class="container" style="position:relative">
+<header>
+<h1 ti="title_weakref_gc_visualizer" ti="h1_weakref_gc_visualizer">WeakRef & GC Visualizer</h1>
+<p>Watch garbage collection reclaim weak references — WeakMap, WeakSet, WeakRef, FinalizationRegistry</p>
+</header>
+
+<div class="tabs">
+<button class="tab active" data-tab="simulator" ti="btn_simulator">Simulator</button>
+<button class="tab" data-tab="presets" ti="btn_presets">Presets</button>
+<button class="tab" data-tab="reference" ti="btn_reference">Reference</button>
+</div>
+
+<div class="panel active" id="simulator">
+<div class="controls">
+<button class="btn success" id="createBtn" ti="btn_create_object">+ Create Object</button>
+<button class="btn" id="weakMapBtn" ti="btn_weakmap_entry">+ WeakMap Entry</button>
+<button class="btn" id="weakRefBtn" ti="btn_weakref">+ WeakRef</button>
+<button class="btn danger" id="releaseBtn" ti="btn_release_strong_ref">✕ Release Strong Ref</button>
+<button class="btn danger" id="gcBtn" ti="btn_simulate_gc">🗑 Simulate GC</button>
+<button class="btn" id="resetBtn" ti="btn_reset">↺ Reset</button>
+</div>
+
+<div class="memory-meter">
+<div class="meter-bar"><div class="meter-fill" id="meterFill" style="width:0%"></div></div>
+<div class="meter-label"><span>0 objects</span><span id="meterText">0 / 20 (simulated heap)</span></div>
+</div>
+
+<div class="legend">
+<div class="legend-item"><div class="legend-line strong"></div>Strong reference (prevents GC)</div>
+<div class="legend-item"><div class="legend-line weak"></div>Weak reference (allows GC)</div>
+</div>
+
+<div class="split">
+<div class="viz-panel">
+<h3 ti="h3_objects_references">Objects & References</h3>
+<div id="objContainer"></div>
+</div>
+<div class="log-panel">
+<h3 ti="h3_event_log">Event Log</h3>
+<div class="event-log" id="eventLog">
+<div class="log-entry info">Ready. Create objects and references to begin.</div>
+</div>
+</div>
+</div>
+</div>
+
+<div class="panel" id="presets">
+<div class="preset-grid" id="presetGrid"></div>
+</div>
+
+<div class="panel" id="reference">
+<div class="ref-section">
+<h3 ti="h3_strong_vs_weak_references">Strong vs Weak References</h3>
+<p>A <strong ti="strong_strong_reference">strong reference</strong> (normal variable assignment) prevents garbage collection. The object stays alive as long as any strong reference exists.</p>
+<p>A <strong ti="strong_weak_reference">weak reference</strong> (WeakRef, WeakMap, WeakSet) does NOT prevent garbage collection. If the only remaining references to an object are weak, the GC can reclaim it at any time.</p>
+</div>
+<div class="ref-section">
+<h3 ti="h3_weakmap">WeakMap</h3>
+<ul>
+<li>Keys must be objects (not primitives)</li>
+<li>Keys are held weakly — if the key object is GC'd, the entry is automatically removed</li>
+<li>Not iterable (you can't list all entries)</li>
+<li>Use case: Associating metadata with objects without preventing their GC</li>
+</ul>
+</div>
+<div class="ref-section">
+<h3 ti="h3_weakset">WeakSet</h3>
+<ul>
+<li>Values must be objects</li>
+<li>Values are held weakly — GC can reclaim them</li>
+<li>Not iterable</li>
+<li>Use case: Tracking which objects have been "seen" or "processed"</li>
+</ul>
+</div>
+<div class="ref-section">
+<h3 ti="h3_weakref">WeakRef</h3>
+<ul>
+<li>Wraps an object with a weak reference</li>
+<li><code>ref.deref()</code> returns the object if still alive, or <code>undefined</code> if GC'd</li>
+<li>Use case: Caches where you want to keep objects only while they're used elsewhere</li>
+</ul>
+</div>
+<div class="ref-section">
+<h3 ti="h3_finalizationregistry">FinalizationRegistry</h3>
+<ul>
+<li>Registers a callback that fires when an object is garbage collected</li>
+<li>Callback receives a "held value" you specify at registration</li>
+<li>Use case: Cleanup (closing files, releasing resources) when objects are GC'd</li>
+<li>Warning: Timing is not guaranteed — callback may fire much later or never</li>
+</ul>
+</div>
+</div>
+</div>
+
+
+<script>var _LANG={'title_weakref_gc_visualizer':["WeakRef & GC Visualizer", "WeakRef &amp; GC Visualizer"],'metadesc_interactive_weakref_weakm':["Interactive WeakRef, WeakMap, WeakSet, and FinalizationRegistry visualizer. Watch garbage collection reclaim weak references. Simulate object lifecycle and memory management.", "交互式弱引用、弱映射、弱集合和终结注册表可视化工具。观察垃圾回收如何回收弱引用。模拟对象生命周期和内存管理。"],'h1_weakref_gc_visualizer':["WeakRef & GC Visualizer", "WeakRef &amp; GC Visualizer"],'h3_objects_references':["Objects & References", "对象与引用"],'h3_event_log':["Event Log", "事件日志"],'h3_strong_vs_weak_references':["Strong vs Weak References", "强参考文献与弱参考文献"],'h3_weakmap':["WeakMap", "弱图"],'h3_weakset':["WeakSet", "弱集"],'h3_weakref':["WeakRef", "WeakRef"],'h3_finalizationregistry':["FinalizationRegistry", "最终登记处"],'btn_simulator':["Simulator", "模拟器"],'btn_presets':["Presets", "预设"],'btn_reference':["Reference", "参考"],'btn_create_object':["+ Create Object", "+ 创建对象"],'btn_weakmap_entry':["+ WeakMap Entry", "+ WeakMap入口"],'btn_weakref':["+ WeakRef", "+ WeakRef"],'btn_release_strong_ref':["✕ Release Strong Ref", "✕ 释放强力参考"],'btn_simulate_gc':["🗑 Simulate GC", "🗑 模拟垃圾回收"],'btn_reset':["↺ Reset", "↺ 重置"],'label_variable_reference':["variable reference", "变量引用"],'label_weakref_obj_alive_deref_o':["WeakRef → ${obj.alive ? 'deref() = object' : 'deref() = undefined'}", "WeakRef → ${obj.alive ? &#39;deref() = object&#39; : &#39;deref() = undefined&#39;}"],'label_weakmap_entry_obj_alive_r':["WeakMap: \"${entry}\" ${!obj.alive ? '(removed)' : ''}", "WeakMap: &quot;${entry}&quot; ${!obj.alive ? &#39;(已移除)&#39; : &#39;&#39;}"],'label_finalizationregistry_cb_o':["FinalizationRegistry: \"${cb}\" ${!obj.alive ? '(fired)' : '(pending)'}", "FinalizationRegistry: &quot;${cb}&quot; ${!obj.alive ? &#39;(已触发)&#39; : &#39;(待处理)&#39;}"],'strong_strong_reference':["strong reference", "强参考"],'strong_weak_reference':["weak reference", "弱引用"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>
+let objects = [];
+let nextId = 1;
+
+const PRESETS = [
+  {
+    name: 'Basic WeakMap Cache',
+    desc: 'Create objects, store metadata in WeakMap. Release strong refs and watch entries disappear on GC.',
+    steps: [
+      {action:'create',name:'user'},
+      {action:'create',name:'settings'},
+      {action:'weakmap',from:'user',label:'metadata'},
+      {action:'weakmap',from:'settings',label:'cache'},
+      {action:'release',target:'user'},
+      {action:'gc'}
+    ]
+  },
+  {
+    name: 'WeakRef Deref',
+    desc: 'Create a WeakRef to an object. Release the strong ref, GC, then try deref() — returns undefined.',
+    steps: [
+      {action:'create',name:'target'},
+      {action:'weakref',from:'target'},
+      {action:'release',target:'target'},
+      {action:'gc'}
+    ]
+  },
+  {
+    name: 'Strong Ref Keeps Alive',
+    desc: 'Object has both strong and weak refs. GC cannot collect it because the strong ref prevents it.',
+    steps: [
+      {action:'create',name:'important'},
+      {action:'weakmap',from:'important',label:'weak-data'},
+      {action:'weakref',from:'important'},
+      {action:'gc'}
+    ]
+  },
+  {
+    name: 'FinalizationRegistry',
+    desc: 'Register a cleanup callback. When the object is GC\'d, the callback fires.',
+    steps: [
+      {action:'create',name:'resource'},
+      {action:'finalize',from:'resource',label:'cleanup: close file handle'},
+      {action:'release',target:'resource'},
+      {action:'gc'}
+    ]
+  },
+  {
+    name: 'Memory Leak Prevention',
+    desc: 'Contrast: Map retains objects forever vs WeakMap releases them. Classic cache pattern.',
+    steps: [
+      {action:'create',name:'tempData1'},
+      {action:'create',name:'tempData2'},
+      {action:'create',name:'cachedPermanent'},
+      {action:'weakmap',from:'tempData1',label:'weak-cache'},
+      {action:'weakmap',from:'tempData2',label:'weak-cache'},
+      {action:'release',target:'tempData1'},
+      {action:'release',target:'tempData2'},
+      {action:'gc'}
+    ]
+  },
+  {
+    name: 'DOM Element Tracking',
+    desc: 'Track DOM elements with WeakSet. When elements are removed from DOM (strong ref gone), WeakSet cleans up.',
+    steps: [
+      {action:'create',name:'div#header'},
+      {action:'create',name:'div#footer'},
+      {action:'create',name:'span.tooltip'},
+      {action:'weakmap',from:'div#header',label:'tracked'},
+      {action:'weakmap',from:'div#footer',label:'tracked'},
+      {action:'weakmap',from:'span.tooltip',label:'tracked'},
+      {action:'release',target:'span.tooltip'},
+      {action:'gc'}
+    ]
+  }
+];
+
+function log(msg, cls = 'info') {
+  const el = document.getElementById('eventLog');
+  const entry = document.createElement('div');
+  entry.className = `log-entry ${cls}`;
+  entry.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+  el.appendChild(entry);
+  el.scrollTop = el.scrollHeight;
+}
+
+function createObject(name) {
+  const obj = {
+    id: nextId++,
+    name: name || `obj_${nextId - 1}`,
+    alive: true,
+    strongRef: true,
+    weakRefs: [],
+    weakMapEntries: [],
+    finalizationCallbacks: []
+  };
+  objects.push(obj);
+  log(`Created ${obj.name} (strong ref)`, 'create');
+  render();
+  return obj;
+}
+
+function addWeakMap(targetName, label) {
+  const obj = objects.find(o => o.name === targetName && o.alive);
+  if (!obj) { log(`Object "${targetName}" not found or already GC'd`, 'info'); return; }
+  obj.weakMapEntries.push(label || 'entry');
+  log(`WeakMap.set(${obj.name}, "${label || 'data'}") — weak reference added`, 'info');
+  render();
+}
+
+function addWeakRef(targetName) {
+  const obj = objects.find(o => o.name === targetName && o.alive);
+  if (!obj) { log(`Object "${targetName}" not found`, 'info'); return; }
+  obj.weakRefs.push('WeakRef');
+  log(`new WeakRef(${obj.name}) — weak reference created`, 'info');
+  render();
+}
+
+function addFinalization(targetName, label) {
+  const obj = objects.find(o => o.name === targetName && o.alive);
+  if (!obj) return;
+  obj.finalizationCallbacks.push(label || 'cleanup');
+  log(`FinalizationRegistry.register(${obj.name}, "${label || 'cleanup'}")`, 'info');
+  render();
+}
+
+function releaseStrongRef(targetName) {
+  const obj = objects.find(o => o.name === targetName && o.alive);
+  if (!obj) {
+    // If no specific target, release the first strong ref
+    const first = objects.find(o => o.strongRef && o.alive);
+    if (first) {
+      first.strongRef = false;
+      log(`Released strong ref to ${first.name} — now only weak refs remain`, 'release');
+      render();
+    }
+    return;
+  }
+  obj.strongRef = false;
+  log(`Released strong ref to ${obj.name} — now only weak refs remain`, 'release');
+  render();
+}
+
+function simulateGC() {
+  log('--- Garbage Collection triggered ---', 'gc');
+  let collected = 0;
+  objects.forEach(obj => {
+    if (obj.alive && !obj.strongRef) {
+      obj.alive = false;
+      collected++;
+      log(`🗑 ${obj.name} collected by GC (no strong references)`, 'gc');
+      // Fire finalization callbacks
+      obj.finalizationCallbacks.forEach(cb => {
+        log(`📞 FinalizationRegistry callback: "${cb}" for ${obj.name}`, 'finalize');
+      });
+      // WeakRef.deref() now returns undefined
+      if (obj.weakRefs.length) {
+        log(`  → WeakRef.deref() now returns undefined`, 'gc');
+      }
+      if (obj.weakMapEntries.length) {
+        log(`  → WeakMap entries for ${obj.name} automatically removed`, 'gc');
+      }
+    }
+  });
+  if (collected === 0) {
+    log('No objects to collect — all have strong references', 'info');
+  } else {
+    log(`Collected ${collected} object(s)`, 'gc');
+  }
+  render();
+}
+
+function reset() {
+  objects = [];
+  nextId = 1;
+  document.getElementById('eventLog').innerHTML = '<div class="log-entry info">Reset. Ready for new simulation.</div>';
+  render();
+}
+
+function render() {
+  const container = document.getElementById('objContainer');
+  container.innerHTML = '';
+
+  objects.forEach(obj => {
+    const card = document.createElement('div');
+    const status = !obj.alive ? 'collected' : !obj.strongRef ? 'weak-only' : 'alive';
+    card.className = `obj-card ${status}`;
+
+    const statusLabel = !obj.alive ? 'COLLECTED' : !obj.strongRef ? 'WEAK ONLY' : 'ALIVE';
+    const statusClass = !obj.alive ? 'collected' : !obj.strongRef ? 'weak' : 'alive';
+
+    let refsHTML = '';
+    if (obj.strongRef && obj.alive) {
+      refsHTML += `<div class="ref-item"><span class="ref-arrow strong"></span><span class="ref-type strong">strong</span><span class="ref-label" ti="label_variable_reference">variable reference</span></div>`;
+    }
+    obj.weakRefs.forEach(wr => {
+      refsHTML += `<div class="ref-item"><span class="ref-arrow weak"></span><span class="ref-type weak">weak</span><span class="ref-label" ti="label_weakref_obj_alive_deref_o">WeakRef → ${obj.alive ? 'deref() = object' : 'deref() = undefined'}</span></div>`;
+    });
+    obj.weakMapEntries.forEach(entry => {
+      refsHTML += `<div class="ref-item"><span class="ref-arrow weak"></span><span class="ref-type weak">weak</span><span class="ref-label" ti="label_weakmap_entry_obj_alive_r">WeakMap: "${entry}" ${!obj.alive ? '(removed)' : ''}</span></div>`;
+    });
+    obj.finalizationCallbacks.forEach(cb => {
+      refsHTML += `<div class="ref-item"><span style="color:#8b5cf6;font-size:0.75rem">📞</span><span class="ref-label" style="color:#8b5cf6" ti="label_finalizationregistry_cb_o">FinalizationRegistry: "${cb}" ${!obj.alive ? '(fired)' : '(pending)'}</span></div>`;
+    });
+
+    card.innerHTML = `
+      <div class="obj-header">
+        <span class="obj-name" style="color:${obj.alive?'#fff':'#555'}">${obj.name}</span>
+        <span class="obj-status ${statusClass}">${statusLabel}</span>
+      </div>
+      <div class="ref-list">${refsHTML}</div>
+    `;
+    container.appendChild(card);
+  });
+
+  // Update meter
+  const alive = objects.filter(o => o.alive).length;
+  const total = objects.length;
+  document.getElementById('meterFill').style.width = `${(alive / 20) * 100}%`;
+  document.getElementById('meterText').textContent = `${alive} alive / ${total} total (simulated)`;
+}
+
+// Event handlers
+document.getElementById('createBtn').addEventListener('click', () => createObject());
+document.getElementById('weakMapBtn').addEventListener('click', () => {
+  const alive = objects.filter(o => o.alive);
+  if (alive.length === 0) { log('Create an object first', 'info'); return; }
+  addWeakMap(alive[alive.length - 1].name, 'data_' + Math.random().toString(36).slice(2, 5));
+});
+document.getElementById('weakRefBtn').addEventListener('click', () => {
+  const alive = objects.filter(o => o.alive);
+  if (alive.length === 0) { log('Create an object first', 'info'); return; }
+  addWeakRef(alive[alive.length - 1].name);
+});
+document.getElementById('releaseBtn').addEventListener('click', () => releaseStrongRef());
+document.getElementById('gcBtn').addEventListener('click', simulateGC);
+document.getElementById('resetBtn').addEventListener('click', reset);
+
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById(tab.dataset.tab).classList.add('active');
+  });
+});
+
+// Presets
+const presetGrid = document.getElementById('presetGrid');
+PRESETS.forEach(preset => {
+  const card = document.createElement('div');
+  card.className = 'preset-card';
+  card.innerHTML = `<h4>${preset.name}</h4><p>${preset.desc}</p>`;
+  card.addEventListener('click', () => {
+    reset();
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.querySelector('[data-tab="simulator"]').classList.add('active');
+    document.getElementById('simulator').classList.add('active');
+
+    let delay = 0;
+    preset.steps.forEach(step => {
+      setTimeout(() => {
+        switch (step.action) {
+          case 'create': createObject(step.name); break;
+          case 'weakmap': addWeakMap(step.from, step.label); break;
+          case 'weakref': addWeakRef(step.from); break;
+          case 'finalize': addFinalization(step.from, step.label); break;
+          case 'release': releaseStrongRef(step.target); break;
+          case 'gc': simulateGC(); break;
+        }
+      }, delay);
+      delay += 600;
+    });
+  });
+  presetGrid.appendChild(card);
+});
+
+render();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+</body>
+</html>

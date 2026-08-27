@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF 内容脱敏工具</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel Standalone (用于在浏览器中编译 JSX) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- PDF Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+
+    <style>
+        /* 自定义滚动条样式 */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        body {
+            overscroll-behavior: none; /* 防止移动端下拉刷新影响操作 */
+        }
+    </style>
+</head>
+<body class="bg-white text-slate-800">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // --- 图标组件 (替换 lucide-react) ---
+        const IconBase = ({ children, size = 24, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                {children}
+            </svg>
+        );
+
+        const Icons = {
+            Eye: (props) => <IconBase {...props}><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></IconBase>,
+            Download: (props) => <IconBase {...props}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></IconBase>,
+            Upload: (props) => <IconBase {...props}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></IconBase>,
+            FileText: (props) => <IconBase {...props}><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/><line x1="10" x2="8" y1="9" y2="9"/></IconBase>,
+            Trash2: (props) => <IconBase {...props}><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></IconBase>,
+            Layers: (props) => <IconBase {...props}><path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></IconBase>,
+            Type: (props) => <IconBase {...props}><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" x2="15" y1="20" y2="20"/><line x1="12" x2="12" y1="4" y2="20"/></IconBase>,
+            MousePointer: (props) => <IconBase {...props}><path d="m3 3 7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/><path d="m13 13 6 6"/></IconBase>,
+            ChevronLeft: (props) => <IconBase {...props}><path d="m15 18-6-6 6-6"/></IconBase>,
+            ChevronRight: (props) => <IconBase {...props}><path d="m9 18 6-6-6-6"/></IconBase>,
+            AlertCircle: (props) => <IconBase {...props}><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></IconBase>,
+            X: (props) => <IconBase {...props}><path d="M18 6 6 18"/><path d="m6 6 18 18"/></IconBase>,
+            ShieldCheck: (props) => <IconBase {...props}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></IconBase>,
+        };
+
+        // --- 配置 PDF Worker ---
+        const PDFJS_WORKER_URL = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+        // --- 主应用组件 ---
+        const App = () => {
+            const [file, setFile] = useState(null);
+            const [pdfDoc, setPdfDoc] = useState(null); // pdf.js doc
+            const [scale, setScale] = useState(1.0);
+            const [numPages, setNumPages] = useState(0);
+            const [pageNum, setPageNum] = useState(1);
+            const [mode, setMode] = useState('box'); // 'box' | 'text'
+            const [color, setColor] = useState('#000000');
+            const [searchText, setSearchText] = useState('');
+            const [redactions, setRedactions] = useState([]); 
+            const [isProcessing, setIsProcessing] = useState(false);
+            const [processingText, setProcessingText] = useState('');
+            const [applyToAllPages, setApplyToAllPages] = useState(false);
+            const [secureMode, setSecureMode] = useState(true); // 默认为安全模式
+
+            const canvasRef = useRef(null);
+            const containerRef = useRef(null);
+            const [isDragging, setIsDragging] = useState(false);
+            const [startPos, setStartPos] = useState({ x: 0, y: 0 });
+            const [currentSelection, setCurrentSelection] = useState(null);
+
+            // 加载 Worker
+            useEffect(() => {
+                if (window.pdfjsLib) {
+                    window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_URL;
+                }
+            }, []);
+
+            // 重置文件状态
+            const handleResetFile = () => {
+                setFile(null);
+                setPdfDoc(null);
+                setNumPages(0);
+                setPageNum(1);
+                setRedactions([]);
+                setSearchText('');
+                setScale(1.0);
+                setIsProcessing(false);
+                setProcessingText('');
+                setApplyToAllPages(false);
+            };
+
+            // 处理文件上传
+            const handleFileUpload = async (e) => {
+                const selectedFile = e.target.files[0];
+                if (selectedFile && selectedFile.type === 'application/pdf') {
+                    setFile(selectedFile);
+                    const fileReader = new FileReader();
+                    fileReader.onload = async function() {
+                        try {
+                            const typedarray = new Uint8Array(this.result);
+                            const pdf = await window.pdfjsLib.getDocument(typedarray).promise;
+                            setPdfDoc(pdf);
+                            setNumPages(pdf.numPages);
+                            setPageNum(1);
+                            setRedactions([]);
+                        } catch (err) {
+                            console.error(err);
+                            alert("PDF 读取失败，文件可能已损坏");
+                            handleResetFile();
+                        }
+                    };
+                    fileReader.readAsArrayBuffer(selectedFile);
+                } else {
+                    alert("请上传 PDF 文件");
+                }
+            };
+
+            // 渲染 PDF 页面
+            useEffect(() => {
+                if (!pdfDoc) return;
+
+                const renderPage = async () => {
+                    try {
+                        const page = await pdfDoc.getPage(pageNum);
+                        
+                        const containerWidth = containerRef.current.clientWidth;
+                        const unscaledViewport = page.getViewport({ scale: 1 });
+                        const newScale = (containerWidth - 40) / unscaledViewport.width; 
+                        const finalScale = Math.min(Math.max(newScale, 0.5), 2.0);
+                        
+                        setScale(finalScale);
+                        
+                        const viewport = page.getViewport({ scale: finalScale });
+                        const canvas = canvasRef.current;
+                        const context = canvas.getContext('2d');
+
+                        canvas.height = viewport.height;
+                        canvas.width = viewport.width;
+
+                        const renderContext = {
+                            canvasContext: context,
+                            viewport: viewport,
+                        };
+                        
+                        await page.render(renderContext).promise;
+                    } catch (err) {
+                        console.error("Render error:", err);
+                    }
+                };
+
+                renderPage();
+                window.addEventListener('resize', renderPage);
+                return () => window.removeEventListener('resize', renderPage);
+            }, [pdfDoc, pageNum]);
+
+            // --- 交互逻辑: 框选 ---
+
+            const getCoordinates = (e) => {
+                const rect = canvasRef.current.getBoundingClientRect();
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                return {
+                    x: clientX - rect.left,
+                    y: clientY - rect.top
+                };
+            };
+
+            const handleMouseDown = (e) => {
+                if (mode !== 'box' || !pdfDoc) return;
+                setIsDragging(true);
+                const pos = getCoordinates(e);
+                setStartPos(pos);
+                setCurrentSelection({ x: pos.x, y: pos.y, w: 0, h: 0 });
+            };
+
+            const handleMouseMove = (e) => {
+                if (!isDragging || mode !== 'box') return;
+                e.preventDefault(); // 防止触摸时滚动
+                const pos = getCoordinates(e);
+                const w = pos.x - startPos.x;
+                const h = pos.y - startPos.y;
+                setCurrentSelection({
+                    x: w > 0 ? startPos.x : pos.x,
+                    y: h > 0 ? startPos.y : pos.y,
+                    w: Math.abs(w),
+                    h: Math.abs(h)
+                });
+            };
+
+            const handleMouseUp = () => {
+                if (!isDragging || mode !== 'box' || !currentSelection) return;
+                setIsDragging(false);
+
+                if (currentSelection.w < 5 || currentSelection.h < 5) {
+                    setCurrentSelection(null);
+                    return;
+                }
+
+                const canvas = canvasRef.current;
+                const newRedaction = {
+                    id: Date.now(),
+                    page: pageNum,
+                    targetPage: applyToAllPages ? 'all' : pageNum, 
+                    x: currentSelection.x / canvas.width,
+                    y: currentSelection.y / canvas.height,
+                    w: currentSelection.w / canvas.width,
+                    h: currentSelection.h / canvas.height,
+                    color: color
+                };
+
+                setRedactions([...redactions, newRedaction]);
+                setCurrentSelection(null);
+            };
+
+            // --- 交互逻辑: 文本搜索 ---
+
+            const handleTextSearch = async () => {
+                if (!searchText || !pdfDoc) return;
+                setIsProcessing(true);
+                setProcessingText('正在查找内容...');
+
+                const newRedactions = [];
+                
+                try {
+                    for (let i = 1; i <= numPages; i++) {
+                        const page = await pdfDoc.getPage(i);
+                        const textContent = await page.getTextContent();
+                        const viewport = page.getViewport({ scale: 1 });
+
+                        textContent.items.forEach((item) => {
+                            if (item.str.includes(searchText)) {
+                                const tx = item.transform;
+                                const fontSize = Math.sqrt(tx[0] * tx[0] + tx[1] * tx[1]);
+                                const width = item.width > 0 ? item.width : (fontSize * item.str.length * 0.5); 
+                                const height = fontSize;
+
+                                const x = tx[4];
+                                const y = tx[5]; 
+
+                                newRedactions.push({
+                                    id: Date.now() + Math.random(),
+                                    page: i,
+                                    targetPage: i,
+                                    x: x / viewport.width,
+                                    y: (viewport.height - (y + height)) / viewport.height,
+                                    w: width / viewport.width,
+                                    h: (height * 1.2) / viewport.height,
+                                    color: color
+                                });
+                            }
+                        });
+                    }
+                    setRedactions([...redactions, ...newRedactions]);
+                    alert(`在 ${newRedactions.length} 处找到关键词并添加了遮罩。请检查位置是否准确。`);
+                } catch (err) {
+                    console.error(err);
+                    alert("搜索出错");
+                } finally {
+                    setIsProcessing(false);
+                    setProcessingText('');
+                }
+            };
+
+            const removeRedaction = (id) => {
+                setRedactions(redactions.filter(r => r.id !== id));
+            };
+
+            // --- 下载 PDF (安全模式 vs 快速模式) ---
+
+            const downloadPDF = async () => {
+                if (!file || redactions.length === 0) {
+                    alert("请先上传文件并添加脱敏区域");
+                    return;
+                }
+                setIsProcessing(true);
+
+                try {
+                    if (secureMode) {
+                        // --- 安全模式：栅格化 (转图片) ---
+                        setProcessingText('正在初始化安全导出...');
+                        
+                        // 创建一个新的空白 PDF
+                        const newPdfDoc = await window.PDFLib.PDFDocument.create();
+                        
+                        // 遍历每一页，将其渲染为图片，画上遮罩，再放入新 PDF
+                        for (let i = 1; i <= numPages; i++) {
+                            setProcessingText(`正在处理第 ${i} / ${numPages} 页 (图片化)...`);
+                            
+                            // 1. 获取 PDF.js 页面
+                            const page = await pdfDoc.getPage(i);
+                            
+                            // 2. 准备 Canvas (2倍图以保证清晰度，但不过大)
+                            const scale = 2.0;
+                            const viewport = page.getViewport({ scale });
+                            const canvas = document.createElement('canvas');
+                            const context = canvas.getContext('2d');
+                            canvas.width = viewport.width;
+                            canvas.height = viewport.height;
+
+                            // 3. 渲染页面到底层
+                            await page.render({ canvasContext: context, viewport }).promise;
+
+                            // 4. 在 Canvas 上绘制遮罩 (这是“烧录”进图片的关键步骤)
+                            const pageRedactions = redactions.filter(r => r.targetPage === 'all' || r.page === i);
+                            pageRedactions.forEach(r => {
+                                context.fillStyle = r.color;
+                                // r.x/y/w/h 是百分比，转换为当前 Canvas 像素坐标
+                                context.fillRect(
+                                    r.x * canvas.width,
+                                    r.y * canvas.height,
+                                    r.w * canvas.width,
+                                    r.h * canvas.height
+                                );
+                            });
+
+                            // 5. 将 Canvas 转为 JPEG 图片数据
+                            const imgData = canvas.toDataURL('image/jpeg', 0.8); // 0.8 质量压缩平衡体积
+                            
+                            // 6. 嵌入图片到 pdf-lib 文档
+                            const jpgImage = await newPdfDoc.embedJpg(imgData);
+                            
+                            // 7. 添加新页面 (保持原始比例)
+                            // 获取原始尺寸
+                            const originalViewport = page.getViewport({ scale: 1.0 });
+                            const newPage = newPdfDoc.addPage([originalViewport.width, originalViewport.height]);
+                            
+                            // 8. 画图 (将高倍图缩放到页面大小)
+                            newPage.drawImage(jpgImage, {
+                                x: 0,
+                                y: 0,
+                                width: originalViewport.width,
+                                height: originalViewport.height,
+                            });
+                        }
+
+                        setProcessingText('正在生成文件...');
+                        const pdfBytes = await newPdfDoc.save();
+                        const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+                        const link = document.createElement('a');
+                        link.href = URL.createObjectURL(blob);
+                        link.download = `secure_redacted_${file.name}`;
+                        link.click();
+
+                    } else {
+                        // --- 快速模式：仅覆盖 (原有逻辑) ---
+                        setProcessingText('正在生成覆盖层...');
+                        const arrayBuffer = await file.arrayBuffer();
+                        const pdfDocLib = await window.PDFLib.PDFDocument.load(arrayBuffer);
+                        const pages = pdfDocLib.getPages();
+
+                        redactions.forEach((r) => {
+                            let pageIndices = [];
+                            if (r.targetPage === 'all') {
+                                pageIndices = pages.map((_, idx) => idx);
+                            } else {
+                                pageIndices = [r.targetPage - 1];
+                            }
+
+                            pageIndices.forEach(pageIndex => {
+                                if (pageIndex < 0 || pageIndex >= pages.length) return;
+                                const page = pages[pageIndex];
+                                const { width, height } = page.getSize();
+                                
+                                const hex = r.color.replace('#', '');
+                                const rVal = parseInt(hex.substring(0, 2), 16) / 255;
+                                const gVal = parseInt(hex.substring(2, 4), 16) / 255;
+                                const bVal = parseInt(hex.substring(4, 6), 16) / 255;
+
+                                const rectWidth = r.w * width;
+                                const rectHeight = r.h * height;
+                                const rectX = r.x * width;
+                                const rectY = height - (r.y * height) - rectHeight;
+
+                                page.drawRectangle({
+                                    x: rectX,
+                                    y: rectY,
+                                    width: rectWidth,
+                                    height: rectHeight,
+                                    color: window.PDFLib.rgb(rVal, gVal, bVal),
+                                    opacity: 1, 
+                                });
+                            });
+                        });
+
+                        const pdfBytes = await pdfDocLib.save();
+                        const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+                        const link = document.createElement('a');
+                        link.href = URL.createObjectURL(blob);
+                        link.download = `redacted_${file.name}`;
+                        link.click();
+                    }
+
+                } catch (error) {
+                    console.error(error);
+                    alert("处理 PDF 时出错，请重试");
+                } finally {
+                    setIsProcessing(false);
+                    setProcessingText('');
+                }
+            };
+
+            return (
+                <div className="min-h-screen bg-white text-slate-800 font-sans selection:bg-blue-100">
+                    {/* 顶部导航 */}
+                    <header className="border-b border-slate-100 bg-white sticky top-0 z-20">
+                        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <div className="bg-blue-600 p-1.5 rounded-lg text-white">
+                                    <Icons.Eye size={20} />
+                                </div>
+                                <h1 className="text-xl font-bold tracking-tight text-slate-900 hidden sm:block">PDF 脱敏卫士</h1>
+                            </div>
+                            <div className="flex items-center gap-4">
+                                {file && (
+                                    <div className="flex items-center gap-3">
+                                        <div className="hidden sm:flex items-center gap-2 mr-2">
+                                            <label className="relative inline-flex items-center cursor-pointer group">
+                                                <input 
+                                                    type="checkbox" 
+                                                    className="sr-only peer" 
+                                                    checked={secureMode}
+                                                    onChange={(e) => setSecureMode(e.target.checked)}
+                                                />
+                                                <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-green-500"></div>
+                                                <span className="ml-2 text-xs font-medium text-slate-600 group-hover:text-slate-900 flex items-center gap-1">
+                                                    <Icons.ShieldCheck size={14} className={secureMode ? "text-green-500" : "text-slate-400"} />
+                                                    安全导出
+                                                </span>
+                                            </label>
+                                        </div>
+
+                                        <button 
+                                            onClick={downloadPDF}
+                                            disabled={isProcessing}
+                                            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${
+                                                secureMode 
+                                                ? 'bg-green-600 hover:bg-green-700 text-white' 
+                                                : 'bg-blue-600 hover:bg-blue-700 text-white'
+                                            }`}
+                                        >
+                                            {isProcessing ? (
+                                                <span className="flex items-center gap-2">
+                                                    <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                    </svg>
+                                                    {processingText || '处理中...'}
+                                                </span>
+                                            ) : (
+                                                <>
+                                                    <Icons.Download size={16} />
+                                                    {secureMode ? '安全导出' : '快速导出'}
+                                                </>
+                                            )}
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </header>
+
+                    <main className="max-w-7xl mx-auto p-4 lg:p-6 flex flex-col lg:flex-row gap-6">
+                        {/* 左侧控制面板 */}
+                        <aside className="w-full lg:w-80 flex-shrink-0 space-y-6">
+                            {!file && (
+                                <div className="border-2 border-dashed border-slate-200 rounded-2xl p-8 text-center bg-slate-50 hover:bg-slate-100 transition-colors cursor-pointer relative group">
+                                    <input type="file" accept=".pdf" onChange={handleFileUpload} className="absolute inset-0 opacity-0 cursor-pointer z-10" />
+                                    <div className="w-12 h-12 bg-white rounded-full shadow-sm flex items-center justify-center mx-auto mb-4 text-blue-600 group-hover:scale-110 transition-transform">
+                                        <Icons.Upload size={24} />
+                                    </div>
+                                    <p className="font-medium text-slate-900">点击上传 PDF 文件</p>
+                                    <p className="text-sm text-slate-500 mt-1">支持拖拽上传，本地处理不上传服务器</p>
+                                </div>
+                            )}
+
+                            {file && (
+                                <>
+                                    <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                                        <div className="flex items-center justify-between mb-3">
+                                            <div className="flex items-center gap-3 overflow-hidden">
+                                                <div className="p-2 bg-white rounded-lg border border-slate-100 shrink-0">
+                                                    <Icons.FileText size={20} className="text-slate-400" />
+                                                </div>
+                                                <div className="overflow-hidden">
+                                                    <p className="text-sm font-medium truncate text-slate-900">{file.name}</p>
+                                                    <p className="text-xs text-slate-500">{numPages} 页</p>
+                                                </div>
+                                            </div>
+                                            <button 
+                                                onClick={handleResetFile}
+                                                className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                                title="重新选择文件"
+                                            >
+                                                <Icons.X size={18} />
+                                            </button>
+                                        </div>
+                                        
+                                        <div className="flex items-center justify-between bg-white rounded-lg p-1 border border-slate-100">
+                                            <button 
+                                                onClick={() => setPageNum(Math.max(1, pageNum - 1))}
+                                                disabled={pageNum <= 1}
+                                                className="p-2 hover:bg-slate-50 text-slate-600 disabled:opacity-30 rounded-md"
+                                            >
+                                                <Icons.ChevronLeft size={16} />
+                                            </button>
+                                            <span className="text-sm font-mono font-medium text-slate-600">{pageNum} / {numPages}</span>
+                                            <button 
+                                                onClick={() => setPageNum(Math.min(numPages, pageNum + 1))}
+                                                disabled={pageNum >= numPages}
+                                                className="p-2 hover:bg-slate-50 text-slate-600 disabled:opacity-30 rounded-md"
+                                            >
+                                                <Icons.ChevronRight size={16} />
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-4">
+                                        <div className="flex bg-slate-100 p-1 rounded-xl">
+                                            <button
+                                                onClick={() => setMode('box')}
+                                                className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all ${
+                                                    mode === 'box' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                                                }`}
+                                            >
+                                                <Icons.MousePointer size={16} />
+                                                框选模式
+                                            </button>
+                                            <button
+                                                onClick={() => setMode('text')}
+                                                className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all ${
+                                                    mode === 'text' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                                                }`}
+                                            >
+                                                <Icons.Type size={16} />
+                                                内容查找
+                                            </button>
+                                        </div>
+
+                                        <div className="bg-white border border-slate-100 rounded-xl p-4 shadow-sm space-y-4">
+                                            <div className="flex items-center justify-between">
+                                                <label className="text-sm font-medium text-slate-700 flex items-center gap-2">
+                                                    <div className="w-4 h-4 rounded-full border border-slate-200" style={{backgroundColor: color}}></div>
+                                                    遮罩颜色
+                                                </label>
+                                                <div className="flex gap-1">
+                                                    {['#000000', '#ffffff', '#ef4444', '#3b82f6'].map(c => (
+                                                        <button 
+                                                            key={c}
+                                                            onClick={() => setColor(c)}
+                                                            className={`w-6 h-6 rounded-md border ${color === c ? 'ring-2 ring-offset-1 ring-blue-500 border-transparent' : 'border-slate-200'}`}
+                                                            style={{backgroundColor: c}}
+                                                        />
+                                                    ))}
+                                                    <input 
+                                                        type="color" 
+                                                        value={color}
+                                                        onChange={(e) => setColor(e.target.value)}
+                                                        className="w-6 h-6 p-0 border-0 rounded-md overflow-hidden cursor-pointer opacity-0 absolute" 
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            {mode === 'box' && (
+                                                <div className="flex items-center gap-2 pt-2 border-t border-slate-50">
+                                                    <input 
+                                                        type="checkbox" 
+                                                        id="applyAll" 
+                                                        checked={applyToAllPages}
+                                                        onChange={(e) => setApplyToAllPages(e.target.checked)}
+                                                        className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                                    />
+                                                    <label htmlFor="applyAll" className="text-sm text-slate-600 cursor-pointer select-none">
+                                                        同时应用到每一页
+                                                    </label>
+                                                </div>
+                                            )}
+
+                                            {mode === 'text' && (
+                                                <div className="space-y-2 pt-2 border-t border-slate-50">
+                                                    <input 
+                                                        type="text" 
+                                                        value={searchText}
+                                                        onChange={(e) => setSearchText(e.target.value)}
+                                                        placeholder="输入要脱敏的内容..."
+                                                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                                                    />
+                                                    <button 
+                                                        onClick={handleTextSearch}
+                                                        className="w-full bg-slate-800 text-white text-sm font-medium py-2 rounded-lg hover:bg-slate-900 transition-colors"
+                                                    >
+                                                        查找并标记
+                                                    </button>
+                                                    <p className="text-xs text-slate-400 flex items-start gap-1">
+                                                        <Icons.AlertCircle size={12} className="mt-0.5 shrink-0" />
+                                                        文本查找基于 PDF 解析，对于复杂排版可能不完全准确，建议结合框选修正。
+                                                    </p>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                                            <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
+                                                本页脱敏区域 ({redactions.filter(r => r.targetPage === 'all' || r.page === pageNum).length})
+                                            </h3>
+                                            <div className="space-y-2 max-h-40 overflow-y-auto pr-1 custom-scrollbar">
+                                                {redactions.length === 0 && (
+                                                    <div className="text-center py-4 text-slate-400 text-sm">暂无操作</div>
+                                                )}
+                                                {redactions.filter(r => r.targetPage === 'all' || r.page === pageNum).map((r) => (
+                                                    <div key={r.id} className="flex items-center justify-between bg-white p-2 rounded-lg border border-slate-100 shadow-sm text-sm group">
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="w-3 h-3 rounded-full border border-slate-100" style={{backgroundColor: r.color}}></div>
+                                                            <span className="text-slate-600">
+                                                                {r.targetPage === 'all' ? '全局区域' : `区域 #${r.id.toString().slice(-4)}`}
+                                                            </span>
+                                                        </div>
+                                                        <button onClick={() => removeRedaction(r.id)} className="text-slate-400 hover:text-red-500 transition-colors">
+                                                            <Icons.Trash2 size={14} />
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* 安全模式提示 (仅在移动端显示，PC端在顶部) */}
+                                        <div className="block sm:hidden bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                            <label className="flex items-center gap-3">
+                                                <input 
+                                                    type="checkbox" 
+                                                    checked={secureMode}
+                                                    onChange={(e) => setSecureMode(e.target.checked)}
+                                                    className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                                                />
+                                                <div className="text-sm">
+                                                    <span className="font-medium text-slate-700 block">启用安全导出 (推荐)</span>
+                                                    <span className="text-xs text-slate-500">将页面转为图片，防止文字被复制，文件较大</span>
+                                                </div>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+                        </aside>
+
+                        {/* 右侧预览区域 */}
+                        <div className="flex-1 bg-slate-100 rounded-2xl border border-slate-200 overflow-hidden relative flex flex-col items-center justify-start p-4 lg:p-8 min-h-[500px]">
+                            {!file ? (
+                                <div className="m-auto text-slate-400 flex flex-col items-center">
+                                    <Icons.Layers size={48} className="mb-4 text-slate-300" />
+                                    <p>请先在左侧上传 PDF 文件</p>
+                                </div>
+                            ) : (
+                                <div 
+                                    ref={containerRef}
+                                    className="relative shadow-lg select-none touch-none"
+                                    style={{ lineHeight: 0 }}
+                                    onMouseDown={handleMouseDown}
+                                    onMouseMove={handleMouseMove}
+                                    onMouseUp={handleMouseUp}
+                                    onTouchStart={handleMouseDown}
+                                    onTouchMove={handleMouseMove}
+                                    onTouchEnd={handleMouseUp}
+                                >
+                                    <canvas ref={canvasRef} className="bg-white rounded-sm" />
+                                    
+                                    {redactions.map((r) => {
+                                        if (r.targetPage !== 'all' && r.page !== pageNum) return null;
+                                        
+                                        return (
+                                            <div
+                                                key={r.id}
+                                                style={{
+                                                    position: 'absolute',
+                                                    left: `${r.x * 100}%`,
+                                                    top: `${r.y * 100}%`,
+                                                    width: `${r.w * 100}%`,
+                                                    height: `${r.h * 100}%`,
+                                                    backgroundColor: r.color,
+                                                    opacity: 1, /* 预览时完全不透明 */
+                                                    cursor: 'pointer'
+                                                }}
+                                                className="group border border-transparent hover:border-red-400 transition-colors"
+                                                title="点击删除"
+                                            >
+                                                <button 
+                                                    onClick={(e) => { e.stopPropagation(); removeRedaction(r.id); }}
+                                                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
+                                                >
+                                                    <Icons.Trash2 size={10} />
+                                                </button>
+                                            </div>
+                                        );
+                                    })}
+
+                                    {currentSelection && (
+                                        <div
+                                            style={{
+                                                position: 'absolute',
+                                                left: currentSelection.x,
+                                                top: currentSelection.y,
+                                                width: currentSelection.w,
+                                                height: currentSelection.h,
+                                                backgroundColor: color,
+                                                opacity: 0.5,
+                                                border: '1px dashed white'
+                                            }}
+                                            className="pointer-events-none"
+                                        />
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    </main>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>

@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html tk="title_css_transform_matrix_calc" lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CSS Transform Matrix Calculator</title>
+<meta name="description" content="Interactive CSS transform matrix calculator. Compose translate, rotate, scale, skew and see the resulting matrix. Step-by-step matrix multiplication. Copy matrix() or matrix3d() CSS.">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0a0a;color:#e6e6e6;min-height:100vh}
+.container{max-width:1200px;margin:0 auto;padding:16px}
+header{text-align:center;padding:20px 0 16px}
+header h1{font-size:1.6rem;color:#fff;margin-bottom:4px}
+header p{color:#888;font-size:0.85rem}
+.tabs{display:flex;gap:4px;margin-bottom:16px;border-bottom:1px solid #333;padding-bottom:8px}
+.tab{padding:8px 16px;border-radius:8px 8px 0 0;border:1px solid transparent;background:none;color:#888;cursor:pointer;font-size:0.85rem;font-weight:600}
+.tab.active{background:#1a1a2e;color:#4da6ff;border-color:#333;border-bottom-color:#1a1a2e}
+.panel{display:none}.panel.active{display:block}
+
+.split{display:grid;grid-template-columns:1fr 1fr;gap:16px;min-height:500px}
+.controls-panel{background:#111;border:1px solid #333;border-radius:12px;padding:16px;overflow-y:auto}
+.controls-panel h3{font-size:0.9rem;color:#aaa;margin-bottom:12px}
+.preview-panel{background:#111;border:1px solid #333;border-radius:12px;padding:16px}
+.preview-panel h3{font-size:0.9rem;color:#aaa;margin-bottom:12px}
+
+.btn{padding:6px 14px;border-radius:8px;border:1px solid #333;background:#1a1a2e;color:#4da6ff;cursor:pointer;font-size:0.8rem;font-weight:600;transition:background 0.2s}
+.btn:hover{background:#243b6e}
+.btn.danger{background:#2a1a1a;color:#ef4444;border-color:#4a2222}
+.btn.success{background:#1a2a1a;color:#22c55e;border-color:#224a22}
+.controls{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+
+/* Transform stack */
+.transform-item{background:#1a1a1a;border:1px solid #333;border-radius:8px;padding:10px;margin-bottom:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.transform-item select{padding:4px 8px;border-radius:4px;border:1px solid #333;background:#0a0a0a;color:#4da6ff;font-size:0.8rem;font-weight:600}
+.transform-item input[type="number"]{width:70px;padding:4px 8px;border-radius:4px;border:1px solid #333;background:#0a0a0a;color:#e6e6e6;font-size:0.8rem;text-align:center}
+.transform-item label{font-size:0.75rem;color:#888}
+.transform-item .remove-btn{padding:2px 8px;border-radius:4px;border:1px solid #4a2222;background:#2a1a1a;color:#ef4444;cursor:pointer;font-size:0.75rem}
+
+/* Matrix display */
+.matrix-display{background:#0a0a0a;border:1px solid #222;border-radius:8px;padding:16px;margin-bottom:12px;font-family:'Fira Code',monospace;text-align:center}
+.matrix-grid{display:inline-grid;gap:4px;padding:8px;position:relative}
+.matrix-grid::before,.matrix-grid::after{content:'';position:absolute;top:0;bottom:0;width:3px;background:#4da6ff33;border-radius:2px}
+.matrix-grid::before{left:0}
+.matrix-grid::after{right:0}
+.matrix-cell{padding:6px 8px;background:#111;border:1px solid #222;border-radius:4px;font-size:0.8rem;min-width:60px;text-align:center;transition:all 0.3s}
+.matrix-cell.highlight{background:#4da6ff11;border-color:#4da6ff;color:#4da6ff}
+.matrix-cell.changed{background:#22c55e11;border-color:#22c55e;color:#22c55e}
+
+/* CSS output */
+.css-output{background:#0a0a0a;border:1px solid #222;border-radius:8px;padding:12px;margin-bottom:12px}
+.css-output code{font-family:'Fira Code',monospace;font-size:0.8rem;color:#22c55e;word-break:break-all}
+.copy-btn{margin-top:6px}
+
+/* Preview canvas */
+.preview-container{position:relative;width:100%;height:300px;background:#0a0a0a;border:1px solid #222;border-radius:8px;overflow:hidden;margin-bottom:12px}
+.preview-box{position:absolute;width:100px;height:100px;background:#4da6ff22;border:2px solid #4da6ff;border-radius:4px;transition:transform 0.3s;display:flex;align-items:center;justify-content:center;font-size:0.7rem;color:#4da6ff}
+.preview-origin{position:absolute;width:6px;height:6px;background:#ef4444;border-radius:50%;z-index:2}
+.preview-grid{position:absolute;inset:0;background-image:linear-gradient(#ffffff05 1px,transparent 1px),linear-gradient(90deg,#ffffff05 1px,transparent 1px);background-size:20px 20px}
+
+/* Steps */
+.step-card{background:#1a1a1a;border:1px solid #333;border-radius:8px;padding:12px;margin-bottom:8px}
+.step-card h4{font-size:0.85rem;color:#4da6ff;margin-bottom:6px}
+.step-card p{font-size:0.8rem;color:#888;line-height:1.5}
+.step-arrow{text-align:center;color:#555;margin:4px 0;font-size:0.8rem}
+
+/* Preset */
+.preset-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+.preset-card{background:#161616;border:1px solid #222;border-radius:12px;padding:16px;cursor:pointer;transition:border-color 0.2s}
+.preset-card:hover{border-color:#4da6ff}
+.preset-card h4{color:#fff;font-size:0.9rem;margin-bottom:6px}
+.preset-card p{color:#888;font-size:0.8rem;line-height:1.4}
+
+/* Reference */
+.ref-section{margin-bottom:20px}
+.ref-section h3{color:#4da6ff;font-size:1rem;margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid #222}
+.ref-section p,.ref-section li{color:#bbb;font-size:0.85rem;line-height:1.6}
+.ref-section ul{padding-left:20px}
+.ref-section code{background:#1a1a2e;padding:2px 6px;border-radius:4px;color:#4da6ff;font-size:0.8rem}
+</style>
+</head>
+<body>
+
+
+<div class="container" style="position:relative">
+<header>
+<h1 ti="title_css_transform_matrix_calc" ti="h1_css_transform_matrix_calc">CSS Transform Matrix Calculator</h1>
+<p>Compose transforms visually, see the matrix math, copy the CSS</p>
+</header>
+
+<div class="tabs">
+<button class="tab active" data-tab="builder" ti="btn_builder">Builder</button>
+<button class="tab" data-tab="presets" ti="btn_presets">Presets</button>
+<button class="tab" data-tab="reference" ti="btn_reference">Reference</button>
+</div>
+
+<div class="panel active" id="builder">
+<div class="controls">
+<button class="btn success" id="addTransform" ti="btn_add_transform">+ Add Transform</button>
+<button class="btn danger" id="clearAll" ti="btn_clear_all">Clear All</button>
+</div>
+
+<div class="split">
+<div class="controls-panel">
+<h3 ti="h3_transform_stack_applied_l">Transform Stack (applied left to right)</h3>
+<div id="transformStack"></div>
+
+<h3 style="margin-top:16px" ti="h3_resulting_matrix">Resulting Matrix</h3>
+<div class="matrix-display" id="matrixDisplay"></div>
+
+<h3 ti="h3_css_output">CSS Output</h3>
+<div class="css-output">
+<code id="cssOutput">transform: none;</code>
+<br><button class="btn copy-btn" id="copyBtn" ti="btn_copy_css">📋 Copy CSS</button>
+<button class="btn copy-btn" id="copyMatrixBtn" ti="btn_copy_matrix">📋 Copy matrix()</button>
+</div>
+</div>
+<div class="preview-panel">
+<h3 ti="h3_preview">Preview</h3>
+<div class="preview-container" id="previewContainer">
+<div class="preview-grid"></div>
+<div class="preview-origin" id="previewOrigin"></div>
+<div class="preview-box" id="previewBox">Box</div>
+</div>
+
+<h3 ti="h3_multiplication_steps">Multiplication Steps</h3>
+<div id="stepsContainer"></div>
+</div>
+</div>
+</div>
+
+<div class="panel" id="presets">
+<div class="preset-grid" id="presetGrid"></div>
+</div>
+
+<div class="panel" id="reference">
+<div class="ref-section">
+<h3 ti="h3_css_transform_functions_m">CSS Transform Functions → Matrix</h3>
+<ul>
+<li><code>translate(tx, ty)</code> → matrix(1, 0, 0, 1, tx, ty)</li>
+<li><code>scale(sx, sy)</code> → matrix(sx, 0, 0, sy, 0, 0)</li>
+<li><code>rotate(θ)</code> → matrix(cos θ, sin θ, -sin θ, cos θ, 0, 0)</li>
+<li><code>skewX(θ)</code> → matrix(1, 0, tan θ, 1, 0, 0)</li>
+<li><code>skewY(θ)</code> → matrix(1, tan θ, 0, 1, 0, 0)</li>
+</ul>
+</div>
+<div class="ref-section">
+<h3 ti="h3_2d_matrix_format">2D Matrix Format</h3>
+<p><code>matrix(a, b, c, d, e, f)</code> represents:</p>
+<pre style="background:#111;padding:12px;border-radius:8px;font-family:'Fira Code',monospace;font-size:0.85rem;color:#4da6ff;margin:8px 0">| a  c  e |
+| b  d  f |
+| 0  0  1 |</pre>
+<p>Where (a,b) = x-axis direction, (c,d) = y-axis direction, (e,f) = translation.</p>
+</div>
+<div class="ref-section">
+<h3 ti="h3_matrix_multiplication">Matrix Multiplication</h3>
+<p>When you chain transforms like <code>transform: rotate(45deg) scale(2)</code>, the browser multiplies the matrices <strong ti="strong_right_to_left">right to left</strong>. Scale is applied first, then rotation.</p>
+<p>This tool shows the multiplication step by step so you can see how each transform compounds.</p>
+</div>
+<div class="ref-section">
+<h3 ti="h3_transform_order_matters">Transform Order Matters</h3>
+<p><code>rotate(45deg) translate(100px, 0)</code> ≠ <code>translate(100px, 0) rotate(45deg)</code></p>
+<p>The first rotates the coordinate system, then translates along the rotated axis. The second translates first, then rotates around the original origin.</p>
+</div>
+</div>
+</div>
+
+
+<script>var _LANG={'title_css_transform_matrix_calc':["CSS Transform Matrix Calculator", "CSS变换矩阵计算器"],'metadesc_interactive_css_transform':["Interactive CSS transform matrix calculator. Compose translate, rotate, scale, skew and see the resulting matrix. Step-by-step matrix multiplication. Copy matrix() or matrix3d() CSS.", "交互式 CSS 变换矩阵计算器。输入平移、旋转、缩放、倾斜等指令，即可查看生成的矩阵。逐步演示矩阵乘法。复制 matrix() 或 matrix3d() CSS 函数。"],'h1_css_transform_matrix_calc':["CSS Transform Matrix Calculator", "CSS变换矩阵计算器"],'h3_transform_stack_applied_l':["Transform Stack (applied left to right)", "变换堆栈（从左到右应用）"],'h3_resulting_matrix':["Resulting Matrix", "所得矩阵"],'h3_css_output':["CSS Output", "CSS 输出"],'h3_preview':["Preview", "预览"],'h3_multiplication_steps':["Multiplication Steps", "乘法步骤"],'h3_css_transform_functions_m':["CSS Transform Functions → Matrix", "CSS 变换函数 → 矩阵"],'h3_2d_matrix_format':["2D Matrix Format", "二维矩阵格式"],'h3_matrix_multiplication':["Matrix Multiplication", "矩阵乘法"],'h3_transform_order_matters':["Transform Order Matters", "转换顺序很重要"],'btn_builder':["Builder", "建造者"],'btn_presets':["Presets", "预设"],'btn_reference':["Reference", "参考"],'btn_add_transform':["+ Add Transform", "+ 添加变换"],'btn_clear_all':["Clear All", "全部清除"],'btn_copy_css':["📋 Copy CSS", "📋 复制 CSS"],'btn_copy_matrix':["📋 Copy matrix()", "📋 复制矩阵()"],'strong_right_to_left':["right to left", "从右到左"],'jtc_copied':["✓ Copied!", "✓ 已复制！"],'jtc_copy_css':["📋 Copy CSS", "📋 复制 CSS"],'jtc_copied_2':["✓ Copied!", "✓ 已复制！"],'jtc_copy_matrix':["📋 Copy matrix()", "📋 复制矩阵()"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>
+let transforms = [];
+const TYPES = ['translate','scale','rotate','skewX','skewY'];
+
+const PRESETS = [
+  {name:'Rotate + Scale',desc:'Scale 1.5x then rotate 45°. See how the matrix combines both operations.',transforms:[{type:'rotate',params:{angle:45}},{type:'scale',params:{sx:1.5,sy:1.5}}]},
+  {name:'Translate + Rotate',desc:'Order matters! Translate then rotate vs rotate then translate gives different results.',transforms:[{type:'translate',params:{tx:50,ty:0}},{type:'rotate',params:{angle:30}}]},
+  {name:'Skew Card Effect',desc:'SkewX creates a parallelogram effect, common in card UI designs.',transforms:[{type:'skewX',params:{angle:15}},{type:'scale',params:{sx:1,sy:1.2}}]},
+  {name:'Mirror (Flip X)',desc:'Scale with -1 on X axis creates a horizontal mirror/flip.',transforms:[{type:'scale',params:{sx:-1,sy:1}}]},
+  {name:'Isometric View',desc:'Combination of rotation and skew to simulate isometric perspective.',transforms:[{type:'rotate',params:{angle:-45}},{type:'skewX',params:{angle:15}},{type:'skewY',params:{angle:15}}]},
+  {name:'Identity Matrix',desc:'No transforms applied. The identity matrix: matrix(1, 0, 0, 1, 0, 0).',transforms:[]}
+];
+
+function toRad(deg) { return deg * Math.PI / 180; }
+
+function getMatrix(t) {
+  switch(t.type) {
+    case 'translate': return [1, 0, 0, 1, t.params.tx||0, t.params.ty||0];
+    case 'scale': return [t.params.sx||1, 0, 0, t.params.sy||1, 0, 0];
+    case 'rotate': {
+      const r = toRad(t.params.angle||0);
+      return [Math.cos(r), Math.sin(r), -Math.sin(r), Math.cos(r), 0, 0];
+    }
+    case 'skewX': return [1, 0, Math.tan(toRad(t.params.angle||0)), 1, 0, 0];
+    case 'skewY': return [1, Math.tan(toRad(t.params.angle||0)), 0, 1, 0, 0];
+    default: return [1, 0, 0, 1, 0, 0];
+  }
+}
+
+// Multiply two 2D matrices [a,b,c,d,e,f]
+function multiply(m1, m2) {
+  return [
+    m1[0]*m2[0] + m1[2]*m2[1],       // a
+    m1[1]*m2[0] + m1[3]*m2[1],       // b
+    m1[0]*m2[2] + m1[2]*m2[3],       // c
+    m1[1]*m2[2] + m1[3]*m2[3],       // d
+    m1[0]*m2[4] + m1[2]*m2[5] + m1[4], // e
+    m1[1]*m2[4] + m1[3]*m2[5] + m1[5]  // f
+  ];
+}
+
+function fmt(n) { return Math.abs(n) < 0.0001 ? '0' : parseFloat(n.toFixed(4)).toString(); }
+
+function renderTransformStack() {
+  const container = document.getElementById('transformStack');
+  container.innerHTML = '';
+  transforms.forEach((t, i) => {
+    const div = document.createElement('div');
+    div.className = 'transform-item';
+    let paramsHTML = '';
+    switch(t.type) {
+      case 'translate':
+        paramsHTML = `<label>X:<input type="number" value="${t.params.tx||0}" data-idx="${i}" data-param="tx" step="10"></label>
+          <label>Y:<input type="number" value="${t.params.ty||0}" data-idx="${i}" data-param="ty" step="10"></label>`;
+        break;
+      case 'scale':
+        paramsHTML = `<label>X:<input type="number" value="${t.params.sx||1}" data-idx="${i}" data-param="sx" step="0.1"></label>
+          <label>Y:<input type="number" value="${t.params.sy||1}" data-idx="${i}" data-param="sy" step="0.1"></label>`;
+        break;
+      case 'rotate': case 'skewX': case 'skewY':
+        paramsHTML = `<label>°:<input type="number" value="${t.params.angle||0}" data-idx="${i}" data-param="angle" step="5"></label>`;
+        break;
+    }
+    div.innerHTML = `
+      <select data-idx="${i}">${TYPES.map(ty => `<option value="${ty}" ${ty===t.type?'selected':''}>${ty}</option>`).join('')}</select>
+      ${paramsHTML}
+      <button class="remove-btn" data-idx="${i}">✕</button>
+    `;
+    container.appendChild(div);
+  });
+
+  container.querySelectorAll('select').forEach(el => {
+    el.addEventListener('change', () => {
+      const idx = parseInt(el.dataset.idx);
+      const newType = el.value;
+      transforms[idx].type = newType;
+      transforms[idx].params = newType === 'translate' ? {tx:0,ty:0} : newType === 'scale' ? {sx:1,sy:1} : {angle:0};
+      update();
+    });
+  });
+  container.querySelectorAll('input').forEach(el => {
+    el.addEventListener('input', () => {
+      const idx = parseInt(el.dataset.idx);
+      transforms[idx].params[el.dataset.param] = parseFloat(el.value) || 0;
+      update();
+    });
+  });
+  container.querySelectorAll('.remove-btn').forEach(el => {
+    el.addEventListener('click', () => {
+      transforms.splice(parseInt(el.dataset.idx), 1);
+      update();
+    });
+  });
+}
+
+function renderMatrix(m) {
+  const display = document.getElementById('matrixDisplay');
+  display.innerHTML = `<div class="matrix-grid" style="grid-template-columns:repeat(3,1fr)">
+    <div class="matrix-cell ${m[0]!==1?'changed':''}">${fmt(m[0])}</div>
+    <div class="matrix-cell ${m[2]!==0?'changed':''}">${fmt(m[2])}</div>
+    <div class="matrix-cell ${m[4]!==0?'changed':''}">${fmt(m[4])}</div>
+    <div class="matrix-cell ${m[1]!==0?'changed':''}">${fmt(m[1])}</div>
+    <div class="matrix-cell ${m[3]!==1?'changed':''}">${fmt(m[3])}</div>
+    <div class="matrix-cell ${m[5]!==0?'changed':''}">${fmt(m[5])}</div>
+    <div class="matrix-cell">0</div>
+    <div class="matrix-cell">0</div>
+    <div class="matrix-cell">1</div>
+  </div>`;
+}
+
+function renderCSS(m) {
+  const cssTransforms = transforms.map(t => {
+    switch(t.type) {
+      case 'translate': return `translate(${t.params.tx||0}px, ${t.params.ty||0}px)`;
+      case 'scale': return `scale(${t.params.sx||1}, ${t.params.sy||1})`;
+      case 'rotate': return `rotate(${t.params.angle||0}deg)`;
+      case 'skewX': return `skewX(${t.params.angle||0}deg)`;
+      case 'skewY': return `skewY(${t.params.angle||0}deg)`;
+    }
+  }).join(' ');
+
+  const matrixCSS = `matrix(${m.map(fmt).join(', ')})`;
+  document.getElementById('cssOutput').textContent = transforms.length ? `transform: ${cssTransforms};\n/* equivalent: transform: ${matrixCSS}; */` : 'transform: none;';
+}
+
+function renderPreview(m) {
+  const box = document.getElementById('previewBox');
+  const origin = document.getElementById('previewOrigin');
+  const containerW = document.getElementById('previewContainer').offsetWidth;
+  const containerH = 300;
+  const cx = containerW / 2 - 50;
+  const cy = containerH / 2 - 50;
+  origin.style.left = (containerW / 2 - 3) + 'px';
+  origin.style.top = (containerH / 2 - 3) + 'px';
+  box.style.left = cx + 'px';
+  box.style.top = cy + 'px';
+  box.style.transform = transforms.length ? `matrix(${m.map(fmt).join(',')})` : 'none';
+}
+
+function renderSteps() {
+  const container = document.getElementById('stepsContainer');
+  container.innerHTML = '';
+  if (transforms.length === 0) {
+    container.innerHTML = '<div style="color:#555;text-align:center;padding:12px">Add transforms to see multiplication steps</div>';
+    return;
+  }
+
+  let current = [1, 0, 0, 1, 0, 0];
+  transforms.forEach((t, i) => {
+    const m = getMatrix(t);
+    const step = document.createElement('div');
+    step.className = 'step-card';
+    const paramStr = t.type === 'translate' ? `${t.params.tx||0}px, ${t.params.ty||0}px` :
+      t.type === 'scale' ? `${t.params.sx||1}, ${t.params.sy||1}` : `${t.params.angle||0}°`;
+    step.innerHTML = `<h4>Step ${i + 1}: ${t.type}(${paramStr})</h4>
+      <p style="font-family:'Fira Code',monospace;font-size:0.75rem;color:#aaa">matrix(${m.map(fmt).join(', ')})</p>`;
+
+    if (i > 0) {
+      const result = multiply(current, m);
+      const arrow = document.createElement('div');
+      arrow.className = 'step-arrow';
+      arrow.textContent = `× previous → matrix(${result.map(fmt).join(', ')})`;
+      step.appendChild(arrow);
+      current = result;
+    } else {
+      current = m;
+    }
+    container.appendChild(step);
+  });
+
+  // Final result
+  const final = document.createElement('div');
+  final.className = 'step-card';
+  final.style.borderColor = '#22c55e33';
+  final.innerHTML = `<h4 style="color:#22c55e">Final Result</h4>
+    <p style="font-family:'Fira Code',monospace;font-size:0.85rem;color:#22c55e">matrix(${current.map(fmt).join(', ')})</p>`;
+  container.appendChild(final);
+}
+
+function computeResult() {
+  if (transforms.length === 0) return [1, 0, 0, 1, 0, 0];
+  let result = getMatrix(transforms[0]);
+  for (let i = 1; i < transforms.length; i++) {
+    result = multiply(result, getMatrix(transforms[i]));
+  }
+  return result;
+}
+
+function update() {
+  renderTransformStack();
+  const m = computeResult();
+  renderMatrix(m);
+  renderCSS(m);
+  renderPreview(m);
+  renderSteps();
+}
+
+// Event handlers
+document.getElementById('addTransform').addEventListener('click', () => {
+  transforms.push({type:'translate',params:{tx:0,ty:0}});
+  update();
+});
+document.getElementById('clearAll').addEventListener('click', () => {
+  transforms = [];
+  update();
+});
+document.getElementById('copyBtn').addEventListener('click', () => {
+  const text = document.getElementById('cssOutput').textContent.split('\n')[0];
+  navigator.clipboard.writeText(text).then(() => {
+    document.getElementById('copyBtn').textContent=T("jtc_copied");
+    setTimeout(() => document.getElementById('copyBtn').textContent=T("jtc_copy_css"), 1500);
+  });
+});
+document.getElementById('copyMatrixBtn').addEventListener('click', () => {
+  const m = computeResult();
+  const text = `transform: matrix(${m.map(fmt).join(', ')});`;
+  navigator.clipboard.writeText(text).then(() => {
+    document.getElementById('copyMatrixBtn').textContent=T("jtc_copied");
+    setTimeout(() => document.getElementById('copyMatrixBtn').textContent=T("jtc_copy_matrix"), 1500);
+  });
+});
+
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById(tab.dataset.tab).classList.add('active');
+  });
+});
+
+// Presets
+const presetGrid = document.getElementById('presetGrid');
+PRESETS.forEach(p => {
+  const card = document.createElement('div');
+  card.className = 'preset-card';
+  card.innerHTML = `<h4>${p.name}</h4><p>${p.desc}</p>`;
+  card.addEventListener('click', () => {
+    transforms = JSON.parse(JSON.stringify(p.transforms));
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(pan => pan.classList.remove('active'));
+    document.querySelector('[data-tab="builder"]').classList.add('active');
+    document.getElementById('builder').classList.add('active');
+    update();
+  });
+  presetGrid.appendChild(card);
+});
+
+update();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+</body>
+</html>

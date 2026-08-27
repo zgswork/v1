@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html tk="title_js_sharedarraybuffer_atom" lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JS SharedArrayBuffer & Atomics Visualizer</title>
+<meta name="description" content="Interactive SharedArrayBuffer and Atomics visualizer. Race conditions, lock-free patterns, memory ordering, Atomics.wait/notify, compare-and-swap. Step-through concurrency demos.">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:system-ui,-apple-system,sans-serif;background:#0a0a1a;color:#e0e0e0;min-height:100vh;display:flex;flex-direction:column}
+header{padding:12px 20px;background:#111128;border-bottom:1px solid #2a2a4a;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+header h1{font-size:1.1rem;color:#ff6b6b}
+.controls{display:flex;gap:8px;align-items:center;margin-left:auto}
+.controls button{padding:6px 14px;border:1px solid #3a3a6a;border-radius:6px;background:#1a1a3a;color:#e0e0e0;cursor:pointer;font-size:.85rem}
+.controls button:hover{background:#2a2a5a}
+.controls button.primary{background:#e03131;border-color:#f03e3e;color:#fff}
+select{padding:6px 10px;border:1px solid #3a3a6a;border-radius:6px;background:#1a1a3a;color:#e0e0e0;font-size:.85rem}
+.main{display:flex;flex:1;overflow:hidden}
+.vis-col{flex:1;overflow:auto;padding:16px}
+.sidebar{width:340px;border-left:1px solid #2a2a4a;display:flex;flex-direction:column;overflow:auto}
+.tab-bar{display:flex;border-bottom:1px solid #2a2a4a}
+.tab-bar button{flex:1;padding:8px;background:none;border:none;color:#888;cursor:pointer;font-size:.8rem;border-bottom:2px solid transparent}
+.tab-bar button.active{color:#ff6b6b;border-bottom-color:#ff6b6b}
+.tab-content{flex:1;overflow:auto;padding:12px}
+.panel{background:#111128;border:1px solid #2a2a4a;border-radius:8px;padding:16px;margin-bottom:12px}
+.panel h3{font-size:.9rem;margin-bottom:10px}
+.memory-grid{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:12px}
+.mem-cell{width:64px;height:48px;border:2px solid #2a2a4a;border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:monospace;font-size:.75rem;transition:all .3s}
+.mem-cell .idx{font-size:.6rem;color:#666}
+.mem-cell .val{font-size:1rem;font-weight:700;color:#4dabf7}
+.mem-cell.write-a{border-color:#ff6b6b;background:rgba(255,107,107,.1);animation:flash-a .5s}
+.mem-cell.write-b{border-color:#69db7c;background:rgba(105,219,124,.1);animation:flash-b .5s}
+.mem-cell.read{border-color:#ffd43b;background:rgba(255,212,59,.1)}
+.mem-cell.race{border-color:#ff4444;background:rgba(255,68,68,.2);animation:race-pulse 1s}
+.mem-cell.atomic{border-color:#cc5de8;background:rgba(204,93,232,.15)}
+@keyframes flash-a{0%{background:rgba(255,107,107,.4)}100%{background:rgba(255,107,107,.1)}}
+@keyframes flash-b{0%{background:rgba(105,219,124,.4)}100%{background:rgba(105,219,124,.1)}}
+@keyframes race-pulse{0%,100%{background:rgba(255,68,68,.1)}50%{background:rgba(255,68,68,.3)}}
+.thread-row{display:flex;gap:16px;margin-bottom:12px}
+.thread{flex:1;background:#0d0d20;border:1px solid #2a2a4a;border-radius:8px;padding:12px}
+.thread h4{font-size:.8rem;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.thread-a h4{color:#ff6b6b}
+.thread-b h4{color:#69db7c}
+.thread-dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+.dot-a{background:#ff6b6b}
+.dot-b{background:#69db7c}
+.op-line{padding:3px 8px;font-family:monospace;font-size:.78rem;border-radius:4px;margin:2px 0;transition:all .3s}
+.op-line.current{background:rgba(255,212,59,.15);border-left:3px solid #ffd43b}
+.op-line.done{opacity:.5}
+.op-line.race-err{background:rgba(255,68,68,.15);border-left:3px solid #ff4444}
+.log-entry{padding:4px 8px;font-size:.78rem;border-radius:4px;margin:2px 0;border-left:3px solid #2a2a4a}
+.log-entry.thread-a{border-left-color:#ff6b6b}
+.log-entry.thread-b{border-left-color:#69db7c}
+.log-entry.warn{border-left-color:#ffd43b;background:rgba(255,212,59,.05)}
+.log-entry.error{border-left-color:#ff4444;background:rgba(255,68,68,.05)}
+.log-entry.success{border-left-color:#69db7c;background:rgba(105,219,124,.05)}
+.info-card{background:#0d0d20;border:1px solid #2a2a4a;border-radius:6px;padding:10px;margin-bottom:8px}
+.info-card h4{font-size:.8rem;margin-bottom:6px}
+.info-card p{font-size:.75rem;line-height:1.5;color:#aaa}
+.ref-table{width:100%;border-collapse:collapse;font-size:.75rem}
+.ref-table th{text-align:left;padding:6px 8px;border-bottom:1px solid #2a2a4a;color:#ff6b6b}
+.ref-table td{padding:6px 8px;border-bottom:1px solid #1a1a3a}
+.code-inline{font-family:monospace;background:#1a1a3a;padding:1px 4px;border-radius:3px;font-size:.75rem}
+@media(max-width:900px){.main{flex-direction:column}.sidebar{width:100%;max-height:40vh;border-left:none;border-top:1px solid #2a2a4a}.thread-row{flex-direction:column}}
+</style>
+</head>
+<body>
+
+
+<header>
+<h1 ti="h1_sharedarraybuffer_atomics">SharedArrayBuffer & Atomics</h1>
+<select id="scenarioSelect"></select>
+<div class="controls">
+<button onclick="stepBack()" ti="btn_back">← Back</button>
+<button onclick="stepForward()" class="primary" ti="btn_step">Step →</button>
+<button onclick="autoPlay()" ti="btn_auto">▶ Auto</button>
+<button onclick="reset()" ti="btn_reset">Reset</button>
+</div>
+</header>
+<div class="main">
+<div class="vis-col">
+<div class="panel"><h3 ti="h3_sharedarraybuffer_memory">SharedArrayBuffer Memory</h3><div class="memory-grid" id="memGrid"></div></div>
+<div class="thread-row" id="threads"></div>
+<div class="panel"><h3 ti="h3_execution_log">Execution Log</h3><div id="log"></div></div>
+</div>
+<div class="sidebar">
+<div class="tab-bar">
+<button class="active" onclick="switchTab('detail')" ti="btn_details">Details</button>
+<button onclick="switchTab('reference')" ti="btn_reference">Reference</button>
+</div>
+<div class="tab-content" id="tabContent"></div>
+</div>
+</div>
+
+<script>var _LANG={'title_js_sharedarraybuffer_atom':["JS SharedArrayBuffer & Atomics Visualizer", "JS SharedArrayBuffer 和原子操作可视化工具"],'metadesc_interactive_sharedarraybu':["Interactive SharedArrayBuffer and Atomics visualizer. Race conditions, lock-free patterns, memory ordering, Atomics.wait/notify, compare-and-swap. Step-through concurrency demos.", "交互式 SharedArrayBuffer 和原子操作可视化工具。竞态条件、无锁模式、内存排序、Atomics.wait/notify、比较交换。并发演示逐步讲解。"],'h1_sharedarraybuffer_atomics':["SharedArrayBuffer & Atomics", "SharedArrayBuffer 和原子操作"],'h3_sharedarraybuffer_memory':["SharedArrayBuffer Memory", "共享数组缓冲区内存"],'h3_execution_log':["Execution Log", "执行日志"],'btn_back':["← Back", "← 返回"],'btn_step':["Step →", "步骤 →"],'btn_auto':["▶ Auto", "▶ 自动"],'btn_reset':["Reset", "重置"],'btn_details':["Details", "细节"],'btn_reference':["Reference", "参考"],'th_method':["Method", "方法"],'th_description':["Description", "描述"],'th_concept':["Concept", "概念"],'th_explanation':["Explanation", "解释"],'jtlword_method':["Method", "方法"],'jtlword_description':["Description", "描述"],'jtlword_concept':["Concept", "概念"],'jtlword_explanation':["Explanation", "解释"],'jtlword_sharedarraybuffer':["SharedArrayBuffer", "共享数组缓冲区"],'jtlword_spinlock':["Spinlock", "旋锁"],'jtlword_futex':["Futex", "富泰克斯"],'jtlword_requirements':["Requirements", "要求"],'jtlword_typedarray':["TypedArray", "类型化数组"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>
+const SCENARIOS=[
+{name:'Race Condition (No Atomics)',
+ memSize:4,initVals:[0,0,0,0],
+ threadA:[
+  {op:'read buf[0]',action:{type:'read',idx:0,thread:'a'},desc:'Thread A reads current value of buf[0]'},
+  {op:'local = 0 + 1',action:{type:'compute',thread:'a'},desc:'Thread A computes new value locally (0 + 1 = 1)'},
+  {op:'write buf[0] = 1',action:{type:'write',idx:0,val:1,thread:'a'},desc:'Thread A writes 1 to buf[0]'}
+ ],
+ threadB:[
+  {op:'read buf[0]',action:{type:'read',idx:0,thread:'b'},desc:'Thread B reads the SAME old value (0) — race condition!'},
+  {op:'local = 0 + 1',action:{type:'compute',thread:'b'},desc:'Thread B also computes 0 + 1 = 1 (stale read)'},
+  {op:'write buf[0] = 1',action:{type:'write',idx:0,val:1,thread:'b',race:true},desc:'Thread B writes 1 — but should be 2! One increment lost.'}
+ ],
+ interleave:[0,3,1,4,2,5],
+ detail:'Both threads try to increment buf[0]. Without atomic operations, they read the same stale value and one write is lost. This is the classic read-modify-write race condition. Expected result: 2, Actual result: 1.',
+ fix:'Use Atomics.add(buf, 0, 1) instead of manual read-increment-write. The atomic operation is indivisible — no other thread can interleave between read and write.'
+},
+{name:'Atomics.add (Fix Race)',
+ memSize:4,initVals:[0,0,0,0],
+ threadA:[
+  {op:'Atomics.add(buf, 0, 1)',action:{type:'atomic-add',idx:0,val:1,thread:'a'},desc:'Atomics.add atomically reads current value, adds 1, and writes back. No other thread can access buf[0] between the read and write.'},
+  {op:'// result: old=0, new=1',action:{type:'compute',thread:'a'},desc:'Returns the old value (0). buf[0] is now 1. The entire operation was indivisible.'}
+ ],
+ threadB:[
+  {op:'Atomics.add(buf, 0, 1)',action:{type:'atomic-add',idx:0,val:1,thread:'b'},desc:'Thread B\'s Atomics.add waits for A\'s operation to complete. Reads the updated value (1), adds 1, writes 2.'},
+  {op:'// result: old=1, new=2',action:{type:'compute',thread:'b'},desc:'Returns old value (1). buf[0] is now 2. Both increments are correctly applied. No lost updates!'}
+ ],
+ interleave:[0,1,2,3],
+ detail:'Atomics.add performs an atomic read-modify-write operation. The CPU hardware guarantees that the entire read+add+write sequence is indivisible — no other thread can observe or modify the value in between.',
+ fix:null
+},
+{name:'Atomics.wait / Atomics.notify',
+ memSize:4,initVals:[0,0,0,0],
+ threadA:[
+  {op:'// Worker thread',action:{type:'compute',thread:'a'},desc:'Worker thread (Web Worker) will wait for a signal from the main thread before proceeding.'},
+  {op:'Atomics.wait(buf, 0, 0)',action:{type:'wait',idx:0,expected:0,thread:'a'},desc:'Thread A blocks until buf[0] is no longer 0. The thread is put to sleep — zero CPU usage while waiting. This can ONLY be used in Workers, not the main thread.'},
+  {op:'// woken up! buf[0]=1',action:{type:'read',idx:0,thread:'a'},desc:'Thread A wakes up because Thread B called notify. buf[0] is now 1. The wait returns "ok".'},
+  {op:'process data...',action:{type:'compute',thread:'a'},desc:'Worker can now safely process the data that was placed in the buffer by the main thread.'}
+ ],
+ threadB:[
+  {op:'// Main thread',action:{type:'compute',thread:'b'},desc:'Main thread prepares data and then signals the worker to proceed.'},
+  {op:'buf[0] = 1 (signal ready)',action:{type:'write',idx:0,val:1,thread:'b'},desc:'Main thread writes 1 to buf[0] to indicate data is ready.'},
+  {op:'Atomics.notify(buf, 0, 1)',action:{type:'notify',idx:0,count:1,thread:'b'},desc:'Atomics.notify wakes up one thread that is waiting on buf[0]. Returns 1 (number of threads woken).'},
+  {op:'// 1 worker woken',action:{type:'compute',thread:'b'},desc:'The notification is delivered. If no thread was waiting, notify returns 0 (the notification is NOT queued).'}
+ ],
+ interleave:[0,4,1,5,6,2,7,3],
+ detail:'Atomics.wait/notify implements a futex-like synchronization primitive. wait() suspends the thread until notify() is called. This enables efficient producer-consumer patterns without busy-waiting (spinning).',
+ fix:null
+},
+{name:'Compare-and-Swap (CAS)',
+ memSize:4,initVals:[0,0,0,0],
+ threadA:[
+  {op:'expected = Atomics.load(buf, 0)',action:{type:'atomic-read',idx:0,thread:'a'},desc:'Thread A atomically reads the current value. Atomics.load guarantees no torn read (even for 64-bit values on 32-bit systems).'},
+  {op:'desired = 0 + 5',action:{type:'compute',thread:'a'},desc:'A computes the desired new value (0 + 5 = 5).'},
+  {op:'Atomics.compareExchange(buf,0,0,5)',action:{type:'cas',idx:0,expected:0,desired:5,thread:'a'},desc:'CAS: if buf[0] is still 0 (expected), atomically set it to 5 (desired). Returns the actual value found. This is the building block for lock-free data structures.'},
+  {op:'// CAS succeeded! (returned 0)',action:{type:'compute',thread:'a'},desc:'The returned value (0) matches expected (0), so the CAS succeeded. buf[0] is now 5.'}
+ ],
+ threadB:[
+  {op:'expected = Atomics.load(buf, 0)',action:{type:'atomic-read-late',idx:0,thread:'b'},desc:'Thread B reads buf[0] but gets the UPDATED value (5, not 0) because A already changed it.'},
+  {op:'desired = 5 + 3',action:{type:'compute',thread:'b'},desc:'B computes its desired value based on the current value: 5 + 3 = 8.'},
+  {op:'Atomics.compareExchange(buf,0,5,8)',action:{type:'cas',idx:0,expected:5,desired:8,thread:'b'},desc:'CAS: if buf[0] is still 5 (expected), set to 8. This succeeds because A\'s update is complete.'},
+  {op:'// CAS succeeded! (returned 5)',action:{type:'compute',thread:'b'},desc:'CAS returned 5 (matched expected). buf[0] is now 8. Both threads cooperated correctly without locks!'}
+ ],
+ interleave:[0,1,2,3,4,5,6,7],
+ detail:'Compare-and-Swap (CAS) is the fundamental lock-free primitive. It atomically: (1) reads the current value, (2) compares with expected, (3) if equal, writes the desired value. If another thread modified the value, CAS fails and the thread can retry.',
+ fix:null
+},
+{name:'Spinlock (Mutex)',
+ memSize:4,initVals:[0,0,0,0],
+ threadA:[
+  {op:'// Acquire lock (buf[0]=0→1)',action:{type:'compute',thread:'a'},desc:'Thread A will try to acquire a spinlock. buf[0] is the lock: 0=unlocked, 1=locked.'},
+  {op:'Atomics.compareExchange(buf,0,0,1)',action:{type:'cas-lock',idx:0,expected:0,desired:1,thread:'a'},desc:'CAS: try to set buf[0] from 0 (unlocked) to 1 (locked). If successful, A holds the lock.'},
+  {op:'// LOCKED! Critical section',action:{type:'compute',thread:'a'},desc:'A acquired the lock. Now in critical section — safe to modify shared data.'},
+  {op:'buf[1] += 10 (safe write)',action:{type:'write',idx:1,val:10,thread:'a'},desc:'Modify shared data while holding the lock. No other thread can enter the critical section.'},
+  {op:'Atomics.store(buf, 0, 0)',action:{type:'atomic-write',idx:0,val:0,thread:'a'},desc:'Release lock: atomically set buf[0] back to 0 (unlocked). Atomics.store ensures the write is visible to all threads immediately.'}
+ ],
+ threadB:[
+  {op:'// Try acquire lock',action:{type:'compute',thread:'b'},desc:'Thread B also wants the lock.'},
+  {op:'Atomics.compareExchange(buf,0,0,1)',action:{type:'cas-fail',idx:0,thread:'b'},desc:'CAS fails! buf[0] is 1 (locked by A), not 0. The CAS returns 1 (actual value), signaling failure.'},
+  {op:'// Spin... (retry loop)',action:{type:'spin',thread:'b'},desc:'Thread B spins (loops), retrying CAS. In a real implementation, you\'d use Atomics.wait() instead of spinning to avoid wasting CPU.'},
+  {op:'Atomics.compareExchange(buf,0,0,1)',action:{type:'cas-lock',idx:0,expected:0,desired:1,thread:'b'},desc:'After A releases the lock, CAS succeeds. B acquires the lock.'},
+  {op:'buf[1] += 20 (safe write)',action:{type:'write',idx:1,val:30,thread:'b'},desc:'B safely modifies shared data. buf[1] = 10 + 20 = 30.'},
+  {op:'Atomics.store(buf, 0, 0)',action:{type:'atomic-write',idx:0,val:0,thread:'b'},desc:'B releases the lock.'}
+ ],
+ interleave:[0,1,6,7,2,3,4,8,5,9,10,11],
+ detail:'A spinlock is the simplest mutex built with Atomics. CAS atomically checks if the lock is free (0) and acquires it (set to 1). If the lock is held, the thread retries (spins). In production, use Atomics.wait() instead of spinning.',
+ fix:null
+},
+{name:'Ring Buffer (Producer-Consumer)',
+ memSize:8,initVals:[0,0,0,0,0,0,0,0],
+ threadA:[
+  {op:'// Producer: write to ring buffer',action:{type:'compute',thread:'a'},desc:'Producer writes data into a fixed-size ring buffer. buf[0]=write index, buf[1]=read index, buf[2..7]=data slots (6 slots).'},
+  {op:'writeIdx = Atomics.load(buf, 0)',action:{type:'atomic-read',idx:0,thread:'a'},desc:'Atomically read the current write index (0).'},
+  {op:'buf[writeIdx + 2] = 42',action:{type:'write',idx:2,val:42,thread:'a'},desc:'Write data (42) to slot at writeIdx+2. The +2 offset skips the index slots.'},
+  {op:'Atomics.store(buf, 0, 1)',action:{type:'atomic-write',idx:0,val:1,thread:'a'},desc:'Atomically update write index to 1. The store ensures the data write is visible before the index update (release semantics).'},
+  {op:'Atomics.notify(buf, 0, 1)',action:{type:'notify',idx:0,count:1,thread:'a'},desc:'Notify consumer that new data is available.'},
+  {op:'buf[3] = 99',action:{type:'write',idx:3,val:99,thread:'a'},desc:'Write second item (99) to next slot.'},
+  {op:'Atomics.store(buf, 0, 2)',action:{type:'atomic-write',idx:0,val:2,thread:'a'},desc:'Update write index to 2.'}
+ ],
+ threadB:[
+  {op:'// Consumer: read from ring buffer',action:{type:'compute',thread:'b'},desc:'Consumer reads data from the ring buffer, using the write index to know when data is available.'},
+  {op:'Atomics.wait(buf, 0, 0)',action:{type:'wait',idx:0,expected:0,thread:'b'},desc:'Wait until write index changes from 0 (nothing to read yet).'},
+  {op:'readIdx = Atomics.load(buf, 1)',action:{type:'atomic-read',idx:1,thread:'b'},desc:'Read current read index (0). Consumer reads from this position.'},
+  {op:'data = buf[readIdx + 2] // =42',action:{type:'read',idx:2,thread:'b'},desc:'Read data from slot at readIdx+2. Gets 42. The Atomics.load above ensures this read sees A\'s write.'},
+  {op:'Atomics.store(buf, 1, 1)',action:{type:'atomic-write',idx:1,val:1,thread:'b'},desc:'Update read index to 1. Producer can reuse this slot.'},
+  {op:'data = buf[3] // =99',action:{type:'read',idx:3,thread:'b'},desc:'Read second item (99) from next slot.'},
+  {op:'Atomics.store(buf, 1, 2)',action:{type:'atomic-write',idx:1,val:2,thread:'b'},desc:'Update read index to 2.'}
+ ],
+ interleave:[0,1,2,3,4,7,8,9,10,5,6,11,12,13],
+ detail:'A lock-free ring buffer using SharedArrayBuffer. The producer writes data then updates the write index. The consumer waits for the index to change, reads data, then updates the read index. Atomics ensure memory ordering: data is always visible before the index update.'
+}
+];
+
+let curScenario=0,curStep=-1,memory=[],logs=[],autoInterval=null,currentTab='detail';
+
+function init(){
+  const sel=document.getElementById('scenarioSelect');
+  SCENARIOS.forEach((s,i)=>{const o=document.createElement('option');o.value=i;o.textContent=s.name;sel.appendChild(o)});
+  sel.onchange=()=>{curScenario=+sel.value;reset()};
+  reset();
+}
+
+function reset(){
+  if(autoInterval){clearInterval(autoInterval);autoInterval=null}
+  const s=SCENARIOS[curScenario];
+  memory=[...s.initVals];
+  curStep=-1;logs=[];
+  render();
+}
+
+function getStepInfo(globalIdx){
+  const s=SCENARIOS[curScenario];
+  const mapped=s.interleave[globalIdx];
+  if(mapped===undefined)return null;
+  const aLen=s.threadA.length;
+  if(mapped<aLen)return{thread:'a',localIdx:mapped,...s.threadA[mapped]};
+  return{thread:'b',localIdx:mapped-aLen,...s.threadB[mapped-aLen]};
+}
+
+function stepForward(){
+  const s=SCENARIOS[curScenario];
+  if(curStep<s.interleave.length-1){
+    curStep++;
+    const info=getStepInfo(curStep);
+    if(info){
+      applyAction(info);
+      logs.push({thread:info.thread,msg:info.op,desc:info.desc,type:info.action?.race?'error':info.action?.type==='spin'?'warn':'normal'});
+    }
+    render();
+  }
+}
+
+function applyAction(info){
+  const a=info.action;
+  if(!a)return;
+  if(a.type==='write'||a.type==='atomic-write')memory[a.idx]=a.val;
+  if(a.type==='atomic-add')memory[a.idx]+=a.val;
+  if(a.type==='cas'||a.type==='cas-lock'){
+    if(memory[a.idx]===a.expected)memory[a.idx]=a.desired;
+  }
+}
+
+function stepBack(){
+  if(curStep>=0){curStep--;reset();for(let i=0;i<=curStep;i++){const info=getStepInfo(i);if(info){applyAction(info);logs.push({thread:info.thread,msg:info.op,type:'normal'})}}}
+}
+
+function autoPlay(){
+  if(autoInterval){clearInterval(autoInterval);autoInterval=null;return}
+  autoInterval=setInterval(()=>{
+    const s=SCENARIOS[curScenario];
+    if(curStep>=s.interleave.length-1){clearInterval(autoInterval);autoInterval=null;return}
+    stepForward();
+  },1000);
+}
+
+function render(){
+  renderMemory();
+  renderThreads();
+  renderLog();
+  renderTab();
+}
+
+function renderMemory(){
+  const el=document.getElementById('memGrid');
+  const info=curStep>=0?getStepInfo(curStep):null;
+  el.innerHTML=memory.map((v,i)=>{
+    let cls='';
+    if(info&&info.action){
+      const a=info.action;
+      if((a.type==='write'||a.type==='atomic-write'||a.type==='atomic-add'||a.type==='cas'||a.type==='cas-lock')&&a.idx===i)cls=a.thread==='a'?'write-a':'write-b';
+      if(a.race&&a.idx===i)cls='race';
+      if((a.type==='read'||a.type==='atomic-read'||a.type==='atomic-read-late')&&a.idx===i)cls='read';
+      if((a.type==='wait'||a.type==='notify')&&a.idx===i)cls='atomic';
+    }
+    return `<div class="mem-cell ${cls}"><div class="idx">[${i}]</div><div class="val">${v}</div></div>`;
+  }).join('');
+}
+
+function renderThreads(){
+  const s=SCENARIOS[curScenario];
+  const el=document.getElementById('threads');
+  const executedA=new Set(),executedB=new Set();
+  const aLen=s.threadA.length;
+  let currentA=-1,currentB=-1;
+  for(let i=0;i<=curStep&&i<s.interleave.length;i++){
+    const m=s.interleave[i];
+    if(m<aLen){executedA.add(m);currentA=m}
+    else{executedB.add(m-aLen);currentB=m-aLen}
+  }
+  const info=curStep>=0?getStepInfo(curStep):null;
+
+  function renderThread(ops,executed,currentIdx,name,cls){
+    let html=`<div class="thread thread-${cls}"><h4><span class="thread-dot dot-${cls}"></span>${name}</h4>`;
+    ops.forEach((o,i)=>{
+      let lineCls='';
+      if(info&&((cls==='a'&&currentIdx===i)||(cls==='b'&&currentIdx===i)))lineCls='current';
+      else if(executed.has(i))lineCls='done';
+      if(o.action&&o.action.race&&executed.has(i))lineCls+=' race-err';
+      html+=`<div class="op-line ${lineCls}">${esc(o.op)}</div>`;
+    });
+    html+=`</div>`;
+    return html;
+  }
+
+  el.innerHTML=`<div class="thread-row">${renderThread(s.threadA,executedA,currentA,'Thread A','a')}${renderThread(s.threadB,executedB,currentB,'Thread B','b')}</div>`;
+}
+
+function renderLog(){
+  const el=document.getElementById('log');
+  el.innerHTML=logs.map(l=>
+    `<div class="log-entry thread-${l.thread} ${l.type==='error'?'error':l.type==='warn'?'warn':''}">${esc(l.msg)}</div>`
+  ).join('');
+  el.scrollTop=el.scrollHeight;
+}
+
+function renderTab(){
+  const s=SCENARIOS[curScenario];
+  const el=document.getElementById('tabContent');
+  const info=curStep>=0?getStepInfo(curStep):null;
+
+  if(currentTab==='detail'){
+    let html=`<div class="info-card"><h4>Scenario</h4><p>${esc(s.detail)}</p></div>`;
+    if(s.fix)html+=`<div class="info-card"><h4>Fix</h4><p>${esc(s.fix)}</p></div>`;
+    if(info)html+=`<div class="info-card"><h4>Current Step</h4><p>${esc(info.desc||info.op)}</p></div>`;
+    html+=`<div class="info-card"><h4>Progress</h4><p>Step ${curStep+1} / ${s.interleave.length}</p></div>`;
+    el.innerHTML=html;
+  }else{
+    el.innerHTML=`
+    <div class="info-card"><h4>Atomics Methods</h4>
+    <table class="ref-table">
+    <tr><th ti="th_method">Method</th><th ti="th_description">Description</th></tr>
+    <tr><td><code>Atomics.load(buf, i)</code></td><td>Atomic read. Guarantees no torn read.</td></tr>
+    <tr><td><code>Atomics.store(buf, i, v)</code></td><td>Atomic write. Immediately visible to all threads.</td></tr>
+    <tr><td><code>Atomics.add(buf, i, v)</code></td><td>Atomic read-modify-write: buf[i] += v. Returns old value.</td></tr>
+    <tr><td><code>Atomics.sub(buf, i, v)</code></td><td>Atomic subtract. Returns old value.</td></tr>
+    <tr><td><code>Atomics.and/or/xor</code></td><td>Atomic bitwise operations. Return old value.</td></tr>
+    <tr><td><code>Atomics.exchange(buf, i, v)</code></td><td>Atomic swap. Sets buf[i]=v, returns old value.</td></tr>
+    <tr><td><code>Atomics.compareExchange(buf, i, exp, des)</code></td><td>CAS: if buf[i]===exp, set to des. Returns actual value.</td></tr>
+    <tr><td><code>Atomics.wait(buf, i, v)</code></td><td>Block until buf[i] !== v. Workers only. Returns "ok"/"not-equal"/"timed-out".</td></tr>
+    <tr><td><code>Atomics.notify(buf, i, n)</code></td><td>Wake up n threads waiting on buf[i]. Returns count woken.</td></tr>
+    <tr><td><code>Atomics.waitAsync(buf, i, v)</code></td><td>Non-blocking wait. Returns Promise. Works on main thread.</td></tr>
+    </table></div>
+    <div class="info-card"><h4>Key Concepts</h4>
+    <table class="ref-table">
+    <tr><th ti="th_concept">Concept</th><th ti="th_explanation">Explanation</th></tr>
+    <tr><td>SharedArrayBuffer</td><td>Memory shared between main thread and Workers. Same backing store, different views.</td></tr>
+    <tr><td>Race Condition</td><td>Two threads read-modify-write the same location without synchronization. One update is lost.</td></tr>
+    <tr><td>Atomic Operation</td><td>Indivisible read-modify-write. CPU hardware guarantees no interleaving.</td></tr>
+    <tr><td>CAS (Compare-and-Swap)</td><td>Foundation of lock-free algorithms. Atomically: read, compare, conditionally write.</td></tr>
+    <tr><td>Memory Ordering</td><td>Atomics.store has release semantics (prior writes visible). Atomics.load has acquire semantics (subsequent reads see prior writes).</td></tr>
+    <tr><td>Spinlock</td><td>Mutex built with CAS. Thread loops until lock is available. Wastes CPU — use wait/notify instead.</td></tr>
+    <tr><td>Futex</td><td>Fast userspace mutex. Atomics.wait/notify implements futex semantics.</td></tr>
+    </table></div>
+    <div class="info-card"><h4>Requirements</h4>
+    <table class="ref-table">
+    <tr><td>COOP/COEP headers</td><td>Cross-Origin-Opener-Policy: same-origin<br>Cross-Origin-Embedder-Policy: require-corp</td></tr>
+    <tr><td>Atomics.wait</td><td>Workers only (blocks thread). Main thread: use waitAsync.</td></tr>
+    <tr><td>TypedArray</td><td>Int32Array or BigInt64Array on SharedArrayBuffer.</td></tr>
+    </table></div>`;
+  }
+}
+
+function switchTab(t){
+  currentTab=t;
+  document.querySelectorAll('.tab-bar button').forEach(b=>b.classList.toggle('active',b.textContent.toLowerCase().startsWith(t.slice(0,3))));
+  renderTab();
+}
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+init();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+</body>
+</html>

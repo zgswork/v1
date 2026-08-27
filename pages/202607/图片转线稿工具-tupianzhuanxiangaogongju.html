@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图片转线稿工具</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+
+        .main-content {
+            padding: 40px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            align-items: start;
+        }
+
+        .upload-section {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .upload-area {
+            border: 2px dashed #667eea;
+            border-radius: 10px;
+            padding: 40px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 20px;
+        }
+
+        .upload-area:hover {
+            border-color: #764ba2;
+            background: rgba(102, 126, 234, 0.05);
+        }
+
+        .upload-area.dragover {
+            border-color: #764ba2;
+            background: rgba(102, 126, 234, 0.1);
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .upload-icon {
+            font-size: 3em;
+            color: #667eea;
+            margin-bottom: 15px;
+        }
+
+        .controls {
+            margin: 20px 0;
+        }
+
+        .control-group {
+            margin: 15px 0;
+            text-align: left;
+        }
+
+        .control-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .slider {
+            width: 100%;
+            margin: 10px 0;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: all 0.3s ease;
+            margin: 5px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .preview-section {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .preview-container {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .preview-title {
+            font-size: 1.3em;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .image-preview {
+            max-width: 100%;
+            max-height: 300px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .canvas-container {
+            position: relative;
+            display: inline-block;
+        }
+
+        .text-output {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 20px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error {
+            background: #fee;
+            color: #c33;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 10px 0;
+            display: none;
+        }
+
+        .success {
+            background: #efe;
+            color: #3c3;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 10px 0;
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+                gap: 20px;
+                padding: 20px;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎨 图片转线稿工具</h1>
+            <p>将图片转换为精美的线稿效果</p>
+        </div>
+
+        <div class="main-content">
+            <div class="upload-section">
+                <div class="upload-area" id="uploadArea">
+                    <div class="upload-icon">📁</div>
+                    <h3>拖拽图片到此处或点击上传</h3>
+                    <p>支持 JPG、PNG、BMP、WebP 格式</p>
+                    <input type="file" id="fileInput" class="file-input" accept="image/*">
+                </div>
+
+                <div class="controls">
+                    <div class="control-group">
+                        <label>线稿阈值: <span id="thresholdValue">128</span></label>
+                        <input type="range" id="thresholdSlider" class="slider" min="0" max="255" value="128">
+                    </div>
+                    
+                    <div class="control-group">
+                        <label>边缘检测强度: <span id="edgeValue">50</span></label>
+                        <input type="range" id="edgeSlider" class="slider" min="0" max="100" value="50">
+                    </div>
+
+                    <button class="btn" id="processBtn" disabled>🔄 生成线稿</button>
+                    <button class="btn" id="clearLineartBtn" disabled>🧹 清除线稿</button>
+                     <button class="btn" id="clearAllBtn">🗑️ 全部清除</button>
+                </div>
+
+                <div class="error" id="errorMsg"></div>
+                <div class="success" id="successMsg"></div>
+                <div class="loading" id="loading">
+                    <div class="spinner"></div>
+                    <p>正在处理图片...</p>
+                </div>
+            </div>
+
+            <div class="preview-section">
+                <div class="preview-container">
+                    <div class="preview-title">📸 原始图片</div>
+                    <img id="originalImage" class="image-preview" style="display: none;">
+                    <canvas id="originalCanvas" style="display: none;"></canvas>
+                </div>
+
+                <div class="preview-container">
+                    <div class="preview-title">✏️ 线稿效果</div>
+                    <canvas id="lineartCanvas" class="image-preview" style="display: none;"></canvas>
+                </div>
+
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class ImageProcessor {
+            constructor() {
+                this.originalImage = null;
+                this.originalCanvas = document.getElementById('originalCanvas');
+                this.originalCtx = this.originalCanvas.getContext('2d');
+                this.lineartCanvas = document.getElementById('lineartCanvas');
+                this.lineartCtx = this.lineartCanvas.getContext('2d');
+                
+                this.initializeEventListeners();
+            }
+
+            initializeEventListeners() {
+                const uploadArea = document.getElementById('uploadArea');
+                const fileInput = document.getElementById('fileInput');
+                const processBtn = document.getElementById('processBtn');
+                const extractTextBtn = document.getElementById('extractTextBtn');
+                const downloadBtn = document.getElementById('downloadBtn');
+                const thresholdSlider = document.getElementById('thresholdSlider');
+                const edgeSlider = document.getElementById('edgeSlider');
+
+                uploadArea.addEventListener('click', () => fileInput.click());
+                uploadArea.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    uploadArea.classList.add('dragover');
+                });
+                uploadArea.addEventListener('dragleave', () => {
+                    uploadArea.classList.remove('dragover');
+                });
+                uploadArea.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    uploadArea.classList.remove('dragover');
+                    const files = e.dataTransfer.files;
+                    if (files.length > 0) {
+                        this.handleFile(files[0]);
+                    }
+                });
+
+                fileInput.addEventListener('change', (e) => {
+                    if (e.target.files.length > 0) {
+                        this.handleFile(e.target.files[0]);
+                    }
+                });
+
+                processBtn.addEventListener('click', () => this.processImage());
+                document.getElementById('clearLineartBtn').addEventListener('click', () => this.clearLineart());
+            document.getElementById('clearAllBtn').addEventListener('click', () => this.clearAll());
+
+                thresholdSlider.addEventListener('input', (e) => {
+                    document.getElementById('thresholdValue').textContent = e.target.value;
+                });
+
+                edgeSlider.addEventListener('input', (e) => {
+                    document.getElementById('edgeValue').textContent = e.target.value;
+                });
+            }
+
+            handleFile(file) {
+                if (!file.type.startsWith('image/')) {
+                    this.showError('请选择图片文件！');
+                    return;
+                }
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        this.originalImage = img;
+                        this.displayOriginalImage(img);
+                        document.getElementById('processBtn').disabled = false;
+                        document.getElementById('clearLineartBtn').disabled = false;
+                        this.showSuccess('图片加载成功！');
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+
+            displayOriginalImage(img) {
+                const displayImg = document.getElementById('originalImage');
+                displayImg.src = img.src;
+                displayImg.style.display = 'block';
+
+                // 设置canvas尺寸
+                const maxWidth = 400;
+                const maxHeight = 300;
+                const ratio = Math.min(maxWidth / img.width, maxHeight / img.height);
+                
+                this.originalCanvas.width = img.width;
+                this.originalCanvas.height = img.height;
+                this.lineartCanvas.width = img.width;
+                this.lineartCanvas.height = img.height;
+                
+                this.originalCtx.drawImage(img, 0, 0);
+            }
+
+            processImage() {
+                if (!this.originalImage) return;
+
+                this.showLoading(true);
+                
+                setTimeout(() => {
+                    try {
+                        const threshold = parseInt(document.getElementById('thresholdSlider').value);
+                        const edgeStrength = parseInt(document.getElementById('edgeSlider').value) / 100;
+                        
+                        this.generateLineart(threshold, edgeStrength);
+                        
+                        document.getElementById('lineartCanvas').style.display = 'block';
+                        this.showSuccess('线稿生成成功！');
+                    } catch (error) {
+                        this.showError('生成线稿失败：' + error.message);
+                    } finally {
+                        this.showLoading(false);
+                    }
+                }, 100);
+            }
+
+            generateLineart(threshold, edgeStrength) {
+                const imageData = this.originalCtx.getImageData(0, 0, this.originalCanvas.width, this.originalCanvas.height);
+                const data = imageData.data;
+                const width = this.originalCanvas.width;
+                const height = this.originalCanvas.height;
+
+                // 创建边缘检测后的图像数据
+                const edgeData = new Uint8ClampedArray(data.length);
+                
+                for (let y = 1; y < height - 1; y++) {
+                    for (let x = 1; x < width - 1; x++) {
+                        const idx = (y * width + x) * 4;
+                        
+                        // Sobel边缘检测
+                        const gx = (
+                            -1 * this.getGrayValue(data, width, x - 1, y - 1) +
+                            1 * this.getGrayValue(data, width, x + 1, y - 1) +
+                            -2 * this.getGrayValue(data, width, x - 1, y) +
+                            2 * this.getGrayValue(data, width, x + 1, y) +
+                            -1 * this.getGrayValue(data, width, x - 1, y + 1) +
+                            1 * this.getGrayValue(data, width, x + 1, y + 1)
+                        );
+                        
+                        const gy = (
+                            -1 * this.getGrayValue(data, width, x - 1, y - 1) +
+                            -2 * this.getGrayValue(data, width, x, y - 1) +
+                            -1 * this.getGrayValue(data, width, x + 1, y - 1) +
+                            1 * this.getGrayValue(data, width, x - 1, y + 1) +
+                            2 * this.getGrayValue(data, width, x, y + 1) +
+                            1 * this.getGrayValue(data, width, x + 1, y + 1)
+                        );
+                        
+                        const magnitude = Math.sqrt(gx * gx + gy * gy) * edgeStrength;
+                        const edgeValue = magnitude > threshold ? 0 : 255;
+                        
+                        edgeData[idx] = edgeValue;
+                        edgeData[idx + 1] = edgeValue;
+                        edgeData[idx + 2] = edgeValue;
+                        edgeData[idx + 3] = 255;
+                    }
+                }
+
+                // 处理边缘像素
+                for (let i = 0; i < edgeData.length; i += 4) {
+                    if (edgeData[i] === undefined) {
+                        edgeData[i] = 255;
+                        edgeData[i + 1] = 255;
+                        edgeData[i + 2] = 255;
+                        edgeData[i + 3] = 255;
+                    }
+                }
+
+                const edgeImageData = new ImageData(edgeData, width, height);
+                this.lineartCtx.putImageData(edgeImageData, 0, 0);
+            }
+
+            getGrayValue(data, width, x, y) {
+                const idx = (y * width + x) * 4;
+                return 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
+            }
+
+
+
+        clearLineart() {
+            this.lineartCtx.clearRect(0, 0, this.lineartCanvas.width, this.lineartCanvas.height);
+            document.getElementById('lineartCanvas').style.display = 'none';
+            this.showSuccess('线稿已清除！');
+        }
+
+        clearAll() {
+            // 清除线稿
+            this.clearLineart();
+            
+            // 清除原始图片
+            document.getElementById('originalImage').style.display = 'none';
+            this.originalCtx.clearRect(0, 0, this.originalCanvas.width, this.originalCanvas.height);
+            
+            // 重置文件输入
+            document.getElementById('fileInput').value = '';
+            
+            // 重置按钮状态
+            document.getElementById('processBtn').disabled = true;
+            document.getElementById('clearLineartBtn').disabled = true;
+            
+            this.originalImage = null;
+            this.showSuccess('所有内容已清除！');
+        }
+
+            showLoading(show) {
+                document.getElementById('loading').style.display = show ? 'block' : 'none';
+            }
+
+            showError(message) {
+                const errorDiv = document.getElementById('errorMsg');
+                errorDiv.textContent = message;
+                errorDiv.style.display = 'block';
+                setTimeout(() => errorDiv.style.display = 'none', 5000);
+            }
+
+            showSuccess(message) {
+                const successDiv = document.getElementById('successMsg');
+                successDiv.textContent = message;
+                successDiv.style.display = 'block';
+                setTimeout(() => successDiv.style.display = 'none', 3000);
+            }
+        }
+
+        // 初始化应用
+        new ImageProcessor();
+    </script>
+</body>
+</html>

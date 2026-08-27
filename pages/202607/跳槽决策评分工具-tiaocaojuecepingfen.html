@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>跳槽决策评分工具</title>
+    <!-- 引入外部资源 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+    
+    <!-- 配置Tailwind自定义颜色 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        current: '#3b82f6',
+                        offer: '#10b981',
+                        neutral: '#64748b',
+                    },
+                }
+            }
+        }
+    </script>
+    
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .card-shadow {
+                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            }
+            .slide-in {
+                animation: slideIn 0.5s ease-out forwards;
+            }
+            @keyframes slideIn {
+                from { transform: translateY(20px); opacity: 0; }
+                to { transform: translateY(0); opacity: 1; }
+            }
+            .fade-in {
+                animation: fadeIn 0.5s ease-out forwards;
+            }
+            @keyframes fadeIn {
+                from { opacity: 0; }
+                to { opacity: 1; }
+            }
+            .pulse {
+                animation: pulse 2s infinite;
+            }
+            @keyframes pulse {
+                0% { transform: scale(1); }
+                50% { transform: scale(1.05); }
+                100% { transform: scale(1); }
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 font-sans text-gray-800 min-h-screen flex flex-col">
+    <div class="max-w-5xl w-full mx-auto px-4 py-8 flex-grow">
+        <!-- 头部标题 -->
+        <header class="text-center mb-8">
+            <h1 class="text-[clamp(1.8rem,5vw,2.5rem)] font-bold text-gray-800 mb-3 flex items-center justify-center">
+                <i class="fa fa-balance-scale text-primary mr-3"></i>跳槽决策评分工具
+            </h1>
+            <p class="text-gray-600 max-w-2xl mx-auto">
+                通过多维度科学评估当前工作与新机会，告别感性决策，做出最适合自己的职业选择
+            </p>
+        </header>
+
+        <main class="space-y-8">
+            <!-- 步骤指示器 -->
+            <div class="bg-white rounded-xl p-4 shadow-sm card-shadow">
+                <div class="flex justify-between items-center">
+                    <div class="step-item active" data-step="1">
+                        <div class="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center font-bold">1</div>
+                        <p class="text-sm mt-1">设置权重</p>
+                    </div>
+                    <div class="flex-grow mx-2 h-1 bg-gray-200 relative">
+                        <div class="progress-bar absolute top-0 left-0 h-full bg-primary" style="width: 0%"></div>
+                    </div>
+                    <div class="step-item" data-step="2">
+                        <div class="w-8 h-8 rounded-full bg-gray-200 text-gray-600 flex items-center justify-center font-bold">2</div>
+                        <p class="text-sm mt-1">当前工作评分</p>
+                    </div>
+                    <div class="flex-grow mx-2 h-1 bg-gray-200 relative">
+                        <div class="progress-bar absolute top-0 left-0 h-full bg-primary" style="width: 0%"></div>
+                    </div>
+                    <div class="step-item" data-step="3">
+                        <div class="w-8 h-8 rounded-full bg-gray-200 text-gray-600 flex items-center justify-center font-bold">3</div>
+                        <p class="text-sm mt-1">新工作评分</p>
+                    </div>
+                    <div class="flex-grow mx-2 h-1 bg-gray-200 relative">
+                        <div class="progress-bar absolute top-0 left-0 h-full bg-primary" style="width: 0%"></div>
+                    </div>
+                    <div class="step-item" data-step="4">
+                        <div class="w-8 h-8 rounded-full bg-gray-200 text-gray-600 flex items-center justify-center font-bold">4</div>
+                        <p class="text-sm mt-1">查看结果</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 评估指标和权重设置 -->
+            <section id="step1" class="step-content bg-white rounded-xl p-6 shadow-sm card-shadow slide-in">
+                <h2 class="text-xl font-bold mb-6 flex items-center">
+                    <i class="fa fa-sliders text-primary mr-2"></i>设置评估指标权重
+                </h2>
+                <p class="text-gray-600 mb-6">
+                    拖动滑块调整各指标对你的重要性（权重总和将自动归一化）
+                </p>
+                
+                <div id="weightSettings" class="space-y-6">
+                    <!-- 权重设置项将通过JS动态生成 -->
+                </div>
+                
+                <div class="mt-8 flex justify-end">
+                    <button id="toStep2" class="px-6 py-3 bg-primary text-white rounded-lg shadow hover:bg-primary/90 transition-colors">
+                        下一步：当前工作评分 <i class="fa fa-arrow-right ml-2"></i>
+                    </button>
+                </div>
+            </section>
+            
+            <!-- 当前工作评分 -->
+            <section id="step2" class="step-content bg-white rounded-xl p-6 shadow-sm card-shadow hidden">
+                <h2 class="text-xl font-bold mb-6 flex items-center">
+                    <i class="fa fa-building text-current mr-2"></i>当前工作评分
+                </h2>
+                <p class="text-gray-600 mb-6">
+                    针对以下各项指标，为你当前的工作打分（1-10分，10分为最佳）
+                </p>
+                
+                <div id="currentJobScores" class="space-y-6">
+                    <!-- 当前工作评分项将通过JS动态生成 -->
+                </div>
+                
+                <div class="mt-8 flex justify-between">
+                    <button id="backToStep1" class="px-6 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
+                        <i class="fa fa-arrow-left mr-2"></i> 上一步
+                    </button>
+                    <button id="toStep3" class="px-6 py-3 bg-primary text-white rounded-lg shadow hover:bg-primary/90 transition-colors">
+                        下一步：新工作评分 <i class="fa fa-arrow-right ml-2"></i>
+                    </button>
+                </div>
+            </section>
+            
+            <!-- 新工作评分 -->
+            <section id="step3" class="step-content bg-white rounded-xl p-6 shadow-sm card-shadow hidden">
+                <h2 class="text-xl font-bold mb-6 flex items-center">
+                    <i class="fa fa-briefcase text-offer mr-2"></i>新工作机会评分
+                </h2>
+                <p class="text-gray-600 mb-6">
+                    针对以下各项指标，为你收到的新工作机会打分（1-10分，10分为最佳）
+                </p>
+                
+                <div id="offerJobScores" class="space-y-6">
+                    <!-- 新工作评分项将通过JS动态生成 -->
+                </div>
+                
+                <div class="mt-8 flex justify-between">
+                    <button id="backToStep2" class="px-6 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
+                        <i class="fa fa-arrow-left mr-2"></i> 上一步
+                    </button>
+                    <button id="toStep4" class="px-6 py-3 bg-primary text-white rounded-lg shadow hover:bg-primary/90 transition-colors">
+                        查看结果 <i class="fa fa-arrow-right ml-2"></i>
+                    </button>
+                </div>
+            </section>
+            
+            <!-- 结果展示 -->
+            <section id="step4" class="step-content bg-white rounded-xl p-6 shadow-sm card-shadow hidden">
+                <h2 class="text-xl font-bold mb-6 flex items-center">
+                    <i class="fa fa-bar-chart text-primary mr-2"></i>跳槽决策分析结果
+                </h2>
+                
+                <!-- 总分对比 -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                    <div class="p-6 bg-current/5 rounded-xl border border-current/20 text-center">
+                        <h3 class="text-lg font-bold mb-2">当前工作总分</h3>
+                        <div class="text-4xl font-bold text-current" id="currentTotalScore">0</div>
+                        <p class="text-sm text-gray-600 mt-2">基于你的权重和评分计算</p>
+                    </div>
+                    
+                    <div class="p-6 bg-offer/5 rounded-xl border border-offer/20 text-center">
+                        <h3 class="text-lg font-bold mb-2">新工作机会总分</h3>
+                        <div class="text-4xl font-bold text-offer" id="offerTotalScore">0</div>
+                        <p class="text-sm text-gray-600 mt-2">基于你的权重和评分计算</p>
+                    </div>
+                </div>
+                
+                <!-- 详细对比图表 -->
+                <div class="mb-8">
+                    <h3 class="text-lg font-bold mb-4">各项指标详细对比</h3>
+                    <div class="h-[400px]">
+                        <canvas id="comparisonChart"></canvas>
+                    </div>
+                </div>
+                
+                <!-- 决策建议 -->
+                <div class="mb-8">
+                    <h3 class="text-lg font-bold mb-4">决策建议</h3>
+                    <div id="decisionAdvice" class="p-5 rounded-xl bg-gray-50 border border-gray-200">
+                        <!-- 建议内容将通过JS动态生成 -->
+                    </div>
+                </div>
+                
+                <!-- 关键差异分析 -->
+                <div>
+                    <h3 class="text-lg font-bold mb-4">关键差异分析</h3>
+                    <div id="keyDifferences" class="space-y-4">
+                        <!-- 关键差异内容将通过JS动态生成 -->
+                    </div>
+                </div>
+                
+                <div class="mt-8 flex justify-between">
+                    <button id="backToStep3" class="px-6 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
+                        <i class="fa fa-arrow-left mr-2"></i> 重新评分
+                    </button>
+                    <button id="restartAll" class="px-6 py-3 bg-primary text-white rounded-lg shadow hover:bg-primary/90 transition-colors">
+                        重新开始 <i class="fa fa-refresh ml-2"></i>
+                    </button>
+                </div>
+            </section>
+        </main>
+    </div>
+    
+    <!-- 底部备注 -->
+    <footer class="mt-10 py-4 border-t border-gray-200">
+        <div class="max-w-5xl mx-auto px-4 text-center text-gray-600 text-sm">
+            <p>
+                邓文涛(AI版) | <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="407770777574777474710031316e232f2d">[email&#160;protected]</a> | VX：707547441 | 更多点击➡️
+                <a href="https://dkfile.com/Dx25214" target="_blank" rel="noopener" class="text-primary hover:underline">🌌</a>
+            </p>
+        </div>
+    </footer>
+    
+    <!-- 提示消息 -->
+    <div id="toast" class="fixed bottom-6 left-1/2 transform -translate-x-1/2 translate-y-20 opacity-0 transition-all duration-300 flex items-center px-4 py-2.5 rounded-lg shadow-lg z-50 max-w-xs">
+        <i id="toastIcon" class="fa fa-check-circle mr-2 text-green-500"></i>
+        <span id="toastMessage"></span>
+    </div>
+
+    <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+        // 评估指标数据
+        const evaluationCriteria = [
+            {
+                id: 'salary',
+                name: '薪资水平',
+                description: '包括基本工资、奖金、股票等全部薪酬',
+                defaultWeight: 20
+            },
+            {
+                id: 'commute',
+                name: '通勤时间',
+                description: '每日上下班所花费的时间和交通便利性',
+                defaultWeight: 10
+            },
+            {
+                id: 'growth',
+                name: '发展空间',
+                description: '职位晋升和职业发展的可能性',
+                defaultWeight: 20
+            },
+            {
+                id: 'content',
+                name: '工作内容匹配度',
+                description: '工作内容与个人兴趣和职业规划的匹配程度',
+                defaultWeight: 15
+            },
+            {
+                id: 'culture',
+                name: '公司文化',
+                description: '企业文化、价值观与个人的契合度',
+                defaultWeight: 10
+            },
+            {
+                id: 'pressure',
+                name: '工作压力',
+                description: '工作强度、加班情况和精神压力',
+                defaultWeight: 10
+            },
+            {
+                id: 'team',
+                name: '团队氛围',
+                description: '同事关系、团队协作和沟通环境',
+                defaultWeight: 5
+            },
+            {
+                id: 'benefits',
+                name: '福利制度',
+                description: '五险一金、年假、体检等福利待遇',
+                defaultWeight: 5
+            },
+            {
+                id: 'stability',
+                name: '工作稳定性',
+                description: '公司经营状况和职位稳定性',
+                defaultWeight: 3
+            },
+            {
+                id: 'learning',
+                name: '学习成长机会',
+                description: '技能提升和知识学习的机会',
+                defaultWeight: 2
+            }
+        ];
+        
+        // DOM元素
+        const stepItems = document.querySelectorAll('.step-item');
+        const stepContents = document.querySelectorAll('.step-content');
+        const progressBars = document.querySelectorAll('.progress-bar');
+        const weightSettings = document.getElementById('weightSettings');
+        const currentJobScores = document.getElementById('currentJobScores');
+        const offerJobScores = document.getElementById('offerJobScores');
+        
+        const toStep2Btn = document.getElementById('toStep2');
+        const backToStep1Btn = document.getElementById('backToStep1');
+        const toStep3Btn = document.getElementById('toStep3');
+        const backToStep2Btn = document.getElementById('backToStep2');
+        const toStep4Btn = document.getElementById('toStep4');
+        const backToStep3Btn = document.getElementById('backToStep3');
+        const restartAllBtn = document.getElementById('restartAll');
+        
+        const currentTotalScoreEl = document.getElementById('currentTotalScore');
+        const offerTotalScoreEl = document.getElementById('offerTotalScore');
+        const decisionAdviceEl = document.getElementById('decisionAdvice');
+        const keyDifferencesEl = document.getElementById('keyDifferences');
+        
+        const toast = document.getElementById('toast');
+        const toastIcon = document.getElementById('toastIcon');
+        const toastMessage = document.getElementById('toastMessage');
+        
+        // 图表实例
+        let comparisonChart = null;
+        
+        // 数据存储
+        const assessmentData = {
+            weights: {},
+            currentScores: {},
+            offerScores: {}
+        };
+        
+        // 初始化
+        function init() {
+            // 初始化权重数据
+            evaluationCriteria.forEach(criteria => {
+                assessmentData.weights[criteria.id] = criteria.defaultWeight;
+                assessmentData.currentScores[criteria.id] = 5;
+                assessmentData.offerScores[criteria.id] = 5;
+            });
+            
+            // 生成评估项
+            generateWeightSettings();
+            generateScoreInputs('current');
+            generateScoreInputs('offer');
+            
+            // 设置事件监听器
+            setupEventListeners();
+        }
+        
+        // 生成权重设置项
+        function generateWeightSettings() {
+            weightSettings.innerHTML = '';
+            
+            evaluationCriteria.forEach(criteria => {
+                const weightItem = document.createElement('div');
+                weightItem.className = 'p-4 border rounded-lg';
+                
+                weightItem.innerHTML = `
+                    <div class="flex flex-col md:flex-row md:items-center justify-between mb-3">
+                        <div>
+                            <label class="block font-medium text-gray-800">${criteria.name}</label>
+                            <p class="text-sm text-gray-500">${criteria.description}</p>
+                        </div>
+                        <span class="mt-2 md:mt-0 weight-value font-medium" data-id="${criteria.id}">${criteria.defaultWeight}%</span>
+                    </div>
+                    
+                    <input type="range" id="weight-${criteria.id}" min="1" max="100" value="${criteria.defaultWeight}" 
+                        class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary"
+                        data-id="${criteria.id}">
+                `;
+                
+                weightSettings.appendChild(weightItem);
+            });
+            
+            // 添加权重滑块事件监听
+            document.querySelectorAll('[id^="weight-"]').forEach(slider => {
+                slider.addEventListener('input', function() {
+                    const criteriaId = this.dataset.id;
+                    const weightValue = this.value;
+                    
+                    // 更新显示的权重值
+                    document.querySelector(`.weight-value[data-id="${criteriaId}"]`).textContent = `${weightValue}%`;
+                    
+                    // 更新数据
+                    assessmentData.weights[criteriaId] = parseInt(weightValue);
+                    
+                    // 自动归一化权重（确保总和为100%）
+                    normalizeWeights();
+                });
+            });
+        }
+        
+        // 生成评分输入项
+        function generateScoreInputs(type) {
+            const container = type === 'current' ? currentJobScores : offerJobScores;
+            const title = type === 'current' ? '当前工作' : '新工作机会';
+            const scoreData = type === 'current' ? assessmentData.currentScores : assessmentData.offerScores;
+            const colorClass = type === 'current' ? 'text-current' : 'text-offer';
+            
+            container.innerHTML = '';
+            
+            evaluationCriteria.forEach(criteria => {
+                const scoreItem = document.createElement('div');
+                scoreItem.className = 'p-4 border rounded-lg';
+                
+                scoreItem.innerHTML = `
+                    <div class="flex flex-col md:flex-row md:items-center justify-between mb-3">
+                        <div>
+                            <label class="block font-medium text-gray-800">${criteria.name}</label>
+                            <p class="text-sm text-gray-500">${criteria.description}</p>
+                        </div>
+                        <span class="mt-2 md:mt-0 score-value font-medium ${colorClass}" data-id="${criteria.id}">${scoreData[criteria.id]}</span>
+                    </div>
+                    
+                    <div class="grid grid-cols-10 gap-1">
+                        ${Array.from({ length: 10 }, (_, i) => {
+                            const score = i + 1;
+                            return `
+                                <button type="button" class="score-btn h-10 rounded ${score === scoreData[criteria.id] ? 
+                                    (type === 'current' ? 'bg-current text-white' : 'bg-offer text-white') : 
+                                    'bg-gray-100 hover:bg-gray-200'}"
+                                    data-id="${criteria.id}" data-score="${score}">
+                                    ${score}
+                                </button>
+                            `;
+                        }).join('')}
+                    </div>
+                `;
+                
+                container.appendChild(scoreItem);
+            });
+            
+            // 添加评分按钮事件监听
+            container.querySelectorAll('.score-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const criteriaId = this.dataset.id;
+                    const score = parseInt(this.dataset.score);
+                    
+                    // 更新同组按钮样式
+                    const scoreButtons = container.querySelectorAll(`.score-btn[data-id="${criteriaId}"]`);
+                    scoreButtons.forEach(b => {
+                        b.classList.remove('bg-current', 'bg-offer', 'text-white');
+                        b.classList.add('bg-gray-100', 'hover:bg-gray-200');
+                    });
+                    
+                    // 设置当前按钮样式
+                    this.classList.remove('bg-gray-100', 'hover:bg-gray-200');
+                    this.classList.add(type === 'current' ? 'bg-current' : 'bg-offer', 'text-white');
+                    
+                    // 更新显示的评分值
+                    container.querySelector(`.score-value[data-id="${criteriaId}"]`).textContent = score;
+                    
+                    // 更新数据
+                    if (type === 'current') {
+                        assessmentData.currentScores[criteriaId] = score;
+                    } else {
+                        assessmentData.offerScores[criteriaId] = score;
+                    }
+                });
+            });
+        }
+        
+        // 归一化权重（确保总和为100%）
+        function normalizeWeights() {
+            // 计算当前总权重
+            const totalWeight = Object.values(assessmentData.weights).reduce((sum, weight) => sum + weight, 0);
+            
+            // 如果总权重不是100，则归一化
+            if (totalWeight !== 100) {
+                const scaleFactor = 100 / totalWeight;
+                
+                // 更新每个权重
+                Object.keys(assessmentData.weights).forEach(criteriaId => {
+                    // 计算新权重并四舍五入
+                    let newWeight = Math.round(assessmentData.weights[criteriaId] * scaleFactor);
+                    
+                    // 确保权重至少为1
+                    newWeight = Math.max(1, newWeight);
+                    
+                    // 更新数据
+                    assessmentData.weights[criteriaId] = newWeight;
+                    
+                    // 更新UI
+                    const slider = document.getElementById(`weight-${criteriaId}`);
+                    const weightValue = document.querySelector(`.weight-value[data-id="${criteriaId}"]`);
+                    
+                    if (slider && weightValue) {
+                        slider.value = newWeight;
+                        weightValue.textContent = `${newWeight}%`;
+                    }
+                });
+                
+                // 再次检查总和，如果因为四舍五入导致不等于100，调整最后一项
+                const newTotal = Object.values(assessmentData.weights).reduce((sum, weight) => sum + weight, 0);
+                if (newTotal !== 100) {
+                    const difference = 100 - newTotal;
+                    const lastCriteriaId = evaluationCriteria[evaluationCriteria.length - 1].id;
+                    
+                    assessmentData.weights[lastCriteriaId] += difference;
+                    
+                    // 更新UI
+                    const slider = document.getElementById(`weight-${lastCriteriaId}`);
+                    const weightValue = document.querySelector(`.weight-value[data-id="${lastCriteriaId}"]`);
+                    
+                    if (slider && weightValue) {
+                        slider.value = assessmentData.weights[lastCriteriaId];
+                        weightValue.textContent = `${assessmentData.weights[lastCriteriaId]}%`;
+                    }
+                }
+            }
+        }
+        
+        // 切换步骤
+        function goToStep(stepNumber) {
+            // 更新步骤指示器
+            stepItems.forEach((item, index) => {
+                const step = index + 1;
+                const circle = item.querySelector('div');
+                
+                if (step === stepNumber) {
+                    item.classList.add('active');
+                    circle.classList.remove('bg-gray-200', 'text-gray-600');
+                    circle.classList.add('bg-primary', 'text-white');
+                } else if (step < stepNumber) {
+                    item.classList.add('active');
+                    circle.classList.remove('bg-gray-200', 'text-gray-600');
+                    circle.classList.add('bg-primary', 'text-white');
+                } else {
+                    item.classList.remove('active');
+                    circle.classList.remove('bg-primary', 'text-white');
+                    circle.classList.add('bg-gray-200', 'text-gray-600');
+                }
+            });
+            
+            // 更新进度条
+            progressBars.forEach((bar, index) => {
+                const progress = index < stepNumber - 1 ? 100 : 0;
+                bar.style.width = `${progress}%`;
+            });
+            
+            // 更新内容显示
+            stepContents.forEach((content, index) => {
+                const step = index + 1;
+                if (step === stepNumber) {
+                    content.classList.remove('hidden');
+                    // 添加动画
+                    setTimeout(() => {
+                        content.classList.add('slide-in');
+                    }, 50);
+                } else {
+                    content.classList.add('hidden');
+                    content.classList.remove('slide-in');
+                }
+            });
+            
+            // 滚动到顶部
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+        
+        // 计算总分
+        function calculateTotalScores() {
+            let currentTotal = 0;
+            let offerTotal = 0;
+            
+            evaluationCriteria.forEach(criteria => {
+                // 权重已归一化（总和100），所以直接计算加权分数
+                currentTotal += (assessmentData.currentScores[criteria.id] * assessmentData.weights[criteria.id]) / 100;
+                offerTotal += (assessmentData.offerScores[criteria.id] * assessmentData.weights[criteria.id]) / 100;
+            });
+            
+            return {
+                current: Math.round(currentTotal * 10) / 10,
+                offer: Math.round(offerTotal * 10) / 10
+            };
+        }
+        
+        // 生成对比图表
+        function generateComparisonChart() {
+            const ctx = document.getElementById('comparisonChart').getContext('2d');
+            
+            // 准备图表数据
+            const labels = evaluationCriteria.map(criteria => criteria.name);
+            const currentScores = evaluationCriteria.map(criteria => assessmentData.currentScores[criteria.id]);
+            const offerScores = evaluationCriteria.map(criteria => assessmentData.offerScores[criteria.id]);
+            
+            // 销毁现有图表
+            if (comparisonChart) {
+                comparisonChart.destroy();
+            }
+            
+            // 创建新图表
+            comparisonChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: '当前工作',
+                            data: currentScores,
+                            backgroundColor: 'rgba(59, 130, 246, 0.7)',
+                            borderColor: 'rgba(59, 130, 246, 1)',
+                            borderWidth: 1
+                        },
+                        {
+                            label: '新工作机会',
+                            data: offerScores,
+                            backgroundColor: 'rgba(16, 185, 129, 0.7)',
+                            borderColor: 'rgba(16, 185, 129, 1)',
+                            borderWidth: 1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 10,
+                            ticks: {
+                                stepSize: 1
+                            }
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.dataset.label || '';
+                                    const value = context.raw || 0;
+                                    const criteria = evaluationCriteria[context.dataIndex];
+                                    const weight = assessmentData.weights[criteria.id];
+                                    return `${label}: ${value}分 (权重: ${weight}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // 生成决策建议
+        function generateDecisionAdvice(currentTotal, offerTotal) {
+            const difference = offerTotal - currentTotal;
+            
+            let adviceHtml = '';
+            
+            if (difference > 3) {
+                adviceHtml = `
+                    <div class="flex">
+                        <div class="flex-shrink-0 mr-4">
+                            <i class="fa fa-thumbs-up text-3xl text-offer"></i>
+                        </div>
+                        <div>
+                            <p class="font-medium text-lg mb-2">建议考虑接受新工作机会</p>
+                            <p class="text-gray-700">
+                                新工作机会在综合评分上明显优于当前工作（高出${difference}分），
+                                从你关注的维度来看，这是一个值得把握的跳槽机会。建议进一步了解新公司的细节，
+                                做好离职和入职的准备工作。
+                            </p>
+                        </div>
+                    </div>
+                `;
+            } else if (difference > 0) {
+                adviceHtml = `
+                    <div class="flex">
+                        <div class="flex-shrink-0 mr-4">
+                            <i class="fa fa-hand-pointer-o text-3xl text-warning"></i>
+                        </div>
+                        <div>
+                            <p class="font-medium text-lg mb-2">可以考虑接受，但需谨慎评估</p>
+                            <p class="text-gray-700">
+                                新工作机会在综合评分上略高于当前工作（高出${difference}分），优势并不明显。
+                                建议重点关注差异较大的指标，考虑这些差异对你职业发展的长期影响，
+                                同时可以尝试与新公司协商改善不足之处。
+                            </p>
+                        </div>
+                    </div>
+                `;
+            } else if (difference === 0) {
+                adviceHtml = `
+                    <div class="flex">
+                        <div class="flex-shrink-0 mr-4">
+                            <i class="fa fa-balance-scale text-3xl text-neutral"></i>
+                        </div>
+                        <div>
+                            <p class="font-medium text-lg mb-2">两者综合评分相当，需进一步考量</p>
+                            <p class="text-gray-700">
+                                从综合评分来看，当前工作和新工作机会不相上下。建议从更长远的职业规划出发，
+                                考虑哪个选择更符合你的长期目标，同时可以尝试收集更多关于新公司的信息，
+                                再做出最终决策。
+                            </p>
+                        </div>
+                    </div>
+                `;
+            } else if (difference > -3) {
+                adviceHtml = `
+                    <div class="flex">
+                        <div class="flex-shrink-0 mr-4">
+                            <i class="fa fa-exclamation-triangle text-3xl text-warning"></i>
+                        </div>
+                        <div>
+                            <p class="font-medium text-lg mb-2">建议谨慎考虑，除非有特殊原因</p>
+                            <p class="text-gray-700">
+                                当前工作在综合评分上略高于新工作机会（高出${Math.abs(difference)}分）。
+                                除非新工作能提供一些未被纳入评估的特殊优势（如行业转型、地理位置变更等），
+                                否则不建议跳槽。
+                            </p>
+                        </div>
+                    </div>
+                `;
+            } else {
+                adviceHtml = `
+                    <div class="flex">
+                        <div class="flex-shrink-0 mr-4">
+                            <i class="fa fa-thumbs-down text-3xl text-current"></i>
+                        </div>
+                        <div>
+                            <p class="font-medium text-lg mb-2">不建议接受新工作机会</p>
+                            <p class="text-gray-700">
+                                当前工作在综合评分上明显优于新工作机会（高出${Math.abs(difference)}分）。
+                                从你关注的维度来看，这次跳槽可能不是一个明智的选择。建议留在当前公司，
+                                或者继续寻找更合适的工作机会。
+                            </p>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            decisionAdviceEl.innerHTML = adviceHtml;
+        }
+        
+        // 生成关键差异分析
+        function generateKeyDifferences() {
+            keyDifferencesEl.innerHTML = '';
+            
+            // 计算各指标的加权差异
+            const differences = evaluationCriteria.map(criteria => {
+                const currentScore = assessmentData.currentScores[criteria.id];
+                const offerScore = assessmentData.offerScores[criteria.id];
+                const weight = assessmentData.weights[criteria.id];
+                const rawDiff = offerScore - currentScore;
+                const weightedDiff = rawDiff * weight;
+                
+                return {
+                    ...criteria,
+                    currentScore,
+                    offerScore,
+                    rawDiff,
+                    weightedDiff
+                };
+            });
+            
+            // 按加权差异绝对值排序，取前5个
+            const significantDifferences = [...differences]
+                .sort((a, b) => Math.abs(b.weightedDiff) - Math.abs(a.weightedDiff))
+                .slice(0, 5);
+            
+            significantDifferences.forEach(diff => {
+                const diffItem = document.createElement('div');
+                diffItem.className = `p-4 rounded-lg ${
+                    diff.rawDiff > 0 ? 'bg-offer/5 border border-offer/20' : 
+                    diff.rawDiff < 0 ? 'bg-current/5 border border-current/20' : 
+                    'bg-gray-50 border border-gray-200'
+                }`;
+                
+                const diffIcon = diff.rawDiff > 0 ? 
+                    '<i class="fa fa-arrow-up text-offer mr-1"></i>' : 
+                    diff.rawDiff < 0 ? 
+                    '<i class="fa fa-arrow-down text-current mr-1"></i>' : 
+                    '<i class="fa fa-minus text-neutral mr-1"></i>';
+                
+                const diffText = diff.rawDiff > 0 ? 
+                    `新工作更有优势（+${diff.rawDiff}分）` : 
+                    diff.rawDiff < 0 ? 
+                    `当前工作更有优势（+${Math.abs(diff.rawDiff)}分）` : 
+                    '两者表现相当';
+                
+                diffItem.innerHTML = `
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <h4 class="font-medium">${diff.name}</h4>
+                            <p class="text-sm text-gray-600 mt-1">权重: ${diff.weight}% · ${diffText}</p>
+                        </div>
+                        <span class="${diff.rawDiff > 0 ? 'text-offer' : diff.rawDiff < 0 ? 'text-current' : 'text-neutral'} font-medium">
+                            ${diffIcon}${Math.abs(diff.rawDiff)}分
+                        </span>
+                    </div>
+                    <div class="mt-3 w-full bg-gray-200 rounded-full h-2.5">
+                        <div class="h-2.5 rounded-full bg-current" style="width: ${(diff.currentScore / 10) * 100}%"></div>
+                        <div class="h-2.5 rounded-full bg-offer absolute" style="width: ${(diff.offerScore / 10) * 100}%"></div>
+                    </div>
+                    <div class="flex justify-between text-xs text-gray-500 mt-1">
+                        <span>当前工作: ${diff.currentScore}分</span>
+                        <span>新工作: ${diff.offerScore}分</span>
+                    </div>
+                `;
+                
+                keyDifferencesEl.appendChild(diffItem);
+            });
+        }
+        
+        // 显示结果
+        function displayResults() {
+            // 计算总分
+            const totals = calculateTotalScores();
+            
+            // 更新总分显示
+            currentTotalScoreEl.textContent = totals.current;
+            offerTotalScoreEl.textContent = totals.offer;
+            
+            // 生成对比图表
+            generateComparisonChart();
+            
+            // 生成决策建议
+            generateDecisionAdvice(totals.current, totals.offer);
+            
+            // 生成关键差异分析
+            generateKeyDifferences();
+            
+            // 添加动画效果
+            setTimeout(() => {
+                document.querySelectorAll('#step4 > div').forEach((el, index) => {
+                    el.classList.add('fade-in');
+                    el.style.animationDelay = `${index * 100}ms`;
+                });
+            }, 100);
+        }
+        
+        // 显示提示消息
+        function showToast(message, type = 'success') {
+            toastMessage.textContent = message;
+            
+            if (type === 'success') {
+                toast.className = 'fixed bottom-6 left-1/2 transform -translate-x-1/2 translate-y-0 opacity-100 transition-all duration-300 flex items-center px-4 py-2.5 rounded-lg shadow-lg z-50 max-w-xs bg-green-50 text-green-800';
+                toastIcon.className = 'fa fa-check-circle mr-2 text-green-500';
+            } else if (type === 'error') {
+                toast.className = 'fixed bottom-6 left-1/2 transform -translate-x-1/2 translate-y-0 opacity-100 transition-all duration-300 flex items-center px-4 py-2.5 rounded-lg shadow-lg z-50 max-w-xs bg-red-50 text-red-800';
+                toastIcon.className = 'fa fa-exclamation-circle mr-2 text-red-500';
+            } else if (type === 'info') {
+                toast.className = 'fixed bottom-6 left-1/2 transform -translate-x-1/2 translate-y-0 opacity-100 transition-all duration-300 flex items-center px-4 py-2.5 rounded-lg shadow-lg z-50 max-w-xs bg-blue-50 text-blue-800';
+                toastIcon.className = 'fa fa-info-circle mr-2 text-blue-500';
+            }
+            
+            // 3秒后隐藏
+            setTimeout(() => {
+                toast.className = 'fixed bottom-6 left-1/2 transform -translate-x-1/2 translate-y-20 opacity-0 transition-all duration-300 flex items-center px-4 py-2.5 rounded-lg shadow-lg z-50 max-w-xs';
+            }, 3000);
+        }
+        
+        // 设置事件监听器
+        function setupEventListeners() {
+            // 步骤导航
+            toStep2Btn.addEventListener('click', () => goToStep(2));
+            backToStep1Btn.addEventListener('click', () => goToStep(1));
+            toStep3Btn.addEventListener('click', () => goToStep(3));
+            backToStep2Btn.addEventListener('click', () => goToStep(2));
+            toStep4Btn.addEventListener('click', () => {
+                goToStep(4);
+                displayResults();
+            });
+            backToStep3Btn.addEventListener('click', () => goToStep(3));
+            restartAllBtn.addEventListener('click', () => {
+                // 重置数据
+                evaluationCriteria.forEach(criteria => {
+                    assessmentData.weights[criteria.id] = criteria.defaultWeight;
+                    assessmentData.currentScores[criteria.id] = 5;
+                    assessmentData.offerScores[criteria.id] = 5;
+                });
+                
+                // 重新生成UI
+                generateWeightSettings();
+                generateScoreInputs('current');
+                generateScoreInputs('offer');
+                
+                // 返回第一步
+                goToStep(1);
+                
+                showToast('已重置所有评估数据');
+            });
+            
+            // 步骤指示器点击
+            stepItems.forEach(item => {
+                item.addEventListener('click', function() {
+                    const step = parseInt(this.dataset.step);
+                    // 只允许导航到已完成或当前步骤
+                    if (step <= parseInt(document.querySelector('.step-item.active').dataset.step)) {
+                        goToStep(step);
+                        
+                        // 如果是第四步，刷新结果
+                        if (step === 4) {
+                            displayResults();
+                        }
+                    }
+                });
+            });
+        }
+        
+        // 初始化应用
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
+    

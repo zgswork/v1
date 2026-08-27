@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF 增删提工具</title>
+    <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
+    <script src="https://unpkg.com/downloadjs/download.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start; /* Align content to the top */
+            height: 100vh; /* 使用固定高度而不是最小高度 */
+            margin: 0;
+            padding: 0;
+            background-color: #f0eae6; /* 莫兰迪色系背景色 */
+            color: #5c5552; /* 莫兰迪色系文本颜色 */
+            max-width: 100vw; /* 限制最大宽度 */
+        }
+        
+        @media (min-width: 1024px) {
+            body {
+                overflow: hidden; /* 在大屏幕上防止滚动条 */
+            }
+        }
+        
+        @media (max-width: 1023px) {
+            body {
+                overflow-y: auto; /* 在小屏幕上允许垂直滚动 */
+                height: auto; /* 自适应高度 */
+                min-height: 100vh; /* 最小高度为视口高度 */
+            }
+        }
+        .main-title {
+            color: #7a6c5d; /* 莫兰迪色系标题颜色 */
+            margin: 30px auto 20px auto; /* Top margin, auto horizontal for centering, bottom margin */
+            font-size: 2.8em;
+            font-weight: 600;
+            text-align: center;
+            width: 95%;
+            max-width: 1200px;
+            overflow-wrap: break-word; /* 确保长标题可以换行 */
+        }
+        
+        @media (max-width: 768px) {
+            .main-title {
+                font-size: 2em; /* 在移动设备上减小字体大小 */
+                margin: 20px auto 15px auto;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .main-title {
+                font-size: 1.6em; /* 在小屏幕设备上进一步减小字体大小 */
+                margin: 15px auto 10px auto;
+            }
+        }
+        .main-wrapper {
+            display: flex;
+            flex-direction: column; /* Default to column for mobile */
+            width: 95%;
+            max-width: 1200px;
+            margin: 0 auto; /* Remove top margin, auto horizontal for centering */
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        @media (min-width: 768px) {
+            .main-wrapper {
+                flex-direction: row; /* Row for larger screens */
+            }
+        }
+        
+        @media (max-width: 767px) {
+            .left-panel {
+                width: 100%; /* 在移动设备上占满宽度 */
+                min-width: auto; /* 移动设备上不设置最小宽度 */
+            }
+        }
+        .left-panel {
+            flex: 1; /* Operations panel */
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            border-right: 1px solid #e3ded7; /* 莫兰迪色系边框颜色 */
+            align-items: center; /* Center content in left panel */
+            background-color: #f8f4f1; /* 莫兰迪色系背景色 */
+            width: 300px; /* 固定宽度为300px */
+            min-width: 300px; /* 最小宽度也为300px */
+        }
+        .middle-panel {
+            flex: 2; /* Original PDF preview */
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            border-right: 1px solid #e3ded7; /* 莫兰迪色系边框颜色 */
+            background-color: #faf7f4; /* 莫兰迪色系背景色，稍微浅一些 */
+        }
+        .right-panel {
+            flex: 2; /* Result PDF preview */
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            background-color: #faf7f4; /* 莫兰迪色系背景色，稍微浅一些 */
+        }
+        @media (max-width: 767px) {
+            .left-panel, .middle-panel, .right-panel {
+                border-right: none;
+                border-bottom: 1px solid #eee;
+            }
+            .right-panel {
+                border-bottom: none; /* No border for the last panel on mobile */
+            }
+        }
+        h1 {
+            /* This h1 is now inside left-panel, so it's smaller and left-aligned */
+            color: #0056b3;
+            margin-bottom: 25px;
+            font-size: 1.8em; /* Smaller font size for panel title */
+            font-weight: 600;
+            text-align: center;
+            width: 100%;
+        }
+        .pdf-section {
+            flex: 1;
+            width: 100%;
+            margin-bottom: 0; /* Remove bottom margin for sections within panels */
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 100%; /* Ensure sections take full height of their panel */
+        }
+        .pdf-section h2 {
+            font-size: 1.2em;
+            color: #7a6c5d; /* 莫兰迪色系标题颜色 */
+            margin: 10px;
+            text-align: center;
+        }
+        .pdf-section iframe {
+            width: 100%;
+            flex-grow: 1;
+            border: 1px solid #d6ccc2; /* 莫兰迪色系边框颜色 */
+            border-radius: 8px;
+            background-color: #ffffff;
+            box-shadow: 0 4px 8px rgba(122, 108, 93, 0.1); /* 莫兰迪色系阴影 */
+            min-height: 400px; /* Increased minimum height for better visibility */
+        }
+        .input-group {
+            margin-bottom: 20px;
+            width: 100%;
+            text-align: left;
+            max-width: 280px; /* 调整输入组的最大宽度以适应300px的左侧面板 */
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #7a6c5d; /* 莫兰迪色系标签颜色 */
+            font-size: 0.95em;
+        }
+        input[type="file"] {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #d6ccc2; /* 莫兰迪色系边框颜色 */
+            border-radius: 8px;
+            box-sizing: border-box;
+            font-size: 0.95em;
+            background-color: #faf7f4; /* 莫兰迪色系输入框背景色 */
+            cursor: pointer;
+            max-width: 100%; /* 确保不超出父容器 */
+            white-space: normal; /* 允许文本换行 */
+            word-wrap: break-word; /* 允许长单词换行 */
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #d6ccc2; /* 莫兰迪色系边框颜色 */
+            border-radius: 8px;
+            box-sizing: border-box;
+            font-size: 1em;
+            font-weight: 500;
+            transition: border-color 0.3s;
+            max-width: 100%; /* 确保不超出父容器 */
+            color: #5c5552; /* 莫兰迪色系文本颜色 */
+            background-color: #faf7f4; /* 莫兰迪色系输入框背景色 */
+            white-space: normal; /* 允许文本换行 */
+            word-wrap: break-word; /* 允许长单词换行 */
+            min-height: 48px; /* 增加高度显示文本 */
+            overflow: visible; /* 确保文本不被截断 */
+            text-overflow: clip; /* 不使用省略号截断 */
+            height: auto; /* 自适应高度 */
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        
+        input[type="text"]::placeholder {
+            color: #b3a89e; /* 莫兰迪色系占位符颜色 */
+            opacity: 0.8;
+        }
+        
+        @media (max-width: 479px) {
+            input[type="file"], input[type="text"] {
+                padding: 10px;
+                font-size: 0.9em;
+            }
+        }
+        input[type="text"]:focus {
+            border-color: #a99f94; /* 莫兰迪色系焦点边框颜色 */
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(169, 159, 148, 0.2); /* 莫兰迪色系焦点阴影 */
+        }
+        .button-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center; /* 居中显示按钮 */
+            margin-top: 20px;
+            width: 100%;
+            max-width: 280px; /* 调整按钮容器的最大宽度以适应300px的左侧面板 */
+        }
+        
+        .button-group {
+            width: 100%;
+            margin-bottom: 15px; /* 增加按钮组之间的间距 */
+        }
+        
+        @media (min-width: 480px) {
+            .button-group {
+                flex-direction: column; /* Changed from row to column to stack buttons vertically */
+                justify-content: center;
+            }
+        }
+        
+        .main-wrapper {
+            display: flex;
+            flex-direction: column;
+            width: 95%;
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: #f8f4f1; /* 莫兰迪色系背景色 */
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(122, 108, 93, 0.15); /* 莫兰迪色系阴影 */
+            min-width: 0; /* 防止子元素溢出 */
+        }
+        
+        @media (min-width: 1024px) {
+            .main-wrapper {
+                flex-direction: row;
+                height: calc(100vh - 150px); /* 固定高度，减去标题和页脚的高度 */
+                overflow: hidden; /* 在大屏幕上隐藏溢出内容 */
+            }
+        }
+        
+        @media (min-width: 768px) and (max-width: 1023px) {
+            .main-wrapper {
+                flex-direction: row;
+                min-height: calc(100vh - 150px); /* 最小高度 */
+                height: auto; /* 自适应高度 */
+                overflow: visible; /* 允许内容溢出 */
+            }
+        }
+        
+        @media (max-width: 767px) {
+            .main-wrapper {
+                min-height: 600px; /* 设置最小高度 */
+                height: auto; /* 自适应高度 */
+                width: 98%; /* 在移动设备上增加宽度利用率 */
+                overflow: visible; /* 允许内容溢出 */
+            }
+        }
+        
+        .left-panel, .middle-panel, .right-panel {
+            overflow-y: auto; /* 内容溢出时添加滚动 */
+            overflow-x: hidden; /* 防止水平滚动 */
+            min-width: 0; /* 防止子元素溢出 */
+        }
+        
+        @media (min-width: 1024px) {
+            .left-panel, .middle-panel, .right-panel {
+                max-height: 100%; /* 在大屏幕上确保面板不超过父容器高度 */
+            }
+        }
+        
+        @media (max-width: 1023px) {
+            .left-panel, .middle-panel, .right-panel {
+                height: auto; /* 自适应高度 */
+            }
+        }
+        
+        @media (max-width: 767px) {
+            .left-panel {
+                min-height: 300px; /* 确保在移动设备上有足够的高度 */
+            }
+            
+            .middle-panel, .right-panel {
+                min-height: 350px; /* 确保在移动设备上有足够的高度 */
+            }
+        }
+        button {
+            background-color: #a99f94; /* 莫兰迪色系按钮背景色 */
+            color: white;
+            padding: 12px 15px; /* 增加内边距 */
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1em; /* 增加字体大小 */
+            font-weight: 500; /* 增加字体粗细 */
+            transition: background-color 0.3s, transform 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            width: 100%; /* Full width on mobile */
+            white-space: nowrap; /* 防止文本换行 */
+            overflow: hidden; /* 隐藏溢出内容 */
+            text-overflow: ellipsis; /* 显示省略号 */
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1); /* 添加阴影效果 */
+        }
+        @media (min-width: 480px) {
+            button {
+                width: 100%; /* 按钮占满按钮组宽度 */
+                font-size: 1em; /* 与全局按钮样式保持一致 */
+                padding: 12px 15px;
+            }
+            
+            .button-group {
+                width: 100%; /* 一列显示 */
+            }
+        }
+        
+        @media (max-width: 479px) {
+            button {
+                font-size: 0.95em; /* 在小屏幕上稍微减小字体 */
+                padding: 10px 15px;
+                margin-bottom: 5px; /* 在小屏幕上增加按钮间距 */
+            }
+            
+            .button-group {
+                margin-bottom: 10px; /* 在小屏幕上减少按钮组间距 */
+            }
+        }
+        button:hover {
+            background-color: #8c8178; /* 莫兰迪色系按钮悬停颜色 */
+            transform: translateY(-2px);
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .message {
+            margin-top: 25px;
+            font-size: 1em;
+            color: #8a6a65; /* 莫兰迪色系文本颜色 */
+            min-height: 20px;
+            text-align: center;
+            width: 100%;
+            max-width: 300px; /* Limit width of message in left panel */
+        }
+        .footer {
+            margin-top: 10px;
+            padding: 10px 5px;
+            color: #777;
+            font-size: 0.85em;
+            background-color: #e9ecef;
+            width: 100%;
+            text-align: center;
+            border-top: 1px solid #dee2e6;
+            box-sizing: border-box;
+        }
+        
+        @media (max-width: 1023px) {
+            .footer {
+                position: relative; /* 在小屏幕上使用相对定位 */
+                margin-top: 20px; /* 增加与内容的间距 */
+            }
+        }
+        
+        @media (max-width: 479px) {
+            .footer {
+                font-size: 0.75em;
+                padding: 8px 5px;
+            }
+        }
+    </style>
+</head>
+<body>
+        <h1 class="main-title">PDF 增删提工具</h1>
+        <div class="main-wrapper">
+            <div class="left-panel">
+                <div class="input-group">
+                <label for="pdfFile"><i class="fas fa-file-pdf"></i> 选择PDF文件:</label>
+                <input type="file" id="pdfFile" accept=".pdf">
+            </div>
+            <div class="input-group">
+                <label for="additionalFile"><i class="fas fa-file-image"></i> 选择要添加的文件:</label>
+                <input type="file" id="additionalFile" accept=".pdf,.jpg,.jpeg,.png" disabled>
+            </div>
+            <div class="input-group">
+                <label for="pagesToProcess"><i class="fas fa-pager"></i> 要处理的页码/页数 (例如: 1,3,5-7):</label>
+                <input type="text" id="pagesToProcess" placeholder="删除/提取页码: 1,3,5-7 或 增加页数: 5">
+            </div>
+            <div class="input-group">
+                <label for="insertPosition"><i class="fas fa-arrow-down"></i> 插入位置 (页码):</label>
+                <input type="text" id="insertPosition" placeholder="在此页码后插入，默认末尾" disabled>
+            </div>
+            <div class="button-container">
+                <div class="button-group">
+                    <button id="deletePagesBtn" disabled><i class="fas fa-trash-alt"></i> 删除选中页</button>
+                </div>
+                <div class="button-group">
+                    <button id="extractPagesBtn" disabled><i class="fas fa-cut"></i> 提取选中页</button>
+                </div>
+                <div class="button-group">
+                    <button id="addPagesBtn" disabled><i class="fas fa-plus-circle"></i> 增加空白页</button>
+                </div>
+                <div class="button-group">
+                    <button id="insertFileBtn" disabled><i class="fas fa-file-import"></i> 插入文件</button>
+                </div>
+                <div class="button-group">
+                    <button id="downloadPdf" disabled><i class="fas fa-download"></i> 下载处理后的PDF</button>
+                </div>
+            </div>
+            <div class="message" id="message"></div>
+        </div>
+        <div class="middle-panel">
+            <div class="pdf-section">
+                <h2>原文档预览</h2>
+                <iframe id="originalPdfViewer"></iframe>
+            </div>
+        </div>
+        <div class="right-panel">
+            <div class="pdf-section">
+                <h2>结果预览</h2>
+                <iframe id="resultPdfViewer"></iframe>
+            </div>
+        </div>
+    </div>
+    <footer class="footer" style="color: #a99f94;">
+        © 2025 PDF 增删提工具 | 公众号：小李时光
+    </footer>
+
+    <script>
+        const { PDFDocument } = PDFLib;
+        const pdfFile = document.getElementById('pdfFile');
+        const additionalFile = document.getElementById('additionalFile');
+        const pagesToProcess = document.getElementById('pagesToProcess');
+        const insertPosition = document.getElementById('insertPosition');
+        const deletePagesBtn = document.getElementById('deletePagesBtn');
+        const extractPagesBtn = document.getElementById('extractPagesBtn');
+        const addPagesBtn = document.getElementById('addPagesBtn');
+        const insertFileBtn = document.getElementById('insertFileBtn');
+        const messageDiv = document.getElementById('message');
+        const originalPdfViewer = document.getElementById('originalPdfViewer');
+        const resultPdfViewer = document.getElementById('resultPdfViewer');
+
+        let originalPdfBytes = null;
+
+        let processedPdfBlob = null; // To store the processed PDF for download
+
+        // Use the existing download button in the left panel
+        const downloadPdf = document.getElementById('downloadPdf');
+        // 不再隐藏下载按钮，而是通过disabled属性控制其可用性
+
+        downloadPdf.addEventListener('click', () => {
+            if (processedPdfBlob) {
+                const url = URL.createObjectURL(processedPdfBlob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'processed_pdf.pdf'; // Default filename
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            } else {
+                alert('没有可下载的处理后PDF。');
+            }
+        });
+
+        function updateResultPreview(blob) {
+            const url = URL.createObjectURL(blob);
+            resultPdfViewer.src = url;
+            downloadPdf.disabled = false; // 启用下载按钮
+        }
+
+        pdfFile.addEventListener('change', async (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                messageDiv.textContent = '正在加载PDF...';
+                try {
+                    originalPdfBytes = await file.arrayBuffer();
+                    const pdfBlob = new Blob([originalPdfBytes], { type: 'application/pdf' });
+                    originalPdfViewer.src = URL.createObjectURL(pdfBlob);
+                    resultPdfViewer.src = ''; // Clear result preview on new file load
+                    messageDiv.textContent = 'PDF加载成功。';
+                    enableButtons();
+                } catch (error) {
+                    messageDiv.textContent = '加载PDF失败: ' + error.message;
+                    disableButtons();
+                }
+            } else {
+                originalPdfBytes = null;
+                originalPdfViewer.src = ''; // Clear original preview
+                resultPdfViewer.src = ''; // Clear result preview
+                messageDiv.textContent = '';
+                disableButtons();
+            }
+        });
+
+        pagesToProcess.addEventListener('input', () => {
+            if (originalPdfBytes) {
+                enableButtons();
+            } else {
+                disableButtons();
+            }
+        });
+
+        function enableButtons() {
+            deletePagesBtn.disabled = false;
+            extractPagesBtn.disabled = false;
+            addPagesBtn.disabled = false;
+            insertFileBtn.disabled = false;
+            additionalFile.disabled = false;
+            insertPosition.disabled = false;
+        }
+
+        function disableButtons() {
+            deletePagesBtn.disabled = true;
+            extractPagesBtn.disabled = true;
+            addPagesBtn.disabled = true;
+            insertFileBtn.disabled = true;
+            additionalFile.disabled = true;
+            insertPosition.disabled = true;
+        }
+
+        deletePagesBtn.addEventListener('click', async () => {
+            if (!originalPdfBytes) {
+                messageDiv.textContent = '请先选择PDF文件。';
+                return;
+            }
+            const pagesInput = pagesToProcess.value.trim();
+            if (!pagesInput) {
+                messageDiv.textContent = '请输入要删除的页码。';
+                return;
+            }
+
+            messageDiv.textContent = '正在删除页面...';
+            disableButtons();
+
+            try {
+                const pdfDoc = await PDFDocument.load(originalPdfBytes);
+                const totalPages = pdfDoc.getPageCount();
+                const pagesToDelete = parsePageRanges(pagesInput, totalPages);
+
+                if (pagesToDelete.length === 0) {
+                    messageDiv.textContent = '没有找到有效的页码进行删除。';
+                    enableButtons();
+                    return;
+                }
+
+                // Create a new PDF and copy pages that are NOT in pagesToDelete
+                const newPdfDoc = await PDFDocument.create();
+                const pagesToKeep = [];
+                for (let i = 0; i < totalPages; i++) {
+                    if (!pagesToDelete.includes(i + 1)) {
+                        pagesToKeep.push(i);
+                    }
+                }
+
+                if (pagesToKeep.length === 0) {
+                    messageDiv.textContent = '删除所有页面后，PDF将为空。操作取消。';
+                    enableButtons();
+                    return;
+                }
+
+                const copiedPages = await newPdfDoc.copyPages(pdfDoc, pagesToKeep);
+                copiedPages.forEach(page => newPdfDoc.addPage(page));
+
+                const modifiedPdfBytes = await newPdfDoc.save();
+                const resultBlob = new Blob([modifiedPdfBytes], { type: 'application/pdf' });
+                resultPdfViewer.src = URL.createObjectURL(resultBlob);
+                // Store the processed PDF for manual download
+                processedPdfBlob = new Blob([modifiedPdfBytes], { type: 'application/pdf' });
+                updateResultPreview(processedPdfBlob);
+                messageDiv.textContent = '页面删除成功，文件已下载。';
+            } catch (error) {
+                messageDiv.textContent = '删除页面失败: ' + error.message;
+                console.error(error);
+            } finally {
+                enableButtons();
+            }
+        });
+
+        extractPagesBtn.addEventListener('click', async () => {
+            if (!originalPdfBytes) {
+                messageDiv.textContent = '请先选择PDF文件。';
+                return;
+            }
+            const pagesInput = pagesToProcess.value.trim();
+            if (!pagesInput) {
+                messageDiv.textContent = '请输入要提取的页码。';
+                return;
+            }
+
+            messageDiv.textContent = '正在提取页面...';
+            disableButtons();
+
+            try {
+                const pdfDoc = await PDFDocument.load(originalPdfBytes);
+                const totalPages = pdfDoc.getPageCount();
+                const pagesToExtract = parsePageRanges(pagesInput, totalPages);
+
+                if (pagesToExtract.length === 0) {
+                    messageDiv.textContent = '没有找到有效的页码进行提取。';
+                    enableButtons();
+                    return;
+                }
+
+                const newPdfDoc = await PDFDocument.create();
+                const indicesToExtract = pagesToExtract.map(p => p - 1); // Convert to 0-indexed
+                const copiedPages = await newPdfDoc.copyPages(pdfDoc, indicesToExtract);
+                copiedPages.forEach(page => newPdfDoc.addPage(page));
+
+                const modifiedPdfBytes = await newPdfDoc.save();
+                const resultBlob = new Blob([modifiedPdfBytes], { type: 'application/pdf' });
+                resultPdfViewer.src = URL.createObjectURL(resultBlob);
+                // Store the processed PDF for manual download
+                processedPdfBlob = new Blob([modifiedPdfBytes], { type: 'application/pdf' });
+                updateResultPreview(processedPdfBlob);
+                messageDiv.textContent = '页面提取成功，文件已下载。';
+            } catch (error) {
+                messageDiv.textContent = '提取页面失败: ' + error.message;
+                console.error(error);
+            } finally {
+                enableButtons();
+            }
+        });
+
+        addPagesBtn.addEventListener('click', async () => {
+            if (!originalPdfBytes) {
+                messageDiv.textContent = '请先选择PDF文件。';
+                return;
+            }
+            const pagesInput = pagesToProcess.value.trim();
+            if (!pagesInput) {
+                messageDiv.textContent = '请输入要增加的页数。';
+                return;
+            }
+
+            messageDiv.textContent = '正在增加空白页...';
+            disableButtons();
+
+            try {
+                const pdfDoc = await PDFDocument.load(originalPdfBytes);
+                const totalPages = pdfDoc.getPageCount();
+                
+                // 解析输入，获取要增加的页数
+                let pagesToAdd = 0;
+                if (pagesInput.includes('-') || pagesInput.includes(',')) {
+                    // 如果输入包含范围或逗号，则计算总页数
+                    const pageNumbers = parsePageRanges(pagesInput, 1000); // 使用一个大数作为最大页数
+                    pagesToAdd = pageNumbers.length;
+                } else {
+                    // 如果只是一个数字，直接使用
+                    pagesToAdd = parseInt(pagesInput);
+                    if (isNaN(pagesToAdd) || pagesToAdd <= 0) {
+                        messageDiv.textContent = '请输入有效的页数。';
+                        enableButtons();
+                        return;
+                    }
+                }
+
+                // 获取插入位置
+                let insertAfterPage = totalPages; // 默认在最后插入
+                const positionInput = insertPosition.value.trim();
+                if (positionInput) {
+                    insertAfterPage = parseInt(positionInput);
+                    if (isNaN(insertAfterPage) || insertAfterPage < 0 || insertAfterPage > totalPages) {
+                        messageDiv.textContent = `请输入有效的插入位置（0-${totalPages}）。`;
+                        enableButtons();
+                        return;
+                    }
+                }
+
+                // 获取第一页的尺寸作为参考
+                let pageWidth = 595; // 默认A4宽度（点）
+                let pageHeight = 842; // 默认A4高度（点）
+                
+                if (totalPages > 0) {
+                    const pages = pdfDoc.getPages();
+                    const firstPage = pages[0];
+                    const { width, height } = firstPage.getSize();
+                    pageWidth = width;
+                    pageHeight = height;
+                }
+
+                // 创建新的PDF文档
+                const newPdfDoc = await PDFDocument.create();
+                
+                // 复制插入位置之前的页面
+                if (insertAfterPage > 0) {
+                    const beforePages = [];
+                    for (let i = 0; i < insertAfterPage; i++) {
+                        beforePages.push(i);
+                    }
+                    const copiedBeforePages = await newPdfDoc.copyPages(pdfDoc, beforePages);
+                    copiedBeforePages.forEach(page => newPdfDoc.addPage(page));
+                }
+                
+                // 添加空白页
+                for (let i = 0; i < pagesToAdd; i++) {
+                    newPdfDoc.addPage([pageWidth, pageHeight]);
+                }
+                
+                // 复制插入位置之后的页面
+                if (insertAfterPage < totalPages) {
+                    const afterPages = [];
+                    for (let i = insertAfterPage; i < totalPages; i++) {
+                        afterPages.push(i);
+                    }
+                    const copiedAfterPages = await newPdfDoc.copyPages(pdfDoc, afterPages);
+                    copiedAfterPages.forEach(page => newPdfDoc.addPage(page));
+                }
+
+                const modifiedPdfBytes = await newPdfDoc.save();
+                const resultBlob = new Blob([modifiedPdfBytes], { type: 'application/pdf' });
+                // Store the processed PDF for manual download
+                processedPdfBlob = new Blob([modifiedPdfBytes], { type: 'application/pdf' });
+                updateResultPreview(processedPdfBlob);
+                messageDiv.textContent = `成功在第 ${insertAfterPage} 页后添加 ${pagesToAdd} 页空白页。`;
+            } catch (error) {
+                messageDiv.textContent = '增加空白页失败: ' + error.message;
+                console.error(error);
+            } finally {
+                enableButtons();
+            }
+        });
+
+        insertFileBtn.addEventListener('click', async () => {
+            if (!originalPdfBytes) {
+                messageDiv.textContent = '请先选择PDF文件。';
+                return;
+            }
+            
+            const file = additionalFile.files[0];
+            if (!file) {
+                messageDiv.textContent = '请选择要插入的文件。';
+                return;
+            }
+            
+            // 验证文件类型
+            const supportedTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
+            if (!supportedTypes.includes(file.type)) {
+                messageDiv.textContent = `不支持的文件类型: ${file.type}。仅支持PDF、JPG和PNG格式。`;
+                return;
+            }
+            
+            // 验证文件大小（限制为20MB）
+            const maxSizeMB = 20;
+            const maxSizeBytes = maxSizeMB * 1024 * 1024;
+            if (file.size > maxSizeBytes) {
+                messageDiv.textContent = `文件过大，请选择小于${maxSizeMB}MB的文件。`;
+                return;
+            }
+            
+            messageDiv.textContent = '正在处理文件...';
+            disableButtons();
+            
+            try {
+                const pdfDoc = await PDFDocument.load(originalPdfBytes);
+                const totalPages = pdfDoc.getPageCount();
+                
+                // 获取插入位置
+                let insertAfterPage = totalPages; // 默认在最后插入
+                const positionInput = insertPosition.value.trim();
+                if (positionInput) {
+                    insertAfterPage = parseInt(positionInput);
+                    if (isNaN(insertAfterPage) || insertAfterPage < 0 || insertAfterPage > totalPages) {
+                        messageDiv.textContent = `请输入有效的插入位置（0-${totalPages}）。`;
+                        enableButtons();
+                        return;
+                    }
+                }
+                
+                // 创建新的PDF文档
+                const newPdfDoc = await PDFDocument.create();
+                
+                // 复制插入位置之前的页面
+                if (insertAfterPage > 0) {
+                    const beforePages = [];
+                    for (let i = 0; i < insertAfterPage; i++) {
+                        beforePages.push(i);
+                    }
+                    const copiedBeforePages = await newPdfDoc.copyPages(pdfDoc, beforePages);
+                    copiedBeforePages.forEach(page => newPdfDoc.addPage(page));
+                }
+                
+                // 处理要插入的文件
+                if (file.type === 'application/pdf') {
+                    // 如果是PDF文件，复制其所有页面
+                    try {
+                        const fileBytes = await file.arrayBuffer();
+                        const filePdf = await PDFDocument.load(fileBytes);
+                        const filePages = filePdf.getPageCount();
+                        
+                        if (filePages === 0) {
+                            throw new Error('选择的PDF文件没有页面');
+                        }
+                        
+                        const pagesToCopy = [];
+                        for (let i = 0; i < filePages; i++) {
+                            pagesToCopy.push(i);
+                        }
+                        
+                        const copiedFilePages = await newPdfDoc.copyPages(filePdf, pagesToCopy);
+                        copiedFilePages.forEach(page => newPdfDoc.addPage(page));
+                        
+                        messageDiv.textContent = `正在插入PDF文件（${filePages}页）...`;
+                    } catch (pdfError) {
+                        console.error('PDF处理错误:', pdfError);
+                        throw new Error(`PDF处理失败: ${pdfError.message}`);
+                    }
+                } else if (file.type.startsWith('image/')) {
+                    // 如果是图片文件，将其转换为PDF页面
+                    const imageBytes = await file.arrayBuffer();
+                    let image;
+                    
+                    try {
+                        if (file.type === 'image/jpeg' || file.type === 'image/jpg') {
+                            image = await newPdfDoc.embedJpg(imageBytes);
+                        } else if (file.type === 'image/png') {
+                            image = await newPdfDoc.embedPng(imageBytes);
+                        } else {
+                            throw new Error('不支持的图片格式，仅支持JPG和PNG');
+                        }
+                    } catch (imgError) {
+                        console.error('图片处理错误:', imgError);
+                        throw new Error(`图片处理失败: ${imgError.message}`);
+                    }
+                    
+                    // 获取参考页面尺寸
+                    let pageWidth = 595; // 默认A4宽度（点）
+                    let pageHeight = 842; // 默认A4高度（点）
+                    
+                    if (totalPages > 0) {
+                        const pages = pdfDoc.getPages();
+                        const firstPage = pages[0];
+                        const { width, height } = firstPage.getSize();
+                        pageWidth = width;
+                        pageHeight = height;
+                    }
+                    
+                    // 创建新页面并添加图片
+                    const page = newPdfDoc.addPage([pageWidth, pageHeight]);
+                    
+                    // 计算图片尺寸，保持纵横比并适应页面
+                    const imgWidth = image.width;
+                    const imgHeight = image.height;
+                    const ratio = Math.min(
+                        (pageWidth - 50) / imgWidth,
+                        (pageHeight - 50) / imgHeight
+                    );
+                    
+                    const scaledWidth = imgWidth * ratio;
+                    const scaledHeight = imgHeight * ratio;
+                    
+                    // 居中放置图片
+                    page.drawImage(image, {
+                        x: (pageWidth - scaledWidth) / 2,
+                        y: (pageHeight - scaledHeight) / 2,
+                        width: scaledWidth,
+                        height: scaledHeight
+                    });
+                    
+                    messageDiv.textContent = '正在插入图片...';
+                }
+                
+                // 复制插入位置之后的页面
+                if (insertAfterPage < totalPages) {
+                    const afterPages = [];
+                    for (let i = insertAfterPage; i < totalPages; i++) {
+                        afterPages.push(i);
+                    }
+                    const copiedAfterPages = await newPdfDoc.copyPages(pdfDoc, afterPages);
+                    copiedAfterPages.forEach(page => newPdfDoc.addPage(page));
+                }
+                
+                const modifiedPdfBytes = await newPdfDoc.save();
+                const resultBlob = new Blob([modifiedPdfBytes], { type: 'application/pdf' });
+                processedPdfBlob = new Blob([modifiedPdfBytes], { type: 'application/pdf' });
+                updateResultPreview(processedPdfBlob);
+                
+                const fileType = file.type === 'application/pdf' ? 'PDF' : '图片';
+                messageDiv.textContent = `成功在第 ${insertAfterPage} 页后插入${fileType}。`;
+            } catch (error) {
+                messageDiv.textContent = '插入文件失败: ' + error.message;
+                console.error(error);
+            } finally {
+                enableButtons();
+            }
+        });
+
+        function parsePageRanges(input, totalPages) {
+            const pages = new Set();
+            const parts = input.split(',').map(s => s.trim()).filter(s => s);
+
+            for (const part of parts) {
+                if (part.includes('-')) {
+                    const [start, end] = part.split('-').map(Number);
+                    if (!isNaN(start) && !isNaN(end) && start <= end) {
+                        for (let i = start; i <= end; i++) {
+                            if (i >= 1 && i <= totalPages) {
+                                pages.add(i);
+                            }
+                        }
+                    }
+                } else {
+                    const pageNum = Number(part);
+                    if (!isNaN(pageNum) && pageNum >= 1 && pageNum <= totalPages) {
+                        pages.add(pageNum);
+                    }
+                }
+            }
+            return Array.from(pages).sort((a, b) => a - b);
+        }
+    </script>
+</body>
+</html>

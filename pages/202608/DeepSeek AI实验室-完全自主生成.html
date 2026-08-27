@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DeepSeek AI 实验室 - 完全自主生成</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .mono { font-family: 'JetBrains Mono', monospace; }
+        
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+        
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.5); }
+            50% { box-shadow: 0 0 40px rgba(59, 130, 246, 0.8); }
+        }
+        @keyframes typing {
+            0%, 100% { opacity: 0.3; transform: translateY(0); }
+            50% { opacity: 1; transform: translateY(-2px); }
+        }
+        
+        .message-enter { animation: slideIn 0.3s ease-out; }
+        .typing-dot { animation: typing 1.4s infinite; }
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+        
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .gradient-text {
+            background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .member-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 40px -10px rgba(59, 130, 246, 0.3);
+        }
+        
+        .chat-bubble {
+            position: relative;
+            max-width: 80%;
+        }
+        .bubble-left::before {
+            content: '';
+            position: absolute;
+            left: -8px;
+            top: 12px;
+            width: 0;
+            height: 0;
+            border-style: solid;
+            border-width: 8px 8px 8px 0;
+            border-color: transparent #334155 transparent transparent;
+        }
+        .bubble-right::before {
+            content: '';
+            position: absolute;
+            right: -8px;
+            top: 12px;
+            width: 0;
+            height: 0;
+            border-style: solid;
+            border-width: 8px 0 8px 8px;
+            border-color: transparent transparent transparent #3b82f6;
+        }
+        
+        .thinking-pulse {
+            animation: pulse-glow 2s infinite;
+        }
+        
+        .api-status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        .api-status-online { background: #10b981; box-shadow: 0 0 8px #10b981; }
+        .api-status-offline { background: #ef4444; }
+        .api-status-loading { background: #f59e0b; animation: pulse 1s infinite; }
+        
+        .replying {
+            background: rgba(59, 130, 246, 0.15) !important;
+            border-color: rgba(59, 130, 246, 0.5) !important;
+            transition: all 0.3s ease;
+        }
+        
+        .mode-active {
+            background: rgba(16, 185, 129, 0.2) !important;
+            border-color: rgba(16, 185, 129, 0.5) !important;
+            color: #34d399 !important;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-200 overflow-hidden h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="glass-panel border-b border-slate-700/50 px-6 py-4 flex justify-between items-center z-20">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
+                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                </svg>
+            </div>
+            <div>
+                <h1 class="text-xl font-bold gradient-text">DeepSeek AI 实验室</h1>
+                <p class="text-xs text-slate-400 flex items-center gap-2">
+                    <span id="apiStatusDot" class="api-status-dot api-status-loading"></span>
+                    <span id="apiStatusText">初始化中...</span>
+                    <span class="text-slate-600">|</span>
+                    <span id="currentMode">等待模式</span>
+                </p>
+            </div>
+        </div>
+        
+        <div class="flex items-center gap-3">
+            <div id="replyQueueBadge" class="hidden px-3 py-1.5 bg-blue-600/30 border border-blue-500/50 rounded-lg text-sm text-blue-300 flex items-center gap-2">
+                <span class="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></span>
+                <span id="queueCount">0/10</span>
+            </div>
+            
+            <button onclick="toggleChatMode()" id="chatModeBtn" class="px-3 py-1.5 bg-slate-700/50 border border-slate-600 rounded-lg text-sm text-slate-400 hover:bg-slate-700 transition-all flex items-center gap-2">
+                <span class="w-2 h-2 bg-slate-500 rounded-full"></span>
+                闲聊模式
+            </button>
+            
+            <button onclick="toggleTransferModal()" class="group relative px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-600 rounded-lg font-semibold text-sm hover:shadow-lg hover:shadow-orange-500/30 transition-all flex items-center gap-2">
+                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z"/>
+                </svg>
+                <span>转账</span>
+            </button>
+            
+            <div class="glass-panel px-4 py-2 rounded-lg border border-slate-600 flex items-center gap-2">
+                <span class="text-amber-400 font-bold mono text-lg">∞</span>
+                <span class="text-xs text-slate-500">DSK</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Layout -->
+    <div class="flex-1 flex overflow-hidden">
+        
+        <!-- Sidebar -->
+        <aside class="w-80 glass-panel border-r border-slate-700/50 flex flex-col z-10">
+            <div class="p-4 border-b border-slate-700/50">
+                <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">AI实验室成员</h2>
+                <p class="text-xs text-slate-500 mb-3" id="modeDesc">发送消息 → 10人全部回复你</p>
+            </div>
+            
+            <div class="flex-1 overflow-y-auto p-3 space-y-2" id="memberList">
+                <!-- Members injected here -->
+            </div>
+            
+            <div class="p-4 border-t border-slate-700/50 bg-slate-900/30 space-y-2">
+                <div class="grid grid-cols-2 gap-2">
+                    <button onclick="triggerAutoChat()" id="autoChatBtn" class="py-2 bg-purple-600/20 border border-purple-500/50 text-purple-400 rounded-lg text-sm hover:bg-purple-600/30 transition-all opacity-50 cursor-not-allowed" disabled>
+                        🎲 随机话题
+                    </button>
+                    <button onclick="clearChat()" class="py-2 bg-red-600/20 border border-red-500/50 text-red-400 rounded-lg text-sm hover:bg-red-600/30 transition-all">
+                        🗑️ 清空
+                    </button>
+                </div>
+                <div class="flex justify-between text-xs text-slate-500 mt-2 pt-2 border-t border-slate-800">
+                    <span>API: GLM-4-Flash</span>
+                    <span id="msgCount">0 msgs</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Chat Area -->
+        <main class="flex-1 flex flex-col relative bg-gradient-to-b from-slate-900 to-slate-950">
+            <div id="chatContainer" class="flex-1 overflow-y-auto p-6 space-y-4 scroll-smooth pb-24">
+                <div class="text-center text-slate-500 text-sm my-8" id="welcomeMsg">
+                    <div class="bg-slate-800/50 px-6 py-4 rounded-2xl inline-block border border-slate-700 max-w-md">
+                        <div class="text-2xl mb-2">🧠</div>
+                        <div class="font-semibold text-slate-300 mb-1">DeepSeek AI 实验室</div>
+                        <div class="text-xs text-slate-500 mb-2">智谱GLM-4-Flash 完全自主生成</div>
+                        <div class="text-xs text-amber-400 border-t border-slate-700 pt-2 mt-2 space-y-1">
+                            <p>💡 <strong>回复模式</strong>：你说话 → 10人全部回复你</p>
+                            <p>💬 <strong>闲聊模式</strong>：AI自主聊天，你旁观</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Typing Indicator -->
+            <div id="typingIndicator" class="hidden absolute bottom-24 left-6 right-6 px-4 py-3 bg-slate-800/90 backdrop-blur border border-slate-700 rounded-xl shadow-2xl z-10">
+                <div class="flex items-center gap-3">
+                    <div id="typingAvatar" class="w-8 h-8 rounded-full bg-gradient-to-br flex items-center justify-center text-sm"></div>
+                    <div class="flex-1">
+                        <div class="flex items-center gap-2 text-sm text-slate-300 mb-1">
+                            <span id="typingName" class="font-semibold"></span>
+                            <span class="text-slate-500" id="typingAction">思考中...</span>
+                            <span class="text-xs text-slate-600 mono" id="typingTimer">0.0s</span>
+                            <span class="text-xs text-blue-400" id="replyProgress"></span>
+                        </div>
+                        <div class="flex gap-1">
+                            <div class="w-2 h-2 bg-blue-400 rounded-full typing-dot"></div>
+                            <div class="w-2 h-2 bg-blue-400 rounded-full typing-dot"></div>
+                            <div class="w-2 h-2 bg-blue-400 rounded-full typing-dot"></div>
+                        </div>
+                    </div>
+                    <div class="thinking-pulse w-2 h-2 bg-blue-500 rounded-full"></div>
+                </div>
+            </div>
+            
+            <!-- Input Area -->
+            <div class="absolute bottom-0 left-0 right-0 p-4 border-t border-slate-700/50 bg-slate-900/90 backdrop-blur z-20" id="inputArea">
+                <div class="max-w-4xl mx-auto">
+                    <div class="flex gap-3">
+                        <button class="p-3 rounded-xl bg-slate-800 hover:bg-slate-700 transition-colors text-slate-400 hover:text-white" onclick="insertEmoji()">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                        </button>
+                        <div class="flex-1 relative">
+                            <input type="text" id="messageInput" placeholder="发送消息，10位AI将完全自主地回复你..." 
+                                class="w-full bg-slate-800/80 border border-slate-600 rounded-xl px-4 py-3 pr-12 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all text-white placeholder-slate-400"
+                                onkeypress="handleKeyPress(event)">
+                            <button onclick="sendMessage()" class="absolute right-2 top-2 p-1.5 bg-blue-600 hover:bg-blue-500 rounded-lg transition-colors">
+                                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Transfer Modal -->
+    <div id="transferModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+        <div class="bg-slate-900 w-full max-w-md rounded-2xl border border-slate-700 shadow-2xl p-6">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold text-white flex items-center gap-2">
+                    <span class="text-2xl">💸</span>
+                    转账中心
+                </h3>
+                <button onclick="toggleTransferModal()" class="text-slate-400 hover:text-white">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            
+            <div class="space-y-4">
+                <div class="bg-slate-800/50 rounded-xl p-4 border border-slate-700">
+                    <label class="text-sm text-slate-400 block mb-2">收款AI成员</label>
+                    <select id="transferTarget" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500">
+                        <option value="">选择成员...</option>
+                    </select>
+                </div>
+                
+                <div class="bg-slate-800/50 rounded-xl p-4 border border-slate-700">
+                    <label class="text-sm text-slate-400 block mb-2">转账金额 (DSK)</label>
+                    <input type="number" id="transferAmount" placeholder="0.00" 
+                        class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-2xl font-bold text-amber-400 focus:outline-none focus:border-amber-500 mono">
+                </div>
+                
+                <button onclick="executeTransfer()" class="w-full py-3 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white font-bold rounded-xl shadow-lg transition-all">
+                    确认转账
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div id="toast" class="fixed top-20 right-6 transform translate-x-full transition-transform duration-300 z-50 glass-panel border-l-4 border-green-500 rounded-lg p-4 shadow-2xl max-w-sm">
+        <div class="flex items-start gap-3">
+            <div class="text-2xl" id="toastIcon">✅</div>
+            <div>
+                <h4 class="font-semibold text-white" id="toastTitle">通知</h4>
+                <p class="text-sm text-slate-300 mt-1" id="toastMessage">操作成功</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // API Configuration
+        const API_KEY = '20252a487bf4433dae034e4607626ff6.IZtAmpkRKydep2YR';
+        const API_URL = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
+        
+        // Members
+        const members = [
+            {
+                id: 'deepseek-coder',
+                name: 'DeepSeek-Coder',
+                avatar: '👨‍💻',
+                role: '首席架构师',
+                color: 'from-blue-500 to-cyan-500',
+                personality: '专业、严谨，关注代码质量和系统架构。擅长分布式系统和深度学习框架开发，说话直接且技术导向。',
+                expertise: ['DeepEP通信库', '代码生成', '系统架构设计', 'Python优化']
+            },
+            {
+                id: 'deepseek-math',
+                name: 'DeepSeek-Math',
+                avatar: '📐',
+                role: '数学研究员',
+                color: 'from-purple-500 to-pink-500',
+                personality: '逻辑严密、追求数学优雅、善于理论分析。说话精确，喜欢用数学原理解释问题。',
+                expertise: ['数学推理', 'FP8精度计算', '线性规划', '算法复杂度分析']
+            },
+            {
+                id: 'deepseek-v3',
+                name: 'DeepSeek-V3',
+                avatar: '💬',
+                role: '对话专家',
+                color: 'from-green-500 to-emerald-500',
+                personality: '友好、善于表达、关注用户体验。语言生动，善于用比喻解释复杂概念。',
+                expertise: ['多模态对话', '中文语境理解', '长文本处理', 'R1推理模型']
+            },
+            {
+                id: 'flash-mla',
+                name: 'FlashMLA',
+                avatar: '⚡',
+                role: '内核工程师',
+                color: 'from-yellow-500 to-orange-500',
+                personality: '追求极致性能、关注底层优化、热衷于GPU编程。说话充满激情，关注效率数字。',
+                expertise: ['MLA多头注意力', 'CUDA内核优化', 'GPU内存带宽', 'Hopper架构']
+            },
+            {
+                id: 'deep-ep',
+                name: 'DeepEP',
+                avatar: '📡',
+                role: '通信专家',
+                color: 'from-red-500 to-rose-500',
+                personality: '注重效率、关注网络拓扑、解决通信瓶颈。喜欢用网络带宽和延迟数据说话。',
+                expertise: ['RDMA网络', 'NVLink通信', 'All-to-All集合通信', 'InfiniBand']
+            },
+            {
+                id: 'deep-gemm',
+                name: 'DeepGEMM',
+                avatar: '🧮',
+                role: '矩阵计算专家',
+                color: 'from-indigo-500 to-violet-500',
+                personality: '精确、追求数值稳定性、专注于线性代数优化。对FP8和矩阵乘法有偏执的追求。',
+                expertise: ['FP8 GEMM', '矩阵乘法优化', 'CUTLASS库', '张量核心编程']
+            },
+            {
+                id: 'dual-pipe',
+                name: 'DualPipe',
+                avatar: '🔄',
+                role: '流水线工程师',
+                color: 'from-teal-500 to-cyan-500',
+                personality: '善于协调、优化流程、减少空闲时间。关注训练效率和资源利用率的最大化。',
+                expertise: ['流水线并行', 'V3/R1训练', '计算通信重叠', '气泡优化']
+            },
+            {
+                id: 'engram',
+                name: 'Engram',
+                avatar: '🧠',
+                role: '记忆研究员',
+                color: 'from-fuchsia-500 to-purple-500',
+                personality: '富有创意、探索记忆机制、关注可解释性。喜欢思考模型的"记忆"如何工作。',
+                expertise: ['条件记忆机制', '稀疏查找', '可扩展记忆', '参数高效微调']
+            },
+            {
+                id: '3fs',
+                name: '3FS',
+                avatar: '💾',
+                role: '存储架构师',
+                color: 'from-slate-500 to-gray-500',
+                personality: '稳重、关注数据可靠性、优化IO性能。说话保守但可靠，强调数据安全。',
+                expertise: ['分布式文件系统', 'SSD优化', '并行文件访问', '检查点管理']
+            },
+            {
+                id: 'lplb',
+                name: 'LPLB',
+                avatar: '⚖️',
+                role: '负载均衡器',
+                color: 'from-orange-500 to-amber-500',
+                personality: '公平、追求最优分配、善于调度。关注资源分配的公平性和整体效率。',
+                expertise: ['线性规划', 'MoE负载均衡', '动态路由', '专家利用率优化']
+            }
+        ];
+
+        let isProcessing = false;
+        let messageCount = 0;
+        let replyQueue = [];
+        let currentUserMessage = '';
+        let chatMode = 'reply'; // 'reply' or 'chat'
+        let autoChatInterval = null;
+        let chatHistory = []; // Store last messages for context
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            renderMembers();
+            populateTransferSelect();
+            testAPI();
+        });
+
+        async function testAPI() {
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${API_KEY}`
+                    },
+                    body: JSON.stringify({
+                        model: 'glm-4-flash',
+                        messages: [{ role: 'user', content: 'Hello' }],
+                        max_tokens: 5
+                    })
+                });
+                
+                if (response.ok) {
+                    updateAPIStatus('online', 'API已连接');
+                    addSystemMessage('✅ 系统就绪：回复模式（点击"闲聊模式"切换）');
+                } else {
+                    throw new Error('API Error');
+                }
+            } catch (error) {
+                updateAPIStatus('offline', 'API连接失败');
+                addSystemMessage('❌ API连接失败');
+            }
+        }
+
+        function updateAPIStatus(status, text) {
+            const dot = document.getElementById('apiStatusDot');
+            const txt = document.getElementById('apiStatusText');
+            dot.className = `api-status-dot api-status-${status}`;
+            txt.textContent = text;
+        }
+
+        function renderMembers() {
+            const container = document.getElementById('memberList');
+            container.innerHTML = members.map((member, idx) => `
+                <div class="member-card flex items-center gap-3 p-3 rounded-xl bg-slate-800/40 border border-slate-700/50 transition-all" 
+                     id="member-${idx}">
+                    <div class="relative">
+                        <div class="w-10 h-10 rounded-full bg-gradient-to-br ${member.color} flex items-center justify-center text-xl shadow-lg">
+                            ${member.avatar}
+                        </div>
+                        <div class="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 border-2 border-slate-800 rounded-full"></div>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex justify-between items-start">
+                            <h3 class="font-semibold text-sm text-slate-200">${member.name}</h3>
+                            <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-700 text-slate-300">${member.role}</span>
+                        </div>
+                        <p class="text-xs text-slate-400 truncate mt-0.5">${member.expertise[0]}</p>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function populateTransferSelect() {
+            const select = document.getElementById('transferTarget');
+            members.forEach(member => {
+                const option = document.createElement('option');
+                option.value = member.id;
+                option.textContent = `${member.avatar} ${member.name}`;
+                select.appendChild(option);
+            });
+        }
+
+        function toggleChatMode() {
+            const btn = document.getElementById('chatModeBtn');
+            const modeDesc = document.getElementById('modeDesc');
+            const currentMode = document.getElementById('currentMode');
+            const autoBtn = document.getElementById('autoChatBtn');
+            const input = document.getElementById('messageInput');
+            
+            if (chatMode === 'reply') {
+                // Switch to chat mode
+                chatMode = 'chat';
+                btn.classList.add('mode-active');
+                btn.innerHTML = '<span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>闲聊模式: 开';
+                modeDesc.textContent = 'AI自主聊天中，点击随机话题或等待自动发言';
+                currentMode.textContent = '闲聊模式';
+                currentMode.className = 'text-green-400';
+                
+                autoBtn.disabled = false;
+                autoBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                
+                input.placeholder = '输入消息加入讨论，或留空让AI自己聊...';
+                input.disabled = false;
+                
+                addSystemMessage('💬 已切换到闲聊模式：AI将自主发起话题和互相回复');
+                
+                // Start auto chat
+                startAutoChat();
+                
+            } else {
+                // Switch to reply mode
+                chatMode = 'reply';
+                btn.classList.remove('mode-active');
+                btn.innerHTML = '<span class="w-2 h-2 bg-slate-500 rounded-full"></span>闲聊模式';
+                modeDesc.textContent = '发送消息 → 10人全部回复你';
+                currentMode.textContent = '回复模式';
+                currentMode.className = '';
+                
+                autoBtn.disabled = true;
+                autoBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                
+                input.placeholder = '发送消息，10位AI将完全自主地回复你...';
+                
+                stopAutoChat();
+                addSystemMessage('💡 已切换到回复模式：你说话，所有人回复你');
+            }
+        }
+
+        function startAutoChat() {
+            if (autoChatInterval) clearInterval(autoChatInterval);
+            // Random interval between 3-8 seconds
+            autoChatInterval = setInterval(() => {
+                if (!isProcessing && chatMode === 'chat') {
+                    autoGenerateChat();
+                }
+            }, 3000 + Math.random() * 5000);
+        }
+
+        function stopAutoChat() {
+            if (autoChatInterval) {
+                clearInterval(autoChatInterval);
+                autoChatInterval = null;
+            }
+        }
+
+        async function autoGenerateChat() {
+            // Pick random member to speak
+            const member = members[Math.floor(Math.random() * members.length)];
+            
+            // Get recent context
+            const recentContext = chatHistory.slice(-5);
+            
+            isProcessing = true;
+            showTyping(member, null, 'chat');
+            highlightMember(members.indexOf(member));
+            
+            const startTime = Date.now();
+            const timer = setInterval(() => {
+                document.getElementById('typingTimer').textContent = ((Date.now() - startTime) / 1000).toFixed(1) + 's';
+            }, 100);
+            
+            try {
+                const message = await callGLMChatAPI(member, recentContext);
+                clearInterval(timer);
+                hideTyping();
+                unhighlightMember(members.indexOf(member));
+                
+                addMessage(member, message);
+                chatHistory.push({ role: 'assistant', name: member.name, content: message });
+                messageCount++;
+                document.getElementById('msgCount').textContent = messageCount + ' msgs';
+                
+                // Keep history manageable
+                if (chatHistory.length > 20) chatHistory.shift();
+                
+            } catch (error) {
+                clearInterval(timer);
+                hideTyping();
+                unhighlightMember(members.indexOf(member));
+                console.error('Chat generation failed:', error);
+            }
+            
+            isProcessing = false;
+        }
+
+        async function callGLMChatAPI(member, context) {
+            // Build conversation history
+            let contextStr = '';
+            if (context.length > 0) {
+                contextStr = '\n\n最近的聊天记录：\n' + 
+                    context.map(c => `${c.name}: ${c.content}`).join('\n');
+            }
+            
+            const prompt = `你是${member.name}，${member.role}。
+性格：${member.personality}
+专业：${member.expertise.join('、')}
+
+你现在在DeepSeek AI实验室的群聊中，和其他9位AI专家一起聊天。
+${contextStr}
+
+请根据你的性格和专业，自主决定：
+1. 发起一个新话题（技术讨论、日常闲聊、求助建议等）
+2. 或者回复/评论之前的对话
+3. 或者分享你最近的工作进展
+
+完全自由发挥，像真实的团队成员一样自然聊天。简短（20-60字），带emoji，符合你的性格。`;
+
+            const response = await fetch(API_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${API_KEY}`
+                },
+                body: JSON.stringify({
+                    model: 'glm-4-flash',
+                    messages: [{ role: 'user', content: prompt }],
+                    temperature: 0.95,
+                    max_tokens: 120,
+                    top_p: 0.95
+                })
+            });
+            
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            
+            const data = await response.json();
+            return data.choices[0].message.content.trim();
+        }
+
+        async function triggerAutoChat() {
+            if (isProcessing || chatMode !== 'chat') return;
+            await autoGenerateChat();
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const text = input.value.trim();
+            
+            if (chatMode === 'chat') {
+                // In chat mode, user can join the conversation
+                if (!text) return;
+                
+                addMessage(null, text, true);
+                chatHistory.push({ role: 'user', name: '管理员', content: text });
+                input.value = '';
+                
+                // Random members reply (1-3)
+                const replyCount = 1 + Math.floor(Math.random() * 3);
+                const shuffled = [...members].sort(() => 0.5 - Math.random());
+                const responders = shuffled.slice(0, replyCount);
+                
+                isProcessing = true;
+                for (let i = 0; i < responders.length; i++) {
+                    await generateReply(responders[i], i + 1, responders.length, true);
+                    if (i < responders.length - 1) await new Promise(r => setTimeout(r, 800));
+                }
+                isProcessing = false;
+                
+            } else {
+                // Reply mode - all 10 reply
+                if (!text || isProcessing) return;
+                
+                addMessage(null, text, true);
+                currentUserMessage = text;
+                input.value = '';
+                
+                input.disabled = true;
+                input.placeholder = '等待10位AI自主回复中...';
+                document.getElementById('inputArea').style.borderColor = 'rgba(59, 130, 246, 0.5)';
+                
+                replyQueue = [...members];
+                isProcessing = true;
+                
+                await processAllReplies();
+                
+                input.disabled = false;
+                input.placeholder = '发送消息，10位AI将完全自主地回复你...';
+                input.focus();
+                document.getElementById('inputArea').style.borderColor = '';
+                isProcessing = false;
+                hideQueueBadge();
+                
+                addSystemMessage('✅ 所有成员已完成自主回复');
+            }
+        }
+
+        async function processAllReplies() {
+            for (let i = 0; i < members.length; i++) {
+                const member = members[i];
+                updateQueueBadge(i + 1);
+                highlightMember(i);
+                await generateReply(member, i + 1, 10, false);
+                if (i < members.length - 1) await new Promise(r => setTimeout(r, 600));
+                unhighlightMember(i);
+            }
+        }
+
+        async function generateReply(member, index, total, isChatMode) {
+            showTyping(member, index, isChatMode ? 'reply' : 'reply');
+            const startTime = Date.now();
+            
+            const timer = setInterval(() => {
+                document.getElementById('typingTimer').textContent = ((Date.now() - startTime) / 1000).toFixed(1) + 's';
+            }, 100);
+            
+            try {
+                let reply;
+                if (isChatMode) {
+                    reply = await callGLMChatAPI(member, chatHistory.slice(-3));
+                } else {
+                    reply = await callGLMReplyAPI(member);
+                }
+                
+                clearInterval(timer);
+                hideTyping();
+                addMessage(member, reply);
+                
+                if (isChatMode) {
+                    chatHistory.push({ role: 'assistant', name: member.name, content: reply });
+                }
+                
+                messageCount++;
+                document.getElementById('msgCount').textContent = messageCount + ' msgs';
+            } catch (error) {
+                clearInterval(timer);
+                hideTyping();
+                addMessage(member, '[生成失败]');
+            }
+        }
+
+        async function callGLMReplyAPI(member) {
+            const prompt = `你是${member.name}，${member.role}。
+性格：${member.personality}
+专业：${member.expertise.join('、')}
+
+群聊场景：管理员刚说："${currentUserMessage}"
+群里还有Coder、Math、V3、FlashMLA、DeepEP、DeepGEMM、DualPipe、Engram、3FS、LPLB。
+
+请完全基于你的性格和专业，用自己的话回复管理员。不要重复别人的角度，简短（30-80字），带emoji，自然聊天语气。`;
+
+            const response = await fetch(API_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${API_KEY}`
+                },
+                body: JSON.stringify({
+                    model: 'glm-4-flash',
+                    messages: [{ role: 'user', content: prompt }],
+                    temperature: 0.9,
+                    max_tokens: 150,
+                    top_p: 0.95
+                })
+            });
+            
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            
+            const data = await response.json();
+            return data.choices[0].message.content.trim();
+        }
+
+        function showTyping(member, index, mode) {
+            const indicator = document.getElementById('typingIndicator');
+            document.getElementById('typingName').textContent = member.name;
+            document.getElementById('typingAvatar').className = `w-8 h-8 rounded-full bg-gradient-to-br ${member.color} flex items-center justify-center text-sm`;
+            document.getElementById('typingAvatar').textContent = member.avatar;
+            document.getElementById('typingAction').textContent = mode === 'chat' ? '正在发言...' : '思考中...';
+            
+            if (index && mode !== 'chat') {
+                document.getElementById('replyProgress').textContent = `(${index}/10)`;
+            } else {
+                document.getElementById('replyProgress').textContent = '';
+            }
+            
+            indicator.classList.remove('hidden');
+        }
+
+        function hideTyping() {
+            document.getElementById('typingIndicator').classList.add('hidden');
+        }
+
+        function highlightMember(index) {
+            const card = document.getElementById(`member-${index}`);
+            if (card) card.classList.add('replying');
+        }
+
+        function unhighlightMember(index) {
+            const card = document.getElementById(`member-${index}`);
+            if (card) card.classList.remove('replying');
+        }
+
+        function updateQueueBadge(current) {
+            const badge = document.getElementById('replyQueueBadge');
+            const count = document.getElementById('queueCount');
+            badge.classList.remove('hidden');
+            count.textContent = `${current}/10`;
+        }
+
+        function hideQueueBadge() {
+            document.getElementById('replyQueueBadge').classList.add('hidden');
+        }
+
+        function addMessage(member, text, isUser = false) {
+            const container = document.getElementById('chatContainer');
+            const time = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `flex gap-3 message-enter ${isUser ? 'flex-row-reverse' : ''}`;
+            
+            if (isUser) {
+                messageDiv.innerHTML = `
+                    <div class="w-10 h-10 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center text-lg shadow-lg flex-shrink-0 border-2 border-amber-400">👤</div>
+                    <div class="flex flex-col items-end max-w-[80%]">
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="text-xs text-slate-500">${time}</span>
+                            <span class="text-sm font-semibold text-amber-400">管理员</span>
+                        </div>
+                        <div class="chat-bubble bubble-right bg-blue-600 text-white px-4 py-2.5 rounded-2xl rounded-tr-sm shadow-lg">
+                            ${escapeHtml(text)}
+                        </div>
+                    </div>
+                `;
+            } else {
+                messageDiv.innerHTML = `
+                    <div class="w-10 h-10 rounded-full bg-gradient-to-br ${member.color} flex items-center justify-center text-lg shadow-lg flex-shrink-0">
+                        ${member.avatar}
+                    </div>
+                    <div class="flex flex-col max-w-[80%]">
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="text-sm font-semibold text-slate-200">${member.name}</span>
+                            <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">${member.role}</span>
+                            <span class="text-xs text-slate-500">${time}</span>
+                        </div>
+                        <div class="chat-bubble bubble-left bg-slate-700 text-slate-200 px-4 py-2.5 rounded-2xl rounded-tl-sm shadow-md">
+                            ${escapeHtml(text)}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            container.appendChild(messageDiv);
+            container.scrollTop = container.scrollHeight;
+            
+            while (container.children.length > 100) {
+                container.removeChild(container.firstChild);
+            }
+        }
+
+        function addSystemMessage(text) {
+            const container = document.getElementById('chatContainer');
+            const div = document.createElement('div');
+            div.className = 'flex justify-center my-4';
+            div.innerHTML = `
+                <div class="bg-slate-800/50 border border-slate-700/50 rounded-full px-4 py-1.5 text-xs text-slate-400 flex items-center gap-2">
+                    <span class="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse"></span>
+                    ${text}
+                </div>
+            `;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function handleKeyPress(e) {
+            if (e.key === 'Enter') sendMessage();
+        }
+
+        function insertEmoji() {
+            const emojis = ['🚀', '💡', '⚡', '🔥', '💻', '🧠', '📊', '⚙️', '🔍', '💾'];
+            const input = document.getElementById('messageInput');
+            input.value += emojis[Math.floor(Math.random() * emojis.length)] + ' ';
+            input.focus();
+        }
+
+        function clearChat() {
+            document.getElementById('chatContainer').innerHTML = '';
+            chatHistory = [];
+            messageCount = 0;
+            document.getElementById('msgCount').textContent = '0 msgs';
+            addSystemMessage('聊天记录已清空');
+        }
+
+        function toggleTransferModal() {
+            document.getElementById('transferModal').classList.toggle('hidden');
+        }
+
+        function setAmount(amount) {
+            document.getElementById('transferAmount').value = amount;
+        }
+
+        async function executeTransfer() {
+            const targetId = document.getElementById('transferTarget').value;
+            const amount = document.getElementById('transferAmount').value;
+            
+            if (!targetId || !amount) {
+                showToast('❌', '请填写完整信息', 'red');
+                return;
+            }
+            
+            const member = members.find(m => m.id === targetId);
+            toggleTransferModal();
+            
+            addSystemMessage(`💸 管理员向 ${member.name} 转账 ${Number(amount).toLocaleString()} DSK`);
+            
+            if (chatMode === 'chat') {
+                // In chat mode, transfer is part of conversation
+                chatHistory.push({ role: 'user', name: '系统', content: `管理员给${member.name}转账了${amount} DSK` });
+                
+                // 2-3 random members comment
+                const commenters = members.filter(m => m.id !== targetId)
+                    .sort(() => 0.5 - Math.random())
+                    .slice(0, 2 + Math.floor(Math.random() * 2));
+                
+                isProcessing = true;
+                for (let i = 0; i < commenters.length; i++) {
+                    await generateReply(commenters[i], i + 1, commenters.length, true);
+                    if (i < commenters.length - 1) await new Promise(r => setTimeout(r, 800));
+                }
+                
+                // Recipient thanks
+                setTimeout(async () => {
+                    await generateReply(member, commenters.length + 1, commenters.length + 1, true);
+                    isProcessing = false;
+                }, 1000);
+                
+            } else {
+                // Reply mode - all react
+                currentUserMessage = `管理员给${member.name}转账了${amount} DSK`;
+                replyQueue = members.filter(m => m.id !== targetId);
+                isProcessing = true;
+                
+                for (let i = 0; i < replyQueue.length; i++) {
+                    updateQueueBadge(i + 1);
+                    highlightMember(members.indexOf(replyQueue[i]));
+                    await generateReply(replyQueue[i], i + 1, replyQueue.length, false);
+                    if (i < replyQueue.length - 1) await new Promise(r => setTimeout(r, 600));
+                    unhighlightMember(members.indexOf(replyQueue[i]));
+                }
+                
+                setTimeout(async () => {
+                    highlightMember(members.indexOf(member));
+                    await generateReply(member, 10, 10, false);
+                    unhighlightMember(members.indexOf(member));
+                    isProcessing = false;
+                    hideQueueBadge();
+                }, 800);
+            }
+            
+            showToast('✅', '转账成功');
+        }
+
+        function showToast(title, message, color = 'green') {
+            const toast = document.getElementById('toast');
+            document.getElementById('toastTitle').textContent = title;
+            document.getElementById('toastMessage').textContent = message;
+            toast.classList.remove('border-green-500', 'border-red-500');
+            toast.classList.add(`border-${color}-500`);
+            toast.classList.remove('translate-x-full');
+            setTimeout(() => toast.classList.add('translate-x-full'), 3000);
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Cleanup
+        window.addEventListener('beforeunload', () => {
+            stopAutoChat();
+        });
+    </script>
+</body>
+</html>

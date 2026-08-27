@@ -1,0 +1,2712 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>单词记忆游戏工具</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome -->
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- 自定义配置 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#FF7F50',
+                        secondary: '#4682B4',
+                        accent: '#FFD700',
+                        success: '#32CD32',
+                        warning: '#FFA500',
+                        background: '#F5F7FA',
+                        card: '#FFFFFF'
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                        serif: ['Georgia', 'serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .tab-active {
+                color: theme('colors.primary');
+                font-weight: 600;
+                position: relative;
+            }
+            .tab-active::after {
+                content: '';
+                position: absolute;
+                bottom: -4px;
+                left: 0;
+                width: 100%;
+                height: 3px;
+                background-color: theme('colors.primary');
+                transition: width 0.3s ease;
+            }
+            .game-item-hover {
+                background-color: rgba(255, 127, 80, 0.1);
+                transform: translateX(5px);
+            }
+            .card-shadow {
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            }
+            .star-animation {
+                animation: starBurst 0.6s ease-out forwards;
+            }
+            .fade-in {
+                animation: fadeIn 0.5s ease-out;
+            }
+            .slide-in {
+                animation: slideIn 0.5s ease-out;
+            }
+            .float-up {
+                animation: floatUp 0.8s ease-out forwards;
+            }
+            .ribbon-recommend {
+                position: absolute;
+                top: 0;
+                right: 0;
+                background-color: theme('colors.success');
+                color: white;
+                padding: 2px 12px;
+                font-size: 0.75rem;
+                transform: rotate(45deg) translate(15px, -10px);
+            }
+            .keyboard-key {
+                transition: all 0.1s ease;
+            }
+            .keyboard-key:hover:not(:disabled) {
+                background-color: theme('colors.primary');
+                color: white;
+                transform: scale(1.05);
+            }
+            .keyboard-key:active:not(:disabled) {
+                transform: scale(0.95);
+            }
+            .btn-primary {
+                background-color: theme('colors.primary');
+                color: white;
+                transition: all 0.3s ease;
+            }
+            .btn-primary:hover {
+                background-color: #FF6347;
+                transform: translateY(-2px);
+                box-shadow: 0 4px 8px rgba(255, 127, 80, 0.3);
+            }
+            .btn-secondary {
+                background-color: #E0E0E0;
+                color: #666;
+                transition: all 0.3s ease;
+            }
+            .btn-secondary:hover {
+                background-color: #D0D0D0;
+                transform: translateY(-2px);
+            }
+        }
+    </style>
+    <style>
+        /* 全局样式 */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: #F5F7FA;
+            overflow-x: hidden;
+        }
+        
+        /* 动画定义 */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        @keyframes starBurst {
+            0% {
+                transform: scale(0);
+                opacity: 1;
+            }
+            50% {
+                transform: scale(1.2);
+            }
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+        
+        @keyframes floatUp {
+            0% {
+                transform: translateY(0);
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(-30px);
+                opacity: 0;
+            }
+        }
+        
+        @keyframes confetti {
+            0% {
+                transform: translateY(0) rotate(0deg);
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(-100px) rotate(360deg);
+                opacity: 0;
+            }
+        }
+        
+        @keyframes loadingGame {
+            0% {
+                transform: scale(0.5) translate(0, 0);
+                opacity: 0;
+            }
+            100% {
+                transform: scale(1) translate(0, 0);
+                opacity: 1;
+            }
+        }
+        
+        /* 游戏加载动画 */
+        .game-loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100%;
+        }
+        
+        .game-loading-letter {
+            font-size: 3rem;
+            font-weight: bold;
+            color: #FF7F50;
+            margin: 0 5px;
+            animation: loadingGame 1s ease-out forwards;
+        }
+        
+        /* 星星粒子效果 */
+        .star-particle {
+            position: fixed;
+            pointer-events: none;
+            font-size: 16px;
+            color: #FFD700;
+            animation: floatUp 1s ease-out forwards;
+        }
+        
+        /* 消消乐卡片样式 */
+        .memory-card {
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .memory-card:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
+        }
+        
+        .memory-card.matched {
+            animation: floatUp 0.8s ease-out forwards;
+        }
+        
+        /* 拖拽配对样式 */
+        .drag-item {
+            cursor: grab;
+            transition: all 0.2s ease;
+        }
+        
+        .drag-item:hover {
+            transform: scale(1.02);
+        }
+        
+        .drag-item.dragging {
+            opacity: 0.7;
+            cursor: grabbing;
+        }
+        
+        .drop-zone {
+            border: 2px dashed #ccc;
+            transition: all 0.2s ease;
+        }
+        
+        .drop-zone.active {
+            border-color: #32CD32;
+            background-color: rgba(50, 205, 50, 0.1);
+        }
+        
+        /* 提示框样式 */
+        .toast {
+            position: fixed;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 24px;
+            border-radius: 8px;
+            color: white;
+            font-weight: 500;
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        .toast.show {
+            opacity: 1;
+        }
+        
+        .toast.success {
+            background-color: #32CD32;
+        }
+        
+        .toast.warning {
+            background-color: #FFA500;
+        }
+        
+        /* 移动端适配 */
+        @media (max-width: 768px) {
+            .mobile-menu-overlay {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background-color: rgba(0, 0, 0, 0.5);
+                z-index: 998;
+                opacity: 0;
+                transition: opacity 0.3s ease;
+                pointer-events: none;
+            }
+            
+            .mobile-menu-overlay.active {
+                opacity: 1;
+                pointer-events: auto;
+            }
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+    <!-- 顶部导航栏 -->
+    <header class="bg-secondary text-white py-4 sticky top-0 z-50">
+        <div class="container mx-auto px-4">
+            <div class="flex justify-between items-center">
+                <div class="flex items-center gap-2">
+                    <i class="fa fa-book text-2xl text-accent"></i>
+                    <h1 class="text-xl font-bold">单词记忆游戏工具</h1>
+                </div>
+                
+                <!-- 移动端菜单按钮 -->
+                <button id="mobileMenuBtn" class="lg:hidden text-white text-xl">
+                    <i class="fa fa-bars"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+    
+    <!-- 主内容区 -->
+    <div class="container mx-auto px-4 py-6 flex flex-col lg:flex-row gap-6">
+        <!-- 移动端菜单覆盖层 -->
+        <div id="mobileMenuOverlay" class="mobile-menu-overlay hidden lg:hidden"></div>
+        
+        <!-- 左侧游戏分类面板 -->
+        <aside id="leftPanel" class="w-full lg:w-1/4 xl:w-1/5 bg-white rounded-lg p-4 card-shadow lg:sticky lg:top-24 lg:self-start transition-transform duration-300 lg:transform-none">
+            <div class="mb-4">
+                <h2 class="text-lg font-bold text-secondary border-b pb-2">游戏分类</h2>
+            </div>
+            
+            <div class="space-y-2">
+                <div class="game-item relative group" data-game="spelling">
+                    <div class="flex items-center p-3 rounded-lg cursor-pointer transition-all duration-300 group-hover:game-item-hover">
+                        <i class="fa fa-pencil-square-o text-xl text-primary mr-3"></i>
+                        <span class="font-medium">拼写填空</span>
+                    </div>
+                    <span class="ribbon-recommend">推荐入门</span>
+                </div>
+                
+                <div class="game-item group" data-game="guess">
+                    <div class="flex items-center p-3 rounded-lg cursor-pointer transition-all duration-300 group-hover:game-item-hover">
+                        <i class="fa fa-question-circle text-xl text-primary mr-3"></i>
+                        <span class="font-medium">单词猜谜</span>
+                    </div>
+                </div>
+                
+                <div class="game-item group" data-game="match">
+                    <div class="flex items-center p-3 rounded-lg cursor-pointer transition-all duration-300 group-hover:game-item-hover">
+                        <i class="fa fa-exchange text-xl text-primary mr-3"></i>
+                        <span class="font-medium">词义配对</span>
+                    </div>
+                </div>
+                
+                <div class="game-item group" data-game="memory">
+                    <div class="flex items-center p-3 rounded-lg cursor-pointer transition-all duration-300 group-hover:game-item-hover">
+                        <i class="fa fa-th-large text-xl text-primary mr-3"></i>
+                        <span class="font-medium">单词消消乐</span>
+                    </div>
+                </div>
+            </div>
+        </aside>
+        
+        <!-- 中间核心游戏区 -->
+        <main id="gameArea" class="w-full lg:w-2/4 xl:w-2/5 bg-white rounded-lg p-6 card-shadow">
+            <!-- 游戏导航Tab -->
+            <div class="mb-8">
+                <div class="flex border-b">
+                    <div class="tab-item px-4 py-3 cursor-pointer tab-active" data-tab="game">
+                        <i class="fa fa-gamepad mr-2"></i>游戏选择
+                    </div>
+                    <div class="tab-item px-4 py-3 cursor-pointer" data-tab="wordlist">
+                        <i class="fa fa-book mr-2"></i>单词库
+                    </div>
+                    <div class="tab-item px-4 py-3 cursor-pointer" data-tab="history">
+                        <i class="fa fa-bar-chart mr-2"></i>学习记录
+                    </div>
+                    <div class="tab-item px-4 py-3 cursor-pointer" data-tab="settings">
+                        <i class="fa fa-cog mr-2"></i>设置
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 游戏内容区域 -->
+            <div id="tabContent" class="min-h-[400px]">
+                <!-- 游戏选择页面 -->
+                <div id="gameTab" class="game-tab-content">
+                    <div class="text-center mb-8">
+                        <h2 class="text-2xl font-bold text-primary mb-2">欢迎来到单词记忆游戏</h2>
+                        <p class="text-gray-600">请从左侧选择一个游戏开始挑战！</p>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="p-4 border rounded-lg hover:border-primary transition-all cursor-pointer" data-game="spelling">
+                            <div class="flex items-center mb-3">
+                                <i class="fa fa-pencil-square-o text-2xl text-primary mr-3"></i>
+                                <h3 class="text-xl font-bold">拼写填空</h3>
+                            </div>
+                            <p class="text-gray-600">根据音标和释义，填写正确的单词拼写。适合初学者快速掌握单词拼写。</p>
+                        </div>
+                        
+                        <div class="p-4 border rounded-lg hover:border-primary transition-all cursor-pointer" data-game="guess">
+                            <div class="flex items-center mb-3">
+                                <i class="fa fa-question-circle text-2xl text-primary mr-3"></i>
+                                <h3 class="text-xl font-bold">单词猜谜</h3>
+                            </div>
+                            <p class="text-gray-600">通过图片或描述提示，猜出正确的单词。提升联想记忆能力。</p>
+                        </div>
+                        
+                        <div class="p-4 border rounded-lg hover:border-primary transition-all cursor-pointer" data-game="match">
+                            <div class="flex items-center mb-3">
+                                <i class="fa fa-exchange text-2xl text-primary mr-3"></i>
+                                <h3 class="text-xl font-bold">词义配对</h3>
+                            </div>
+                            <p class="text-gray-600">将英文单词与中文释义进行配对。强化单词与释义的联系。</p>
+                        </div>
+                        
+                        <div class="p-4 border rounded-lg hover:border-primary transition-all cursor-pointer" data-game="memory">
+                            <div class="flex items-center mb-3">
+                                <i class="fa fa-th-large text-2xl text-primary mr-3"></i>
+                                <h3 class="text-xl font-bold">单词消消乐</h3>
+                            </div>
+                            <p class="text-gray-600">找出相同的单词进行消除。锻炼记忆力和反应速度。</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 单词库页面 -->
+                <div id="wordlistTab" class="game-tab-content hidden">
+                    <div class="mb-4">
+                        <h2 class="text-xl font-bold text-primary mb-4">单词库</h2>
+                        
+                        <div class="flex flex-wrap gap-2 mb-6">
+                            <button class="word-level-btn px-4 py-2 rounded-full bg-primary text-white" data-level="all">全部</button>
+                            <button class="word-level-btn px-4 py-2 rounded-full bg-gray-200 text-gray-700 hover:bg-gray-300" data-level="primary">小学</button>
+                            <button class="word-level-btn px-4 py-2 rounded-full bg-gray-200 text-gray-700 hover:bg-gray-300" data-level="junior">初中</button>
+                            <button class="word-level-btn px-4 py-2 rounded-full bg-gray-200 text-gray-700 hover:bg-gray-300" data-level="senior">高中</button>
+                            <button class="word-level-btn px-4 py-2 rounded-full bg-gray-200 text-gray-700 hover:bg-gray-300" data-level="cet4">四级</button>
+                            <button class="word-level-btn px-4 py-2 rounded-full bg-gray-200 text-gray-700 hover:bg-gray-300" data-level="cet6">六级</button>
+                        </div>
+                        
+                        <!-- 添加自定义单词 -->
+                        <div class="bg-gray-50 p-4 rounded-lg mb-6">
+                            <h3 class="font-bold mb-3">添加自定义单词</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">单词</label>
+                                    <input type="text" id="customWord" class="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary/50" placeholder="输入单词">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">音标</label>
+                                    <input type="text" id="customPhonetic" class="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary/50" placeholder="输入音标">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">释义</label>
+                                    <input type="text" id="customMeaning" class="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary/50" placeholder="输入释义">
+                                </div>
+                            </div>
+                            <button id="addCustomWordBtn" class="mt-4 px-4 py-2 bg-primary text-white rounded hover:bg-opacity-90 transition-colors">添加单词</button>
+                        </div>
+                    </div>
+                    
+                    <!-- 单词列表 -->
+                    <div id="wordList" class="space-y-3">
+                        <!-- 单词列表将动态生成 -->
+                    </div>
+                </div>
+                
+                <!-- 学习记录页面 -->
+                <div id="historyTab" class="game-tab-content hidden">
+                    <div class="mb-6">
+                        <h2 class="text-xl font-bold text-primary mb-4">学习记录</h2>
+                        
+                        <!-- 签到功能 -->
+                        <div class="bg-gray-50 p-4 rounded-lg mb-6 flex justify-between items-center">
+                            <div>
+                                <h3 class="font-bold">每日签到</h3>
+                                <p class="text-sm text-gray-600">连续签到：<span id="streakDays">0</span> 天</p>
+                            </div>
+                            <button id="checkInBtn" class="px-6 py-2 bg-success text-white rounded hover:bg-opacity-90 transition-colors">
+                                立即签到
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- 统计图表 -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="bg-white p-4 rounded-lg card-shadow">
+                            <h3 class="font-bold mb-3">近7天学习统计</h3>
+                            <canvas id="weeklyChart" width="400" height="200"></canvas>
+                        </div>
+                        
+                        <div class="bg-white p-4 rounded-lg card-shadow">
+                            <h3 class="font-bold mb-3">游戏类型分布</h3>
+                            <canvas id="gameTypeChart" width="400" height="200"></canvas>
+                        </div>
+                    </div>
+                    
+                    <!-- 详细记录 -->
+                    <div class="mt-6">
+                        <h3 class="font-bold mb-3">学习记录</h3>
+                        <div id="detailedHistory" class="space-y-3 max-h-64 overflow-y-auto">
+                            <!-- 记录将动态生成 -->
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 设置页面 -->
+                <div id="settingsTab" class="game-tab-content hidden">
+                    <h2 class="text-xl font-bold text-primary mb-4">设置</h2>
+                    
+                    <div class="space-y-6">
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <h3 class="font-bold mb-3">游戏设置</h3>
+                            <div class="space-y-3">
+                                <label class="flex items-center">
+                                    <input type="checkbox" id="soundToggle" class="mr-3" checked>
+                                    <span>音效开关</span>
+                                </label>
+                                
+                                <label class="flex items-center">
+                                    <input type="checkbox" id="animationToggle" class="mr-3" checked>
+                                    <span>动画效果</span>
+                                </label>
+                                
+                                <label class="flex items-center">
+                                    <input type="checkbox" id="hintToggle" class="mr-3" checked>
+                                    <span>错误提示</span>
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <h3 class="font-bold mb-3">默认设置</h3>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">默认游戏类型</label>
+                                <select id="defaultGameType" class="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary/50">
+                                    <option value="spelling">拼写填空</option>
+                                    <option value="guess">单词猜谜</option>
+                                    <option value="match">词义配对</option>
+                                    <option value="memory">单词消消乐</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <h3 class="font-bold mb-3">数据管理</h3>
+                            <div class="space-y-3">
+                                <button id="clearHistoryBtn" class="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition-colors">
+                                    清除学习记录
+                                </button>
+                                
+                                <button id="clearCustomWordsBtn" class="px-4 py-2 bg-orange-500 text-white rounded hover:bg-orange-600 transition-colors">
+                                    清除自定义单词
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 游戏界面容器 -->
+                <div id="gameContainer" class="hidden">
+                    <!-- 游戏信息栏 -->
+                    <div class="flex justify-between items-center mb-6">
+                        <div>
+                            <h2 id="gameTitle" class="text-xl font-bold text-primary"></h2>
+                            <p id="gameProgress" class="text-gray-600">关卡: 1/10</p>
+                        </div>
+                        <div class="flex items-center gap-4">
+                            <div class="flex items-center">
+                                <span class="font-bold mr-2">得分:</span>
+                                <span id="gameScore" class="text-accent font-bold">0</span>
+                                <i class="fa fa-star text-accent ml-1"></i>
+                            </div>
+                            <button id="backToGameList" class="text-secondary hover:text-primary transition-colors">
+                                <i class="fa fa-arrow-left mr-1"></i>返回
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- 游戏加载动画 -->
+                    <div id="gameLoading" class="game-loading hidden">
+                        <!-- 加载动画将动态生成 -->
+                    </div>
+                    
+                    <!-- 游戏内容 -->
+                    <div id="gameContent" class="min-h-[300px]">
+                        <!-- 拼写填空游戏 -->
+                        <div id="spellingGame" class="game-content hidden">
+                            <div class="text-center mb-6">
+                                <div class="text-lg font-medium text-gray-700 mb-2" id="spellingPhonetic"></div>
+                                <div class="text-lg" id="spellingMeaning"></div>
+                            </div>
+                            
+                            <div class="max-w-md mx-auto mb-8">
+                                <div id="spellingWordDisplay" class="flex justify-center gap-2 mb-4"></div>
+                                <div id="spellingKeyboard" class="grid grid-cols-7 gap-2"></div>
+                            </div>
+                        </div>
+                        
+                        <!-- 单词猜谜游戏 -->
+                        <div id="guessGame" class="game-content hidden">
+                            <div class="text-center mb-6">
+                                <div id="guessHint" class="text-lg mb-4"></div>
+                                <div id="guessImageContainer" class="mb-4 hidden">
+                                    <img id="guessImage" class="max-h-40 mx-auto" src="" alt="提示图片">
+                                </div>
+                            </div>
+                            
+                            <div class="max-w-md mx-auto mb-8">
+                                <div id="guessWordDisplay" class="flex justify-center gap-2 mb-4"></div>
+                                <div id="guessLetterOptions" class="grid grid-cols-7 gap-2"></div>
+                            </div>
+                        </div>
+                        
+                        <!-- 词义配对游戏 -->
+                        <div id="matchGame" class="game-content hidden">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <h3 class="text-center font-bold mb-3">英文单词</h3>
+                                    <div id="matchWords" class="space-y-2"></div>
+                                </div>
+                                <div>
+                                    <h3 class="text-center font-bold mb-3">中文释义</h3>
+                                    <div id="matchMeanings" class="space-y-2"></div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 单词消消乐游戏 -->
+                        <div id="memoryGame" class="game-content hidden">
+                            <div id="memoryCards" class="grid grid-cols-4 gap-4"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 底部操作栏 -->
+            <div id="actionBar" class="mt-8 pt-4 border-t hidden">
+                <div class="flex justify-between items-center">
+                    <div class="flex gap-3">
+                        <button id="startGameBtn" class="btn-primary px-6 py-2 rounded-full">
+                            <i class="fa fa-play mr-2"></i>开始游戏
+                        </button>
+                        <button id="pauseResumeBtn" class="btn-secondary px-6 py-2 rounded-full hidden">
+                            <i class="fa fa-pause mr-2"></i>暂停
+                        </button>
+                        <button id="restartGameBtn" class="btn-secondary px-6 py-2 rounded-full">
+                            <i class="fa fa-refresh mr-2"></i>重新开始
+                        </button>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <button id="soundControlBtn" class="text-gray-600 hover:text-primary transition-colors">
+                            <i class="fa fa-volume-up text-xl"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </main>
+        
+        <!-- 右侧辅助面板 -->
+        <aside id="rightPanel" class="w-full lg:w-1/4 xl:w-1/5 space-y-6 hidden lg:block">
+            <!-- 单词详情面板 -->
+            <div id="wordDetailPanel" class="bg-white rounded-lg p-4 card-shadow">
+                <h3 class="text-lg font-bold text-secondary border-b pb-2 mb-3">单词详情</h3>
+                <div id="currentWordDetail" class="space-y-2">
+                    <div class="text-gray-500 text-center py-4">
+                        开始游戏后显示单词详情
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 游戏说明面板 -->
+            <div class="bg-white rounded-lg p-4 card-shadow">
+                <h3 class="text-lg font-bold text-secondary border-b pb-2 mb-3">游戏说明</h3>
+                <div id="gameInstructions" class="text-sm text-gray-600 space-y-2">
+                    <p>请从左侧选择一个游戏开始学习之旅！</p>
+                    <p>每个游戏都有不同的玩法和挑战，帮助你从多角度记忆单词。</p>
+                    <p>完成游戏可以获得积分，连续签到还有额外奖励哦！</p>
+                </div>
+            </div>
+            
+            <!-- 学习进度面板 -->
+            <div class="bg-white rounded-lg p-4 card-shadow">
+                <h3 class="text-lg font-bold text-secondary border-b pb-2 mb-3">学习进度</h3>
+                <div class="space-y-4">
+                    <div>
+                        <div class="flex justify-between mb-1">
+                            <span class="text-sm font-medium">总体进度</span>
+                            <span class="text-sm font-medium" id="totalProgressPercent">0%</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2">
+                            <div id="totalProgressBar" class="bg-primary h-2 rounded-full" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between mb-1">
+                            <span class="text-sm font-medium">今日学习</span>
+                            <span class="text-sm font-medium" id="todayStudyCount">0 个单词</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2">
+                            <div id="todayStudyBar" class="bg-success h-2 rounded-full" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </div>
+    
+    <!-- 底部备注 -->
+    <footer class="mt-10 py-6 bg-secondary/10">
+        <div class="container mx-auto px-4 text-center text-gray-600">
+            <p>本工具由幸川制作</p>
+            <p>微信号stevexing</p>
+            <p>QQ邮箱<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="ba888e8e8d8f8c8c8d8cfacbcb94d9d5d7">[email&#160;protected]</a></p>
+        </div>
+    </footer>
+    
+    <!-- 提示框 -->
+    <div id="toast" class="toast">提示消息</div>
+    
+    <!-- 关卡结算弹窗 -->
+    <div id="levelCompleteModal" class="fixed inset-0 flex items-center justify-center z-50 hidden">
+        <div class="absolute inset-0 bg-black bg-opacity-50"></div>
+        <div class="relative bg-white rounded-lg p-8 max-w-md w-full mx-4 animate-scaleUp">
+            <div class="text-center">
+                <div class="text-3xl font-bold text-primary mb-4">关卡完成！</div>
+                <div class="mb-6">
+                    <div class="text-lg mb-2">得分: <span id="levelScore" class="font-bold text-accent">0</span></div>
+                    <div class="text-lg mb-2">正确率: <span id="levelAccuracy" class="font-bold text-success">0%</span></div>
+                    <div id="levelReward" class="mt-4 text-lg text-accent font-bold hidden">
+                        恭喜！解锁新关卡！
+                    </div>
+                </div>
+                <div class="flex justify-center gap-4">
+                    <button id="continueGameBtn" class="btn-primary px-6 py-2 rounded-full">
+                        继续挑战
+                    </button>
+                    <button id="backToLevelSelectBtn" class="btn-secondary px-6 py-2 rounded-full">
+                        返回选关
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- JavaScript -->
+    <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+        // 应用状态
+        const appState = {
+            currentTab: 'game',
+            currentGame: null,
+            currentLevel: 1,
+            score: 0,
+            totalQuestions: 0,
+            correctAnswers: 0,
+            isPlaying: false,
+            isPaused: false,
+            soundEnabled: true,
+            animationEnabled: true,
+            hintEnabled: true,
+            defaultGameType: 'spelling',
+            streakDays: 0,
+            lastCheckIn: null,
+            gameHistory: [],
+            customWords: [],
+            wordProgress: {},
+            gameProgress: {}
+        };
+        
+        // DOM元素
+        const elements = {
+            // 主要容器
+            leftPanel: document.getElementById('leftPanel'),
+            rightPanel: document.getElementById('rightPanel'),
+            gameArea: document.getElementById('gameArea'),
+            
+            // 移动端菜单
+            mobileMenuBtn: document.getElementById('mobileMenuBtn'),
+            mobileMenuOverlay: document.getElementById('mobileMenuOverlay'),
+            
+            // Tab导航
+            tabItems: document.querySelectorAll('.tab-item'),
+            tabContents: document.querySelectorAll('.game-tab-content'),
+            gameTab: document.getElementById('gameTab'),
+            wordlistTab: document.getElementById('wordlistTab'),
+            historyTab: document.getElementById('historyTab'),
+            settingsTab: document.getElementById('settingsTab'),
+            
+            // 游戏容器
+            gameContainer: document.getElementById('gameContainer'),
+            gameTitle: document.getElementById('gameTitle'),
+            gameProgress: document.getElementById('gameProgress'),
+            gameScore: document.getElementById('gameScore'),
+            gameLoading: document.getElementById('gameLoading'),
+            gameContent: document.getElementById('gameContent'),
+            actionBar: document.getElementById('actionBar'),
+            backToGameList: document.getElementById('backToGameList'),
+            
+            // 游戏按钮
+            startGameBtn: document.getElementById('startGameBtn'),
+            pauseResumeBtn: document.getElementById('pauseResumeBtn'),
+            restartGameBtn: document.getElementById('restartGameBtn'),
+            soundControlBtn: document.getElementById('soundControlBtn'),
+            
+            // 游戏内容
+            spellingGame: document.getElementById('spellingGame'),
+            spellingPhonetic: document.getElementById('spellingPhonetic'),
+            spellingMeaning: document.getElementById('spellingMeaning'),
+            spellingWordDisplay: document.getElementById('spellingWordDisplay'),
+            spellingKeyboard: document.getElementById('spellingKeyboard'),
+            
+            guessGame: document.getElementById('guessGame'),
+            guessHint: document.getElementById('guessHint'),
+            guessImageContainer: document.getElementById('guessImageContainer'),
+            guessImage: document.getElementById('guessImage'),
+            guessWordDisplay: document.getElementById('guessWordDisplay'),
+            guessLetterOptions: document.getElementById('guessLetterOptions'),
+            
+            matchGame: document.getElementById('matchGame'),
+            matchWords: document.getElementById('matchWords'),
+            matchMeanings: document.getElementById('matchMeanings'),
+            
+            memoryGame: document.getElementById('memoryGame'),
+            memoryCards: document.getElementById('memoryCards'),
+            
+            // 单词库
+            wordLevelBtns: document.querySelectorAll('.word-level-btn'),
+            wordList: document.getElementById('wordList'),
+            customWord: document.getElementById('customWord'),
+            customPhonetic: document.getElementById('customPhonetic'),
+            customMeaning: document.getElementById('customMeaning'),
+            addCustomWordBtn: document.getElementById('addCustomWordBtn'),
+            
+            // 学习记录
+            streakDays: document.getElementById('streakDays'),
+            checkInBtn: document.getElementById('checkInBtn'),
+            weeklyChart: document.getElementById('weeklyChart'),
+            gameTypeChart: document.getElementById('gameTypeChart'),
+            detailedHistory: document.getElementById('detailedHistory'),
+            
+            // 设置
+            soundToggle: document.getElementById('soundToggle'),
+            animationToggle: document.getElementById('animationToggle'),
+            hintToggle: document.getElementById('hintToggle'),
+            defaultGameType: document.getElementById('defaultGameType'),
+            clearHistoryBtn: document.getElementById('clearHistoryBtn'),
+            clearCustomWordsBtn: document.getElementById('clearCustomWordsBtn'),
+            
+            // 辅助面板
+            wordDetailPanel: document.getElementById('wordDetailPanel'),
+            currentWordDetail: document.getElementById('currentWordDetail'),
+            gameInstructions: document.getElementById('gameInstructions'),
+            totalProgressPercent: document.getElementById('totalProgressPercent'),
+            totalProgressBar: document.getElementById('totalProgressBar'),
+            todayStudyCount: document.getElementById('todayStudyCount'),
+            todayStudyBar: document.getElementById('todayStudyBar'),
+            
+            // 提示和弹窗
+            toast: document.getElementById('toast'),
+            levelCompleteModal: document.getElementById('levelCompleteModal'),
+            levelScore: document.getElementById('levelScore'),
+            levelAccuracy: document.getElementById('levelAccuracy'),
+            levelReward: document.getElementById('levelReward'),
+            continueGameBtn: document.getElementById('continueGameBtn'),
+            backToLevelSelectBtn: document.getElementById('backToLevelSelectBtn')
+        };
+        
+        // 单词数据
+        const wordData = {
+            primary: [
+                { word: 'apple', phonetic: '/ˈæpl/', meaning: '苹果', partOfSpeech: '名词', example: 'I eat an apple every day.' },
+                { word: 'book', phonetic: '/bʊk/', meaning: '书', partOfSpeech: '名词', example: 'This book is interesting.' },
+                { word: 'cat', phonetic: '/kæt/', meaning: '猫', partOfSpeech: '名词', example: 'The cat is sleeping.' },
+                { word: 'dog', phonetic: '/dɒɡ/', meaning: '狗', partOfSpeech: '名词', example: 'The dog is barking.' },
+                { word: 'egg', phonetic: '/eɡ/', meaning: '鸡蛋', partOfSpeech: '名词', example: 'I eat an egg for breakfast.' },
+                { word: 'fish', phonetic: '/fɪʃ/', meaning: '鱼', partOfSpeech: '名词', example: 'The fish swims in the river.' },
+                { word: 'goat', phonetic: '/ɡəʊt/', meaning: '山羊', partOfSpeech: '名词', example: 'The goat is eating grass.' },
+                { word: 'hat', phonetic: '/hæt/', meaning: '帽子', partOfSpeech: '名词', example: 'I wear a hat in summer.' },
+                { word: 'ice', phonetic: '/aɪs/', meaning: '冰', partOfSpeech: '名词', example: 'The ice is cold.' },
+                { word: 'juice', phonetic: '/dʒuːs/', meaning: '果汁', partOfSpeech: '名词', example: 'I drink orange juice.' }
+            ],
+            junior: [
+                { word: 'beautiful', phonetic: '/ˈbjuːtəfl/', meaning: '美丽的', partOfSpeech: '形容词', example: 'She is a beautiful girl.' },
+                { word: 'computer', phonetic: '/kəmˈpjuːtə(r)/', meaning: '电脑', partOfSpeech: '名词', example: 'I use a computer to study.' },
+                { word: 'delicious', phonetic: '/dɪˈlɪʃəs/', meaning: '美味的', partOfSpeech: '形容词', example: 'The food is delicious.' },
+                { word: 'exercise', phonetic: '/ˈeksəsaɪz/', meaning: '锻炼', partOfSpeech: '动词', example: 'I exercise every morning.' },
+                { word: 'friendly', phonetic: '/ˈfrendli/', meaning: '友好的', partOfSpeech: '形容词', example: 'He is very friendly.' },
+                { word: 'important', phonetic: '/ɪmˈpɔːtənt/', meaning: '重要的', partOfSpeech: '形容词', example: 'English is very important.' },
+                { word: 'knowledge', phonetic: '/ˈnɒlɪdʒ/', meaning: '知识', partOfSpeech: '名词', example: 'Knowledge is power.' },
+                { word: 'necessary', phonetic: '/ˈnesəsəri/', meaning: '必要的', partOfSpeech: '形容词', example: 'Water is necessary for life.' },
+                { word: 'question', phonetic: '/ˈkwestʃən/', meaning: '问题', partOfSpeech: '名词', example: 'Can I ask you a question?' },
+                { word: 'student', phonetic: '/ˈstjuːdnt/', meaning: '学生', partOfSpeech: '名词', example: 'I am a student.' }
+            ],
+            senior: [
+                { word: 'abandon', phonetic: '/əˈbændən/', meaning: '放弃', partOfSpeech: '动词', example: 'Never abandon your dreams.' },
+                { word: 'beneficial', phonetic: '/ˌbenɪˈfɪʃl/', meaning: '有益的', partOfSpeech: '形容词', example: 'Reading is beneficial to us.' },
+                { word: 'confidence', phonetic: '/ˈkɒnfɪdəns/', meaning: '自信', partOfSpeech: '名词', example: 'He has confidence in himself.' },
+                { word: 'determine', phonetic: '/dɪˈtɜːmɪn/', meaning: '决定', partOfSpeech: '动词', example: 'I determine to study hard.' },
+                { word: 'efficient', phonetic: '/ɪˈfɪʃnt/', meaning: '高效的', partOfSpeech: '形容词', example: 'He is an efficient worker.' },
+                { word: 'flexible', phonetic: '/ˈfleksəbl/', meaning: '灵活的', partOfSpeech: '形容词', example: 'You need to be flexible.' },
+                { word: 'graduate', phonetic: '/ˈɡrædʒuət/', meaning: '毕业', partOfSpeech: '动词', example: 'He will graduate next year.' },
+                { word: 'independent', phonetic: '/ˌɪndɪˈpendənt/', meaning: '独立的', partOfSpeech: '形容词', example: 'She is very independent.' },
+                { word: 'knowledgeable', phonetic: '/ˈnɒlɪdʒəbl/', meaning: '知识渊博的', partOfSpeech: '形容词', example: 'He is very knowledgeable.' },
+                { word: 'opportunity', phonetic: '/ˌɒpəˈtjuːnəti/', meaning: '机会', partOfSpeech: '名词', example: 'Don\'t miss the opportunity.' }
+            ],
+            cet4: [
+                { word: 'accomplish', phonetic: '/əˈkʌmplɪʃ/', meaning: '完成', partOfSpeech: '动词', example: 'He accomplished his goal.' },
+                { word: 'alternative', phonetic: '/ɔːlˈtɜːnətɪv/', meaning: '替代的', partOfSpeech: '形容词', example: 'We have alternative plans.' },
+                { word: 'circumstance', phonetic: '/ˈsɜːkəmstəns/', meaning: '情况', partOfSpeech: '名词', example: 'Under no circumstances.' },
+                { word: 'demonstrate', phonetic: '/ˈdemənstreɪt/', meaning: '证明', partOfSpeech: '动词', example: 'He demonstrated his ability.' },
+                { word: 'eliminate', phonetic: '/ɪˈlɪmɪneɪt/', meaning: '消除', partOfSpeech: '动词', example: 'We need to eliminate errors.' },
+                { word: 'facilitate', phonetic: '/fəˈsɪlɪteɪt/', meaning: '促进', partOfSpeech: '动词', example: 'Technology facilitates learning.' },
+                { word: 'generate', phonetic: '/ˈdʒenəreɪt/', meaning: '产生', partOfSpeech: '动词', example: 'It generates electricity.' },
+                { word: 'highlight', phonetic: '/ˈhaɪlaɪt/', meaning: '强调', partOfSpeech: '动词', example: 'The teacher highlighted key points.' },
+                { word: 'implement', phonetic: '/ˈɪmplɪment/', meaning: '实施', partOfSpeech: '动词', example: 'We need to implement the plan.' },
+                { word: 'justify', phonetic: '/ˈdʒʌstɪfaɪ/', meaning: '证明...是正当的', partOfSpeech: '动词', example: 'He tried to justify his actions.' }
+            ],
+            cet6: [
+                { word: 'abundance', phonetic: '/əˈbʌndəns/', meaning: '丰富', partOfSpeech: '名词', example: 'We have an abundance of food.' },
+                { word: 'ambiguous', phonetic: '/æmˈbɪɡjuəs/', meaning: '模棱两可的', partOfSpeech: '形容词', example: 'His answer was ambiguous.' },
+                { word: 'consequence', phonetic: '/ˈkɒnsɪkwəns/', meaning: '结果', partOfSpeech: '名词', example: 'Consider the consequences.' },
+                { word: 'dilemma', phonetic: '/dɪˈlemə/', meaning: '困境', partOfSpeech: '名词', example: 'He is in a dilemma.' },
+                { word: 'elaborate', phonetic: '/ɪˈlæbərət/', meaning: '详尽的', partOfSpeech: '形容词', example: 'He gave an elaborate explanation.' },
+                { word: 'fundamental', phonetic: '/ˌfʌndəˈmentl/', meaning: '基本的', partOfSpeech: '形容词', example: 'It\'s a fundamental principle.' },
+                { word: 'illustrate', phonetic: '/ˈɪləstreɪt/', meaning: '说明', partOfSpeech: '动词', example: 'Let me illustrate with an example.' },
+                { word: 'justify', phonetic: '/ˈdʒʌstɪfaɪ/', meaning: '证明...是正当的', partOfSpeech: '动词', example: 'The end doesn\'t justify the means.' },
+                { word: 'perceive', phonetic: '/pəˈsiːv/', meaning: '感知', partOfSpeech: '动词', example: 'How do you perceive this?' },
+                { word: 'sustain', phonetic: '/səˈsteɪn/', meaning: '维持', partOfSpeech: '动词', example: 'We need to sustain the effort.' }
+            ]
+        };
+        
+        // 游戏配置
+        const gameConfig = {
+            wordsPerLevel: 10,
+            maxLevels: 5,
+            pointsPerCorrect: 10,
+            pointsPerStreak: 5,
+            hintCost: 2
+        };
+        
+        // 游戏状态
+        const gameState = {
+            currentWords: [],
+            currentWordIndex: 0,
+            selectedLetters: [],
+            guessedLetters: [],
+            matchedPairs: 0,
+            streakCount: 0,
+            availableHints: 3,
+            levelStartTime: null,
+            levelEndTime: null
+        };
+        
+        // 初始化函数
+        function init() {
+            // 加载保存的数据
+            loadSavedData();
+            
+            // 更新UI
+            updateUI();
+            
+            // 绑定事件监听
+            bindEventListeners();
+            
+            // 渲染单词库
+            renderWordList('all');
+            
+            // 初始化图表
+            initCharts();
+        }
+        
+        // 更新UI
+        function updateUI() {
+            // 更新签到状态
+            updateCheckInStatus();
+            
+            // 更新学习进度
+            updateStudyProgress();
+            
+            // 更新设置UI
+            elements.soundToggle.checked = appState.soundEnabled;
+            elements.animationToggle.checked = appState.animationEnabled;
+            elements.hintToggle.checked = appState.hintEnabled;
+            elements.defaultGameType.value = appState.defaultGameType;
+            
+            // 更新声音图标
+            updateSoundIcon();
+        }
+        
+        // 绑定事件监听
+        function bindEventListeners() {
+            // Tab切换
+            elements.tabItems.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    const tabName = tab.dataset.tab;
+                    switchTab(tabName);
+                });
+            });
+            
+            // 游戏选择
+            document.querySelectorAll('.game-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    const gameType = item.dataset.game;
+                    selectGame(gameType);
+                    
+                    // 移动端关闭侧边栏
+                    if (window.innerWidth < 1024) {
+                        toggleMobileMenu(false);
+                    }
+                });
+            });
+            
+            // 游戏卡片选择
+            document.querySelectorAll('.game-tab-content[data-game]').forEach(card => {
+                card.addEventListener('click', () => {
+                    const gameType = card.dataset.game;
+                    selectGame(gameType);
+                });
+            });
+            
+            // 移动端菜单
+            elements.mobileMenuBtn.addEventListener('click', () => {
+                toggleMobileMenu();
+            });
+            
+            elements.mobileMenuOverlay.addEventListener('click', () => {
+                toggleMobileMenu(false);
+            });
+            
+            // 游戏控制按钮
+            elements.startGameBtn.addEventListener('click', startGame);
+            elements.pauseResumeBtn.addEventListener('click', togglePause);
+            elements.restartGameBtn.addEventListener('click', restartGame);
+            elements.backToGameList.addEventListener('click', backToGameList);
+            elements.soundControlBtn.addEventListener('click', toggleSound);
+            
+            // 单词库级别选择
+            elements.wordLevelBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const level = btn.dataset.level;
+                    renderWordList(level);
+                    
+                    // 更新按钮样式
+                    elements.wordLevelBtns.forEach(b => {
+                        b.classList.remove('bg-primary', 'text-white');
+                        b.classList.add('bg-gray-200', 'text-gray-700');
+                    });
+                    btn.classList.remove('bg-gray-200', 'text-gray-700');
+                    btn.classList.add('bg-primary', 'text-white');
+                });
+            });
+            
+            // 添加自定义单词
+            elements.addCustomWordBtn.addEventListener('click', addCustomWord);
+            
+            // 签到按钮
+            elements.checkInBtn.addEventListener('click', checkIn);
+            
+            // 设置保存
+            elements.soundToggle.addEventListener('change', saveSettings);
+            elements.animationToggle.addEventListener('change', saveSettings);
+            elements.hintToggle.addEventListener('change', saveSettings);
+            elements.defaultGameType.addEventListener('change', saveSettings);
+            
+            // 数据管理
+            elements.clearHistoryBtn.addEventListener('click', clearHistory);
+            elements.clearCustomWordsBtn.addEventListener('click', clearCustomWords);
+            
+            // 关卡结算弹窗
+            elements.continueGameBtn.addEventListener('click', continueGame);
+            elements.backToLevelSelectBtn.addEventListener('click', backToGameList);
+            
+            // 窗口大小变化
+            window.addEventListener('resize', handleResize);
+        }
+        
+        // 切换Tab
+        function switchTab(tabName) {
+            // 更新当前Tab
+            appState.currentTab = tabName;
+            
+            // 隐藏所有内容
+            elements.tabContents.forEach(content => {
+                content.classList.add('hidden');
+            });
+            
+            // 隐藏游戏容器
+            elements.gameContainer.classList.add('hidden');
+            elements.actionBar.classList.add('hidden');
+            
+            // 显示对应内容
+            switch (tabName) {
+                case 'game':
+                    elements.gameTab.classList.remove('hidden');
+                    break;
+                case 'wordlist':
+                    elements.wordlistTab.classList.remove('hidden');
+                    break;
+                case 'history':
+                    elements.historyTab.classList.remove('hidden');
+                    // 更新图表数据
+                    updateCharts();
+                    break;
+                case 'settings':
+                    elements.settingsTab.classList.remove('hidden');
+                    break;
+            }
+            
+            // 更新Tab样式
+            elements.tabItems.forEach(tab => {
+                tab.classList.remove('tab-active');
+            });
+            
+            const activeTab = document.querySelector(`.tab-item[data-tab="${tabName}"]`);
+            if (activeTab) {
+                activeTab.classList.add('tab-active');
+            }
+        }
+        
+        // 选择游戏
+        function selectGame(gameType) {
+            // 重置游戏状态
+            resetGameState();
+            
+            // 设置当前游戏
+            appState.currentGame = gameType;
+            
+            // 显示游戏容器
+            elements.gameContainer.classList.remove('hidden');
+            elements.actionBar.classList.remove('hidden');
+            
+            // 隐藏所有游戏内容
+            document.querySelectorAll('.game-content').forEach(content => {
+                content.classList.add('hidden');
+            });
+            
+            // 隐藏Tab内容
+            elements.tabContents.forEach(content => {
+                content.classList.add('hidden');
+            });
+            
+            // 更新游戏标题
+            const gameTitles = {
+                spelling: '拼写填空',
+                guess: '单词猜谜',
+                match: '词义配对',
+                memory: '单词消消乐'
+            };
+            elements.gameTitle.textContent = gameTitles[gameType] || '未知游戏';
+            
+            // 更新游戏说明
+            updateGameInstructions(gameType);
+            
+            // 显示游戏加载动画
+            showGameLoading(gameTitles[gameType]);
+            
+            // 延迟加载游戏内容
+            setTimeout(() => {
+                // 隐藏加载动画
+                elements.gameLoading.classList.add('hidden');
+                
+                // 显示对应游戏内容
+                switch (gameType) {
+                    case 'spelling':
+                        elements.spellingGame.classList.remove('hidden');
+                        break;
+                    case 'guess':
+                        elements.guessGame.classList.remove('hidden');
+                        break;
+                    case 'match':
+                        elements.matchGame.classList.remove('hidden');
+                        break;
+                    case 'memory':
+                        elements.memoryGame.classList.remove('hidden');
+                        break;
+                }
+            }, 1500);
+        }
+        
+        // 显示游戏加载动画
+        function showGameLoading(gameName) {
+            elements.gameLoading.classList.remove('hidden');
+            elements.gameLoading.innerHTML = '';
+            
+            // 生成字母动画
+            const letters = gameName.split('');
+            letters.forEach((letter, index) => {
+                const letterElement = document.createElement('div');
+                letterElement.className = 'game-loading-letter';
+                letterElement.textContent = letter;
+                letterElement.style.animationDelay = `${index * 0.1}s`;
+                elements.gameLoading.appendChild(letterElement);
+            });
+        }
+        
+        // 更新游戏说明
+        function updateGameInstructions(gameType) {
+            const instructions = {
+                spelling: [
+                    '根据音标和释义，填写正确的单词拼写。',
+                    '点击屏幕下方的字母按钮输入。',
+                    '错误的字母将被标记为红色。',
+                    '完成10个单词后进入下一关。'
+                ],
+                guess: [
+                    '根据图片或描述提示，猜出正确的单词。',
+                    '从字母选项中选择正确的字母。',
+                    '猜中所有字母即可过关。',
+                    '注意：每个错误猜测都会减少得分。'
+                ],
+                match: [
+                    '将左侧的英文单词拖拽到右侧的中文释义上。',
+                    '正确配对的单词将自动消失。',
+                    '限时3分钟完成所有配对。',
+                    '配对正确越多，得分越高。'
+                ],
+                memory: [
+                    '找出相同的单词卡片进行配对。',
+                    '点击卡片可以翻转查看内容。',
+                    '连续配对成功可以获得额外分数。',
+                    '在最短时间内完成所有配对。'
+                ]
+            };
+            
+            elements.gameInstructions.innerHTML = '';
+            (instructions[gameType] || []).forEach(instruction => {
+                const p = document.createElement('p');
+                p.textContent = instruction;
+                elements.gameInstructions.appendChild(p);
+            });
+        }
+        
+        // 开始游戏
+        function startGame() {
+            if (appState.isPlaying) return;
+            
+            // 设置游戏状态
+            appState.isPlaying = true;
+            appState.isPaused = false;
+            appState.score = 0;
+            appState.totalQuestions = 0;
+            appState.correctAnswers = 0;
+            
+            // 更新UI
+            elements.gameScore.textContent = '0';
+            elements.startGameBtn.classList.add('hidden');
+            elements.pauseResumeBtn.classList.remove('hidden');
+            elements.pauseResumeBtn.innerHTML = '<i class="fa fa-pause mr-2"></i>暂停';
+            
+            // 更新游戏进度
+            updateGameProgress();
+            
+            // 初始化游戏数据
+            initGameData();
+            
+            // 根据游戏类型开始游戏
+            switch (appState.currentGame) {
+                case 'spelling':
+                    startSpellingGame();
+                    break;
+                case 'guess':
+                    startGuessGame();
+                    break;
+                case 'match':
+                    startMatchGame();
+                    break;
+                case 'memory':
+                    startMemoryGame();
+                    break;
+            }
+            
+            // 记录开始时间
+            gameState.levelStartTime = new Date();
+        }
+        
+        // 初始化游戏数据
+        function initGameData() {
+            // 获取单词数据
+            let allWords = [];
+            
+            // 合并所有级别的单词
+            Object.keys(wordData).forEach(level => {
+                allWords = allWords.concat(wordData[level]);
+            });
+            
+            // 添加自定义单词
+            allWords = allWords.concat(appState.customWords);
+            
+            // 打乱单词顺序
+            allWords.sort(() => Math.random() - 0.5);
+            
+            // 选择当前关卡的单词
+            const startIndex = (appState.currentLevel - 1) * gameConfig.wordsPerLevel;
+            gameState.currentWords = allWords.slice(startIndex, startIndex + gameConfig.wordsPerLevel);
+            
+            // 如果单词不够，重复使用
+            if (gameState.currentWords.length < gameConfig.wordsPerLevel) {
+                while (gameState.currentWords.length < gameConfig.wordsPerLevel) {
+                    gameState.currentWords = gameState.currentWords.concat(allWords.slice(0, gameConfig.wordsPerLevel - gameState.currentWords.length));
+                }
+            }
+            
+            // 重置游戏状态
+            gameState.currentWordIndex = 0;
+            gameState.selectedLetters = [];
+            gameState.guessedLetters = [];
+            gameState.matchedPairs = 0;
+            gameState.streakCount = 0;
+            gameState.availableHints = 3;
+        }
+        
+        // 开始拼写填空游戏
+        function startSpellingGame() {
+            // 清除之前的内容
+            elements.spellingWordDisplay.innerHTML = '';
+            elements.spellingKeyboard.innerHTML = '';
+            
+            // 显示当前单词
+            showSpellingWord();
+            
+            // 生成键盘
+            generateSpellingKeyboard();
+        }
+        
+        // 显示拼写填空单词
+        function showSpellingWord() {
+            if (gameState.currentWordIndex >= gameState.currentWords.length) {
+                levelComplete();
+                return;
+            }
+            
+            const currentWord = gameState.currentWords[gameState.currentWordIndex];
+            
+            // 更新单词详情
+            updateWordDetail(currentWord);
+            
+            // 显示音标和释义
+            elements.spellingPhonetic.textContent = currentWord.phonetic;
+            elements.spellingMeaning.textContent = currentWord.meaning;
+            
+            // 清空之前的选择
+            gameState.selectedLetters = [];
+            
+            // 生成单词显示
+            elements.spellingWordDisplay.innerHTML = '';
+            
+            // 为每个字母创建输入框
+            for (let i = 0; i < currentWord.word.length; i++) {
+                const letterContainer = document.createElement('div');
+                letterContainer.className = 'flex flex-col items-center';
+                
+                const letterBox = document.createElement('div');
+                letterBox.className = 'w-10 h-10 border border-gray-300 rounded flex items-center justify-center font-bold text-lg mb-1';
+                letterBox.dataset.index = i;
+                
+                // 添加下划线
+                const underline = document.createElement('div');
+                underline.className = 'w-6 h-1 bg-gray-300';
+                
+                letterContainer.appendChild(letterBox);
+                letterContainer.appendChild(underline);
+                elements.spellingWordDisplay.appendChild(letterContainer);
+            }
+        }
+        
+        // 生成拼写填空键盘
+        function generateSpellingKeyboard() {
+            const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+            
+            letters.forEach(letter => {
+                const key = document.createElement('button');
+                key.className = 'keyboard-key px-2 py-2 border border-gray-300 rounded font-bold';
+                key.textContent = letter;
+                key.dataset.letter = letter.toLowerCase();
+                
+                key.addEventListener('click', () => {
+                    if (appState.isPaused) return;
+                    
+                    const currentWord = gameState.currentWords[gameState.currentWordIndex];
+                    const nextIndex = gameState.selectedLetters.length;
+                    
+                    if (nextIndex < currentWord.word.length) {
+                        // 记录选择的字母
+                        gameState.selectedLetters.push(letter.toLowerCase());
+                        
+                        // 显示选择的字母
+                        const letterBox = elements.spellingWordDisplay.querySelector(`[data-index="${nextIndex}"]`);
+                        letterBox.textContent = letter;
+                        
+                        // 检查字母是否正确
+                        if (letter.toLowerCase() === currentWord.word[nextIndex]) {
+                            letterBox.classList.add('text-success', 'border-success');
+                        } else {
+                            letterBox.classList.add('text-warning', 'border-warning');
+                        }
+                        
+                        // 禁用按键
+                        key.disabled = true;
+                        key.classList.add('opacity-50');
+                        
+                        // 检查是否完成单词
+                        if (nextIndex === currentWord.word.length - 1) {
+                            setTimeout(() => {
+                                checkSpellingAnswer();
+                            }, 500);
+                        }
+                    }
+                });
+                
+                elements.spellingKeyboard.appendChild(key);
+            });
+        }
+        
+        // 检查拼写填空答案
+        function checkSpellingAnswer() {
+            const currentWord = gameState.currentWords[gameState.currentWordIndex];
+            const userAnswer = gameState.selectedLetters.join('');
+            
+            appState.totalQuestions++;
+            
+            if (userAnswer === currentWord.word) {
+                // 回答正确
+                appState.correctAnswers++;
+                gameState.streakCount++;
+                
+                // 计算得分
+                const basePoints = gameConfig.pointsPerCorrect;
+                const streakBonus = gameState.streakCount * gameConfig.pointsPerStreak;
+                const pointsEarned = basePoints + streakBonus;
+                appState.score += pointsEarned;
+                
+                // 更新得分显示
+                elements.gameScore.textContent = appState.score;
+                
+                // 显示成功提示
+                showToast('正确！+', pointsEarned, 'success');
+                
+                // 播放成功音效
+                if (appState.soundEnabled) {
+                    playSuccessSound();
+                }
+                
+                // 显示星星粒子效果
+                if (appState.animationEnabled) {
+                    showStarParticles();
+                }
+            } else {
+                // 回答错误
+                gameState.streakCount = 0;
+                
+                // 显示错误提示
+                showToast('再试试～', '', 'warning');
+                
+                // 如果开启提示
+                if (appState.hintEnabled) {
+                    // 提供小提示
+                    const hintIndex = findFirstWrongIndex(userAnswer, currentWord.word);
+                    if (hintIndex !== -1) {
+                        showToast(`提示: 第${hintIndex + 1}个字母是 ${currentWord.word[hintIndex].toUpperCase()}`, '', 'warning');
+                    }
+                }
+                
+                // 播放错误音效
+                if (appState.soundEnabled) {
+                    playErrorSound();
+                }
+            }
+            
+            // 延迟进入下一个单词
+            setTimeout(() => {
+                gameState.currentWordIndex++;
+                showSpellingWord();
+            }, 1000);
+        }
+        
+        // 找到第一个错误的字母索引
+        function findFirstWrongIndex(userAnswer, correctAnswer) {
+            for (let i = 0; i < userAnswer.length; i++) {
+                if (userAnswer[i] !== correctAnswer[i]) {
+                    return i;
+                }
+            }
+            return -1;
+        }
+        
+        // 开始单词猜谜游戏
+        function startGuessGame() {
+            // 清除之前的内容
+            elements.guessWordDisplay.innerHTML = '';
+            elements.guessLetterOptions.innerHTML = '';
+            
+            // 显示当前单词
+            showGuessWord();
+            
+            // 生成字母选项
+            generateGuessLetters();
+        }
+        
+        // 显示猜谜游戏单词
+        function showGuessWord() {
+            if (gameState.currentWordIndex >= gameState.currentWords.length) {
+                levelComplete();
+                return;
+            }
+            
+            const currentWord = gameState.currentWords[gameState.currentWordIndex];
+            
+            // 更新单词详情
+            updateWordDetail(currentWord);
+            
+            // 随机决定是显示图片提示还是描述提示
+            const useImage = Math.random() > 0.5;
+            
+            if (useImage) {
+                // 显示图片容器
+                elements.guessImageContainer.classList.remove('hidden');
+                
+                // 设置图片提示（这里使用示例图片，实际应该根据单词设置对应的图片）
+                const imageUrls = {
+                    'apple': 'https://picsum.photos/seed/apple/200/200',
+                    'book': 'https://picsum.photos/seed/book/200/200',
+                    'cat': 'https://picsum.photos/seed/cat/200/200',
+                    'dog': 'https://picsum.photos/seed/dog/200/200'
+                };
+                
+                elements.guessImage.src = imageUrls[currentWord.word] || 'https://picsum.photos/200/200';
+                elements.guessHint.textContent = '';
+            } else {
+                // 隐藏图片容器
+                elements.guessImageContainer.classList.add('hidden');
+                
+                // 设置描述提示
+                const descriptions = {
+                    'apple': '一种常见的红色或绿色水果',
+                    'book': '用来阅读的纸质或电子物品',
+                    'cat': '一种常见的家养宠物',
+                    'dog': '人类最好的朋友，一种忠诚的动物'
+                };
+                
+                elements.guessHint.textContent = descriptions[currentWord.word] || `提示: ${currentWord.meaning}`;
+            }
+            
+            // 清空之前的猜测
+            gameState.guessedLetters = [];
+            
+            // 生成单词显示
+            elements.guessWordDisplay.innerHTML = '';
+            
+            for (let i = 0; i < currentWord.word.length; i++) {
+                const letterBox = document.createElement('div');
+                letterBox.className = 'w-10 h-10 border border-gray-300 rounded flex items-center justify-center font-bold text-lg mx-1';
+                letterBox.dataset.index = i;
+                elements.guessWordDisplay.appendChild(letterBox);
+            }
+        }
+        
+        // 生成猜谜游戏字母选项
+        function generateGuessLetters() {
+            const currentWord = gameState.currentWords[gameState.currentWordIndex];
+            const allLetters = 'abcdefghijklmnopqrstuvwxyz'.split('');
+            
+            // 选择包含正确字母的字母集
+            let selectedLetters = [...new Set(currentWord.word.split(''))];
+            
+            // 添加一些干扰字母
+            while (selectedLetters.length < 12) {
+                const randomLetter = allLetters[Math.floor(Math.random() * allLetters.length)];
+                if (!selectedLetters.includes(randomLetter)) {
+                    selectedLetters.push(randomLetter);
+                }
+            }
+            
+            // 打乱字母顺序
+            selectedLetters.sort(() => Math.random() - 0.5);
+            
+            // 创建字母按钮
+            selectedLetters.forEach(letter => {
+                const letterBtn = document.createElement('button');
+                letterBtn.className = 'keyboard-key px-3 py-2 border border-gray-300 rounded font-bold text-lg';
+                letterBtn.textContent = letter.toUpperCase();
+                letterBtn.dataset.letter = letter;
+                
+                letterBtn.addEventListener('click', () => {
+                    if (appState.isPaused) return;
+                    
+                    // 检查是否已经猜过这个字母
+                    if (gameState.guessedLetters.includes(letter)) return;
+                    
+                    // 记录猜测的字母
+                    gameState.guessedLetters.push(letter);
+                    
+                    // 禁用按钮
+                    letterBtn.disabled = true;
+                    
+                    // 检查字母是否在单词中
+                    const isCorrect = currentWord.word.includes(letter);
+                    
+                    if (isCorrect) {
+                        // 显示正确的字母
+                        letterBtn.classList.add('bg-success', 'text-white');
+                        
+                        // 更新单词显示
+                        for (let i = 0; i < currentWord.word.length; i++) {
+                            if (currentWord.word[i] === letter) {
+                                const letterBox = elements.guessWordDisplay.querySelector(`[data-index="${i}"]`);
+                                letterBox.textContent = letter.toUpperCase();
+                                letterBox.classList.add('text-success');
+                            }
+                        }
+                        
+                        // 检查是否猜完所有字母
+                        checkGuessCompletion(currentWord);
+                    } else {
+                        // 标记错误的字母
+                        letterBtn.classList.add('bg-warning', 'text-white');
+                    }
+                });
+                
+                elements.guessLetterOptions.appendChild(letterBtn);
+            });
+        }
+        
+        // 检查猜谜游戏是否完成
+        function checkGuessCompletion(currentWord) {
+            const guessedLettersSet = new Set(gameState.guessedLetters);
+            const wordLettersSet = new Set(currentWord.word.split(''));
+            
+            // 检查是否所有字母都被猜对了
+            const allLettersGuessed = [...wordLettersSet].every(letter => guessedLettersSet.has(letter));
+            
+            if (allLettersGuessed) {
+                appState.totalQuestions++;
+                appState.correctAnswers++;
+                
+                // 计算得分
+                const pointsEarned = gameConfig.pointsPerCorrect - (gameState.guessedLetters.length - wordLettersSet.size) * 2;
+                appState.score += Math.max(1, pointsEarned); // 确保至少得1分
+                
+                // 更新得分显示
+                elements.gameScore.textContent = appState.score;
+                
+                // 显示成功提示
+                showToast('正确！', '', 'success');
+                
+                // 延迟进入下一个单词
+                setTimeout(() => {
+                    gameState.currentWordIndex++;
+                    startGuessGame();
+                }, 1000);
+            }
+        }
+        
+        // 开始词义配对游戏
+        function startMatchGame() {
+            // 清除之前的内容
+            elements.matchWords.innerHTML = '';
+            elements.matchMeanings.innerHTML = '';
+            
+            // 准备当前级别的单词
+            const currentLevelWords = gameState.currentWords.slice(0, 5); // 每轮5对
+            
+            // 创建单词列表
+            const wordsCopy = [...currentLevelWords];
+            wordsCopy.sort(() => Math.random() - 0.5);
+            
+            wordsCopy.forEach((item, index) => {
+                const wordElement = document.createElement('div');
+                wordElement.className = 'drag-item p-3 border border-gray-300 rounded bg-white flex justify-between items-center';
+                wordElement.draggable = true;
+                wordElement.dataset.word = item.word;
+                
+                wordElement.innerHTML = `
+                    <span>${item.word}</span>
+                    <span class="text-gray-400">${item.phonetic}</span>
+                `;
+                
+                // 添加拖拽事件
+                wordElement.addEventListener('dragstart', (e) => {
+                    e.dataTransfer.setData('text/plain', item.word);
+                    wordElement.classList.add('dragging');
+                });
+                
+                wordElement.addEventListener('dragend', () => {
+                    wordElement.classList.remove('dragging');
+                });
+                
+                elements.matchWords.appendChild(wordElement);
+            });
+            
+            // 创建释义列表
+            const meaningsCopy = [...currentLevelWords];
+            meaningsCopy.sort(() => Math.random() - 0.5);
+            
+            meaningsCopy.forEach((item, index) => {
+                const meaningElement = document.createElement('div');
+                meaningElement.className = 'drop-zone p-3 border border-gray-300 rounded bg-white';
+                meaningElement.dataset.meaning = item.word;
+                
+                meaningElement.innerHTML = `<span>${item.meaning}</span>`;
+                
+                // 添加拖放事件
+                meaningElement.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    meaningElement.classList.add('active');
+                });
+                
+                meaningElement.addEventListener('dragleave', () => {
+                    meaningElement.classList.remove('active');
+                });
+                
+                meaningElement.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    meaningElement.classList.remove('active');
+                    
+                    const draggedWord = e.dataTransfer.getData('text/plain');
+                    const correctWord = meaningElement.dataset.meaning;
+                    
+                    // 检查配对是否正确
+                    if (draggedWord === correctWord) {
+                        // 配对正确
+                        gameState.matchedPairs++;
+                        
+                        // 隐藏两个元素
+                        const wordElement = document.querySelector(`.drag-item[data-word="${draggedWord}"]`);
+                        if (wordElement) {
+                            wordElement.style.opacity = '0';
+                            wordElement.style.height = '0';
+                            wordElement.style.margin = '0';
+                            wordElement.style.padding = '0';
+                            wordElement.style.overflow = 'hidden';
+                        }
+                        
+                        meaningElement.style.opacity = '0';
+                        meaningElement.style.height = '0';
+                        meaningElement.style.margin = '0';
+                        meaningElement.style.padding = '0';
+                        meaningElement.style.overflow = 'hidden';
+                        
+                        // 显示成功提示
+                        showToast('配对成功！', '', 'success');
+                        
+                        // 检查是否完成所有配对
+                        if (gameState.matchedPairs === currentLevelWords.length) {
+                            appState.totalQuestions += currentLevelWords.length;
+                            appState.correctAnswers += currentLevelWords.length;
+                            
+                            // 计算得分
+                            appState.score += currentLevelWords.length * gameConfig.pointsPerCorrect;
+                            
+                            // 更新得分显示
+                            elements.gameScore.textContent = appState.score;
+                            
+                            // 延迟进入下一轮
+                            setTimeout(() => {
+                                gameState.currentWordIndex += currentLevelWords.length;
+                                if (gameState.currentWordIndex >= gameState.currentWords.length) {
+                                    levelComplete();
+                                } else {
+                                    startMatchGame();
+                                }
+                            }, 1000);
+                        }
+                    } else {
+                        // 配对错误
+                        showToast('配对错误，再试试！', '', 'warning');
+                    }
+                });
+                
+                elements.matchMeanings.appendChild(meaningElement);
+            });
+        }
+        
+        // 开始单词消消乐游戏
+        function startMemoryGame() {
+            // 清除之前的内容
+            elements.memoryCards.innerHTML = '';
+            
+            // 准备卡片数据（每对显示单词和释义）
+            const currentLevelCards = gameState.currentWords.slice(0, 6); // 6对卡片
+            const cards = [];
+            
+            currentLevelCards.forEach(item => {
+                cards.push({ type: 'word', content: item.word, pairId: item.word });
+                cards.push({ type: 'meaning', content: item.meaning, pairId: item.word });
+            });
+            
+            // 打乱卡片顺序
+            cards.sort(() => Math.random() - 0.5);
+            
+            // 创建卡片
+            cards.forEach((card, index) => {
+                const cardElement = document.createElement('div');
+                cardElement.className = 'memory-card w-full aspect-square bg-secondary rounded-lg flex items-center justify-center text-white cursor-pointer transform transition-all duration-300';
+                cardElement.dataset.index = index;
+                cardElement.dataset.pairId = card.pairId;
+                cardElement.dataset.type = card.type;
+                cardElement.dataset.content = card.content;
+                cardElement.dataset.matched = 'false';
+                
+                // 卡片背面
+                const back = document.createElement('div');
+                back.className = 'card-back w-full h-full flex items-center justify-center';
+                back.innerHTML = '<i class="fa fa-question text-3xl"></i>';
+                
+                // 卡片正面
+                const front = document.createElement('div');
+                front.className = 'card-front w-full h-full flex items-center justify-center p-2 text-center hidden';
+                front.textContent = card.content;
+                
+                cardElement.appendChild(back);
+                cardElement.appendChild(front);
+                
+                // 添加点击事件
+                cardElement.addEventListener('click', () => {
+                    if (appState.isPaused) return;
+                    
+                    // 如果已经匹配或者已经翻开，忽略点击
+                    if (cardElement.dataset.matched === 'true' || cardElement.classList.contains('flipped')) return;
+                    
+                    // 限制一次只能翻开两张卡片
+                    const flippedCards = document.querySelectorAll('.memory-card.flipped:not(.matched)');
+                    if (flippedCards.length >= 2) return;
+                    
+                    // 翻卡片
+                    flipCard(cardElement);
+                    
+                    // 检查是否需要检查配对
+                    const newFlippedCards = document.querySelectorAll('.memory-card.flipped:not(.matched)');
+                    if (newFlippedCards.length === 2) {
+                        setTimeout(() => {
+                            checkMemoryMatch(newFlippedCards[0], newFlippedCards[1]);
+                        }, 1000);
+                    }
+                });
+                
+                elements.memoryCards.appendChild(cardElement);
+            });
+        }
+        
+        // 翻卡片
+        function flipCard(card) {
+            card.classList.add('flipped');
+            card.querySelector('.card-back').classList.add('hidden');
+            card.querySelector('.card-front').classList.remove('hidden');
+        }
+        
+        // 检查记忆卡片配对
+        function checkMemoryMatch(card1, card2) {
+            const pairId1 = card1.dataset.pairId;
+            const pairId2 = card2.dataset.pairId;
+            
+            if (pairId1 === pairId2) {
+                // 配对成功
+                card1.dataset.matched = 'true';
+                card2.dataset.matched = 'true';
+                card1.classList.add('matched', 'bg-success');
+                card2.classList.add('matched', 'bg-success');
+                
+                gameState.matchedPairs++;
+                
+                // 显示成功提示
+                showToast('匹配成功！', '', 'success');
+                
+                // 检查是否完成所有配对
+                const totalPairs = gameState.currentWords.slice(0, 6).length;
+                if (gameState.matchedPairs === totalPairs) {
+                    appState.totalQuestions += totalPairs;
+                    appState.correctAnswers += totalPairs;
+                    
+                    // 计算得分
+                    appState.score += totalPairs * gameConfig.pointsPerCorrect;
+                    
+                    // 更新得分显示
+                    elements.gameScore.textContent = appState.score;
+                    
+                    // 延迟进入下一轮
+                    setTimeout(() => {
+                        gameState.currentWordIndex += totalPairs;
+                        if (gameState.currentWordIndex >= gameState.currentWords.length) {
+                            levelComplete();
+                        } else {
+                            startMemoryGame();
+                        }
+                    }, 1000);
+                }
+            } else {
+                // 配对失败
+                card1.classList.remove('flipped');
+                card2.classList.remove('flipped');
+                card1.querySelector('.card-back').classList.remove('hidden');
+                card1.querySelector('.card-front').classList.add('hidden');
+                card2.querySelector('.card-back').classList.remove('hidden');
+                card2.querySelector('.card-front').classList.add('hidden');
+                
+                // 显示错误提示
+                showToast('匹配错误，再试试！', '', 'warning');
+            }
+        }
+        
+        // 暂停/继续游戏
+        function togglePause() {
+            appState.isPaused = !appState.isPaused;
+            
+            if (appState.isPaused) {
+                elements.pauseResumeBtn.innerHTML = '<i class="fa fa-play mr-2"></i>继续';
+                showToast('游戏已暂停', '', 'warning');
+            } else {
+                elements.pauseResumeBtn.innerHTML = '<i class="fa fa-pause mr-2"></i>暂停';
+                showToast('游戏继续', '', 'success');
+            }
+        }
+        
+        // 重新开始游戏
+        function restartGame() {
+            resetGameState();
+            startGame();
+        }
+        
+        // 返回游戏列表
+        function backToGameList() {
+            // 重置游戏状态
+            resetGameState();
+            
+            // 切换到游戏选择Tab
+            switchTab('game');
+        }
+        
+        // 关卡完成
+        function levelComplete() {
+            // 记录结束时间
+            gameState.levelEndTime = new Date();
+            
+            // 计算正确率
+            const accuracy = appState.totalQuestions > 0 ? Math.round((appState.correctAnswers / appState.totalQuestions) * 100) : 0;
+            
+            // 记录游戏历史
+            recordGameHistory(accuracy);
+            
+            // 保存进度
+            saveProgress();
+            
+            // 更新弹窗内容
+            elements.levelScore.textContent = appState.score;
+            elements.levelAccuracy.textContent = `${accuracy}%`;
+            
+            // 检查是否解锁新关卡
+            const newLevelUnlocked = appState.currentLevel < gameConfig.maxLevels && accuracy >= 80;
+            elements.levelReward.classList.toggle('hidden', !newLevelUnlocked);
+            
+            // 显示弹窗
+            elements.levelCompleteModal.classList.remove('hidden');
+            
+            // 如果解锁新关卡，播放庆祝动画
+            if (newLevelUnlocked && appState.animationEnabled) {
+                showConfetti();
+            }
+        }
+        
+        // 继续游戏
+        function continueGame() {
+            // 隐藏弹窗
+            elements.levelCompleteModal.classList.add('hidden');
+            
+            // 检查是否可以进入下一关
+            if (appState.currentLevel < gameConfig.maxLevels) {
+                // 进入下一关
+                appState.currentLevel++;
+                
+                // 重置游戏状态
+                resetGameState();
+                
+                // 开始新关卡
+                startGame();
+            } else {
+                // 已达到最高关卡
+                showToast('恭喜完成所有关卡！', '', 'success');
+                backToGameList();
+            }
+        }
+        
+        // 重置游戏状态
+        function resetGameState() {
+            appState.isPlaying = false;
+            appState.isPaused = false;
+            appState.score = 0;
+            appState.totalQuestions = 0;
+            appState.correctAnswers = 0;
+            
+            gameState.currentWords = [];
+            gameState.currentWordIndex = 0;
+            gameState.selectedLetters = [];
+            gameState.guessedLetters = [];
+            gameState.matchedPairs = 0;
+            gameState.streakCount = 0;
+            gameState.availableHints = 3;
+            gameState.levelStartTime = null;
+            gameState.levelEndTime = null;
+            
+            // 更新UI
+            elements.gameScore.textContent = '0';
+            elements.startGameBtn.classList.remove('hidden');
+            elements.pauseResumeBtn.classList.add('hidden');
+            
+            // 隐藏弹窗
+            elements.levelCompleteModal.classList.add('hidden');
+        }
+        
+        // 更新游戏进度显示
+        function updateGameProgress() {
+            elements.gameProgress.textContent = `关卡: ${appState.currentLevel}/${gameConfig.maxLevels}`;
+        }
+        
+        // 更新单词详情
+        function updateWordDetail(word) {
+            elements.currentWordDetail.innerHTML = `
+                <div>
+                    <span class="font-bold text-lg">${word.word}</span>
+                    <span class="ml-2 text-gray-500">${word.phonetic}</span>
+                </div>
+                <div class="mt-1">
+                    <span class="text-sm bg-gray-100 px-2 py-1 rounded">${word.partOfSpeech}</span>
+                    <span class="ml-2">${word.meaning}</span>
+                </div>
+                ${word.example ? `
+                    <div class="mt-2">
+                        <button class="text-sm text-secondary hover:text-primary" onclick="toggleExample(this)">查看例句 <i class="fa fa-chevron-down"></i></button>
+                        <div class="example-content mt-1 text-sm text-gray-600 hidden">
+                            "${word.example}"
+                        </div>
+                    </div>
+                ` : ''}
+            `;
+        }
+        
+        // 切换例句显示
+        function toggleExample(button) {
+            const content = button.nextElementSibling;
+            content.classList.toggle('hidden');
+            
+            const icon = button.querySelector('i');
+            if (content.classList.contains('hidden')) {
+                button.innerHTML = '查看例句 <i class="fa fa-chevron-down"></i>';
+            } else {
+                button.innerHTML = '隐藏例句 <i class="fa fa-chevron-up"></i>';
+            }
+        }
+        
+        // 渲染单词列表
+        function renderWordList(level) {
+            elements.wordList.innerHTML = '';
+            
+            let wordsToShow = [];
+            
+            if (level === 'all') {
+                // 显示所有单词
+                Object.values(wordData).forEach(levelWords => {
+                    wordsToShow = wordsToShow.concat(levelWords);
+                });
+                // 添加自定义单词
+                wordsToShow = wordsToShow.concat(appState.customWords);
+            } else if (wordData[level]) {
+                // 显示指定级别的单词
+                wordsToShow = wordData[level];
+            }
+            
+            // 创建单词项
+            wordsToShow.forEach(word => {
+                const wordItem = document.createElement('div');
+                wordItem.className = 'flex justify-between items-center p-2 border-b last:border-b-0';
+                
+                wordItem.innerHTML = `
+                    <div>
+                        <div class="font-medium">${word.word}</div>
+                        <div class="text-sm text-gray-500">${word.phonetic} · ${word.meaning}</div>
+                    </div>
+                    ${word.partOfSpeech ? `<span class="text-xs bg-gray-100 px-2 py-1 rounded">${word.partOfSpeech}</span>` : ''}
+                `;
+                
+                elements.wordList.appendChild(wordItem);
+            });
+        }
+        
+        // 添加自定义单词
+        function addCustomWord() {
+            const word = elements.customWord.value.trim().toLowerCase();
+            const phonetic = elements.customPhonetic.value.trim();
+            const meaning = elements.customMeaning.value.trim();
+            
+            // 验证输入
+            if (!word || !meaning) {
+                showToast('单词和释义不能为空！', '', 'warning');
+                return;
+            }
+            
+            // 验证单词格式（只允许字母和连字符）
+            if (!/^[a-z-]+$/.test(word)) {
+                showToast('单词只能包含字母和连字符！', '', 'warning');
+                return;
+            }
+            
+            // 检查是否已存在
+            const exists = appState.customWords.some(w => w.word === word);
+            if (exists) {
+                showToast('该单词已存在！', '', 'warning');
+                return;
+            }
+            
+            // 添加单词
+            appState.customWords.push({
+                word,
+                phonetic: phonetic || '/???/',
+                meaning,
+                partOfSpeech: '自定义',
+                example: ''
+            });
+            
+            // 保存自定义单词
+            saveCustomWords();
+            
+            // 清空输入框
+            elements.customWord.value = '';
+            elements.customPhonetic.value = '';
+            elements.customMeaning.value = '';
+            
+            // 显示成功提示
+            showToast('添加完成', '', 'success');
+            
+            // 刷新单词列表
+            renderWordList('all');
+        }
+        
+        // 签到功能
+        function checkIn() {
+            const today = new Date().toDateString();
+            
+            if (appState.lastCheckIn === today) {
+                showToast('今日已签到！', '', 'warning');
+                return;
+            }
+            
+            // 更新签到状态
+            appState.lastCheckIn = today;
+            appState.streakDays++;
+            
+            // 保存签到记录
+            saveCheckInData();
+            
+            // 更新UI
+            elements.streakDays.textContent = appState.streakDays;
+            elements.checkInBtn.disabled = true;
+            elements.checkInBtn.textContent = '已签到';
+            elements.checkInBtn.classList.add('bg-gray-400');
+            elements.checkInBtn.classList.remove('bg-success', 'hover:bg-opacity-90');
+            
+            // 显示成功提示
+            showToast(`签到成功！连续签到${appState.streakDays}天`, '', 'success');
+        }
+        
+        // 更新签到状态
+        function updateCheckInStatus() {
+            const today = new Date().toDateString();
+            
+            if (appState.lastCheckIn === today) {
+                elements.checkInBtn.disabled = true;
+                elements.checkInBtn.textContent = '已签到';
+                elements.checkInBtn.classList.add('bg-gray-400');
+                elements.checkInBtn.classList.remove('bg-success', 'hover:bg-opacity-90');
+            }
+            
+            elements.streakDays.textContent = appState.streakDays;
+        }
+        
+        // 初始化图表
+        function initCharts() {
+            // 近7天学习统计图表
+            const weeklyCtx = elements.weeklyChart.getContext('2d');
+            window.weeklyChart = new Chart(weeklyCtx, {
+                type: 'line',
+                data: {
+                    labels: getLast7Days(),
+                    datasets: [{
+                        label: '游戏次数',
+                        data: [0, 0, 0, 0, 0, 0, 0],
+                        borderColor: '#4682B4',
+                        backgroundColor: 'rgba(70, 130, 180, 0.1)',
+                        tension: 0.4
+                    }, {
+                        label: '正确率(%)',
+                        data: [0, 0, 0, 0, 0, 0, 0],
+                        borderColor: '#32CD32',
+                        backgroundColor: 'rgba(50, 205, 50, 0.1)',
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    animation: {
+                        duration: 1000
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+            
+            // 游戏类型分布图表
+            const gameTypeCtx = elements.gameTypeChart.getContext('2d');
+            window.gameTypeChart = new Chart(gameTypeCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['拼写填空', '单词猜谜', '词义配对', '单词消消乐'],
+                    datasets: [{
+                        data: [0, 0, 0, 0],
+                        backgroundColor: ['#FF7F50', '#4682B4', '#FFD700', '#32CD32']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    animation: {
+                        duration: 1000,
+                        animateRotate: true,
+                        animateScale: true
+                    }
+                }
+            });
+            
+            // 更新图表数据
+            updateCharts();
+        }
+        
+        // 更新图表数据
+        function updateCharts() {
+            if (!window.weeklyChart || !window.gameTypeChart) return;
+            
+            // 更新近7天数据
+            const weeklyData = calculateWeeklyData();
+            window.weeklyChart.data.datasets[0].data = weeklyData.gameCounts;
+            window.weeklyChart.data.datasets[1].data = weeklyData.accuracyRates;
+            window.weeklyChart.update();
+            
+            // 更新游戏类型分布
+            const gameTypeData = calculateGameTypeData();
+            window.gameTypeChart.data.datasets[0].data = gameTypeData;
+            window.gameTypeChart.update();
+            
+            // 更新详细历史记录
+            renderDetailedHistory();
+        }
+        
+        // 计算近7天数据
+        function calculateWeeklyData() {
+            const last7Days = getLast7Days();
+            const gameCounts = new Array(7).fill(0);
+            const accuracyRates = new Array(7).fill(0);
+            const totalQuestionsByDay = new Array(7).fill(0);
+            const correctAnswersByDay = new Array(7).fill(0);
+            
+            // 统计每天的数据
+            appState.gameHistory.forEach(record => {
+                const recordDate = new Date(record.date).toDateString();
+                const dayIndex = last7Days.findIndex(day => day === recordDate);
+                
+                if (dayIndex !== -1) {
+                    gameCounts[dayIndex]++;
+                    totalQuestionsByDay[dayIndex] += record.totalQuestions;
+                    correctAnswersByDay[dayIndex] += record.correctAnswers;
+                }
+            });
+            
+            // 计算正确率
+            for (let i = 0; i < 7; i++) {
+                if (totalQuestionsByDay[i] > 0) {
+                    accuracyRates[i] = Math.round((correctAnswersByDay[i] / totalQuestionsByDay[i]) * 100);
+                }
+            }
+            
+            return { gameCounts, accuracyRates };
+        }
+        
+        // 计算游戏类型数据
+        function calculateGameTypeData() {
+            const gameTypes = ['spelling', 'guess', 'match', 'memory'];
+            const counts = new Array(4).fill(0);
+            
+            appState.gameHistory.forEach(record => {
+                const gameIndex = gameTypes.indexOf(record.gameType);
+                if (gameIndex !== -1) {
+                    counts[gameIndex]++;
+                }
+            });
+            
+            return counts;
+        }
+        
+        // 获取过去7天的日期
+        function getLast7Days() {
+            const days = [];
+            const today = new Date();
+            
+            for (let i = 6; i >= 0; i--) {
+                const date = new Date(today);
+                date.setDate(date.getDate() - i);
+                days.push(date.toDateString());
+            }
+            
+            return days;
+        }
+        
+        // 渲染详细历史记录
+        function renderDetailedHistory() {
+            elements.detailedHistory.innerHTML = '';
+            
+            if (appState.gameHistory.length === 0) {
+                elements.detailedHistory.innerHTML = '<div class="text-gray-500 text-center py-4">暂无学习记录</div>';
+                return;
+            }
+            
+            // 按时间倒序排序
+            const sortedHistory = [...appState.gameHistory].sort((a, b) => new Date(b.date) - new Date(a.date));
+            
+            // 最多显示10条记录
+            const recentHistory = sortedHistory.slice(0, 10);
+            
+            recentHistory.forEach(record => {
+                const historyItem = document.createElement('div');
+                historyItem.className = 'p-3 border rounded-lg';
+                
+                const gameTypeNames = {
+                    'spelling': '拼写填空',
+                    'guess': '单词猜谜',
+                    'match': '词义配对',
+                    'memory': '单词消消乐'
+                };
+                
+                const accuracy = record.totalQuestions > 0 ? Math.round((record.correctAnswers / record.totalQuestions) * 100) : 0;
+                
+                historyItem.innerHTML = `
+                    <div class="flex justify-between items-center mb-1">
+                        <span class="font-medium">${gameTypeNames[record.gameType] || '未知游戏'}</span>
+                        <span class="text-sm text-gray-500">${formatDate(record.date)}</span>
+                    </div>
+                    <div class="flex justify-between text-sm text-gray-600">
+                        <span>得分: ${record.score}</span>
+                        <span>正确率: ${accuracy}%</span>
+                    </div>
+                `;
+                
+                elements.detailedHistory.appendChild(historyItem);
+            });
+        }
+        
+        // 格式化日期
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return `${date.getMonth() + 1}/${date.getDate()} ${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
+        }
+        
+        // 保存设置
+        function saveSettings() {
+            appState.soundEnabled = elements.soundToggle.checked;
+            appState.animationEnabled = elements.animationToggle.checked;
+            appState.hintEnabled = elements.hintToggle.checked;
+            appState.defaultGameType = elements.defaultGameType.value;
+            
+            // 保存到localStorage
+            localStorage.setItem('wordGameSettings', JSON.stringify({
+                soundEnabled: appState.soundEnabled,
+                animationEnabled: appState.animationEnabled,
+                hintEnabled: appState.hintEnabled,
+                defaultGameType: appState.defaultGameType
+            }));
+            
+            // 更新声音图标
+            updateSoundIcon();
+            
+            showToast('设置已保存', '', 'success');
+        }
+        
+        // 更新声音图标
+        function updateSoundIcon() {
+            if (appState.soundEnabled) {
+                elements.soundControlBtn.innerHTML = '<i class="fa fa-volume-up text-xl"></i>';
+            } else {
+                elements.soundControlBtn.innerHTML = '<i class="fa fa-volume-off text-xl"></i>';
+            }
+        }
+        
+        // 切换声音
+        function toggleSound() {
+            appState.soundEnabled = !appState.soundEnabled;
+            elements.soundToggle.checked = appState.soundEnabled;
+            
+            // 保存设置
+            saveSettings();
+        }
+        
+        // 清空历史记录
+        function clearHistory() {
+            if (confirm('确定要清除所有学习记录吗？此操作不可恢复。')) {
+                appState.gameHistory = [];
+                
+                // 保存到localStorage
+                localStorage.removeItem('wordGameHistory');
+                
+                // 更新UI
+                updateCharts();
+                showToast('学习记录已清除', '', 'success');
+            }
+        }
+        
+        // 清空自定义单词
+        function clearCustomWords() {
+            if (confirm('确定要清除所有自定义单词吗？此操作不可恢复。')) {
+                appState.customWords = [];
+                
+                // 保存到localStorage
+                localStorage.removeItem('wordGameCustomWords');
+                
+                // 更新UI
+                renderWordList('all');
+                showToast('自定义单词已清除', '', 'success');
+            }
+        }
+        
+        // 记录游戏历史
+        function recordGameHistory(accuracy) {
+            const historyRecord = {
+                date: new Date().toISOString(),
+                gameType: appState.currentGame,
+                level: appState.currentLevel,
+                score: appState.score,
+                totalQuestions: appState.totalQuestions,
+                correctAnswers: appState.correctAnswers,
+                accuracy: accuracy,
+                duration: gameState.levelEndTime ? Math.round((gameState.levelEndTime - gameState.levelStartTime) / 1000) : 0
+            };
+            
+            appState.gameHistory.push(historyRecord);
+            
+            // 限制历史记录数量
+            if (appState.gameHistory.length > 100) {
+                appState.gameHistory = appState.gameHistory.slice(-100);
+            }
+            
+            // 保存到localStorage
+            localStorage.setItem('wordGameHistory', JSON.stringify(appState.gameHistory));
+        }
+        
+        // 保存进度
+        function saveProgress() {
+            // 更新单词进度
+            gameState.currentWords.forEach(word => {
+                if (!appState.wordProgress[word.word]) {
+                    appState.wordProgress[word.word] = 0;
+                }
+                appState.wordProgress[word.word]++;
+            });
+            
+            // 更新游戏进度
+            if (!appState.gameProgress[appState.currentGame]) {
+                appState.gameProgress[appState.currentGame] = {
+                    highestLevel: 1,
+                    totalGames: 0,
+                    totalScore: 0
+                };
+            }
+            
+            const gameProgress = appState.gameProgress[appState.currentGame];
+            gameProgress.highestLevel = Math.max(gameProgress.highestLevel, appState.currentLevel);
+            gameProgress.totalGames++;
+            gameProgress.totalScore += appState.score;
+            
+            // 保存到localStorage
+            localStorage.setItem('wordGameProgress', JSON.stringify({
+                wordProgress: appState.wordProgress,
+                gameProgress: appState.gameProgress,
+                currentLevel: appState.currentLevel
+            }));
+        }
+        
+        // 保存自定义单词
+        function saveCustomWords() {
+            localStorage.setItem('wordGameCustomWords', JSON.stringify(appState.customWords));
+        }
+        
+        // 保存签到数据
+        function saveCheckInData() {
+            localStorage.setItem('wordGameCheckIn', JSON.stringify({
+                lastCheckIn: appState.lastCheckIn,
+                streakDays: appState.streakDays
+            }));
+        }
+        
+        // 加载保存的数据
+        function loadSavedData() {
+            // 加载设置
+            const savedSettings = localStorage.getItem('wordGameSettings');
+            if (savedSettings) {
+                const settings = JSON.parse(savedSettings);
+                appState.soundEnabled = settings.soundEnabled !== undefined ? settings.soundEnabled : true;
+                appState.animationEnabled = settings.animationEnabled !== undefined ? settings.animationEnabled : true;
+                appState.hintEnabled = settings.hintEnabled !== undefined ? settings.hintEnabled : true;
+                appState.defaultGameType = settings.defaultGameType || 'spelling';
+            }
+            
+            // 加载历史记录
+            const savedHistory = localStorage.getItem('wordGameHistory');
+            if (savedHistory) {
+                appState.gameHistory = JSON.parse(savedHistory);
+            }
+            
+            // 加载自定义单词
+            const savedCustomWords = localStorage.getItem('wordGameCustomWords');
+            if (savedCustomWords) {
+                appState.customWords = JSON.parse(savedCustomWords);
+            }
+            
+            // 加载进度
+            const savedProgress = localStorage.getItem('wordGameProgress');
+            if (savedProgress) {
+                const progress = JSON.parse(savedProgress);
+                appState.wordProgress = progress.wordProgress || {};
+                appState.gameProgress = progress.gameProgress || {};
+                appState.currentLevel = progress.currentLevel || 1;
+            }
+            
+            // 加载签到数据
+            const savedCheckIn = localStorage.getItem('wordGameCheckIn');
+            if (savedCheckIn) {
+                const checkInData = JSON.parse(savedCheckIn);
+                appState.lastCheckIn = checkInData.lastCheckIn;
+                appState.streakDays = checkInData.streakDays || 0;
+                
+                // 检查是否需要重置连续签到天数
+                const yesterday = new Date();
+                yesterday.setDate(yesterday.getDate() - 1);
+                const yesterdayString = yesterday.toDateString();
+                
+                if (appState.lastCheckIn !== new Date().toDateString() && appState.lastCheckIn !== yesterdayString) {
+                    // 断签了，重置连续天数
+                    appState.streakDays = 0;
+                }
+            }
+        }
+        
+        // 更新学习进度
+        function updateStudyProgress() {
+            // 计算总体进度
+            const totalWords = Object.values(wordData).reduce((sum, words) => sum + words.length, 0) + appState.customWords.length;
+            const learnedWords = Object.keys(appState.wordProgress).length;
+            const progressPercent = totalWords > 0 ? Math.round((learnedWords / totalWords) * 100) : 0;
+            
+            elements.totalProgressPercent.textContent = `${progressPercent}%`;
+            elements.totalProgressBar.style.width = `${progressPercent}%`;
+            
+            // 计算今日学习
+            const today = new Date().toDateString();
+            const todayRecords = appState.gameHistory.filter(record => {
+                return new Date(record.date).toDateString() === today;
+            });
+            
+            const todayStudyCount = todayRecords.reduce((sum, record) => sum + record.correctAnswers, 0);
+            elements.todayStudyCount.textContent = `${todayStudyCount} 个单词`;
+            
+            // 设置今日进度条（目标50个单词）
+            const todayProgress = Math.min(100, (todayStudyCount / 50) * 100);
+            elements.todayStudyBar.style.width = `${todayProgress}%`;
+        }
+        
+        // 显示提示框
+        function showToast(message, extra = '', type = 'success') {
+            elements.toast.textContent = message + extra;
+            elements.toast.className = 'toast';
+            elements.toast.classList.add(type);
+            
+            // 显示提示框
+            elements.toast.classList.add('show');
+            
+            // 3秒后隐藏
+            setTimeout(() => {
+                elements.toast.classList.remove('show');
+            }, 3000);
+        }
+        
+        // 显示星星粒子效果
+        function showStarParticles() {
+            const container = document.body;
+            const count = 10;
+            
+            for (let i = 0; i < count; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'star-particle';
+                particle.innerHTML = '<i class="fa fa-star"></i>';
+                
+                // 随机位置
+                const x = Math.random() * 100;
+                const y = Math.random() * 100;
+                particle.style.left = `${x}%`;
+                particle.style.top = `${y}%`;
+                
+                // 随机大小
+                const size = 10 + Math.random() * 20;
+                particle.style.fontSize = `${size}px`;
+                
+                // 随机动画延迟
+                particle.style.animationDelay = `${i * 0.05}s`;
+                
+                container.appendChild(particle);
+                
+                // 动画结束后移除
+                setTimeout(() => {
+                    container.removeChild(particle);
+                }, 1000);
+            }
+        }
+        
+        // 显示礼花效果
+        function showConfetti() {
+            const container = document.body;
+            const count = 50;
+            const colors = ['#FF7F50', '#4682B4', '#FFD700', '#32CD32', '#FF69B4'];
+            
+            for (let i = 0; i < count; i++) {
+                const confetti = document.createElement('div');
+                confetti.className = 'absolute pointer-events-none';
+                confetti.style.width = '10px';
+                confetti.style.height = '10px';
+                confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                confetti.style.transform = 'rotate(45deg)';
+                
+                // 随机位置
+                const x = Math.random() * 100;
+                const y = Math.random() * 100;
+                confetti.style.left = `${x}%`;
+                confetti.style.top = `${y}%`;
+                
+                // 随机动画
+                confetti.style.animation = `confetti ${1 + Math.random() * 2}s ease-out forwards`;
+                confetti.style.animationDelay = `${i * 0.05}s`;
+                
+                container.appendChild(confetti);
+                
+                // 动画结束后移除
+                setTimeout(() => {
+                    container.removeChild(confetti);
+                }, 3000);
+            }
+        }
+        
+        // 播放成功音效（简化版，实际应使用Audio API）
+        function playSuccessSound() {
+            // 这里只是占位，实际应用中应该使用Audio API播放音效
+            // const successSound = new Audio('success.mp3');
+            // successSound.play();
+        }
+        
+        // 播放错误音效
+        function playErrorSound() {
+            // 这里只是占位，实际应用中应该使用Audio API播放音效
+        }
+        
+        // 切换移动端菜单
+        function toggleMobileMenu(show) {
+            const isCurrentlyOpen = elements.leftPanel.classList.contains('-translate-x-full');
+            const shouldOpen = show !== undefined ? show : !isCurrentlyOpen;
+            
+            if (shouldOpen) {
+                elements.leftPanel.classList.remove('-translate-x-full');
+                elements.mobileMenuOverlay.classList.add('active');
+                elements.mobileMenuOverlay.classList.remove('hidden');
+            } else {
+                elements.leftPanel.classList.add('-translate-x-full');
+                elements.mobileMenuOverlay.classList.remove('active');
+                setTimeout(() => {
+                    if (!elements.mobileMenuOverlay.classList.contains('active')) {
+                        elements.mobileMenuOverlay.classList.add('hidden');
+                    }
+                }, 300);
+            }
+        }
+        
+        // 处理窗口大小变化
+        function handleResize() {
+            const isMobile = window.innerWidth < 1024;
+            
+            // 移动端隐藏左侧面板
+            if (isMobile) {
+                elements.leftPanel.classList.add('-translate-x-full');
+                elements.rightPanel.classList.add('hidden');
+            } else {
+                elements.leftPanel.classList.remove('-translate-x-full');
+                elements.rightPanel.classList.remove('hidden');
+                elements.mobileMenuOverlay.classList.add('hidden');
+            }
+        }
+        
+        // 初始化游戏
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+    <div class="footer-notes">
+        <p>技术支持：HTML + Tailwind CSS + JavaScript</p>
+        <p>© 2024 单词记忆工具 - 专注于高效英语词汇学习</p>
+        <p>适合所有年龄段用户的交互式单词记忆解决方案</p>
+    </div>
+</body>
+</html>

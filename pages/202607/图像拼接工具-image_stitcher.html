@@ -1,0 +1,1840 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图像拼接工具</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Microsoft YaHei', sans-serif;
+            min-height: 100vh;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        /* 夜晚主题 */
+        body.dark {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            color: #e8e8e8;
+        }
+
+        /* 白天主题 */
+        body.light {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 50%, #667eea 100%);
+            color: #2d3748;
+        }
+
+        /* 星空背景效果 - 仅夜晚模式 */
+        body.dark::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(2px 2px at 20px 30px, #ffd700, transparent),
+                        radial-gradient(2px 2px at 40px 70px, #ffd700, transparent),
+                        radial-gradient(1px 1px at 90px 40px, #ffd700, transparent),
+                        radial-gradient(1px 1px at 130px 80px, #ffd700, transparent),
+                        radial-gradient(2px 2px at 160px 30px, #ffd700, transparent);
+            background-repeat: repeat;
+            background-size: 200px 100px;
+            animation: twinkle 4s ease-in-out infinite alternate;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        /* 白天模式的云朵效果 */
+        body.light::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.8) 0%, transparent 50%),
+                        radial-gradient(circle at 80% 30%, rgba(255, 255, 255, 0.6) 0%, transparent 50%),
+                        radial-gradient(circle at 40% 70%, rgba(255, 255, 255, 0.4) 0%, transparent 50%);
+            animation: float 6s ease-in-out infinite alternate;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        @keyframes twinkle {
+            0% { opacity: 0.3; }
+            100% { opacity: 0.8; }
+        }
+
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            100% { transform: translateY(-10px); }
+        }
+
+        /* 页眉 */
+        .header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 60px;
+            z-index: 1000;
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border-color);
+            transition: all 0.3s ease;
+        }
+
+        .light .header {
+            background: rgba(255, 255, 255, 0.9);
+            --border-color: rgba(102, 126, 234, 0.2);
+        }
+
+        .dark .header {
+            background: rgba(26, 26, 46, 0.9);
+            --border-color: rgba(255, 215, 0, 0.2);
+        }
+
+        .header-content {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 0 30px;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+        }
+
+        .logo-text {
+            font-size: 1.4em;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        .light .logo-text {
+            color: #667eea;
+        }
+
+        .dark .logo-text {
+            color: #ffd700;
+        }
+
+        .header-nav {
+            display: flex;
+            align-items: center;
+            gap: 32px;
+        }
+
+        .nav-item {
+            font-size: 14px;
+            text-decoration: none;
+            transition: color 0.2s ease;
+        }
+
+        .light .nav-item {
+            color: #64748b;
+        }
+
+        .dark .nav-item {
+            color: #cbd5e1;
+        }
+
+        .nav-item:hover {
+            color: var(--accent-color);
+        }
+
+        .light .nav-item:hover {
+            color: #667eea;
+        }
+
+        .dark .nav-item:hover {
+            color: #ffd700;
+        }
+
+        /* 改进的主题切换按钮 */
+        .theme-toggle {
+            width: 60px;
+            height: 30px;
+            border-radius: 25px;
+            border: none;
+            cursor: pointer;
+            position: relative;
+            transition: all 0.4s ease;
+            outline: none;
+            background: var(--toggle-bg);
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .light .theme-toggle {
+            --toggle-bg: linear-gradient(135deg, #87CEEB 0%, #98D8E8 50%, #B0E0E6 100%);
+        }
+
+        .dark .theme-toggle {
+            --toggle-bg: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+        }
+
+        .theme-toggle::before {
+            content: '';
+            position: absolute;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            top: 3px;
+            left: 3px;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            background: var(--toggle-circle);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .light .theme-toggle::before {
+            background: radial-gradient(circle at 30% 30%, #FFD700 0%, #FFA500 70%);
+            transform: translateX(0);
+            box-shadow: 0 0 10px rgba(255, 215, 0, 0.3), 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .dark .theme-toggle::before {
+            background: radial-gradient(circle at 30% 30%, #F5F5DC 0%, #E6E6FA 70%);
+            transform: translateX(30px);
+            box-shadow: 0 0 10px rgba(245, 245, 220, 0.3), 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        /* 添加太阳光线效果 */
+        .light .theme-toggle::after {
+            content: '';
+            position: absolute;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            top: 3px;
+            left: 3px;
+            background: radial-gradient(circle, transparent 40%, rgba(255, 215, 0, 0.1) 41%, rgba(255, 215, 0, 0.1) 45%, transparent 46%);
+            animation: rotate 4s linear infinite;
+        }
+
+        /* 添加月亮环形山效果 */
+        .dark .theme-toggle::after {
+            content: '';
+            position: absolute;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            top: 3px;
+            left: 33px;
+            background: radial-gradient(circle at 40% 40%, rgba(200, 200, 200, 0.3) 20%, transparent 21%),
+                        radial-gradient(circle at 60% 70%, rgba(200, 200, 200, 0.2) 15%, transparent 16%),
+                        radial-gradient(circle at 30% 80%, rgba(200, 200, 200, 0.15) 10%, transparent 11%);
+        }
+
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .theme-toggle:hover {
+            transform: scale(1.05);
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.2), 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .theme-toggle:active {
+            transform: scale(0.95);
+        }
+
+        /* 主标题区域 */
+        .hero-section {
+            padding: 80px 0 40px;
+            text-align: center;
+            position: relative;
+            z-index: 2;
+        }
+
+        .hero-title {
+            font-size: 2.5em;
+            font-weight: 700;
+            margin-bottom: 12px;
+            text-shadow: 0 0 20px rgba(255, 215, 0, 0.3);
+        }
+
+        .light .hero-title {
+            color: #2d3748;
+            text-shadow: 0 0 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .dark .hero-title {
+            color: #ffd700;
+            text-shadow: 0 0 20px rgba(255, 215, 0, 0.3);
+        }
+
+        .hero-subtitle {
+            font-size: 1.1em;
+            max-width: 600px;
+            margin: 0 auto;
+            opacity: 0.9;
+        }
+
+        .light .hero-subtitle {
+            color: #2d3748;
+        }
+
+        .dark .hero-subtitle {
+            color: #b8b8b8;
+        }
+
+        /* 主内容区 */
+        .main-content {
+            display: flex;
+            min-height: calc(100vh - 200px);
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 0 30px 30px;
+            gap: 40px;
+            position: relative;
+            z-index: 2;
+        }
+
+        .left-panel, .right-panel {
+            flex: 1;
+            border-radius: 15px;
+            overflow: hidden;
+            backdrop-filter: blur(15px);
+            border: 1px solid var(--border-color);
+            transition: all 0.3s ease;
+            min-height: 600px;
+            max-width: 750px;
+        }
+
+        .light .left-panel, .light .right-panel {
+            background: rgba(255, 255, 255, 0.6);
+            --border-color: rgba(102, 126, 234, 0.1);
+        }
+
+        .dark .left-panel, .dark .right-panel {
+            background: rgba(255, 255, 255, 0.08);
+            --border-color: rgba(255, 215, 0, 0.1);
+        }
+
+        .left-panel:hover, .right-panel:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        .panel-header {
+            padding: 25px 30px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .light .panel-header {
+            --border-color: rgba(102, 126, 234, 0.1);
+        }
+
+        .dark .panel-header {
+            --border-color: rgba(255, 215, 0, 0.1);
+        }
+
+        .panel-title {
+            font-size: 1.2em;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .light .panel-title {
+            color: #667eea;
+        }
+
+        .dark .panel-title {
+            color: #ffd700;
+        }
+
+        .panel-title::before {
+            content: '';
+            width: 4px;
+            height: 18px;
+            border-radius: 2px;
+        }
+
+        .light .panel-title::before {
+            background: #667eea;
+        }
+
+        .dark .panel-title::before {
+            background: #ffd700;
+        }
+
+        .panel-content {
+            padding: 35px;
+            height: calc(100% - 95px);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        /* 左侧上传区域 - 重新设计 */
+        .upload-area {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* 上传区域主体 */
+        .upload-zone-wrapper {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .file-drop-zone {
+            width: 100%;
+            height: 300px;
+            border: 2px dashed var(--border-dashed);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .upload-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            transition: all 0.3s ease;
+            padding: 20px;
+        }
+
+        .upload-content.has-images {
+            display: none;
+        }
+
+        .preview-grid {
+            display: none;
+            grid-template-columns: repeat(auto-fill, 80px);
+            gap: 10px;
+            width: 100%;
+            height: 100%;
+            overflow-y: auto;
+            padding: 15px;
+            justify-content: center;
+            align-content: center;
+        }
+
+        .file-drop-zone.has-images .preview-grid {
+            display: grid;
+        }
+
+        .light .file-drop-zone {
+            --border-dashed: rgba(102, 126, 234, 0.3);
+        }
+
+        .dark .file-drop-zone {
+            --border-dashed: rgba(255, 215, 0, 0.3);
+        }
+
+        .file-drop-zone:hover, .file-drop-zone.dragover {
+            border-color: var(--accent-color);
+            background: var(--hover-bg);
+            transform: scale(1.02);
+        }
+
+        .light .file-drop-zone:hover, .light .file-drop-zone.dragover {
+            --accent-color: #667eea;
+            --hover-bg: rgba(102, 126, 234, 0.05);
+        }
+
+        .dark .file-drop-zone:hover, .dark .file-drop-zone.dragover {
+            --accent-color: #ffd700;
+            --hover-bg: rgba(255, 215, 0, 0.05);
+        }
+
+        .file-input {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .upload-icon {
+            font-size: 3em;
+            margin-bottom: 15px;
+            opacity: 0.6;
+        }
+
+        .upload-icon::before {
+            content: '';
+            display: inline-block;
+            width: 1em;
+            height: 1em;
+            background: currentColor;
+            mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'%3E%3Cpath d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'/%3E%3Cpolyline points='14,2 14,8 20,8'/%3E%3Cline x1='16' y1='13' x2='8' y2='13'/%3E%3Cline x1='16' y1='17' x2='8' y2='17'/%3E%3Cpolyline points='10,9 9,9 8,9'/%3E%3C/svg%3E") no-repeat center;
+            mask-size: contain;
+        }
+
+        .upload-text {
+            font-size: 1.1em;
+            font-weight: 500;
+            margin-bottom: 5px;
+        }
+
+        .upload-hint {
+            font-size: 0.9em;
+            opacity: 0.7;
+        }
+
+        .preview-item {
+            border-radius: 6px;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+            position: relative;
+            transition: all 0.3s ease;
+            aspect-ratio: 1;
+            width: 80px;
+            height: 80px;
+        }
+
+        .light .preview-item {
+            background: rgba(255, 255, 255, 0.4);
+            --border-color: rgba(102, 126, 234, 0.1);
+        }
+
+        .dark .preview-item {
+            background: rgba(255, 255, 255, 0.05);
+            --border-color: rgba(255, 215, 0, 0.1);
+        }
+
+        .preview-item:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        .preview-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .preview-item .remove-btn {
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+
+        .preview-item:hover .remove-btn {
+            opacity: 1;
+        }
+
+        .preview-info {
+            display: none;
+        }
+
+        /* 控制按钮 */
+        .controls {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            padding: 20px 20px 10px;
+            flex-shrink: 0;
+        }
+        
+        /* 质量和尺寸控件 - 在底部显示 */
+        .quality-controls {
+            background: var(--controls-bg);
+            backdrop-filter: blur(20px);
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            transition: all 0.3s ease;
+            width: 100%;
+            flex-shrink: 0;
+        }
+        
+        .light .quality-controls {
+            --controls-bg: rgba(255, 255, 255, 0.9);
+            --border-color: rgba(102, 126, 234, 0.2);
+        }
+        
+        .dark .quality-controls {
+            --controls-bg: rgba(26, 26, 46, 0.9);
+            --border-color: rgba(255, 215, 0, 0.2);
+        }
+        
+        /* 图像信息显示 */
+        .image-info {
+            display: flex;
+            justify-content: space-around;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .info-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .info-label {
+            font-size: 14px;
+            opacity: 0.8;
+        }
+        
+        .info-value {
+            font-size: 14px;
+            font-weight: 600;
+        }
+        
+        .light .info-value {
+            color: #667eea;
+        }
+        
+        .dark .info-value {
+            color: #ffd700;
+        }
+        
+        .light .quality-controls {
+            --border-color: rgba(102, 126, 234, 0.1);
+        }
+        
+        .dark .quality-controls {
+            --border-color: rgba(255, 215, 0, 0.1);
+        }
+        
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .control-label {
+            font-size: 14px;
+            font-weight: 500;
+        }
+        
+        .light .control-label {
+            color: #475569;
+        }
+        
+        .dark .control-label {
+            color: #cbd5e1;
+        }
+        
+        /* 质量滑块 */
+        .quality-slider-container {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .quality-slider {
+            flex: 1;
+            -webkit-appearance: none;
+            appearance: none;
+            height: 6px;
+            border-radius: 3px;
+            outline: none;
+            transition: all 0.2s ease;
+        }
+        
+        .light .quality-slider {
+            background: linear-gradient(to right, 
+                #e0e7ff 0%, 
+                #667eea var(--value), 
+                #e0e7ff var(--value));
+        }
+        
+        .dark .quality-slider {
+            background: linear-gradient(to right, 
+                #4a4a4a 0%, 
+                #ffd700 var(--value), 
+                #4a4a4a var(--value));
+        }
+        
+        .quality-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .light .quality-slider::-webkit-slider-thumb {
+            background: #667eea;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .dark .quality-slider::-webkit-slider-thumb {
+            background: #ffd700;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        
+        .quality-slider::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+        
+        .quality-slider::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .light .quality-slider::-moz-range-thumb {
+            background: #667eea;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .dark .quality-slider::-moz-range-thumb {
+            background: #ffd700;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        
+        .quality-value {
+            min-width: 45px;
+            text-align: center;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        
+        .light .quality-value {
+            color: #667eea;
+        }
+        
+        .dark .quality-value {
+            color: #ffd700;
+        }
+        
+        /* 尺寸选项 */
+
+        .direction-toggle {
+            display: flex;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+        }
+
+        .light .direction-toggle {
+            --border-color: rgba(102, 126, 234, 0.1);
+        }
+
+        .dark .direction-toggle {
+            --border-color: rgba(255, 215, 0, 0.1);
+        }
+
+        .direction-btn {
+            padding: 8px 16px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 14px;
+        }
+
+        .light .direction-btn {
+            background: rgba(255, 255, 255, 0.4);
+            color: #64748b;
+        }
+
+        .dark .direction-btn {
+            background: rgba(255, 255, 255, 0.05);
+            color: #94a3b8;
+        }
+
+        .direction-btn.active {
+            color: white;
+        }
+
+        .light .direction-btn.active {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+        }
+
+        .dark .direction-btn.active {
+            background: linear-gradient(45deg, #ffd700, #ffed4a);
+            color: #1a1a2e;
+        }
+
+        .stitch-btn {
+            flex: 1;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .light .stitch-btn {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .dark .stitch-btn {
+            background: linear-gradient(45deg, #ffd700, #ffed4a);
+            color: #1a1a2e;
+        }
+
+        .stitch-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+        }
+
+        .stitch-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* 右侧结果区域 */
+        .result-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: auto;
+            padding: 20px;
+            height: 400px;
+            max-height: 400px;
+        }
+
+        #resultCanvas {
+            max-width: 100%;
+            max-height: 100%;
+            width: auto;
+            height: auto;
+            object-fit: contain;
+            border-radius: 8px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            display: block;
+            margin: 0 auto;
+        }
+
+        .empty-state {
+            text-align: center;
+            opacity: 0.5;
+            font-size: 1.1em;
+            padding: 60px 20px;
+        }
+
+        .empty-state-icon {
+            font-size: 64px;
+            margin-bottom: 16px;
+        }
+
+        .download-btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        .light .download-btn {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .dark .download-btn {
+            background: linear-gradient(45deg, #ffd700, #ffed4a);
+            color: #1a1a2e;
+        }
+
+        .download-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: currentColor;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* 自定义滚动条样式 */
+        .preview-grid::-webkit-scrollbar,
+        .result-area::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .preview-grid::-webkit-scrollbar-track,
+        .result-area::-webkit-scrollbar-track {
+            background: var(--scroll-track);
+            border-radius: 3px;
+        }
+
+        .light .preview-grid::-webkit-scrollbar-track,
+        .light .result-area::-webkit-scrollbar-track {
+            --scroll-track: rgba(102, 126, 234, 0.1);
+        }
+
+        .dark .preview-grid::-webkit-scrollbar-track,
+        .dark .result-area::-webkit-scrollbar-track {
+            --scroll-track: rgba(255, 215, 0, 0.1);
+        }
+
+        .preview-grid::-webkit-scrollbar-thumb,
+        .result-area::-webkit-scrollbar-thumb {
+            background: var(--scroll-thumb);
+            border-radius: 3px;
+        }
+
+        .light .preview-grid::-webkit-scrollbar-thumb,
+        .light .result-area::-webkit-scrollbar-thumb {
+            --scroll-thumb: rgba(102, 126, 234, 0.3);
+        }
+
+        .dark .preview-grid::-webkit-scrollbar-thumb,
+        .dark .result-area::-webkit-scrollbar-thumb {
+            --scroll-thumb: rgba(255, 215, 0, 0.3);
+        }
+
+        .preview-grid::-webkit-scrollbar-thumb:hover,
+        .result-area::-webkit-scrollbar-thumb:hover {
+            background: var(--scroll-thumb-hover);
+        }
+
+        .light .preview-grid::-webkit-scrollbar-thumb:hover,
+        .light .result-area::-webkit-scrollbar-thumb:hover {
+            --scroll-thumb-hover: rgba(102, 126, 234, 0.5);
+        }
+
+        .dark .preview-grid::-webkit-scrollbar-thumb:hover,
+        .dark .result-area::-webkit-scrollbar-thumb:hover {
+            --scroll-thumb-hover: rgba(255, 215, 0, 0.5);
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        /* 底部外链区域 */
+        .footer {
+            background: #1a1a1a;
+            margin-top: 80px;
+            position: relative;
+            z-index: 2;
+        }
+
+        .footer-content {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 0 30px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 40px;
+        }
+
+        .footer-section h3 {
+            color: #ffd700;
+            font-size: 1.3em;
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+
+        .footer-section p {
+            color: #b8b8b8;
+            line-height: 1.6;
+            margin-bottom: 15px;
+        }
+
+        .footer-links {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .footer-links a {
+            color: #e8e8e8;
+            text-decoration: none;
+            transition: color 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .footer-links a:hover {
+            color: #ffd700;
+        }
+
+        .footer-social {
+            display: flex;
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .footer-social a {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: rgba(255, 215, 0, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #ffd700;
+            text-decoration: none;
+            transition: all 0.3s ease;
+        }
+
+        .footer-social a:hover {
+            background: rgba(255, 215, 0, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .footer-bottom {
+            border-top: 1px solid #333;
+            margin-top: 40px;
+            padding-top: 30px;
+            text-align: center;
+            color: #888;
+        }
+
+        .footer-bottom p {
+            margin: 0;
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 1200px) {
+            .main-content {
+                max-width: 100%;
+                padding: 0 25px 30px;
+                gap: 30px;
+            }
+            
+            .header-content {
+                max-width: 100%;
+                padding: 0 25px;
+            }
+            
+            .footer-content {
+                max-width: 100%;
+                padding: 0 25px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                flex-direction: column;
+                gap: 20px;
+                padding: 0 20px 30px;
+            }
+            
+            .left-panel, .right-panel {
+                height: 400px;
+                max-width: none;
+            }
+            
+            .file-drop-zone {
+                height: 200px;
+            }
+            
+            .hero-section {
+                padding: 60px 0 30px;
+            }
+            
+            .hero-title {
+                font-size: 2em;
+            }
+            
+            .hero-subtitle {
+                font-size: 1em;
+            }
+            
+            .header-nav {
+                display: none;
+            }
+            
+            .footer-content {
+                grid-template-columns: 1fr;
+                gap: 30px;
+                padding: 0 20px;
+            }
+            
+            .footer-social {
+                justify-content: center;
+            }
+            
+            .result-area {
+                padding: 10px;
+            }
+            
+            .quality-controls {
+                gap: 15px;
+                padding: 15px;
+            }
+            
+            .info-item {
+                flex-direction: column;
+                gap: 4px;
+            }
+            
+            .control-group {
+                gap: 8px;
+            }
+        }
+    </style>
+</head>
+<body class="dark">
+    <!-- 页眉 -->
+    <header class="header">
+        <div class="header-content">
+            <div class="logo">
+                <div class="logo-text">图像拼接工具</div>
+            </div>
+            <nav class="header-nav">
+                <button class="theme-toggle" onclick="toggleTheme()"></button>
+            </nav>
+        </div>
+    </header>
+
+    <!-- 主标题区域 -->
+    <section class="hero-section">
+        <h1 class="hero-title">轻松拼接您的图像</h1>
+        <p class="hero-subtitle">上传多张图片，选择横向或纵向拼接方式，快速生成无缝拼接的图像，并可调节图像压缩质量和尺寸</p>
+    </section>
+
+    <!-- 主内容区 -->
+    <main class="main-content">
+        <!-- 左侧上传面板 -->
+        <div class="left-panel">
+            <div class="panel-header">
+                <h2 class="panel-title">上传图片</h2>
+            </div>
+            <div class="panel-content">
+                <div class="upload-area">
+                    <div class="upload-zone-wrapper">
+                        <div class="file-drop-zone" id="dropZone">
+                            <input type="file" id="fileInput" class="file-input" multiple accept="image/*">
+                            <div class="upload-content" id="uploadContent">
+                                <div class="upload-icon"></div>
+                                <div class="upload-text">拖放图片到这里，或点击选择文件</div>
+                                <div class="upload-hint">支持 JPG、PNG、GIF 格式</div>
+                            </div>
+                            <div class="preview-grid" id="previewGrid"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="controls">
+                        <div class="direction-toggle">
+                            <button class="direction-btn active" onclick="setDirection('horizontal')">横向拼接</button>
+                            <button class="direction-btn" onclick="setDirection('vertical')">纵向拼接</button>
+                        </div>
+                        <button class="stitch-btn" onclick="stitchImages()" id="stitchBtn" disabled>
+                            <span>开始拼接</span>
+                            <div class="loading hidden" id="loading"></div>
+                        </button>
+                    </div>
+                    
+                </div>
+            </div>
+        </div>
+
+        <!-- 右侧结果面板 -->
+        <div class="right-panel">
+            <div class="panel-header">
+                <h2 class="panel-title">拼接结果</h2>
+            </div>
+            <div class="panel-content">
+                <div class="result-area" id="resultArea">
+                    <div class="empty-state" id="emptyState">
+                        <div class="empty-state-icon">🖼️</div>
+                        <div>上传图片后，拼接结果将显示在这里</div>
+                    </div>
+                </div>
+                
+                <!-- 图像调节控件 -->
+                <div class="quality-controls hidden" id="qualityControls">
+                    <!-- 图像信息显示 -->
+                    <div class="image-info">
+                        <div class="info-item">
+                            <span class="info-label">尺寸：</span>
+                            <span class="info-value" id="imageDimensions">-</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">大小：</span>
+                            <span class="info-value" id="imageFileSize">-</span>
+                        </div>
+                    </div>
+                    
+                    <div class="control-group">
+                        <label class="control-label">图像质量</label>
+                        <div class="quality-slider-container">
+                            <input type="range" id="qualitySlider" class="quality-slider" min="10" max="100" value="85" step="5">
+                            <span class="quality-value" id="qualityValue">85%</span>
+                        </div>
+                    </div>
+                    
+                    <div class="control-group">
+                        <label class="control-label">图像大小</label>
+                        <div class="quality-slider-container">
+                            <input type="range" id="sizeSlider" class="quality-slider" min="25" max="100" value="100" step="5">
+                            <span class="quality-value" id="sizeValue">100%</span>
+                        </div>
+                    </div>
+                    
+                    <button class="download-btn" onclick="downloadResult()" id="downloadBtn">
+                        💾 下载图片
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let selectedFiles = [];
+        let currentDirection = 'horizontal';
+        let currentTheme = 'dark';
+        let currentQuality = 85;
+        let currentScale = 1;
+        let originalCanvas = null; // 保存原始画布数据
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            initTheme();
+            initDropZone();
+            initFileInput();
+        });
+        
+        // 初始化质量控件
+        function initQualityControls() {
+            const qualitySlider = document.getElementById('qualitySlider');
+            const qualityValue = document.getElementById('qualityValue');
+            const sizeSlider = document.getElementById('sizeSlider');
+            const sizeValue = document.getElementById('sizeValue');
+            
+            // 初始化滑块背景
+            updateSliderBackground(qualitySlider, currentQuality);
+            updateSliderBackground(sizeSlider, currentScale * 100);
+            
+            // 质量滑块
+            qualitySlider.addEventListener('input', (e) => {
+                currentQuality = parseInt(e.target.value);
+                qualityValue.textContent = currentQuality + '%';
+                updateSliderBackground(qualitySlider, currentQuality);
+                updateImageInfo();
+            });
+            
+            // 大小滑块
+            sizeSlider.addEventListener('input', (e) => {
+                currentScale = parseInt(e.target.value) / 100;
+                sizeValue.textContent = e.target.value + '%';
+                updateSliderBackground(sizeSlider, e.target.value);
+                applyImageTransformation();
+            });
+        }
+        
+        // 更新滑块背景
+        function updateSliderBackground(slider, value) {
+            const percentage = ((value - slider.min) / (slider.max - slider.min)) * 100;
+            slider.style.setProperty('--value', percentage + '%');
+        }
+        
+
+        // 主题切换
+        function toggleTheme() {
+            currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            document.body.className = currentTheme;
+            localStorage.setItem('theme', currentTheme);
+        }
+
+        function initTheme() {
+            const savedTheme = localStorage.getItem('theme');
+            if (savedTheme) {
+                currentTheme = savedTheme;
+                document.body.className = currentTheme;
+            }
+        }
+
+        // 拖拽上传
+        function initDropZone() {
+            const dropZone = document.getElementById('dropZone');
+            
+            dropZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropZone.classList.add('dragover');
+            });
+            
+            dropZone.addEventListener('dragleave', (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('dragover');
+            });
+            
+            dropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('dragover');
+                const files = Array.from(e.dataTransfer.files);
+                handleFiles(files);
+            });
+        }
+
+        // 文件输入
+        function initFileInput() {
+            const fileInput = document.getElementById('fileInput');
+            fileInput.addEventListener('change', (e) => {
+                const files = Array.from(e.target.files);
+                handleFiles(files);
+            });
+        }
+
+        // 处理文件
+        function handleFiles(files) {
+            const imageFiles = files.filter(file => file.type.startsWith('image/'));
+            selectedFiles = [...selectedFiles, ...imageFiles];
+            updatePreview();
+            updateStitchButton();
+        }
+
+        // 更新预览
+        function updatePreview() {
+            const previewGrid = document.getElementById('previewGrid');
+            const uploadContent = document.getElementById('uploadContent');
+            const dropZone = document.getElementById('dropZone');
+            
+            previewGrid.innerHTML = '';
+            
+            if (selectedFiles.length === 0) {
+                uploadContent.classList.remove('has-images');
+                dropZone.classList.remove('has-images');
+                return;
+            }
+            
+            uploadContent.classList.add('has-images');
+            dropZone.classList.add('has-images');
+            
+            selectedFiles.forEach((file, index) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const previewItem = document.createElement('div');
+                    previewItem.className = 'preview-item';
+                    previewItem.innerHTML = `
+                        <img src="${e.target.result}" alt="预览">
+                        <button class="remove-btn" onclick="removeFile(${index})">×</button>
+                    `;
+                    previewGrid.appendChild(previewItem);
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        // 删除文件
+        function removeFile(index) {
+            selectedFiles.splice(index, 1);
+            updatePreview();
+            updateStitchButton();
+        }
+
+        // 设置拼接方向
+        function setDirection(direction) {
+            currentDirection = direction;
+            document.querySelectorAll('.direction-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+        }
+
+        // 更新拼接按钮状态
+        function updateStitchButton() {
+            const stitchBtn = document.getElementById('stitchBtn');
+            stitchBtn.disabled = selectedFiles.length < 2;
+        }
+
+        // 拼接图片
+        async function stitchImages() {
+            if (selectedFiles.length < 2) return;
+            
+            const stitchBtn = document.getElementById('stitchBtn');
+            const loading = document.getElementById('loading');
+            
+            stitchBtn.disabled = true;
+            loading.classList.remove('hidden');
+            
+            try {
+                const images = await Promise.all(
+                    selectedFiles.map(file => loadImage(file))
+                );
+                
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                
+                let finalWidth, finalHeight;
+                
+                if (currentDirection === 'horizontal') {
+                    // 横向拼接 - 按高度统一，边长接缝对齐
+                    const targetHeight = Math.max(...images.map(img => img.height));
+                    const naturalWidth = images.reduce((sum, img) => sum + (img.width * targetHeight / img.height), 0);
+                    
+                    // 应用缩放比例
+                    finalWidth = Math.round(naturalWidth * currentScale);
+                    finalHeight = Math.round(targetHeight * currentScale);
+                    
+                    canvas.width = finalWidth;
+                    canvas.height = finalHeight;
+                    
+                    // 白色背景
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    
+                    // 计算每张图片的宽度比例
+                    const widthRatios = images.map(img => img.width * targetHeight / img.height);
+                    const totalNaturalWidth = widthRatios.reduce((sum, w) => sum + w, 0);
+                    
+                    let currentX = 0;
+                    images.forEach((img, index) => {
+                        const scaledWidth = finalWidth * widthRatios[index] / totalNaturalWidth;
+                        ctx.drawImage(img, currentX, 0, scaledWidth, finalHeight);
+                        currentX += scaledWidth;
+                    });
+                    
+                } else {
+                    // 纵向拼接 - 按宽度统一，边长接缝对齐
+                    const targetWidth = Math.max(...images.map(img => img.width));
+                    const naturalHeight = images.reduce((sum, img) => sum + (img.height * targetWidth / img.width), 0);
+                    
+                    // 应用缩放比例
+                    finalWidth = Math.round(targetWidth * currentScale);
+                    finalHeight = Math.round(naturalHeight * currentScale);
+                    
+                    canvas.width = finalWidth;
+                    canvas.height = finalHeight;
+                    
+                    // 白色背景
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    
+                    // 计算每张图片的高度比例
+                    const heightRatios = images.map(img => img.height * targetWidth / img.width);
+                    const totalNaturalHeight = heightRatios.reduce((sum, h) => sum + h, 0);
+                    
+                    let currentY = 0;
+                    images.forEach((img, index) => {
+                        const scaledHeight = finalHeight * heightRatios[index] / totalNaturalHeight;
+                        ctx.drawImage(img, 0, currentY, finalWidth, scaledHeight);
+                        currentY += scaledHeight;
+                    });
+                }
+                
+                // 保存原始画布
+                originalCanvas = canvas;
+                
+                // 显示结果
+                displayResult(canvas);
+                
+                // 显示控制面板
+                document.getElementById('qualityControls').classList.remove('hidden');
+                
+                // 初始化控件
+                initQualityControls();
+                
+                // 更新图像信息
+                updateImageInfo();
+                
+            } catch (error) {
+                console.error('拼接失败:', error);
+                alert('拼接失败，请重试');
+            } finally {
+                stitchBtn.disabled = false;
+                loading.classList.add('hidden');
+            }
+        }
+
+        // 加载图片
+        function loadImage(file) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                const reader = new FileReader();
+                
+                reader.onload = (e) => {
+                    img.onload = () => resolve(img);
+                    img.onerror = reject;
+                    img.src = e.target.result;
+                };
+                
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
+
+        // 显示结果
+        function displayResult(canvas) {
+            // 隐藏空状态
+            const emptyState = document.getElementById('emptyState');
+            if (emptyState) {
+                emptyState.style.display = 'none';
+            }
+            
+            // 查找或创建画布
+            let resultCanvas = document.getElementById('resultCanvas');
+            if (!resultCanvas) {
+                const resultArea = document.getElementById('resultArea');
+                resultCanvas = document.createElement('canvas');
+                resultCanvas.id = 'resultCanvas';
+                resultArea.appendChild(resultCanvas);
+            }
+            
+            const resultCtx = resultCanvas.getContext('2d');
+            resultCanvas.width = canvas.width;
+            resultCanvas.height = canvas.height;
+            resultCtx.drawImage(canvas, 0, 0);
+        }
+        
+        // 应用图像变换
+        function applyImageTransformation() {
+            if (!originalCanvas) return;
+            
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            // 应用缩放
+            canvas.width = Math.round(originalCanvas.width * currentScale);
+            canvas.height = Math.round(originalCanvas.height * currentScale);
+            
+            // 白色背景
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // 绘制缩放后的图像
+            ctx.drawImage(originalCanvas, 0, 0, canvas.width, canvas.height);
+            
+            // 显示结果
+            displayResult(canvas);
+            
+            // 更新图像信息
+            updateImageInfo();
+        }
+        
+        // 更新图像信息
+        function updateImageInfo() {
+            const canvas = document.getElementById('resultCanvas');
+            if (!canvas) return;
+            
+            // 更新尺寸
+            document.getElementById('imageDimensions').textContent = 
+                `${canvas.width} × ${canvas.height} px`;
+            
+            // 估算文件大小
+            canvas.toBlob((blob) => {
+                if (blob) {
+                    const size = blob.size;
+                    let sizeText;
+                    if (size < 1024) {
+                        sizeText = size + ' B';
+                    } else if (size < 1024 * 1024) {
+                        sizeText = (size / 1024).toFixed(2) + ' KB';
+                    } else {
+                        sizeText = (size / (1024 * 1024)).toFixed(2) + ' MB';
+                    }
+                    document.getElementById('imageFileSize').textContent = sizeText;
+                }
+            }, 'image/jpeg', currentQuality / 100);
+        }
+        
+        // 下载结果
+        function downloadResult() {
+            const canvas = document.getElementById('resultCanvas');
+            if (!canvas) return;
+            
+            // 转换为 JPG 格式，使用用户设置的质量
+            const quality = currentQuality / 100;
+            canvas.toBlob((blob) => {
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.download = `拼接结果_${new Date().getTime()}.jpg`;
+                link.href = url;
+                link.click();
+                
+                // 清理 URL 对象
+                setTimeout(() => URL.revokeObjectURL(url), 100);
+            }, 'image/jpeg', quality);
+        }
+    </script>
+
+<!-- 自动添加的底部代码开始 -->
+<div style="all: initial; display: block; width: 100%; margin: 0; padding: 0; border: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+    <div style="opacity: 1 !important; background: rgba(255, 255, 255, 1) !important;">
+        <!-- Footer Section Start -->
+<footer style="
+    position: relative;
+    width: 100%;
+    background: linear-gradient(135deg, #2c2c2c 0%, #1a1a1a 100%);
+    color: #e0e0e0;
+    padding: 35px 30px;
+    border-top: 1px solid #404040;
+    margin: 0;
+    margin-top: 50px;
+    box-sizing: border-box;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    clear: both;
+    z-index: 1000;
+">
+    <div style="
+        max-width: 1200px;
+        margin: 0 auto;
+        display: flex;
+        justify-content: flex-start;
+        align-items: flex-end;
+        gap: 90px;
+        flex-wrap: wrap;
+    ">
+        <div style="flex: 1.5; min-width: 300px;">
+            <h2 style="
+                font-size: 28px;
+                font-weight: 600;
+                margin: 0 0 8px 0;
+                letter-spacing: 1px;
+                color: #e0e0e0;
+            ">月起星九</h2>
+            <div style="
+                font-size: 16px;
+                color: #b0b0b0;
+                margin-bottom: 20px;
+                font-weight: 300;
+            ">AI实战 / 一人企业</div>
+            <p style="
+                font-size: 14px;
+                line-height: 1.7;
+                color: #a0a0a0;
+                max-width: 450px;
+                margin: 0 0 28px 0;
+            ">
+                AI图像工程师，擅长AI绘画技巧、ComfyUI、智能体开发，AI编程ing。
+            </p>
+            
+            <div style="
+                display: flex;
+                gap: 14px;
+                flex-wrap: wrap;
+            ">
+                <button id="wechatCopyBtn" style="
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 8px;
+                    padding: 10px 16px;
+                    background: #333333;
+                    border-radius: 25px;
+                    color: #e0e0e0;
+                    font-size: 14px;
+                    transition: all 0.3s ease;
+                    border: 1px solid #555555;
+                    cursor: pointer;
+                ">
+                    🌍 微信：yueqixingjiu
+                </button>
+                <a href="https://t.zsxq.com/Pz6v1" style="
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 8px;
+                    padding: 10px 16px;
+                    background: #333333;
+                    border-radius: 25px;
+                    color: #e0e0e0;
+                    text-decoration: none;
+                    font-size: 14px;
+                    transition: all 0.3s ease;
+                    border: 1px solid #555555;
+                " target="_blank">
+                    🪐 加入AI编程星球
+                </a>
+
+            </div>
+        </div>
+        
+        <div style="
+            flex: 1;
+            display: flex;
+            gap: 50px;
+            flex-wrap: wrap;
+        ">
+            <div style="min-width: 140px;">
+                <h3 style="
+                    font-size: 16px;
+                    font-weight: 600;
+                    margin: 0 0 24px 0;
+                    color: #e0e0e0;
+                ">其他工具链接</h3>
+                <div style="
+                    display: flex;
+                    flex-direction: column;
+                    gap: 7px;
+                ">
+                    <a href="https://deepseek.idoxu.com/yueqixingjiu/image_batch_crop.html" style="
+                        display: flex;
+                        align-items: center;
+                        gap: 12px;
+                        color: #b0b0b0;
+                        text-decoration: none;
+                        font-size: 14px;
+                        transition: all 0.3s ease;
+                        padding: 6px 0;
+                        line-height: 1.4;
+                    " target="_blank">
+                        图像批量裁剪
+                    </a>
+                    <a href="https://deepseek.idoxu.com/yueqixingjiu/image_format_converter.html" style="
+                        display: flex;
+                        align-items: center;
+                        gap: 12px;
+                        color: #b0b0b0;
+                        text-decoration: none;
+                        font-size: 14px;
+                        transition: all 0.3s ease;
+                        padding: 6px 0;
+                        line-height: 1.4;
+                    " target="_blank">
+                        全格式识别与转换
+                    </a>
+                    <a href="https://deepseek.idoxu.com/yueqixingjiu/image_stitcher.html" style="
+                        display: flex;
+                        align-items: center;
+                        gap: 12px;
+                        color: #b0b0b0;
+                        text-decoration: none;
+                        font-size: 14px;
+                        transition: all 0.3s ease;
+                        padding: 6px 0;
+                        line-height: 1.4;
+                    " target="_blank">
+                        图像一键拼接
+                    </a>
+                    <a href="https://deepseek.idoxu.com/yueqixingjiu/image_format_converter.html" style="
+                        display: flex;
+                        align-items: center;
+                        gap: 12px;
+                        color: #b0b0b0;
+                        text-decoration: none;
+                        font-size: 14px;
+                        transition: all 0.3s ease;
+                        padding: 6px 0;
+                        line-height: 1.4;
+                    " target="_blank">
+                        图像批量格式转换
+                    </a>
+                    <a href="https://deepseek.idoxu.com/yueqixingjiu/claude_parse.html" style="
+                        display: flex;
+                        align-items: center;
+                        gap: 12px;
+                        color: #b0b0b0;
+                        text-decoration: none;
+                        font-size: 14px;
+                        transition: all 0.3s ease;
+                        padding: 6px 0;
+                        line-height: 1.4;
+                    " target="_blank">
+                        claude code聊天记录解析工具
+                    </a>
+                </div>
+            </div>
+            
+            
+        </div>
+    </div>
+    
+    <div style="
+        text-align: center;
+        font-size: 12px;
+        color: #808080;
+        margin-top: 25px;
+        padding-top: 15px;
+        border-top: 1px solid #404040;
+        max-width: 1920px;
+        margin-left: auto;
+        margin-right: auto;
+    ">
+        © 2025 月起星九 · 保留所有权利
+    </div>
+</footer>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const wechatBtn = document.getElementById('wechatCopyBtn');
+    
+    wechatBtn.addEventListener('click', function() {
+        const wechatId = 'yueqixingjiu';
+        
+        navigator.clipboard.writeText(wechatId).then(function() {
+            const originalText = wechatBtn.innerHTML;
+            wechatBtn.innerHTML = '✅ 已复制微信号';
+            wechatBtn.style.background = '#28a745';
+            
+            setTimeout(function() {
+                wechatBtn.innerHTML = originalText;
+                wechatBtn.style.background = '#333333';
+            }, 2000);
+        }).catch(function() {
+            const originalText = wechatBtn.innerHTML;
+            wechatBtn.innerHTML = '❌ 复制失败';
+            wechatBtn.style.background = '#dc3545';
+            
+            setTimeout(function() {
+                wechatBtn.innerHTML = originalText;
+                wechatBtn.style.background = '#333333';
+            }, 2000);
+        });
+    });
+});
+</script>
+
+<!-- Footer Section End -->
+    </div>
+</div>
+<!-- 自动添加的底部代码结束 --></body>
+</html>

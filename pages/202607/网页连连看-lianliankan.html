@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>网页连连看</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f0f8ff;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 {
+            color: #4682b4;
+            margin-bottom: 10px;
+        }
+        .game-info {
+            display: flex;
+            justify-content: space-between;
+            width: 500px;
+            margin-bottom: 15px;
+            font-size: 18px;
+            color: #2e8b57;
+        }
+        .game-container {
+            position: relative;
+            width: 500px;
+            height: 400px;
+            background-color: #e6f7ff;
+            border: 3px solid #4682b4;
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+        }
+        .card {
+            position: absolute;
+            width: 50px;
+            height: 70px;
+            background-color: white;
+            border-radius: 5px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+            cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s;
+            user-select: none;
+        }
+        .card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 10px rgba(0, 0, 0, 0.2);
+        }
+        .card.selected {
+            background-color: #ffeb3b;
+            transform: translateY(-5px);
+            box-shadow: 0 8px 15px rgba(0, 0, 0, 0.3);
+        }
+        .card.matched {
+            visibility: hidden;
+            opacity: 0;
+            transition: visibility 0s 0.3s, opacity 0.3s linear;
+        }
+        .line {
+            position: absolute;
+            background-color: #ff5722;
+            height: 3px;
+            transform-origin: left center;
+            z-index: 10;
+        }
+        .controls {
+            margin-top: 20px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #4682b4;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #5f9ea0;
+        }
+        .win-message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(255, 255, 255, 0.9);
+            padding: 20px 40px;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
+            text-align: center;
+            z-index: 100;
+            display: none;
+        }
+        .win-message h2 {
+            color: #2e8b57;
+            margin-top: 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>网页连连看</h1>
+    <div class="game-info">
+        <div>时间: <span id="time">0</span>秒</div>
+        <div>剩余: <span id="remaining">16</span>对</div>
+    </div>
+    <div class="game-container" id="game-container">
+        <div class="win-message" id="win-message">
+            <h2>恭喜你赢了!</h2>
+            <p>用时: <span id="final-time">0</span>秒</p>
+            <button id="play-again">再玩一次</button>
+        </div>
+    </div>
+    <div class="controls">
+        <button id="new-game">新游戏</button>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const gameContainer = document.getElementById('game-container');
+            const remainingDisplay = document.getElementById('remaining');
+            const timeDisplay = document.getElementById('time');
+            const winMessage = document.getElementById('win-message');
+            const finalTimeDisplay = document.getElementById('final-time');
+            const newGameBtn = document.getElementById('new-game');
+            const playAgainBtn = document.getElementById('play-again');
+            
+            let cards = [];
+            let selectedCards = [];
+            let remainingPairs = 0;
+            let time = 0;
+            let timer = null;
+            let gameStarted = false;
+            
+            // 图标集合
+            const icons = ['🍎', '🍌', '🍒', '🍓', '🍊', '🍋', '🍉', '🍇', 
+                          '🍍', '🥝', '🥥', '🍑', '🍈', '🍐', '🥭', '🍏'];
+            
+            // 初始化游戏
+            function initGame() {
+                // 清空游戏区域
+                gameContainer.innerHTML = '<div class="win-message" id="win-message"><h2>恭喜你赢了!</h2><p>用时: <span id="final-time">0</span>秒</p><button id="play-again">再玩一次</button></div>';
+                winMessage.style.display = 'none';
+                
+                // 重置游戏状态
+                cards = [];
+                selectedCards = [];
+                remainingPairs = 16;
+                time = 0;
+                timeDisplay.textContent = '0';
+                remainingDisplay.textContent = '16';
+                
+                // 停止之前的计时器
+                if (timer) {
+                    clearInterval(timer);
+                    timer = null;
+                }
+                gameStarted = false;
+                
+                // 创建卡片对
+                let cardValues = [];
+                for (let i = 0; i < 16; i++) {
+                    cardValues.push(icons[i]);
+                    cardValues.push(icons[i]);
+                }
+                
+                // 洗牌
+                cardValues = shuffleArray(cardValues);
+                
+                // 创建卡片元素
+                for (let i = 0; i < 32; i++) {
+                    const card = document.createElement('div');
+                    card.className = 'card';
+                    card.textContent = cardValues[i];
+                    card.dataset.index = i;
+                    card.dataset.value = cardValues[i];
+                    
+                    card.addEventListener('click', handleCardClick);
+                    
+                    // 计算位置 (8x4布局)
+                    const row = Math.floor(i / 8);
+                    const col = i % 8;
+                    const left = 25 + col * 56;
+                    const top = 20 + row * 90;
+                    
+                    card.style.left = left + 'px';
+                    card.style.top = top + 'px';
+                    
+                    gameContainer.appendChild(card);
+                    cards.push({
+                        element: card,
+                        value: cardValues[i],
+                        matched: false
+                    });
+                }
+            }
+            
+            // 洗牌算法
+            function shuffleArray(array) {
+                const newArray = [...array];
+                for (let i = newArray.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
+                }
+                return newArray;
+            }
+            
+            // 处理卡片点击
+            function handleCardClick(e) {
+                if (!gameStarted) {
+                    startTimer();
+                    gameStarted = true;
+                }
+                
+                const clickedCard = e.target;
+                const cardIndex = parseInt(clickedCard.dataset.index);
+                const cardData = cards[cardIndex];
+                
+                // 如果卡片已匹配或已选中，则忽略
+                if (cardData.matched || selectedCards.includes(cardIndex)) {
+                    return;
+                }
+                
+                // 如果已经选中了两张卡片，则忽略
+                if (selectedCards.length >= 2) {
+                    return;
+                }
+                
+                // 选中卡片
+                clickedCard.classList.add('selected');
+                selectedCards.push(cardIndex);
+                
+                // 如果选了两张卡片，检查是否匹配
+                if (selectedCards.length === 2) {
+                    const [firstIndex, secondIndex] = selectedCards;
+                    const firstCard = cards[firstIndex];
+                    const secondCard = cards[secondIndex];
+                    
+                    if (firstCard.value === secondCard.value) {
+                        // 匹配成功
+                        setTimeout(() => {
+                            firstCard.element.classList.add('matched');
+                            secondCard.element.classList.add('matched');
+                            firstCard.matched = true;
+                            secondCard.matched = true;
+                            
+                            selectedCards = [];
+                            
+                            // 更新剩余对数
+                            remainingPairs--;
+                            remainingDisplay.textContent = remainingPairs;
+                            
+                            // 检查游戏是否结束
+                            if (remainingPairs === 0) {
+                                endGame();
+                            }
+                        }, 500);
+                    } else {
+                        // 匹配失败
+                        setTimeout(() => {
+                            firstCard.element.classList.remove('selected');
+                            secondCard.element.classList.remove('selected');
+                            selectedCards = [];
+                        }, 1000);
+                    }
+                }
+            }
+            
+            // 开始计时器
+            function startTimer() {
+                timer = setInterval(() => {
+                    time++;
+                    timeDisplay.textContent = time;
+                }, 1000);
+            }
+            
+            // 结束游戏
+            function endGame() {
+                clearInterval(timer);
+                finalTimeDisplay.textContent = time;
+                winMessage.style.display = 'block';
+            }
+            
+            // 事件监听
+            newGameBtn.addEventListener('click', initGame);
+            playAgainBtn.addEventListener('click', initGame);
+            
+            // 初始化游戏
+            initGame();
+        });
+    </script>
+</body>
+</html>

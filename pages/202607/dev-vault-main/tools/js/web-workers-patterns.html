@@ -1,0 +1,1467 @@
+<!DOCTYPE html>
+<html tk="title_web_workers_patterns_play" lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Web Workers Patterns Playground</title>
+<meta name="description" content="Interactive playground for Web Workers message passing patterns. Dedicated Worker, SharedWorker, Transferable Objects, Structured Clone cost, Worker Pool.">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --surface2: #232734;
+  --border: #2e3345;
+  --text: #e2e4ed;
+  --text-dim: #8b8fa3;
+  --accent: #6c8cff;
+  --accent-dim: #4a5f99;
+  --green: #4ade80;
+  --red: #f87171;
+  --orange: #fb923c;
+  --yellow: #facc15;
+  --purple: #c084fc;
+  --cyan: #22d3ee;
+  --font-mono: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  line-height: 1.6;
+}
+
+header {
+  text-align: center;
+  padding: 2rem 1rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+header h1 {
+  font-size: 1.6rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+header h1 span { color: var(--accent); }
+
+header p {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  margin-top: 0.4rem;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: 0;
+  max-width: 1400px;
+  margin: 0 auto;
+  min-height: calc(100vh - 100px);
+}
+
+/* Sidebar */
+.sidebar {
+  border-right: 1px solid var(--border);
+  padding: 1rem;
+  overflow-y: auto;
+}
+
+.sidebar h2 {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-dim);
+  margin-bottom: 0.75rem;
+}
+
+.preset-btn {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font-size: 0.82rem;
+  cursor: pointer;
+  margin-bottom: 0.25rem;
+  transition: all 0.15s;
+}
+
+.preset-btn:hover { background: var(--surface); }
+
+.preset-btn.active {
+  background: var(--surface2);
+  border-color: var(--accent-dim);
+  color: var(--accent);
+}
+
+.preset-btn .badge {
+  display: inline-block;
+  font-size: 0.6rem;
+  padding: 0.1em 0.4em;
+  border-radius: 3px;
+  margin-left: 0.3rem;
+  vertical-align: middle;
+}
+
+.badge-dedicated { background: #1e3a5f; color: var(--cyan); }
+.badge-shared { background: #3b1f5e; color: var(--purple); }
+.badge-transfer { background: #1a3d1a; color: var(--green); }
+.badge-pool { background: #3d2f1a; color: var(--orange); }
+.badge-clone { background: #3d1a1a; color: var(--red); }
+
+/* Main content */
+.main {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  overflow-y: auto;
+}
+
+.info-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+}
+
+.info-card h3 {
+  font-size: 1rem;
+  margin-bottom: 0.3rem;
+}
+
+.info-card p {
+  font-size: 0.82rem;
+  color: var(--text-dim);
+}
+
+/* Controls */
+.controls {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.run-btn {
+  padding: 0.5rem 1.5rem;
+  border: none;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.run-btn:hover { opacity: 0.85; }
+.run-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.clear-btn {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.clear-btn:hover { border-color: var(--text-dim); }
+
+.param-group {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.param-group label {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+.param-group input, .param-group select {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  padding: 0.3rem 0.5rem;
+  font-size: 0.8rem;
+  width: 80px;
+  font-family: var(--font-mono);
+}
+
+.param-group select { width: auto; }
+
+/* Timeline */
+.timeline-container {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem;
+  flex: 1;
+  min-height: 200px;
+  overflow: auto;
+}
+
+.timeline-container h4 {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+  margin-bottom: 0.75rem;
+}
+
+.timeline-canvas {
+  width: 100%;
+  min-height: 150px;
+}
+
+/* Log */
+.log-container {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.log-container h4 {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+  margin-bottom: 0.5rem;
+}
+
+.log-entry {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  padding: 0.2rem 0;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 0.6rem;
+}
+
+.log-entry:last-child { border-bottom: none; }
+
+.log-time { color: var(--text-dim); min-width: 60px; }
+.log-dir { min-width: 18px; }
+.log-dir.send { color: var(--orange); }
+.log-dir.recv { color: var(--green); }
+.log-msg { color: var(--text); }
+.log-cost { color: var(--yellow); margin-left: auto; }
+
+/* Stats row */
+.stats-row {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  flex: 1;
+  min-width: 140px;
+}
+
+.stat-card .label {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+}
+
+.stat-card .value {
+  font-size: 1.3rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  margin-top: 0.2rem;
+}
+
+/* Code preview */
+.code-preview {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.code-preview summary {
+  padding: 0.6rem 1rem;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  cursor: pointer;
+  user-select: none;
+}
+
+.code-preview pre {
+  padding: 0.75rem 1rem;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  line-height: 1.5;
+  overflow-x: auto;
+  color: var(--text-dim);
+  border-top: 1px solid var(--border);
+  max-height: 300px;
+}
+
+/* Responsive */
+@media (max-width: 800px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+  .sidebar {
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    padding: 0.75rem;
+  }
+  .sidebar h2 { width: 100%; }
+  .preset-btn { width: auto; flex: 1; min-width: 130px; }
+}
+</style>
+</head>
+<body>
+
+
+
+<header>
+  <h1><span>Web Workers</span> Patterns Playground</h1>
+  <p>Dedicated Worker, SharedWorker, Transferable Objects, Structured Clone, Worker Pool</p>
+</header>
+
+<div class="layout">
+  <aside class="sidebar">
+    <h2 ti="h2_presets">Presets</h2>
+    <button class="preset-btn active" data-preset="dedicated-basic">
+      Dedicated Worker Basics
+      <span class="badge badge-dedicated">Dedicated</span>
+    </button>
+    <button class="preset-btn" data-preset="shared-worker">
+      SharedWorker Messaging
+      <span class="badge badge-shared">Shared</span>
+    </button>
+    <button class="preset-btn" data-preset="transferable">
+      Transferable Objects
+      <span class="badge badge-transfer">Transfer</span>
+    </button>
+    <button class="preset-btn" data-preset="clone-cost">
+      Structured Clone Cost
+      <span class="badge badge-clone">Clone</span>
+    </button>
+    <button class="preset-btn" data-preset="worker-pool">
+      Worker Pool (4 workers)
+      <span class="badge badge-pool">Pool</span>
+    </button>
+    <button class="preset-btn" data-preset="ping-pong">
+      Ping-Pong Latency
+      <span class="badge badge-dedicated">Dedicated</span>
+    </button>
+    <button class="preset-btn" data-preset="broadcast">
+      BroadcastChannel Fan-out
+      <span class="badge badge-shared">Broadcast</span>
+    </button>
+  </aside>
+
+  <main class="main" id="main">
+    <!-- Populated by JS -->
+  </main>
+</div>
+
+
+<script>var _LANG={'title_web_workers_patterns_play':["Web Workers Patterns Playground", "Web Workers 模式游乐场"],'metadesc_interactive_playground_fo':["Interactive playground for Web Workers message passing patterns. Dedicated Worker, SharedWorker, Transferable Objects, Structured Clone cost, Worker Pool.", "Web Workers 消息传递模式的交互式演示。专用 Worker、共享 Worker、可转移对象、结构化克隆成本、Worker 池。"],'h2_presets':["Presets", "预设"],'h3_preset_title':["${preset.title}", "${preset.title}"],'btn_run':["Run", "跑步"],'btn_clear':["Clear", "清除"],'label_p_label':["${p.label}", "${p.label}"],'jtc_running':["Running...", "跑步..."],'jtc_run':["Run", "跑步"],'jtc_run_2':["Run", "跑步"],'jtlword_run':["Run", "跑步"],'jtlword_clear':["Clear", "清除"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>
+// ── Preset Definitions ──
+
+const PRESETS = {
+  'dedicated-basic': {
+    title: 'Dedicated Worker — postMessage / onmessage',
+    description: 'Basic message passing between main thread and a Dedicated Worker. Messages are structured-cloned. Observe the round-trip timeline: main sends, worker processes, worker replies.',
+    params: [
+      { id: 'msgCount', label: 'Messages', type: 'number', value: 5, min: 1, max: 50 },
+      { id: 'payloadKB', label: 'Payload KB', type: 'number', value: 1, min: 0, max: 10000 },
+    ],
+    workerCode: `
+      self.onmessage = function(e) {
+        const { seq, payload, sendTime } = e.data;
+        // Simulate light processing
+        let sum = 0;
+        if (payload) for (let i = 0; i < payload.length; i++) sum += payload[i];
+        self.postMessage({ seq, sum, sendTime, workerRecvTime: performance.now() });
+      };
+    `,
+    run(params, log, done) {
+      const worker = createBlobWorker(this.workerCode);
+      const count = params.msgCount;
+      const kb = params.payloadKB;
+      let received = 0;
+      const entries = [];
+
+      worker.onmessage = (e) => {
+        const now = performance.now();
+        const d = e.data;
+        entries.push({
+          seq: d.seq,
+          sendTime: d.sendTime,
+          workerRecvTime: d.workerRecvTime,
+          mainRecvTime: now,
+        });
+        log('recv', `#${d.seq} reply — sum=${d.sum}`, `${(now - d.sendTime).toFixed(2)}ms`);
+        received++;
+        if (received === count) {
+          worker.terminate();
+          done(entries);
+        }
+      };
+
+      for (let i = 0; i < count; i++) {
+        const payload = kb > 0 ? new Array(kb * 128).fill(i % 256) : null;
+        const sendTime = performance.now();
+        worker.postMessage({ seq: i, payload, sendTime });
+        log('send', `#${i} → worker (${kb}KB payload)`);
+      }
+    },
+    stats(entries) {
+      const rtts = entries.map(e => e.mainRecvTime - e.sendTime);
+      return [
+        { label: 'Messages', value: entries.length },
+        { label: 'Avg RTT', value: avg(rtts).toFixed(2) + 'ms' },
+        { label: 'Min RTT', value: Math.min(...rtts).toFixed(2) + 'ms' },
+        { label: 'Max RTT', value: Math.max(...rtts).toFixed(2) + 'ms' },
+      ];
+    },
+    timeline(entries, canvas) {
+      drawTimeline(canvas, entries, 'dedicated');
+    }
+  },
+
+  'shared-worker': {
+    title: 'SharedWorker — Port Messaging',
+    description: 'SharedWorker is accessed via MessagePort. Multiple "tabs" (simulated) connect to the same worker. Each port gets independent communication. Note: SharedWorker uses port.postMessage() and port.onmessage.',
+    params: [
+      { id: 'portCount', label: 'Ports', type: 'number', value: 3, min: 1, max: 8 },
+      { id: 'msgsPerPort', label: 'Msgs/Port', type: 'number', value: 3, min: 1, max: 20 },
+    ],
+    workerCode: `
+      const ports = [];
+      self.onconnect = function(e) {
+        const port = e.ports[0];
+        const id = ports.length;
+        ports.push(port);
+        port.onmessage = function(ev) {
+          const { seq, sendTime } = ev.data;
+          // Echo back with port id
+          port.postMessage({ portId: id, seq, sendTime, workerTime: performance.now(), connectedPorts: ports.length });
+        };
+        port.start();
+      };
+    `,
+    run(params, log, done) {
+      // SharedWorker requires a real URL — we use a Blob URL
+      const blob = new Blob([this.workerCode], { type: 'application/javascript' });
+      const url = URL.createObjectURL(blob);
+      const entries = [];
+      const portCount = params.portCount;
+      const msgsPerPort = params.msgsPerPort;
+      const total = portCount * msgsPerPort;
+      let received = 0;
+      const workers = [];
+
+      try {
+        for (let p = 0; p < portCount; p++) {
+          const sw = new SharedWorker(url);
+          workers.push(sw);
+          sw.port.onmessage = (e) => {
+            const now = performance.now();
+            const d = e.data;
+            entries.push({
+              portId: d.portId,
+              seq: d.seq,
+              sendTime: d.sendTime,
+              mainRecvTime: now,
+            });
+            log('recv', `Port#${d.portId} msg#${d.seq} — ${d.connectedPorts} ports connected`, `${(now - d.sendTime).toFixed(2)}ms`);
+            received++;
+            if (received === total) {
+              URL.revokeObjectURL(url);
+              done(entries);
+            }
+          };
+          sw.port.start();
+
+          for (let m = 0; m < msgsPerPort; m++) {
+            const sendTime = performance.now();
+            sw.port.postMessage({ seq: m, sendTime });
+            log('send', `Port#${p} → msg#${m}`);
+          }
+        }
+      } catch (err) {
+        log('recv', `SharedWorker not supported or blocked: ${err.message}`);
+        // Fallback: simulate with dedicated workers
+        URL.revokeObjectURL(url);
+        log('recv', 'Falling back to Dedicated Worker simulation...');
+        const fallbackCode = `
+          self.onmessage = function(e) {
+            const { portId, seq, sendTime } = e.data;
+            self.postMessage({ portId, seq, sendTime, workerTime: performance.now(), connectedPorts: 1 });
+          };
+        `;
+        received = 0;
+        for (let p = 0; p < portCount; p++) {
+          const w = createBlobWorker(fallbackCode);
+          w.onmessage = (e) => {
+            const now = performance.now();
+            const d = e.data;
+            entries.push({ portId: d.portId, seq: d.seq, sendTime: d.sendTime, mainRecvTime: now });
+            log('recv', `[Fallback] Worker#${d.portId} msg#${d.seq}`, `${(now - d.sendTime).toFixed(2)}ms`);
+            received++;
+            if (received === total) {
+              w.terminate();
+              done(entries);
+            }
+          };
+          for (let m = 0; m < msgsPerPort; m++) {
+            const sendTime = performance.now();
+            w.postMessage({ portId: p, seq: m, sendTime });
+            log('send', `[Fallback] Worker#${p} → msg#${m}`);
+          }
+        }
+      }
+    },
+    stats(entries) {
+      const rtts = entries.map(e => e.mainRecvTime - e.sendTime);
+      const ports = new Set(entries.map(e => e.portId));
+      return [
+        { label: 'Ports', value: ports.size },
+        { label: 'Total Msgs', value: entries.length },
+        { label: 'Avg RTT', value: avg(rtts).toFixed(2) + 'ms' },
+        { label: 'Max RTT', value: Math.max(...rtts).toFixed(2) + 'ms' },
+      ];
+    },
+    timeline(entries, canvas) {
+      drawTimeline(canvas, entries, 'shared');
+    }
+  },
+
+  'transferable': {
+    title: 'Transferable Objects — Zero-Copy Transfer',
+    description: 'Compare structured clone (copy) vs Transferable (zero-copy transfer) of ArrayBuffers. Transferable objects move ownership to the worker — the original buffer becomes detached (length 0). This avoids the clone cost entirely.',
+    params: [
+      { id: 'sizeMB', label: 'Size MB', type: 'number', value: 10, min: 1, max: 200 },
+      { id: 'iterations', label: 'Iterations', type: 'number', value: 3, min: 1, max: 20 },
+    ],
+    workerCode: `
+      self.onmessage = function(e) {
+        const { mode, seq, buffer, sendTime } = e.data;
+        const size = buffer.byteLength;
+        if (mode === 'transfer') {
+          // Transfer back
+          self.postMessage({ mode, seq, buffer, sendTime, workerTime: performance.now(), size }, [buffer]);
+        } else {
+          // Clone back
+          self.postMessage({ mode, seq, buffer, sendTime, workerTime: performance.now(), size });
+        }
+      };
+    `,
+    run(params, log, done) {
+      const worker = createBlobWorker(this.workerCode);
+      const sizeMB = params.sizeMB;
+      const iterations = params.iterations;
+      const entries = [];
+      let received = 0;
+      const total = iterations * 2; // clone + transfer for each
+
+      worker.onmessage = (e) => {
+        const now = performance.now();
+        const d = e.data;
+        const rtt = now - d.sendTime;
+        entries.push({
+          mode: d.mode,
+          seq: d.seq,
+          rtt,
+          sizeMB,
+          sendTime: d.sendTime,
+          mainRecvTime: now,
+          returnedSize: d.buffer ? d.buffer.byteLength : 0,
+        });
+        log('recv', `${d.mode} #${d.seq} — ${d.size} bytes returned=${d.buffer ? d.buffer.byteLength : 0}`, `${rtt.toFixed(2)}ms`);
+        received++;
+        if (received === total) {
+          worker.terminate();
+          done(entries);
+        }
+      };
+
+      for (let i = 0; i < iterations; i++) {
+        // Clone
+        const cloneBuf = new ArrayBuffer(sizeMB * 1024 * 1024);
+        new Uint8Array(cloneBuf).fill(42);
+        const cloneSend = performance.now();
+        worker.postMessage({ mode: 'clone', seq: i, buffer: cloneBuf, sendTime: cloneSend });
+        log('send', `clone #${i} → ${sizeMB}MB (buffer still ${cloneBuf.byteLength} bytes after send)`);
+
+        // Transfer
+        const transBuf = new ArrayBuffer(sizeMB * 1024 * 1024);
+        new Uint8Array(transBuf).fill(99);
+        const transSend = performance.now();
+        worker.postMessage({ mode: 'transfer', seq: i, buffer: transBuf, sendTime: transSend }, [transBuf]);
+        log('send', `transfer #${i} → ${sizeMB}MB (buffer now ${transBuf.byteLength} bytes — detached!)`);
+      }
+    },
+    stats(entries) {
+      const clones = entries.filter(e => e.mode === 'clone');
+      const transfers = entries.filter(e => e.mode === 'transfer');
+      const cloneAvg = avg(clones.map(e => e.rtt));
+      const transAvg = avg(transfers.map(e => e.rtt));
+      const speedup = cloneAvg / (transAvg || 1);
+      return [
+        { label: 'Clone Avg', value: cloneAvg.toFixed(2) + 'ms', color: 'var(--red)' },
+        { label: 'Transfer Avg', value: transAvg.toFixed(2) + 'ms', color: 'var(--green)' },
+        { label: 'Speedup', value: speedup.toFixed(1) + 'x', color: 'var(--yellow)' },
+        { label: 'Size', value: entries[0]?.sizeMB + 'MB' },
+      ];
+    },
+    timeline(entries, canvas) {
+      drawTimeline(canvas, entries, 'transfer');
+    }
+  },
+
+  'clone-cost': {
+    title: 'Structured Clone Cost — Size vs Time',
+    description: 'Measure how structured clone cost scales with payload size. Sends payloads from 1KB to the configured max, plotting the relationship. Structured cloning copies every byte — cost is roughly O(n). Large objects with nested references cost even more.',
+    params: [
+      { id: 'maxKB', label: 'Max KB', type: 'number', value: 5000, min: 100, max: 50000 },
+      { id: 'steps', label: 'Steps', type: 'number', value: 10, min: 3, max: 30 },
+    ],
+    workerCode: `
+      self.onmessage = function(e) {
+        const { seq, sendTime } = e.data;
+        self.postMessage({ seq, sendTime, workerTime: performance.now(), size: e.data.payload.byteLength });
+      };
+    `,
+    run(params, log, done) {
+      const worker = createBlobWorker(this.workerCode);
+      const maxKB = params.maxKB;
+      const steps = params.steps;
+      const sizes = [];
+      for (let i = 1; i <= steps; i++) {
+        sizes.push(Math.round((maxKB / steps) * i));
+      }
+      const entries = [];
+      let idx = 0;
+
+      worker.onmessage = (e) => {
+        const now = performance.now();
+        const d = e.data;
+        const rtt = now - d.sendTime;
+        entries.push({
+          seq: d.seq,
+          sizeKB: sizes[d.seq],
+          rtt,
+          sendTime: d.sendTime,
+          mainRecvTime: now,
+        });
+        log('recv', `${sizes[d.seq]}KB → RTT ${rtt.toFixed(2)}ms`);
+        idx++;
+        if (idx < sizes.length) {
+          sendNext();
+        } else {
+          worker.terminate();
+          done(entries);
+        }
+      };
+
+      function sendNext() {
+        const kb = sizes[idx];
+        const payload = new ArrayBuffer(kb * 1024);
+        const sendTime = performance.now();
+        worker.postMessage({ seq: idx, payload, sendTime });
+        log('send', `${kb}KB payload →`);
+      }
+
+      sendNext();
+    },
+    stats(entries) {
+      const rtts = entries.map(e => e.rtt);
+      const costPerKB = entries.map(e => e.rtt / e.sizeKB);
+      return [
+        { label: 'Min Size', value: entries[0]?.sizeKB + 'KB' },
+        { label: 'Max Size', value: entries[entries.length - 1]?.sizeKB + 'KB' },
+        { label: 'Min RTT', value: Math.min(...rtts).toFixed(2) + 'ms' },
+        { label: 'Max RTT', value: Math.max(...rtts).toFixed(2) + 'ms' },
+        { label: 'Avg Cost/KB', value: avg(costPerKB).toFixed(4) + 'ms' },
+      ];
+    },
+    timeline(entries, canvas) {
+      drawCloneCostChart(canvas, entries);
+    }
+  },
+
+  'worker-pool': {
+    title: 'Worker Pool — Parallel Task Distribution',
+    description: 'Distributes N tasks across a pool of workers (round-robin). Each task is a CPU-bound computation (sum of array). Demonstrates parallelism benefits and diminishing returns. Compare pool sizes to find the sweet spot for your CPU.',
+    params: [
+      { id: 'poolSize', label: 'Pool Size', type: 'number', value: 4, min: 1, max: 16 },
+      { id: 'taskCount', label: 'Tasks', type: 'number', value: 12, min: 1, max: 100 },
+      { id: 'workMs', label: 'Work (ms)', type: 'number', value: 50, min: 10, max: 1000 },
+    ],
+    workerCode: `
+      self.onmessage = function(e) {
+        const { taskId, workMs, sendTime } = e.data;
+        const start = performance.now();
+        // Busy-wait to simulate CPU work
+        while (performance.now() - start < workMs) {}
+        self.postMessage({ taskId, sendTime, workerStart: start, workerEnd: performance.now() });
+      };
+    `,
+    run(params, log, done) {
+      const poolSize = params.poolSize;
+      const taskCount = params.taskCount;
+      const workMs = params.workMs;
+      const workers = [];
+      const entries = [];
+      let completed = 0;
+      const taskQueue = [];
+
+      for (let i = 0; i < poolSize; i++) {
+        const w = createBlobWorker(this.workerCode);
+        const workerState = { worker: w, id: i, busy: false };
+        w.onmessage = (e) => {
+          const now = performance.now();
+          const d = e.data;
+          entries.push({
+            taskId: d.taskId,
+            workerId: i,
+            sendTime: d.sendTime,
+            workerStart: d.workerStart,
+            workerEnd: d.workerEnd,
+            mainRecvTime: now,
+          });
+          log('recv', `Task#${d.taskId} done by Worker#${i}`, `${(now - d.sendTime).toFixed(1)}ms`);
+          completed++;
+          workerState.busy = false;
+
+          // Pick next from queue
+          if (taskQueue.length > 0) {
+            const next = taskQueue.shift();
+            dispatch(workerState, next);
+          }
+
+          if (completed === taskCount) {
+            workers.forEach(ws => ws.worker.terminate());
+            done(entries);
+          }
+        };
+        workers.push(workerState);
+      }
+
+      function dispatch(ws, taskId) {
+        ws.busy = true;
+        const sendTime = performance.now();
+        ws.worker.postMessage({ taskId, workMs, sendTime });
+        log('send', `Task#${taskId} → Worker#${ws.id}`);
+      }
+
+      // Dispatch tasks
+      for (let t = 0; t < taskCount; t++) {
+        const free = workers.find(ws => !ws.busy);
+        if (free) {
+          dispatch(free, t);
+        } else {
+          taskQueue.push(t);
+        }
+      }
+    },
+    stats(entries) {
+      const rtts = entries.map(e => e.mainRecvTime - e.sendTime);
+      const span = Math.max(...entries.map(e => e.mainRecvTime)) - Math.min(...entries.map(e => e.sendTime));
+      const workerIds = new Set(entries.map(e => e.workerId));
+      const perWorker = {};
+      entries.forEach(e => { perWorker[e.workerId] = (perWorker[e.workerId] || 0) + 1; });
+      const balance = Object.values(perWorker);
+      return [
+        { label: 'Workers', value: workerIds.size },
+        { label: 'Tasks', value: entries.length },
+        { label: 'Total Span', value: span.toFixed(1) + 'ms' },
+        { label: 'Avg Task', value: avg(rtts).toFixed(1) + 'ms' },
+        { label: 'Balance', value: balance.join('/') },
+      ];
+    },
+    timeline(entries, canvas) {
+      drawPoolTimeline(canvas, entries);
+    }
+  },
+
+  'ping-pong': {
+    title: 'Ping-Pong — Message Latency Measurement',
+    description: 'Measures raw postMessage latency by bouncing messages between main and worker. Each round trip is one "ping-pong". This reveals the baseline overhead of cross-thread communication — typically 0.01-0.5ms per hop.',
+    params: [
+      { id: 'rounds', label: 'Rounds', type: 'number', value: 100, min: 10, max: 5000 },
+    ],
+    workerCode: `
+      self.onmessage = function(e) {
+        self.postMessage({ seq: e.data.seq, sendTime: e.data.sendTime });
+      };
+    `,
+    run(params, log, done) {
+      const worker = createBlobWorker(this.workerCode);
+      const rounds = params.rounds;
+      const entries = [];
+      let seq = 0;
+
+      worker.onmessage = (e) => {
+        const now = performance.now();
+        const rtt = now - e.data.sendTime;
+        entries.push({ seq: e.data.seq, rtt, sendTime: e.data.sendTime, mainRecvTime: now });
+        if (entries.length % Math.max(1, Math.floor(rounds / 10)) === 0) {
+          log('recv', `#${e.data.seq} pong`, `${rtt.toFixed(3)}ms`);
+        }
+        seq++;
+        if (seq < rounds) {
+          ping();
+        } else {
+          worker.terminate();
+          log('recv', `Completed ${rounds} round trips`);
+          done(entries);
+        }
+      };
+
+      function ping() {
+        const sendTime = performance.now();
+        worker.postMessage({ seq, sendTime });
+      }
+
+      ping();
+    },
+    stats(entries) {
+      const rtts = entries.map(e => e.rtt);
+      rtts.sort((a, b) => a - b);
+      const p50 = rtts[Math.floor(rtts.length * 0.5)];
+      const p95 = rtts[Math.floor(rtts.length * 0.95)];
+      const p99 = rtts[Math.floor(rtts.length * 0.99)];
+      return [
+        { label: 'Rounds', value: entries.length },
+        { label: 'Median', value: p50.toFixed(3) + 'ms' },
+        { label: 'P95', value: p95.toFixed(3) + 'ms' },
+        { label: 'P99', value: p99.toFixed(3) + 'ms' },
+        { label: 'Min', value: Math.min(...rtts).toFixed(3) + 'ms' },
+      ];
+    },
+    timeline(entries, canvas) {
+      drawLatencyChart(canvas, entries);
+    }
+  },
+
+  'broadcast': {
+    title: 'BroadcastChannel — Fan-out Pattern',
+    description: 'Uses BroadcastChannel API to broadcast from main thread to multiple workers simultaneously. All workers on the same channel name receive the message. Unlike SharedWorker, no connection management needed. Good for cache invalidation, config updates.',
+    params: [
+      { id: 'workerCount', label: 'Workers', type: 'number', value: 4, min: 2, max: 12 },
+      { id: 'broadcasts', label: 'Broadcasts', type: 'number', value: 3, min: 1, max: 20 },
+    ],
+    workerCode: `
+      const ch = new BroadcastChannel('playground');
+      const id = Math.random().toString(36).slice(2, 6);
+      // Reply via dedicated postMessage since BroadcastChannel is one-way fan-out for this demo
+      ch.onmessage = function(e) {
+        self.postMessage({
+          workerId: id,
+          seq: e.data.seq,
+          broadcastTime: e.data.broadcastTime,
+          workerRecvTime: performance.now(),
+          payload: e.data.payload,
+        });
+      };
+    `,
+    run(params, log, done) {
+      const workerCount = params.workerCount;
+      const broadcasts = params.broadcasts;
+      const entries = [];
+      const total = workerCount * broadcasts;
+      let received = 0;
+      const workers = [];
+
+      // Create workers first, then broadcast after a short delay to ensure they're listening
+      for (let i = 0; i < workerCount; i++) {
+        const w = createBlobWorker(this.workerCode);
+        w.onmessage = (e) => {
+          const now = performance.now();
+          const d = e.data;
+          entries.push({
+            workerId: d.workerId,
+            seq: d.seq,
+            broadcastTime: d.broadcastTime,
+            workerRecvTime: d.workerRecvTime,
+            mainRecvTime: now,
+          });
+          log('recv', `Worker[${d.workerId}] got broadcast#${d.seq}`, `${(now - d.broadcastTime).toFixed(2)}ms`);
+          received++;
+          if (received === total) {
+            workers.forEach(w => w.terminate());
+            ch.close();
+            done(entries);
+          }
+        };
+        workers.push(w);
+      }
+
+      const ch = new BroadcastChannel('playground');
+
+      // Small delay for workers to initialize
+      setTimeout(() => {
+        for (let b = 0; b < broadcasts; b++) {
+          const broadcastTime = performance.now();
+          ch.postMessage({ seq: b, broadcastTime, payload: `broadcast-${b}` });
+          log('send', `Broadcast#${b} → ${workerCount} workers`);
+        }
+      }, 50);
+    },
+    stats(entries) {
+      const rtts = entries.map(e => e.mainRecvTime - e.broadcastTime);
+      const workerIds = new Set(entries.map(e => e.workerId));
+      const byBroadcast = {};
+      entries.forEach(e => {
+        if (!byBroadcast[e.seq]) byBroadcast[e.seq] = [];
+        byBroadcast[e.seq].push(e.mainRecvTime - e.broadcastTime);
+      });
+      const fanOutSpreads = Object.values(byBroadcast).map(rtts => Math.max(...rtts) - Math.min(...rtts));
+      return [
+        { label: 'Workers', value: workerIds.size },
+        { label: 'Broadcasts', value: Object.keys(byBroadcast).length },
+        { label: 'Avg RTT', value: avg(rtts).toFixed(2) + 'ms' },
+        { label: 'Fan-out Spread', value: avg(fanOutSpreads).toFixed(2) + 'ms' },
+      ];
+    },
+    timeline(entries, canvas) {
+      drawTimeline(canvas, entries, 'broadcast');
+    }
+  },
+};
+
+// ── Utilities ──
+
+function avg(arr) { return arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0; }
+
+function createBlobWorker(code) {
+  const blob = new Blob([code], { type: 'application/javascript' });
+  const url = URL.createObjectURL(blob);
+  const w = new Worker(url);
+  URL.revokeObjectURL(url);
+  return w;
+}
+
+// ── Timeline Drawing ──
+
+function setupCanvas(canvas) {
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  return { ctx, w: rect.width, h: rect.height };
+}
+
+function drawTimeline(canvas, entries, type) {
+  if (!entries.length) return;
+  const { ctx, w, h } = setupCanvas(canvas);
+  const pad = { top: 30, bottom: 20, left: 60, right: 20 };
+  const plotW = w - pad.left - pad.right;
+  const plotH = h - pad.top - pad.bottom;
+
+  const t0 = Math.min(...entries.map(e => e.sendTime));
+  const t1 = Math.max(...entries.map(e => e.mainRecvTime));
+  const span = t1 - t0 || 1;
+
+  ctx.fillStyle = '#1a1d27';
+  ctx.fillRect(0, 0, w, h);
+
+  // Time axis
+  ctx.strokeStyle = '#2e3345';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(pad.left, h - pad.bottom);
+  ctx.lineTo(w - pad.right, h - pad.bottom);
+  ctx.stroke();
+
+  // Axis labels
+  ctx.fillStyle = '#8b8fa3';
+  ctx.font = '10px sans-serif';
+  ctx.textAlign = 'center';
+  for (let i = 0; i <= 5; i++) {
+    const x = pad.left + (plotW * i / 5);
+    const t = (span * i / 5).toFixed(1);
+    ctx.fillText(t + 'ms', x, h - 4);
+  }
+  ctx.fillText('Time', w / 2, pad.top - 16);
+
+  // Determine lanes
+  let lanes;
+  if (type === 'shared' || type === 'broadcast') {
+    const ids = [...new Set(entries.map(e => e.portId ?? e.workerId))];
+    lanes = ids.length;
+    entries.forEach(e => { e._lane = ids.indexOf(e.portId ?? e.workerId); });
+  } else {
+    lanes = 1;
+    entries.forEach(e => { e._lane = 0; });
+  }
+
+  const laneH = Math.min(30, plotH / (lanes || 1));
+  const colors = ['#22d3ee', '#c084fc', '#4ade80', '#fb923c', '#f87171', '#facc15', '#6c8cff', '#e879f9'];
+
+  // Lane labels
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#8b8fa3';
+  ctx.font = '10px sans-serif';
+  for (let i = 0; i < lanes; i++) {
+    const y = pad.top + i * laneH + laneH / 2;
+    const label = type === 'shared' ? `Port ${i}` : type === 'broadcast' ? `W${i}` : 'Worker';
+    ctx.fillText(label, pad.left - 8, y + 3);
+  }
+
+  // Draw entries as bars
+  entries.forEach(e => {
+    const x1 = pad.left + ((e.sendTime - t0) / span) * plotW;
+    const x2 = pad.left + ((e.mainRecvTime - t0) / span) * plotW;
+    const y = pad.top + e._lane * laneH + 4;
+    const barH = laneH - 8;
+    const color = colors[e._lane % colors.length];
+
+    // Bar
+    ctx.fillStyle = color + '40';
+    ctx.fillRect(x1, y, Math.max(x2 - x1, 2), barH);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(x1, y, Math.max(x2 - x1, 2), barH);
+
+    // Send dot
+    ctx.beginPath();
+    ctx.arc(x1, y + barH / 2, 3, 0, Math.PI * 2);
+    ctx.fillStyle = '#fb923c';
+    ctx.fill();
+
+    // Recv dot
+    ctx.beginPath();
+    ctx.arc(x2, y + barH / 2, 3, 0, Math.PI * 2);
+    ctx.fillStyle = '#4ade80';
+    ctx.fill();
+  });
+
+  // Legend
+  ctx.font = '9px sans-serif';
+  ctx.fillStyle = '#fb923c';
+  ctx.beginPath(); ctx.arc(w - 100, 12, 4, 0, Math.PI * 2); ctx.fill();
+  ctx.fillText('send', w - 92, 15);
+  ctx.fillStyle = '#4ade80';
+  ctx.beginPath(); ctx.arc(w - 60, 12, 4, 0, Math.PI * 2); ctx.fill();
+  ctx.fillText('recv', w - 52, 15);
+}
+
+function drawPoolTimeline(canvas, entries) {
+  if (!entries.length) return;
+  const { ctx, w, h } = setupCanvas(canvas);
+  const pad = { top: 30, bottom: 20, left: 70, right: 20 };
+  const plotW = w - pad.left - pad.right;
+  const plotH = h - pad.top - pad.bottom;
+
+  const t0 = Math.min(...entries.map(e => e.sendTime));
+  const t1 = Math.max(...entries.map(e => e.mainRecvTime));
+  const span = t1 - t0 || 1;
+  const workerIds = [...new Set(entries.map(e => e.workerId))].sort();
+  const lanes = workerIds.length;
+  const laneH = Math.min(35, plotH / lanes);
+
+  ctx.fillStyle = '#1a1d27';
+  ctx.fillRect(0, 0, w, h);
+
+  // Axis
+  ctx.strokeStyle = '#2e3345';
+  ctx.beginPath();
+  ctx.moveTo(pad.left, h - pad.bottom);
+  ctx.lineTo(w - pad.right, h - pad.bottom);
+  ctx.stroke();
+
+  ctx.fillStyle = '#8b8fa3';
+  ctx.font = '10px sans-serif';
+  ctx.textAlign = 'center';
+  for (let i = 0; i <= 5; i++) {
+    const x = pad.left + (plotW * i / 5);
+    ctx.fillText(((span * i / 5)).toFixed(0) + 'ms', x, h - 4);
+  }
+
+  const colors = ['#22d3ee', '#c084fc', '#4ade80', '#fb923c', '#f87171', '#facc15', '#6c8cff', '#e879f9',
+                   '#67e8f9', '#d8b4fe', '#86efac', '#fdba74', '#fca5a5', '#fde047', '#93c5fd', '#f0abfc'];
+
+  // Lane labels & entries
+  ctx.textAlign = 'right';
+  workerIds.forEach((wid, li) => {
+    const y = pad.top + li * laneH;
+    ctx.fillStyle = '#8b8fa3';
+    ctx.font = '10px sans-serif';
+    ctx.fillText(`Worker #${wid}`, pad.left - 8, y + laneH / 2 + 3);
+
+    // Lane bg
+    ctx.fillStyle = li % 2 === 0 ? '#1e2130' : '#1a1d27';
+    ctx.fillRect(pad.left, y, plotW, laneH);
+  });
+
+  entries.forEach(e => {
+    const li = workerIds.indexOf(e.workerId);
+    const x1 = pad.left + ((e.sendTime - t0) / span) * plotW;
+    const x2 = pad.left + ((e.mainRecvTime - t0) / span) * plotW;
+    const y = pad.top + li * laneH + 4;
+    const barH = laneH - 8;
+    const color = colors[e.taskId % colors.length];
+
+    ctx.fillStyle = color + '50';
+    ctx.fillRect(x1, y, Math.max(x2 - x1, 3), barH);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x1, y, Math.max(x2 - x1, 3), barH);
+
+    // Task label
+    ctx.fillStyle = '#e2e4ed';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'center';
+    if (x2 - x1 > 20) {
+      ctx.fillText(`T${e.taskId}`, (x1 + x2) / 2, y + barH / 2 + 3);
+    }
+  });
+}
+
+function drawCloneCostChart(canvas, entries) {
+  if (!entries.length) return;
+  const { ctx, w, h } = setupCanvas(canvas);
+  const pad = { top: 30, bottom: 30, left: 60, right: 20 };
+  const plotW = w - pad.left - pad.right;
+  const plotH = h - pad.top - pad.bottom;
+
+  const maxKB = Math.max(...entries.map(e => e.sizeKB));
+  const maxRTT = Math.max(...entries.map(e => e.rtt));
+
+  ctx.fillStyle = '#1a1d27';
+  ctx.fillRect(0, 0, w, h);
+
+  // Grid
+  ctx.strokeStyle = '#2e3345';
+  ctx.lineWidth = 0.5;
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.top + (plotH * i / 4);
+    ctx.beginPath();
+    ctx.moveTo(pad.left, y);
+    ctx.lineTo(w - pad.right, y);
+    ctx.stroke();
+  }
+
+  // Axes labels
+  ctx.fillStyle = '#8b8fa3';
+  ctx.font = '10px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('Payload Size (KB)', w / 2, h - 4);
+  entries.forEach(e => {
+    const x = pad.left + (e.sizeKB / maxKB) * plotW;
+    ctx.fillText(e.sizeKB.toString(), x, h - pad.bottom + 14);
+  });
+
+  ctx.save();
+  ctx.translate(12, h / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText('Round-trip (ms)', 0, 0);
+  ctx.restore();
+
+  ctx.textAlign = 'right';
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.top + plotH - (plotH * i / 4);
+    ctx.fillText((maxRTT * i / 4).toFixed(1), pad.left - 8, y + 3);
+  }
+
+  // Line
+  ctx.strokeStyle = '#f87171';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  entries.forEach((e, i) => {
+    const x = pad.left + (e.sizeKB / maxKB) * plotW;
+    const y = pad.top + plotH - (e.rtt / maxRTT) * plotH;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  // Dots
+  entries.forEach(e => {
+    const x = pad.left + (e.sizeKB / maxKB) * plotW;
+    const y = pad.top + plotH - (e.rtt / maxRTT) * plotH;
+    ctx.beginPath();
+    ctx.arc(x, y, 4, 0, Math.PI * 2);
+    ctx.fillStyle = '#f87171';
+    ctx.fill();
+    ctx.fillStyle = '#e2e4ed';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(e.rtt.toFixed(1) + 'ms', x, y - 8);
+  });
+
+  // Title
+  ctx.fillStyle = '#8b8fa3';
+  ctx.font = '11px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('Structured Clone Cost Curve', w / 2, 16);
+}
+
+function drawLatencyChart(canvas, entries) {
+  if (!entries.length) return;
+  const { ctx, w, h } = setupCanvas(canvas);
+  const pad = { top: 30, bottom: 25, left: 60, right: 20 };
+  const plotW = w - pad.left - pad.right;
+  const plotH = h - pad.top - pad.bottom;
+
+  // Histogram
+  const rtts = entries.map(e => e.rtt).sort((a, b) => a - b);
+  const bins = 30;
+  const minR = rtts[0];
+  const maxR = rtts[rtts.length - 1];
+  const range = maxR - minR || 1;
+  const binW = range / bins;
+  const histogram = new Array(bins).fill(0);
+  rtts.forEach(r => {
+    const b = Math.min(Math.floor((r - minR) / binW), bins - 1);
+    histogram[b]++;
+  });
+  const maxCount = Math.max(...histogram);
+
+  ctx.fillStyle = '#1a1d27';
+  ctx.fillRect(0, 0, w, h);
+
+  // Bars
+  const barW = plotW / bins;
+  histogram.forEach((count, i) => {
+    const x = pad.left + i * barW;
+    const barH = (count / maxCount) * plotH;
+    const y = pad.top + plotH - barH;
+    ctx.fillStyle = '#6c8cff60';
+    ctx.fillRect(x + 1, y, barW - 2, barH);
+    ctx.strokeStyle = '#6c8cff';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x + 1, y, barW - 2, barH);
+  });
+
+  // Axis labels
+  ctx.fillStyle = '#8b8fa3';
+  ctx.font = '10px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('Latency (ms)', w / 2, h - 3);
+  for (let i = 0; i <= 5; i++) {
+    const x = pad.left + (plotW * i / 5);
+    const v = minR + (range * i / 5);
+    ctx.fillText(v.toFixed(2), x, h - pad.bottom + 14);
+  }
+
+  // P50 / P95 lines
+  const p50x = pad.left + ((rtts[Math.floor(rtts.length * 0.5)] - minR) / range) * plotW;
+  const p95x = pad.left + ((rtts[Math.floor(rtts.length * 0.95)] - minR) / range) * plotW;
+
+  ctx.setLineDash([3, 3]);
+  ctx.strokeStyle = '#4ade80';
+  ctx.beginPath(); ctx.moveTo(p50x, pad.top); ctx.lineTo(p50x, pad.top + plotH); ctx.stroke();
+  ctx.strokeStyle = '#facc15';
+  ctx.beginPath(); ctx.moveTo(p95x, pad.top); ctx.lineTo(p95x, pad.top + plotH); ctx.stroke();
+  ctx.setLineDash([]);
+
+  ctx.font = '9px sans-serif';
+  ctx.fillStyle = '#4ade80';
+  ctx.fillText('P50', p50x, pad.top - 4);
+  ctx.fillStyle = '#facc15';
+  ctx.fillText('P95', p95x, pad.top - 4);
+
+  ctx.fillStyle = '#8b8fa3';
+  ctx.font = '11px sans-serif';
+  ctx.fillText('Ping-Pong Latency Distribution', w / 2, 16);
+}
+
+// ── UI Rendering ──
+
+const mainEl = document.getElementById('main');
+let currentPreset = 'dedicated-basic';
+let running = false;
+
+function renderPreset(presetId) {
+  currentPreset = presetId;
+  const preset = PRESETS[presetId];
+
+  // Update sidebar active state
+  document.querySelectorAll('.preset-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.preset === presetId);
+  });
+
+  mainEl.innerHTML = `
+    <div class="info-card">
+      <h3 ti="h3_preset_title">${preset.title}</h3>
+      <p>${preset.description}</p>
+    </div>
+    <div class="controls" id="controls">
+      <button class="run-btn" id="runBtn" ti="btn_run">Run</button>
+      <button class="clear-btn" id="clearBtn" ti="btn_clear">Clear</button>
+      ${preset.params.map(p => `
+        <div class="param-group">
+          <label for="${p.id}" ti="label_p_label">${p.label}</label>
+          <input type="${p.type}" id="${p.id}" value="${p.value}" min="${p.min || ''}" max="${p.max || ''}">
+        </div>
+      `).join('')}
+    </div>
+    <div class="stats-row" id="statsRow"></div>
+    <div class="timeline-container">
+      <h4>Timeline / Visualization</h4>
+      <canvas class="timeline-canvas" id="timelineCanvas" height="200"></canvas>
+    </div>
+    <div class="log-container" id="logContainer">
+      <h4>Message Log</h4>
+    </div>
+    <details class="code-preview">
+      <summary>Worker Source Code (embedded as Blob URL)</summary>
+      <pre><code>${escapeHtml(preset.workerCode.trim())}</code></pre>
+    </details>
+  `;
+
+  document.getElementById('runBtn').addEventListener('click', runPreset);
+  document.getElementById('clearBtn').addEventListener('click', () => renderPreset(presetId));
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function runPreset() {
+  if (running) return;
+  running = true;
+  const preset = PRESETS[currentPreset];
+  const runBtn = document.getElementById('runBtn');
+  runBtn.disabled = true;
+  runBtn.textContent=T("jtc_running");
+
+  const logContainer = document.getElementById('logContainer');
+  const statsRow = document.getElementById('statsRow');
+
+  // Gather params
+  const params = {};
+  preset.params.forEach(p => {
+    const el = document.getElementById(p.id);
+    params[p.id] = p.type === 'number' ? Number(el.value) : el.value;
+  });
+
+  function log(dir, msg, cost) {
+    const entry = document.createElement('div');
+    entry.className = 'log-entry';
+    const now = performance.now();
+    entry.innerHTML = `
+      <span class="log-time">${now.toFixed(1)}</span>
+      <span class="log-dir ${dir}">${dir === 'send' ? '\u2192' : '\u2190'}</span>
+      <span class="log-msg">${msg}</span>
+      ${cost ? `<span class="log-cost">${cost}</span>` : ''}
+    `;
+    logContainer.appendChild(entry);
+    logContainer.scrollTop = logContainer.scrollHeight;
+  }
+
+  function done(entries) {
+    running = false;
+    runBtn.disabled = false;
+    runBtn.textContent=T("jtc_run");
+
+    // Stats
+    if (preset.stats) {
+      const stats = preset.stats(entries);
+      statsRow.innerHTML = stats.map(s => `
+        <div class="stat-card">
+          <div class="label">${s.label}</div>
+          <div class="value" ${s.color ? `style="color:${s.color}"` : ''}>${s.value}</div>
+        </div>
+      `).join('');
+    }
+
+    // Timeline
+    const canvas = document.getElementById('timelineCanvas');
+    if (preset.timeline && canvas) {
+      preset.timeline(entries, canvas);
+    }
+  }
+
+  try {
+    preset.run(params, log, done);
+  } catch (err) {
+    log('recv', `Error: ${err.message}`);
+    running = false;
+    runBtn.disabled = false;
+    runBtn.textContent=T("jtc_run");
+  }
+}
+
+// ── Event Binding ──
+
+document.querySelectorAll('.preset-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (!running) renderPreset(btn.dataset.preset);
+  });
+});
+
+// ── Init ──
+renderPreset('dedicated-basic');
+
+// Handle canvas resize
+window.addEventListener('resize', () => {
+  // Re-render canvas placeholder on resize
+  const canvas = document.getElementById('timelineCanvas');
+  if (canvas) {
+    const { ctx, w, h } = setupCanvas(canvas);
+    ctx.fillStyle = '#1a1d27';
+    ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = '#8b8fa3';
+    ctx.font = '12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Click "Run" to visualize', w / 2, h / 2);
+  }
+});
+</script>
+
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+</body>
+</html>

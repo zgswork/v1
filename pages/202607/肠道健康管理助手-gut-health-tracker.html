@@ -1,0 +1,1075 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>肠道健康管理助手</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .card-shadow {
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .btn-hover:hover {
+            transform: scale(1.05);
+        }
+        .bounce {
+            animation: bounce 0.5s ease-in-out;
+        }
+        @keyframes bounce {
+            0%, 20%, 60%, 100% { transform: translateY(0); }
+            40% { transform: translateY(-10px); }
+            80% { transform: translateY(-5px); }
+        }
+        .loading {
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .modal {
+            backdrop-filter: blur(5px);
+        }
+        .progress-bar {
+            transition: width 0.3s ease;
+        }
+        
+        /* 响应式优化 */
+        @media (max-width: 640px) {
+            .container {
+                padding-left: 1rem;
+                padding-right: 1rem;
+            }
+            .card-shadow {
+                margin-bottom: 1rem;
+            }
+            .grid-cols-2 {
+                grid-template-columns: repeat(1, minmax(0, 1fr));
+            }
+            .text-3xl {
+                font-size: 1.875rem;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .lg\:col-span-1 {
+                grid-column: span 1;
+            }
+            .space-x-4 > * + * {
+                margin-left: 0.5rem;
+            }
+        }
+        
+        @media (min-width: 1024px) {
+            .lg\:grid-cols-3 {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
+        }
+        
+        /* 图表响应式 */
+        canvas {
+            max-width: 100%;
+            height: auto !important;
+        }
+        
+        /* 移动端优化 */
+        @media (max-width: 480px) {
+            .px-6 {
+                padding-left: 1rem;
+                padding-right: 1rem;
+            }
+            .py-6 {
+                padding-top: 1rem;
+                padding-bottom: 1rem;
+            }
+            .text-xl {
+                font-size: 1.125rem;
+            }
+            .text-lg {
+                font-size: 1rem;
+            }
+        }
+        
+        /* 触摸设备优化 */
+        .touch-device button {
+            min-height: 44px;
+            min-width: 44px;
+        }
+        
+        .touch-device input[type="radio"],
+        .touch-device input[type="checkbox"] {
+            transform: scale(1.2);
+            margin-right: 0.75rem;
+        }
+        
+        .touch-device select,
+        .touch-device input[type="datetime-local"] {
+            min-height: 44px;
+            font-size: 16px; /* 防止iOS缩放 */
+        }
+        
+        /* 平板优化 */
+        @media (min-width: 768px) and (max-width: 1023px) {
+            .md\:grid-cols-2 {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+            .container {
+                max-width: 100%;
+                padding-left: 2rem;
+                padding-right: 2rem;
+            }
+        }
+        
+        /* 大屏幕优化 */
+        @media (min-width: 1440px) {
+            .container {
+                max-width: 1400px;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen overflow-x-hidden">
+    <!-- 引导弹窗 -->
+    <div id="welcomeModal" class="fixed inset-0 bg-black bg-opacity-50 modal flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-lg p-4 sm:p-6 max-w-md w-full mx-auto card-shadow">
+            <div class="text-center">
+                <i class="fas fa-heartbeat text-4xl text-orange-500 mb-4"></i>
+                <h2 class="text-2xl font-bold text-gray-800 mb-4">欢迎使用肠道健康管理助手</h2>
+                <div class="text-left space-y-3 mb-6">
+                    <div class="flex items-center">
+                        <i class="fas fa-edit text-orange-500 mr-3"></i>
+                        <span class="text-gray-600">记录排便情况，追踪健康状态</span>
+                    </div>
+                    <div class="flex items-center">
+                        <i class="fas fa-chart-line text-green-500 mr-3"></i>
+                        <span class="text-gray-600">分析健康趋势，获得智能建议</span>
+                    </div>
+                    <div class="flex items-center">
+                        <i class="fas fa-users text-blue-500 mr-3"></i>
+                        <span class="text-gray-600">参与健康挑战，与好友互动</span>
+                    </div>
+                </div>
+                <button onclick="closeWelcomeModal()" class="bg-orange-500 text-white px-6 py-2 rounded-lg hover:bg-orange-600 transition-colors btn-hover">
+                    开始使用
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 主要内容 -->
+    <div class="container mx-auto px-2 sm:px-4 py-4 sm:py-6 max-w-7xl">
+        <!-- 标题 -->
+        <header class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-amber-800 mb-2">
+                <i class="fas fa-leaf mr-2"></i>
+                肠道健康管理助手
+            </h1>
+            <p class="text-gray-600">科学记录，智能分析，健康生活</p>
+        </header>
+
+        <!-- 主要布局 -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+            <!-- 左侧：健康记录系统 -->
+            <div class="lg:col-span-1">
+                <div class="bg-white rounded-lg p-4 sm:p-6 card-shadow">
+                    <h2 class="text-xl font-bold text-amber-800 mb-4">
+                        <i class="fas fa-calendar-plus mr-2"></i>
+                        健康记录
+                    </h2>
+                    <form id="healthForm" class="space-y-4">
+                        <!-- 日期时间 -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                                <i class="fas fa-calendar mr-1"></i>
+                                日期时间 *
+                            </label>
+                            <input type="datetime-local" id="datetime" required 
+                                   class="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent">
+                            <span class="error-msg text-red-500 text-xs hidden">请选择日期时间</span>
+                        </div>
+
+                        <!-- 形状分类 -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                                <i class="fas fa-shapes mr-1"></i>
+                                形状分类（布里斯托分类法）*
+                            </label>
+                            <select id="shape" required class="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent">
+                                <option value="">请选择形状类型</option>
+                                <option value="1">1型：分离的硬团，像坚果（难以排出）</option>
+                                <option value="2">2型：香肠状，但表面凹凸</option>
+                                <option value="3">3型：香肠状，但表面有裂痕</option>
+                                <option value="4">4型：像香肠或蛇一样，光滑柔软 ✓</option>
+                                <option value="5">5型：软团，边缘清晰（容易排出）</option>
+                                <option value="6">6型：绒毛状的软团，边缘不清晰</option>
+                                <option value="7">7型：水样，无固体成分（完全液体）</option>
+                            </select>
+                            <span class="error-msg text-red-500 text-xs hidden">请选择形状分类</span>
+                        </div>
+
+                        <!-- 颜色选择 -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                                <i class="fas fa-palette mr-1"></i>
+                                颜色 *
+                            </label>
+                            <select id="color" required class="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent">
+                                <option value="">请选择颜色</option>
+                                <option value="棕黄色">棕黄色</option>
+                                <option value="深棕色">深棕色</option>
+                                <option value="绿色">绿色</option>
+                                <option value="黑色">黑色 ⚠️ 建议咨询医生</option>
+                                <option value="灰白色">灰白色</option>
+                                <option value="红色">红色 ⚠️ 建议咨询医生</option>
+                            </select>
+                            <span class="error-msg text-red-500 text-xs hidden">请选择颜色</span>
+                        </div>
+
+                        <!-- 份量评估 -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                                <i class="fas fa-weight mr-1"></i>
+                                份量评估 *
+                            </label>
+                            <div class="flex flex-wrap gap-2 sm:gap-4">
+                                <label class="flex items-center">
+                                    <input type="radio" name="amount" value="少量" required class="mr-2">
+                                    <span class="text-sm sm:text-base">少量</span>
+                                </label>
+                                <label class="flex items-center">
+                                    <input type="radio" name="amount" value="中等" required class="mr-2">
+                                    <span class="text-sm sm:text-base">中等</span>
+                                </label>
+                                <label class="flex items-center">
+                                    <input type="radio" name="amount" value="大量" required class="mr-2">
+                                    <span class="text-sm sm:text-base">大量</span>
+                                </label>
+                            </div>
+                            <span class="error-msg text-red-500 text-xs hidden">请选择份量</span>
+                        </div>
+
+                        <!-- 排便感受 -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                                <i class="fas fa-smile mr-1"></i>
+                                排便感受（可多选）
+                            </label>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                <label class="flex items-center">
+                                    <input type="checkbox" name="feeling" value="顺畅" class="mr-2">
+                                    <span class="text-sm sm:text-base">顺畅</span>
+                                </label>
+                                <label class="flex items-center">
+                                    <input type="checkbox" name="feeling" value="费力" class="mr-2">
+                                    <span class="text-sm sm:text-base">费力</span>
+                                </label>
+                                <label class="flex items-center">
+                                    <input type="checkbox" name="feeling" value="腹痛" class="mr-2">
+                                    <span class="text-sm sm:text-base">腹痛</span>
+                                </label>
+                                <label class="flex items-center">
+                                    <input type="checkbox" name="feeling" value="腹胀" class="mr-2">
+                                    <span class="text-sm sm:text-base">腹胀</span>
+                                </label>
+                                <label class="flex items-center">
+                                    <input type="checkbox" name="feeling" value="其他" class="mr-2">
+                                    <span class="text-sm sm:text-base">其他</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- 提交按钮 -->
+                        <button type="submit" class="w-full bg-orange-500 text-white py-3 px-4 rounded-lg hover:bg-orange-600 transition-all btn-hover font-medium">
+                            <i class="fas fa-save mr-2"></i>
+                            <span id="submitText">保存记录</span>
+                            <i id="loadingIcon" class="fas fa-spinner loading hidden ml-2"></i>
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- 右侧：数据分析与展示 -->
+            <div class="lg:col-span-1">
+                <div class="bg-white rounded-lg p-4 sm:p-6 card-shadow h-full">
+                    <!-- 健康评分 -->
+                    <div class="mb-6">
+                        <h2 class="text-xl font-bold text-amber-800 mb-4">
+                            <i class="fas fa-chart-line mr-2"></i>
+                            健康评分
+                        </h2>
+                        <div class="text-center">
+                            <div class="text-4xl font-bold text-green-500 mb-2" id="healthScore">85</div>
+                            <div class="text-gray-600 mb-4">综合健康指数</div>
+                            <div class="bg-gray-200 rounded-full h-3 mb-4">
+                                <div id="scoreBar" class="bg-green-500 h-3 rounded-full progress-bar" style="width: 85%"></div>
+                            </div>
+                            <div id="healthAdvice" class="text-sm text-gray-600">
+                                <p>• 保持规律的排便时间</p>
+                                <p>• 增加膳食纤维摄入</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 分隔线 -->
+                    <hr class="border-gray-200 mb-6">
+
+                    <!-- 记录日历 -->
+                    <div class="mb-6">
+                        <h3 class="text-lg font-bold text-amber-800 mb-4">
+                            <i class="fas fa-calendar-alt mr-2"></i>
+                            记录日历
+                        </h3>
+                        <div id="recordCalendar" class="">
+                            <!-- 日历将在这里动态生成 -->
+                        </div>
+                    </div>
+
+                    <!-- 分隔线 -->
+                    <hr class="border-gray-200 mb-6">
+
+                    <!-- 健康提醒设置 -->
+                    <div class="mb-6">
+                        <h3 class="text-lg font-bold text-amber-800 mb-4">
+                            <i class="fas fa-bell mr-2"></i>
+                            健康提醒
+                        </h3>
+                        <div class="space-y-4">
+                            <!-- 年龄段选择 -->
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    <i class="fas fa-user mr-1"></i>
+                                    年龄段
+                                </label>
+                                <select id="ageGroup" class="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm">
+                                    <option value="">请选择年龄段</option>
+                                    <option value="child">儿童 (3-12岁)</option>
+                                    <option value="teen">青少年 (13-17岁)</option>
+                                    <option value="adult">成年人 (18-64岁)</option>
+                                    <option value="senior">老年人 (65岁以上)</option>
+                                </select>
+                            </div>
+                            
+                            <!-- 提醒时间设置 -->
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    <i class="fas fa-clock mr-1"></i>
+                                    提醒时间
+                                </label>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <input type="time" id="reminderTime1" class="p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm" value="08:00">
+                                    <input type="time" id="reminderTime2" class="p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm" value="20:00">
+                                </div>
+                                <p class="text-xs text-gray-500 mt-1">建议设置两个提醒时间</p>
+                            </div>
+                            
+                            <!-- 开关和保存按钮 -->
+                            <div class="flex items-center justify-between">
+                                <label class="flex items-center">
+                                    <input type="checkbox" id="reminderEnabled" class="mr-2">
+                                    <span class="text-sm text-gray-700">启用提醒</span>
+                                </label>
+                                <button onclick="saveReminderSettings()" class="bg-orange-500 text-white px-3 py-1 rounded text-sm hover:bg-orange-600 transition-colors">
+                                    <i class="fas fa-save mr-1"></i>
+                                    保存
+                                </button>
+                            </div>
+                            
+                            <!-- 提醒状态显示 -->
+                            <div id="reminderStatus" class="text-xs text-gray-500 hidden">
+                                <i class="fas fa-info-circle mr-1"></i>
+                                <span id="reminderStatusText">提醒已设置</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 分隔线 -->
+                    <hr class="border-gray-200 mb-6">
+
+                    <!-- 便签记录 -->
+                    <div>
+                        <h3 class="text-lg font-bold text-amber-800 mb-4">
+                            <i class="fas fa-sticky-note mr-2"></i>
+                            最近记录
+                        </h3>
+                        <div id="recentRecords" class="space-y-3 max-h-60 overflow-y-auto">
+                            <!-- 便签记录将在这里动态生成 -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 成功提示 -->
+    <div id="successToast" class="fixed top-4 right-4 bg-green-500 text-white px-6 py-4 rounded-lg shadow-xl transform translate-x-full transition-all duration-500 ease-in-out z-50 border-l-4 border-green-300 cursor-pointer" onclick="hideToast('successToast')">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center">
+                <i class="fas fa-check-circle mr-3 text-lg"></i>
+                <div>
+                    <div class="font-semibold">保存成功！</div>
+                    <div class="text-sm opacity-90">健康记录已成功保存</div>
+                </div>
+            </div>
+            <button class="ml-4 text-white hover:text-gray-200 transition-colors" onclick="event.stopPropagation(); hideToast('successToast');">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- 分享提示 -->
+    <div id="shareToast" class="fixed top-4 right-4 bg-blue-500 text-white px-6 py-4 rounded-lg shadow-xl transform translate-x-full transition-all duration-500 ease-in-out z-50 border-l-4 border-blue-300 cursor-pointer" onclick="hideToast('shareToast')">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center">
+                <i class="fas fa-link mr-3 text-lg"></i>
+                <div>
+                    <div class="font-semibold">分享成功！</div>
+                    <div class="text-sm opacity-90">健康报告链接已复制</div>
+                </div>
+            </div>
+            <button class="ml-4 text-white hover:text-gray-200 transition-colors" onclick="event.stopPropagation(); hideToast('shareToast');">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- 错误提示 -->
+    <div id="errorToast" class="fixed top-4 right-4 bg-red-500 text-white px-6 py-4 rounded-lg shadow-xl transform translate-x-full transition-all duration-500 ease-in-out z-50 border-l-4 border-red-300 cursor-pointer" onclick="hideToast('errorToast')">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center">
+                <i class="fas fa-exclamation-circle mr-3 text-lg"></i>
+                <div>
+                    <div class="font-semibold">保存失败！</div>
+                    <div class="text-sm opacity-90">请检查表单信息</div>
+                </div>
+            </div>
+            <button class="ml-4 text-white hover:text-gray-200 transition-colors" onclick="event.stopPropagation(); hideToast('errorToast');">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // 全局变量
+        let healthData = JSON.parse(localStorage.getItem('healthData')) || [];
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            initDateTime();
+            updateHealthScore();
+            updateRecentRecords();
+            updateRecordCalendar();
+            loadReminderSettings();
+        });
+
+        // 初始化日期时间
+        function initDateTime() {
+            const now = new Date();
+            const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+            document.getElementById('datetime').value = localDateTime;
+        }
+
+        // 关闭欢迎弹窗
+        function closeWelcomeModal() {
+            document.getElementById('welcomeModal').style.display = 'none';
+        }
+
+        // 表单提交
+        document.getElementById('healthForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            // 验证表单
+            if (!validateForm()) {
+                showToast('errorToast');
+                return;
+            }
+
+            // 显示加载状态
+            const submitBtn = e.target.querySelector('button[type="submit"]');
+            const submitText = document.getElementById('submitText');
+            const loadingIcon = document.getElementById('loadingIcon');
+            
+            submitText.textContent = '保存中...';
+            loadingIcon.classList.remove('hidden');
+            submitBtn.disabled = true;
+
+            // 模拟保存延迟
+            setTimeout(() => {
+                saveHealthRecord();
+                
+                // 重置按钮状态
+                submitText.textContent = '保存记录';
+                loadingIcon.classList.add('hidden');
+                submitBtn.disabled = false;
+                submitBtn.classList.add('bounce');
+                
+                // 显示成功提示
+                showToast('successToast');
+                
+                // 重置表单
+                this.reset();
+                initDateTime();
+                
+                // 立即更新所有显示组件
+                setTimeout(() => {
+                    updateHealthScore();
+                    updateRecentRecords();
+                    updateRecordCalendar();
+                    // 组件更新完成
+                }, 100);
+                
+                // 额外的日历更新确保
+                setTimeout(() => {
+                    updateRecordCalendar();
+                }, 500);
+                
+                // 移除动画类
+                setTimeout(() => {
+                    submitBtn.classList.remove('bounce');
+                }, 500);
+            }, 1000);
+        });
+
+        // 表单验证
+        function validateForm() {
+            const requiredFields = ['datetime', 'shape', 'color'];
+            const amountRadios = document.querySelectorAll('input[name="amount"]');
+            let isValid = true;
+
+            // 验证必填字段
+            requiredFields.forEach(fieldId => {
+                const field = document.getElementById(fieldId);
+                const errorMsg = field.parentNode.querySelector('.error-msg');
+                
+                if (!field || !field.value.trim()) {
+                    if (errorMsg) errorMsg.classList.remove('hidden');
+                    if (field) field.classList.add('border-red-500');
+                    isValid = false;
+                } else {
+                    if (errorMsg) errorMsg.classList.add('hidden');
+                    if (field) field.classList.remove('border-red-500');
+                }
+            });
+
+            // 验证份量选择
+            const amountSelected = Array.from(amountRadios).some(radio => radio.checked);
+            const amountField = document.querySelector('input[name="amount"]');
+            const amountError = amountField ? amountField.closest('div').querySelector('.error-msg') : null;
+            
+            if (!amountSelected) {
+                if (amountError) amountError.classList.remove('hidden');
+                isValid = false;
+            } else {
+                if (amountError) amountError.classList.add('hidden');
+            }
+
+            return isValid;
+        }
+
+        // 保存健康记录
+        function saveHealthRecord() {
+            const formData = new FormData(document.getElementById('healthForm'));
+            const feelings = Array.from(document.querySelectorAll('input[name="feeling"]:checked')).map(cb => cb.value);
+            
+            // 获取形状的完整描述
+            const shapeSelect = document.getElementById('shape');
+            const shapeValue = shapeSelect.value;
+            const shapeText = shapeSelect.options[shapeSelect.selectedIndex].text;
+            
+            // 获取颜色和份量的中文描述
+            const colorSelect = document.getElementById('color');
+            const colorText = colorSelect.options[colorSelect.selectedIndex].text;
+            
+            const amountRadio = document.querySelector('input[name="amount"]:checked');
+            const amountText = amountRadio ? amountRadio.parentNode.textContent.trim() : '';
+            
+            const record = {
+                id: Date.now(),
+                datetime: formData.get('datetime'),
+                shape: shapeValue, // 保存数字值用于评分计算
+                shapeText: shapeText, // 保存完整描述用于显示
+                color: colorText, // 保存中文描述
+                amount: amountText, // 保存中文描述
+                feelings: feelings,
+                timestamp: new Date().toISOString()
+            };
+
+            healthData.push(record);
+            localStorage.setItem('healthData', JSON.stringify(healthData));
+            
+            // 立即触发日历更新
+            setTimeout(() => {
+                updateRecordCalendar();
+            }, 0);
+        }
+
+
+
+
+
+        // 更新健康评分
+        function updateHealthScore() {
+            if (healthData.length === 0) {
+                return;
+            }
+
+            // 计算最近30天的数据
+            const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+            const recentData = healthData.filter(record => 
+                new Date(record.datetime) >= thirtyDaysAgo
+            );
+
+            if (recentData.length === 0) {
+                return;
+            }
+
+            // 计算频率得分 (40分)
+            const avgFrequency = recentData.length / 30;
+            const frequencyScore = Math.min(40, avgFrequency * 20); // 理想频率1-2次/天
+
+            // 计算形状得分 (40分)
+            const idealShapes = recentData.filter(record => record.shape === '4').length;
+            const shapeScore = (idealShapes / recentData.length) * 40;
+
+            // 计算规律性得分 (20分)
+            const dates = recentData.map(record => record.datetime.split('T')[0]);
+            const uniqueDates = [...new Set(dates)];
+            const regularityScore = (uniqueDates.length / 30) * 20;
+
+            const totalScore = Math.round(frequencyScore + shapeScore + regularityScore);
+            
+            // 更新显示
+            document.getElementById('healthScore').textContent = totalScore;
+            document.getElementById('scoreBar').style.width = totalScore + '%';
+            
+            // 更新颜色
+            const scoreElement = document.getElementById('healthScore');
+            const barElement = document.getElementById('scoreBar');
+            
+            if (totalScore >= 80) {
+                scoreElement.className = 'text-4xl font-bold text-green-500 mb-2';
+                barElement.className = 'bg-green-500 h-3 rounded-full progress-bar';
+            } else if (totalScore >= 60) {
+                scoreElement.className = 'text-4xl font-bold text-yellow-500 mb-2';
+                barElement.className = 'bg-yellow-500 h-3 rounded-full progress-bar';
+            } else {
+                scoreElement.className = 'text-4xl font-bold text-red-500 mb-2';
+                barElement.className = 'bg-red-500 h-3 rounded-full progress-bar';
+            }
+
+            // 更新建议
+            updateHealthAdvice(totalScore, recentData);
+        }
+
+        // 更新健康建议
+        function updateHealthAdvice(score, data) {
+            const adviceElement = document.getElementById('healthAdvice');
+            let advice = [];
+
+            if (score < 60) {
+                advice.push('• 建议咨询医生，关注肠道健康');
+                advice.push('• 保持规律的作息和饮食');
+            } else if (score < 80) {
+                const idealRatio = data.filter(r => r.shape === '4').length / data.length;
+                if (idealRatio < 0.5) {
+                    advice.push('• 增加膳食纤维摄入');
+                }
+                advice.push('• 保持规律的排便时间');
+            } else {
+                advice.push('• 继续保持良好的生活习惯');
+                advice.push('• 适量运动，保持身心健康');
+            }
+
+            adviceElement.innerHTML = advice.map(item => `<p>${item}</p>`).join('');
+        }
+
+
+
+        // 存储Toast的定时器
+        let toastTimers = {};
+        
+        // 显示提示
+        function showToast(toastId) {
+            const toast = document.getElementById(toastId);
+            
+            // 清除之前的定时器
+            if (toastTimers[toastId]) {
+                clearTimeout(toastTimers[toastId]);
+            }
+            
+            // 添加震动反馈（如果设备支持）
+            if (navigator.vibrate) {
+                if (toastId === 'successToast') {
+                    navigator.vibrate([100, 50, 100]); // 成功震动模式
+                } else if (toastId === 'errorToast') {
+                    navigator.vibrate([200, 100, 200]); // 错误震动模式
+                } else {
+                    navigator.vibrate(100); // 默认震动
+                }
+            }
+            
+            // 显示Toast
+            toast.classList.remove('translate-x-full');
+            toast.classList.add('translate-x-0');
+            
+            // 添加弹跳动画
+            setTimeout(() => {
+                toast.style.transform = 'translateX(0) scale(1.05)';
+                setTimeout(() => {
+                    toast.style.transform = 'translateX(0) scale(1)';
+                }, 150);
+            }, 100);
+            
+            // 延长显示时间到5秒
+            toastTimers[toastId] = setTimeout(() => {
+                hideToast(toastId);
+            }, 5000);
+        }
+        
+        // 隐藏提示
+        function hideToast(toastId) {
+            const toast = document.getElementById(toastId);
+            
+            // 清除定时器
+            if (toastTimers[toastId]) {
+                clearTimeout(toastTimers[toastId]);
+                delete toastTimers[toastId];
+            }
+            
+            // 隐藏Toast
+            toast.classList.remove('translate-x-0');
+            toast.classList.add('translate-x-full');
+            
+            // 重置transform
+            setTimeout(() => {
+                toast.style.transform = '';
+            }, 500);
+        }
+        
+        // 更新便签记录
+        function updateRecentRecords() {
+            const container = document.getElementById('recentRecords');
+            
+            // 获取最近10条记录
+            const recentData = healthData.slice(-10).reverse();
+            
+            if (recentData.length === 0) {
+                container.innerHTML = '<div class="text-gray-500 text-center py-8"><i class="fas fa-clipboard-list text-3xl mb-2"></i><br>暂无记录</div>';
+                return;
+            }
+            
+            container.innerHTML = recentData.map(record => {
+                const date = new Date(record.datetime);
+                const dateStr = date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+                const timeStr = date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+                
+                // 获取形状描述，与表单选项保持一致
+                const shapeDescriptions = {
+                    '1': '1型：分离的硬团，像坚果（难以排出）',
+                    '2': '2型：香肠状，但表面凹凸',
+                    '3': '3型：香肠状，但表面有裂痕',
+                    '4': '4型：像香肠或蛇一样，光滑柔软 ✓',
+                    '5': '5型：软团，边缘清晰（容易排出）',
+                    '6': '6型：绒毛状的软团，边缘不清晰',
+                    '7': '7型：水样，无固体成分（完全液体）'
+                };
+                
+                // 优先使用保存的完整描述，否则使用映射
+                const shapeDisplay = record.shapeText || (record.shape ? (shapeDescriptions[record.shape] || `${record.shape}型`) : '未知形状');
+                const colorDisplay = record.color || '未知颜色';
+                const amountDisplay = record.amount || '未知份量';
+                
+                const feelings = record.feelings && record.feelings.length > 0 ? record.feelings.join(', ') : '无特殊感受';
+                
+                return `
+                    <div class="bg-yellow-50 border-l-4 border-yellow-400 p-3 rounded-r-lg shadow-sm hover:shadow-md transition-shadow">
+                        <div class="flex justify-between items-start mb-2">
+                            <div class="text-sm font-medium text-gray-800">${dateStr} ${timeStr}</div>
+                            <div class="text-xs text-gray-500">#${record.id}</div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2 text-xs text-gray-600 mb-2">
+                            <div><span class="font-medium">形状:</span> ${shapeDisplay}</div>
+                            <div><span class="font-medium">颜色:</span> ${colorDisplay}</div>
+                            <div><span class="font-medium">份量:</span> ${amountDisplay}</div>
+                            <div><span class="font-medium">感受:</span> ${feelings}</div>
+                        </div>
+                        <div class="flex justify-end">
+                            <button onclick="deleteRecord(${record.id})" class="text-red-400 hover:text-red-600 text-xs">
+                                <i class="fas fa-trash"></i> 删除
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        // 更新记录日历
+        function updateRecordCalendar() {
+            const container = document.getElementById('recordCalendar');
+            const today = new Date();
+            const currentMonth = today.getMonth();
+            const currentYear = today.getFullYear();
+            
+            // 获取当月第一天和最后一天
+            const firstDay = new Date(currentYear, currentMonth, 1);
+            const lastDay = new Date(currentYear, currentMonth + 1, 0);
+            const daysInMonth = lastDay.getDate();
+            const startDayOfWeek = firstDay.getDay();
+            
+            // 创建日历头部
+            const monthNames = ['一月', '二月', '三月', '四月', '五月', '六月', '七月', '八月', '九月', '十月', '十一月', '十二月'];
+            const weekDays = ['日', '一', '二', '三', '四', '五', '六'];
+            
+            let calendarHTML = `
+                <div class="text-center mb-4">
+                    <h4 class="font-medium text-gray-800">${currentYear}年 ${monthNames[currentMonth]}</h4>
+                </div>
+                <div class="grid grid-cols-7 gap-1 mb-2">
+                    ${weekDays.map(day => `<div class="text-center text-xs font-medium text-gray-500 py-1">${day}</div>`).join('')}
+                </div>
+                <div class="grid grid-cols-7 gap-1">
+            `;
+            
+            // 添加空白天数（月初）
+            for (let i = 0; i < startDayOfWeek; i++) {
+                calendarHTML += '<div class="h-8"></div>';
+            }
+            
+            // 添加月份天数
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                
+                // 检查是否有记录，支持多种日期格式
+                const hasRecord = healthData.some(record => {
+                    if (!record.datetime) return false;
+                    
+                    // 处理不同的日期格式
+                    let recordDate;
+                    try {
+                        // 直接使用datetime-local的格式 (YYYY-MM-DDTHH:MM)
+                        if (record.datetime.includes('T')) {
+                            recordDate = record.datetime.split('T')[0];
+                        } else if (record.datetime.includes('-') && record.datetime.length >= 10) {
+                            // 如果已经是YYYY-MM-DD格式
+                            recordDate = record.datetime.substring(0, 10);
+                        } else {
+                            // 如果是其他格式，尝试转换为标准格式
+                            const date = new Date(record.datetime);
+                            if (!isNaN(date.getTime())) {
+                                // 使用本地时间而不是UTC时间
+                                const year = date.getFullYear();
+                                const month = String(date.getMonth() + 1).padStart(2, '0');
+                                const day = String(date.getDate()).padStart(2, '0');
+                                recordDate = `${year}-${month}-${day}`;
+                            } else {
+                                return false;
+                            }
+                        }
+                        
+                        return recordDate === dateStr;
+                    } catch (e) {
+                        console.log('日期解析错误:', record.datetime, e);
+                        return false;
+                    }
+                });
+                
+                const isToday = day === today.getDate() && currentMonth === today.getMonth() && currentYear === today.getFullYear();
+                
+                let dayClass = 'h-8 w-8 flex items-center justify-center text-xs rounded-full cursor-pointer transition-colors ';
+                
+                if (isToday) {
+                    dayClass += hasRecord ? 'bg-green-600 text-white ring-2 ring-green-300 ' : 'bg-gray-300 text-gray-700 ring-2 ring-gray-400 ';
+                } else if (hasRecord) {
+                    dayClass += 'bg-green-500 text-white hover:bg-green-600 ';
+                } else {
+                    dayClass += 'bg-gray-100 text-gray-600 hover:bg-gray-200 ';
+                }
+                
+                calendarHTML += `<div class="${dayClass}" title="${dateStr}${hasRecord ? ' (已记录)' : ' (未记录)'}">${day}</div>`;
+            }
+            
+            calendarHTML += '</div>';
+            
+            // 添加图例
+            calendarHTML += `
+                <div class="mt-4 flex justify-center space-x-4 text-xs">
+                    <div class="flex items-center">
+                        <div class="w-3 h-3 bg-green-500 rounded-full mr-1"></div>
+                        <span class="text-gray-600">已记录</span>
+                    </div>
+                    <div class="flex items-center">
+                        <div class="w-3 h-3 bg-gray-100 rounded-full mr-1"></div>
+                        <span class="text-gray-600">未记录</span>
+                    </div>
+                </div>
+            `;
+            
+            container.innerHTML = calendarHTML;
+        }
+        
+        // 健康提醒相关功能
+        let reminderIntervals = [];
+        
+        // 获取不同年龄段的建议排便频率
+        function getBowelMovementRecommendation(ageGroup) {
+            const recommendations = {
+                'child': {
+                    frequency: '每天1-2次',
+                    description: '儿童消化系统发育中，建议规律排便'
+                },
+                'teen': {
+                    frequency: '每天1-2次',
+                    description: '青少年新陈代谢旺盛，保持规律很重要'
+                },
+                'adult': {
+                    frequency: '每天1次或每2-3天1次',
+                    description: '成年人正常排便频率范围较广'
+                },
+                'senior': {
+                    frequency: '每天1次或每2天1次',
+                    description: '老年人消化较慢，注意保持规律'
+                }
+            };
+            return recommendations[ageGroup] || recommendations['adult'];
+        }
+        
+        // 请求通知权限
+        async function requestNotificationPermission() {
+            if ('Notification' in window) {
+                const permission = await Notification.requestPermission();
+                return permission === 'granted';
+            }
+            return false;
+        }
+        
+        // 发送通知
+        function sendNotification(title, body, icon = '🚽') {
+            if ('Notification' in window && Notification.permission === 'granted') {
+                new Notification(title, {
+                    body: body,
+                    icon: 'data:image/svg+xml;base64,' + btoa(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">${icon}</text></svg>`),
+                    requireInteraction: true
+                });
+            }
+        }
+        
+        // 保存提醒设置
+        async function saveReminderSettings() {
+            const ageGroup = document.getElementById('ageGroup').value;
+            const reminderTime1 = document.getElementById('reminderTime1').value;
+            const reminderTime2 = document.getElementById('reminderTime2').value;
+            const reminderEnabled = document.getElementById('reminderEnabled').checked;
+            
+            if (!ageGroup) {
+                 showToast('请选择年龄段', 'error');
+                 return;
+             }
+             
+             if (reminderEnabled) {
+                 const hasPermission = await requestNotificationPermission();
+                 if (!hasPermission) {
+                     showToast('需要通知权限才能设置提醒', 'error');
+                     document.getElementById('reminderEnabled').checked = false;
+                     return;
+                 }
+             }
+            
+            const settings = {
+                ageGroup,
+                reminderTime1,
+                reminderTime2,
+                reminderEnabled,
+                savedAt: new Date().toISOString()
+            };
+            
+            localStorage.setItem('reminderSettings', JSON.stringify(settings));
+            
+            // 清除现有定时器
+            clearReminderIntervals();
+            
+            // 设置新的定时器
+            if (reminderEnabled) {
+                setupReminderIntervals(settings);
+                const recommendation = getBowelMovementRecommendation(ageGroup);
+                document.getElementById('reminderStatusText').textContent = 
+                    `提醒已启用 - ${recommendation.frequency}`;
+                document.getElementById('reminderStatus').classList.remove('hidden');
+                showToast('健康提醒设置成功', 'success');
+             } else {
+                 document.getElementById('reminderStatus').classList.add('hidden');
+                 showToast('健康提醒已关闭', 'success');
+             }
+        }
+        
+        // 设置提醒定时器
+        function setupReminderIntervals(settings) {
+            const { ageGroup, reminderTime1, reminderTime2 } = settings;
+            const recommendation = getBowelMovementRecommendation(ageGroup);
+            
+            // 设置定时检查（每分钟检查一次）
+            const interval = setInterval(() => {
+                const now = new Date();
+                const currentTime = now.getHours().toString().padStart(2, '0') + ':' + 
+                                 now.getMinutes().toString().padStart(2, '0');
+                
+                if (currentTime === reminderTime1 || currentTime === reminderTime2) {
+                    const title = '肠道健康提醒';
+                    const body = `该关注您的肠道健康了！\n建议频率：${recommendation.frequency}\n${recommendation.description}`;
+                    sendNotification(title, body);
+                }
+            }, 60000); // 每分钟检查一次
+            
+            reminderIntervals.push(interval);
+        }
+        
+        // 清除提醒定时器
+        function clearReminderIntervals() {
+            reminderIntervals.forEach(interval => clearInterval(interval));
+            reminderIntervals = [];
+        }
+        
+        // 加载提醒设置
+        function loadReminderSettings() {
+            const settings = localStorage.getItem('reminderSettings');
+            if (settings) {
+                const parsed = JSON.parse(settings);
+                document.getElementById('ageGroup').value = parsed.ageGroup || '';
+                document.getElementById('reminderTime1').value = parsed.reminderTime1 || '08:00';
+                document.getElementById('reminderTime2').value = parsed.reminderTime2 || '20:00';
+                document.getElementById('reminderEnabled').checked = parsed.reminderEnabled || false;
+                
+                if (parsed.reminderEnabled) {
+                    setupReminderIntervals(parsed);
+                    const recommendation = getBowelMovementRecommendation(parsed.ageGroup);
+                    document.getElementById('reminderStatusText').textContent = 
+                        `提醒已启用 - ${recommendation.frequency}`;
+                    document.getElementById('reminderStatus').classList.remove('hidden');
+                }
+            }
+        }
+        
+        // 删除记录
+        function deleteRecord(recordId) {
+            if (confirm('确定要删除这条记录吗？')) {
+                healthData = healthData.filter(record => record.id !== recordId);
+                localStorage.setItem('healthData', JSON.stringify(healthData));
+                
+                // 更新所有相关显示
+                updateRecentRecords();
+                updateRecordCalendar();
+                updateHealthScore();
+                
+                showToast('successToast');
+            }
+        }
+
+
+        
+        // 触摸设备优化
+        if ('ontouchstart' in window) {
+            document.body.classList.add('touch-device');
+        }
+    </script>
+</body>
+</html>

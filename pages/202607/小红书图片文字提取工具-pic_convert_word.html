@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小红书图片文字提取工具</title>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #f9f0ff, #e6f7ff);
+            min-height: 100vh;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .container {
+            width: 100%;
+            max-width: 1200px;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 15px 50px rgba(77, 107, 254, 0.15);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        header {
+            background: linear-gradient(90deg, #4d6bfe, #6d86fe);
+            color: white;
+            padding: 25px 20px;
+            text-align: center;
+        }
+        
+        h1 {
+            font-size: clamp(1.6rem, 4vw, 2.2rem);
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+        }
+        
+        h1 i {
+            font-size: clamp(1.5rem, 3vw, 1.8rem);
+        }
+        
+        .subtitle {
+            font-size: clamp(0.85rem, 2.5vw, 1rem);
+            opacity: 0.9;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 0 10px;
+        }
+        
+        .content {
+            display: flex;
+            padding: 20px;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .upload-section {
+            flex: 1;
+            min-width: 300px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .result-section {
+            flex: 1;
+            min-width: 300px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .panel {
+            background: #f8f9fc;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+        }
+        
+        .panel-title {
+            font-size: clamp(1.1rem, 3vw, 1.3rem);
+            margin-bottom: 15px;
+            color: #4d6bfe;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .drop-area {
+            border: 3px dashed #6d86fe;
+            border-radius: 12px;
+            padding: 30px 15px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: rgba(109, 134, 254, 0.05);
+        }
+        
+        .drop-area:hover {
+            background: rgba(109, 134, 254, 0.1);
+        }
+        
+        .drop-area i {
+            font-size: clamp(2.5rem, 5vw, 3rem);
+            color: #4d6bfe;
+            margin-bottom: 10px;
+        }
+        
+        .drop-area h3 {
+            font-size: clamp(1rem, 3vw, 1.2rem);
+            color: #4d6bfe;
+            margin-bottom: 8px;
+        }
+        
+        .drop-area p {
+            color: #666;
+            font-size: clamp(0.8rem, 2.5vw, 0.9rem);
+        }
+        
+        /* 主要按钮样式 - 统一蓝色 */
+        .btn-primary {
+            background: linear-gradient(90deg, #4d6bfe, #6d86fe);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 50px;
+            font-size: clamp(0.9rem, 2.5vw, 1rem);
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.3s;
+            width: 100%;
+            box-shadow: 0 5px 15px rgba(77, 107, 254, 0.3);
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(77, 107, 254, 0.4);
+        }
+        
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+        
+        .btn-primary:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        /* 轮廓按钮样式 - 轻量操作 */
+        .btn-outline {
+            background: transparent;
+            color: #4d6bfe;
+            border: 2px solid #4d6bfe;
+            padding: 10px 20px;
+            border-radius: 50px;
+            font-size: clamp(0.9rem, 2.5vw, 1rem);
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.3s;
+            width: 100%;
+        }
+        
+        .btn-outline:hover {
+            background: rgba(77, 107, 254, 0.1);
+        }
+        
+        .file-input {
+            display: none;
+        }
+        
+        .preview-container {
+            display: flex;
+            justify-content: center;
+            margin: 15px 0;
+        }
+        
+        .preview-box {
+            width: clamp(150px, 40vw, 200px);
+            height: clamp(150px, 40vw, 200px);
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            background: #f0f0f0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #888;
+        }
+        
+        .preview-box img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .progress-container {
+            margin: 15px 0;
+        }
+        
+        .progress-bar {
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 8px;
+        }
+        
+        .progress {
+            height: 100%;
+            background: linear-gradient(90deg, #6d86fe, #4d6bfe);
+            border-radius: 4px;
+            width: 0%;
+            transition: width 0.3s;
+        }
+        
+        .progress-text {
+            text-align: center;
+            font-size: clamp(0.8rem, 2.5vw, 0.9rem);
+            color: #666;
+        }
+        
+        .result-box {
+            background: white;
+            border: 1px solid #eee;
+            border-radius: 10px;
+            padding: 15px;
+            min-height: 250px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-size: clamp(0.9rem, 2.5vw, 1rem);
+            line-height: 1.6;
+            color: #333;
+            white-space: pre-wrap;
+            position: relative;
+        }
+        
+        .result-placeholder {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #aaa;
+            text-align: center;
+            width: 100%;
+            padding: 15px;
+            font-size: clamp(0.9rem, 2.5vw, 1rem);
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 12px;
+            margin-top: auto;
+        }
+        
+        .action-buttons button {
+            flex: 1;
+        }
+        
+        footer {
+            text-align: center;
+            padding: 15px;
+            color: #888;
+            font-size: clamp(0.75rem, 2.5vw, 0.85rem);
+            border-top: 1px solid #eee;
+            background: #fafafa;
+        }
+        
+        .language-selector {
+            display: flex;
+            gap: 10px;
+            margin: 12px 0;
+        }
+        
+        .lang-option {
+            flex: 1;
+            padding: 10px;
+            background: #f0f0f0;
+            border-radius: 8px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-weight: 500;
+            font-size: clamp(0.8rem, 2.5vw, 0.9rem);
+        }
+        
+        .lang-option.active {
+            background: #4d6bfe;
+            color: white;
+        }
+        
+        /* 响应式调整 */
+        @media (max-width: 768px) {
+            .content {
+                flex-direction: column;
+                padding: 15px;
+            }
+            
+            header {
+                padding: 20px 15px;
+            }
+            
+            .panel {
+                padding: 15px;
+            }
+            
+            .action-buttons {
+                flex-direction: column;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .language-selector {
+                flex-direction: column;
+            }
+            
+            .drop-area {
+                padding: 20px 10px;
+            }
+        }
+        
+        /* 移动端优化 */
+        @media (max-width: 768px) and (orientation: portrait) {
+            body {
+                padding: 10px;
+            }
+            
+            .container {
+                border-radius: 15px;
+            }
+            
+            .preview-box {
+                width: 180px;
+                height: 180px;
+            }
+        }
+        
+        /* 平板优化 */
+        @media (min-width: 769px) and (max-width: 1024px) {
+            .content {
+                gap: 15px;
+            }
+            
+            .panel {
+                padding: 18px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>
+                <i class="fas fa-camera"></i> 小红书图片文字提取工具
+            </h1>
+            <p class="subtitle">上传小红书图片，快速提取图片中的文字内容，支持中英文识别</p>
+        </header>
+        
+        <div class="content">
+            <div class="upload-section">
+                <div class="panel">
+                    <h2 class="panel-title">
+                        <i class="fas fa-cloud-upload-alt"></i> 上传图片
+                    </h2>
+                    
+                    <div class="drop-area" id="dropArea">
+                        <i class="fas fa-file-image"></i>
+                        <h3>拖放图片到此处</h3>
+                        <p>或点击选择文件 (支持 JPG, PNG 格式)</p>
+                    </div>
+                    
+                    <input type="file" id="fileInput" class="file-input" accept="image/jpeg, image/png">
+                    
+                    <div class="preview-container">
+                        <div class="preview-box" id="previewBox">
+                            <div><i class="fas fa-image" style="font-size: 3rem; opacity: 0.3;"></i></div>
+                        </div>
+                    </div>
+                    
+                    <div class="language-selector">
+                        <div class="lang-option active" data-lang="chi_sim">
+                            <i class="fas fa-language"></i> 简体中文
+                        </div>
+                        <div class="lang-option" data-lang="eng">
+                            <i class="fas fa-language"></i> English
+                        </div>
+                    </div>
+                    
+                    <button id="extractBtn" class="btn-primary">
+                        <i class="fas fa-search"></i> 提取图片文字
+                    </button>
+                </div>
+                
+                <div class="panel">
+                    <h2 class="panel-title">
+                        <i class="fas fa-tasks"></i> 处理进度
+                    </h2>
+                    
+                    <div class="progress-container">
+                        <div class="progress-bar">
+                            <div class="progress" id="progressBar"></div>
+                        </div>
+                        <div class="progress-text" id="progressText">等待操作...</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="result-section">
+                <div class="panel">
+                    <h2 class="panel-title">
+                        <i class="fas fa-file-alt"></i> 识别结果
+                    </h2>
+                    
+                    <div class="result-box" id="resultBox">
+                        <div class="result-placeholder">提取的文字将显示在这里</div>
+                    </div>
+                    
+                    <div class="action-buttons">
+                        <button id="copyBtn" class="btn-primary">
+                            <i class="fas fa-copy"></i> 复制结果
+                        </button>
+                        <button id="clearBtn" class="btn-outline">
+                            <i class="fas fa-eraser"></i> 清空结果
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <footer>
+            <p>© 2023 小红书图片文字提取工具 | 基于 Tesseract.js 构建 | 所有处理均在浏览器端完成</p>
+        </footer>
+    </div>
+
+    <script>
+        // DOM元素
+        const dropArea = document.getElementById('dropArea');
+        const fileInput = document.getElementById('fileInput');
+        const previewBox = document.getElementById('previewBox');
+        const extractBtn = document.getElementById('extractBtn');
+        const progressBar = document.getElementById('progressBar');
+        const progressText = document.getElementById('progressText');
+        const resultBox = document.getElementById('resultBox');
+        const copyBtn = document.getElementById('copyBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const langOptions = document.querySelectorAll('.lang-option');
+        
+        // 状态变量
+        let selectedFile = null;
+        let selectedLang = 'chi_sim';
+        
+        // 初始化事件监听
+        function init() {
+            // 拖放区域事件
+            dropArea.addEventListener('click', () => fileInput.click());
+            
+            fileInput.addEventListener('change', handleFileSelect);
+            
+            // 拖放事件
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                dropArea.addEventListener(eventName, preventDefaults, false);
+            });
+            
+            ['dragenter', 'dragover'].forEach(eventName => {
+                dropArea.addEventListener(eventName, highlight, false);
+            });
+            
+            ['dragleave', 'drop'].forEach(eventName => {
+                dropArea.addEventListener(eventName, unhighlight, false);
+            });
+            
+            dropArea.addEventListener('drop', handleDrop, false);
+            
+            // 按钮事件
+            extractBtn.addEventListener('click', extractText);
+            copyBtn.addEventListener('click', copyResult);
+            clearBtn.addEventListener('click', clearResult);
+            
+            // 语言选择
+            langOptions.forEach(option => {
+                option.addEventListener('click', () => {
+                    langOptions.forEach(opt => opt.classList.remove('active'));
+                    option.classList.add('active');
+                    selectedLang = option.dataset.lang;
+                });
+            });
+        }
+        
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        
+        function highlight() {
+            dropArea.style.backgroundColor = 'rgba(109, 134, 254, 0.2)';
+        }
+        
+        function unhighlight() {
+            dropArea.style.backgroundColor = 'rgba(109, 134, 254, 0.05)';
+        }
+        
+        function handleDrop(e) {
+            const dt = e.dataTransfer;
+            const file = dt.files[0];
+            handleFile(file);
+        }
+        
+        function handleFileSelect(e) {
+            const file = e.target.files[0];
+            handleFile(file);
+        }
+        
+        function handleFile(file) {
+            if (!file || !file.type.match('image.*')) return;
+            
+            selectedFile = file;
+            
+            // 显示预览
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                previewBox.innerHTML = `<img src="${e.target.result}" alt="预览">`;
+            };
+            reader.readAsDataURL(file);
+            
+            // 重置结果
+            resultBox.innerHTML = '<div class="result-placeholder">提取的文字将显示在这里</div>';
+            progressBar.style.width = '0%';
+            progressText.textContent = '图片已准备好，点击"提取图片文字"按钮开始';
+        }
+        
+        function extractText() {
+            if (!selectedFile) {
+                alert('请先选择图片');
+                return;
+            }
+            
+            // 禁用按钮
+            extractBtn.disabled = true;
+            extractBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 处理中...';
+            
+            // 重置进度
+            progressBar.style.width = '0%';
+            progressText.textContent = '初始化文字识别引擎...';
+            
+            // 使用 Tesseract.js 进行文字识别
+            Tesseract.recognize(
+                selectedFile,
+                selectedLang,
+                {
+                    logger: progress => updateProgress(progress)
+                }
+            ).then(({ data: { text } }) => {
+                showResult(text);
+                extractBtn.disabled = false;
+                extractBtn.innerHTML = '<i class="fas fa-search"></i> 提取图片文字';
+            }).catch(err => {
+                console.error(err);
+                progressText.textContent = '发生错误: ' + err.message;
+                extractBtn.disabled = false;
+                extractBtn.innerHTML = '<i class="fas fa-search"></i> 提取图片文字';
+            });
+        }
+        
+        function updateProgress(progress) {
+            if (progress.status === 'recognizing text') {
+                const p = Math.round(progress.progress * 100);
+                progressBar.style.width = `${p}%`;
+                
+                if (p < 20) {
+                    progressText.textContent = '加载识别引擎...';
+                } else if (p < 50) {
+                    progressText.textContent = '分析图片内容...';
+                } else if (p < 80) {
+                    progressText.textContent = '识别文字内容...';
+                } else {
+                    progressText.textContent = '处理完成，正在生成结果...';
+                }
+            }
+        }
+        
+        function showResult(text) {
+            resultBox.innerHTML = text || '<div class="result-placeholder">未识别到文字内容</div>';
+            progressText.textContent = '文字识别完成！';
+            progressBar.style.width = '100%';
+        }
+        
+        function copyResult() {
+            if (resultBox.textContent.trim() === '' || 
+                resultBox.textContent.includes('提取的文字将显示在这里') || 
+                resultBox.textContent.includes('未识别到文字内容')) {
+                alert('没有可复制的内容');
+                return;
+            }
+            
+            navigator.clipboard.writeText(resultBox.textContent)
+                .then(() => {
+                    // 显示复制成功反馈
+                    const originalText = copyBtn.innerHTML;
+                    copyBtn.innerHTML = '<i class="fas fa-check"></i> 已复制!';
+                    setTimeout(() => {
+                        copyBtn.innerHTML = originalText;
+                    }, 2000);
+                })
+                .catch(err => {
+                    console.error('复制失败:', err);
+                    alert('复制失败，请手动选择文本复制');
+                });
+        }
+        
+        function clearResult() {
+            resultBox.innerHTML = '<div class="result-placeholder">提取的文字将显示在这里</div>';
+        }
+        
+        // 初始化应用
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>

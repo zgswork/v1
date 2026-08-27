@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>音频可视化器</title>
+  <style>
+    :root {
+      --bg: #f6f7f9;
+      --panel: #ffffff;
+      --text: #111827;
+      --muted: #6b7280;
+      --accent: #4f6dff;
+      --accent-2: #00c2ff;
+      --border: #e5e7eb;
+      --shadow: 0 8px 24px rgba(16, 24, 40, 0.08);
+    }
+    html[data-theme="dark"] {
+      --bg: #0b0f17;
+      --panel: #0f1420;
+      --text: #e5e7eb;
+      --muted: #9aa1b1;
+      --accent: #84a4ff;
+      --accent-2: #3bd1ff;
+      --border: #1f2a37;
+      --shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    .wrap {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 16px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+    .title {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+    }
+    .theme-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: transparent;
+      color: var(--text);
+      cursor: pointer;
+      transition: transform .08s ease;
+    }
+    .theme-toggle:active { transform: scale(0.98); }
+
+    .controls {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+      padding: 16px 20px;
+    }
+    .row {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 12px;
+    }
+    .col-6 { grid-column: span 6; }
+    .col-4 { grid-column: span 4; }
+    .col-3 { grid-column: span 3; }
+    .col-12 { grid-column: span 12; }
+    @media (max-width: 900px) {
+      .col-6, .col-4, .col-3 { grid-column: span 12; }
+    }
+
+    .field {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px;
+      border: 1px dashed var(--border);
+      border-radius: 12px;
+    }
+    .field label { color: var(--muted); font-size: 14px; }
+    .field input[type="file"] {
+      flex: 1;
+      padding: 6px 8px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: transparent;
+      color: var(--text);
+    }
+    select, input[type="range"], button, .btn {
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: transparent;
+      color: var(--text);
+    }
+    .btn-primary {
+      background: linear-gradient(90deg, var(--accent), var(--accent-2));
+      color: white;
+      border: none;
+    }
+    .btn-danger {
+      background: #ef4444;
+      color: white;
+      border: none;
+    }
+    .hint { color: var(--muted); font-size: 13px; }
+
+    .canvas-wrap {
+      position: relative;
+      padding: 16px 20px 20px;
+    }
+    canvas {
+      width: 100%;
+      height: auto;
+      display: block;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: linear-gradient(180deg, rgba(79,109,255,0.08), rgba(0,194,255,0.06));
+    }
+
+    .audio-wrap {
+      padding: 8px 20px 16px;
+      border-top: 1px solid var(--border);
+      display: flex; align-items: center; gap: 12px;
+    }
+    audio { width: 100%; }
+
+    .footer {
+      padding: 12px 20px 18px;
+      border-top: 1px solid var(--border);
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .kbd {
+      display: inline-block;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 2px 6px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 12px;
+      color: var(--muted);
+      background: transparent;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="header">
+        <div class="title">音频可视化器</div>
+        <button id="themeBtn" class="theme-toggle" aria-label="切换主题">
+          <span id="themeIcon">🌞</span>
+          <span id="themeText">浅色</span>
+        </button>
+      </div>
+
+      <div class="controls">
+        <div class="row">
+          <div class="col-6">
+            <div class="field">
+              <label for="fileInput">选择音频文件：</label>
+              <input id="fileInput" type="file" accept="audio/*" />
+            </div>
+          </div>
+          <div class="col-3">
+            <button id="micBtn" class="btn btn-primary" style="width:100%">开启麦克风</button>
+          </div>
+          <div class="col-3">
+            <button id="micStopBtn" class="btn btn-danger" style="width:100%">关闭麦克风</button>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="col-4">
+            <div class="field" style="justify-content: space-between;">
+              <label for="vizType">可视化类型：</label>
+              <select id="vizType">
+                <option value="bars">频谱条</option>
+                <option value="wave">波形线</option>
+              </select>
+            </div>
+          </div>
+          <div class="col-4">
+            <div class="field" style="justify-content: space-between;">
+              <label for="fftSize">FFT大小：</label>
+              <input id="fftSize" type="range" min="32" max="2048" step="32" value="1024" />
+            </div>
+            <div class="hint">越大越细致，但性能消耗更高</div>
+          </div>
+          <div class="col-4">
+            <div class="field" style="justify-content: space-between;">
+              <label for="smooth">平滑系数：</label>
+              <input id="smooth" type="range" min="0" max="0.95" step="0.05" value="0.7" />
+            </div>
+            <div class="hint">降低跳动感，适合背景音乐展示</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="canvas-wrap">
+        <canvas id="canvas" height="360"></canvas>
+      </div>
+
+      <div class="audio-wrap">
+        <audio id="audio" controls preload="metadata"></audio>
+      </div>
+
+      <div class="footer">
+        提示：麦克风需在 <span class="kbd">http://localhost</span> 或安全上下文使用。移动端上可视化会根据屏幕尺寸自适应。
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 主题切换
+    const htmlEl = document.documentElement;
+    const themeBtn = document.getElementById('themeBtn');
+    const themeIcon = document.getElementById('themeIcon');
+    const themeText = document.getElementById('themeText');
+    const themeKey = 'audioviz-theme';
+    function applyTheme(theme) {
+      htmlEl.setAttribute('data-theme', theme);
+      const isDark = theme === 'dark';
+      themeIcon.textContent = isDark ? '🌙' : '🌞';
+      themeText.textContent = isDark ? '深色' : '浅色';
+      localStorage.setItem(themeKey, theme);
+    }
+    (function initTheme(){
+      const saved = localStorage.getItem(themeKey);
+      applyTheme(saved === 'dark' ? 'dark' : 'light');
+    })();
+    themeBtn.addEventListener('click', () => {
+      applyTheme(htmlEl.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+    });
+
+    // Web Audio
+    const audioEl = document.getElementById('audio');
+    const fileInput = document.getElementById('fileInput');
+    const micBtn = document.getElementById('micBtn');
+    const micStopBtn = document.getElementById('micStopBtn');
+    const canvas = document.getElementById('canvas');
+    const vizTypeEl = document.getElementById('vizType');
+    const fftSizeEl = document.getElementById('fftSize');
+    const smoothEl = document.getElementById('smooth');
+
+    const dpr = Math.max(1, Math.floor(window.devicePixelRatio || 1));
+    const ctx = canvas.getContext('2d');
+
+    let audioCtx;
+    let analyser;
+    let elementSource = null;
+    let streamSource = null;
+    let micStream = null;
+    let rafId = null;
+
+    function ensureAudioCtx() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 1024;
+        analyser.smoothingTimeConstant = 0.7;
+      }
+      if (audioCtx.state === 'suspended') {
+        return audioCtx.resume();
+      }
+      return Promise.resolve();
+    }
+
+    function resizeCanvas() {
+      const rect = canvas.getBoundingClientRect();
+      const idealHeight = rect.width < 600 ? 240 : 360;
+      canvas.width = Math.floor(rect.width * dpr);
+      canvas.height = Math.floor(idealHeight * dpr);
+    }
+    window.addEventListener('resize', () => {
+      resizeCanvas();
+    });
+    resizeCanvas();
+
+    function clearCanvas() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    function gradientStroke() {
+      const g = ctx.createLinearGradient(0, 0, canvas.width, 0);
+      g.addColorStop(0, getComputedStyle(document.documentElement).getPropertyValue('--accent').trim());
+      g.addColorStop(1, getComputedStyle(document.documentElement).getPropertyValue('--accent-2').trim());
+      return g;
+    }
+
+    function disconnectAll() {
+      try { if (elementSource) elementSource.disconnect(); } catch (e) {}
+      try { if (streamSource) streamSource.disconnect(); } catch (e) {}
+      try { if (analyser) analyser.disconnect(); } catch (e) {}
+    }
+
+    function startDraw() {
+      if (rafId) cancelAnimationFrame(rafId);
+      if (!analyser) { clearCanvas(); return; }
+      const type = vizTypeEl.value;
+      const width = canvas.width;
+      const height = canvas.height;
+      const barColor = gradientStroke();
+      const lineColor = gradientStroke();
+
+      const freqBinCount = analyser.frequencyBinCount;
+      const timeBinCount = analyser.fftSize;
+      const freqData = new Uint8Array(freqBinCount);
+      const timeData = new Uint8Array(timeBinCount);
+
+      function draw() {
+        rafId = requestAnimationFrame(draw);
+        ctx.clearRect(0, 0, width, height);
+
+        if (type === 'bars') {
+          analyser.getByteFrequencyData(freqData);
+          const barCount = Math.min(96, freqBinCount);
+          const barW = Math.max(2 * dpr, Math.floor(width / (barCount * 1.25)));
+          const gap = Math.max(1 * dpr, Math.floor(barW * 0.25));
+          let x = 10 * dpr;
+          for (let i = 0; i < barCount; i++) {
+            const v = freqData[i];
+            const h = Math.max(4 * dpr, Math.floor((v / 255) * (height - 20 * dpr)));
+            ctx.fillStyle = barColor;
+            ctx.fillRect(x, height - h - 10 * dpr, barW, h);
+            x += barW + gap;
+            if (x > width - 10 * dpr) break;
+          }
+        } else {
+          analyser.getByteTimeDomainData(timeData);
+          ctx.lineWidth = 2 * dpr;
+          ctx.strokeStyle = lineColor;
+          ctx.beginPath();
+          const step = Math.max(1, Math.floor(timeBinCount / (width / (2 * dpr))));
+          for (let i = 0, x = 0; i < timeBinCount; i += step) {
+            const v = timeData[i] / 255.0; // 0..1
+            const y = (0.5 - (v - 0.5)) * (height - 20 * dpr) + 10 * dpr; // center + padding
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+            x += 2 * dpr;
+          }
+          ctx.stroke();
+        }
+      }
+      draw();
+    }
+
+    // 绑定控件
+    fftSizeEl.addEventListener('input', () => {
+      if (!analyser) return;
+      let size = parseInt(fftSizeEl.value, 10);
+      // 限制为2的幂
+      size = Math.max(32, Math.min(2048, size));
+      // 找到最近的2次幂（WebAudio只接受2的幂）
+      const pow2 = 1 << Math.round(Math.log2(size));
+      analyser.fftSize = Math.max(32, Math.min(2048, pow2));
+    });
+    smoothEl.addEventListener('input', () => {
+      if (!analyser) return;
+      analyser.smoothingTimeConstant = Math.max(0, Math.min(0.95, parseFloat(smoothEl.value)));
+    });
+    vizTypeEl.addEventListener('change', () => startDraw());
+
+    // 文件选择
+    fileInput.addEventListener('change', async (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      await ensureAudioCtx();
+
+      const url = URL.createObjectURL(file);
+      audioEl.src = url;
+      audioEl.play().catch(() => {});
+
+      if (!elementSource) {
+        try { elementSource = audioCtx.createMediaElementSource(audioEl); }
+        catch (err) { console.warn(err); }
+      }
+
+      disconnectAll();
+      if (elementSource) {
+        elementSource.connect(analyser);
+        analyser.connect(audioCtx.destination);
+      }
+      startDraw();
+    });
+
+    // 麦克风
+    async function startMic() {
+      if (!('mediaDevices' in navigator) || !navigator.mediaDevices.getUserMedia) {
+        alert('当前环境不支持麦克风采集');
+        return;
+      }
+      if (!window.isSecureContext && !location.hostname.includes('localhost')) {
+        alert('麦克风需要在安全上下文或 localhost 运行');
+        return;
+      }
+
+      await ensureAudioCtx();
+      try {
+        micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        streamSource = audioCtx.createMediaStreamSource(micStream);
+        disconnectAll();
+        streamSource.connect(analyser);
+        // 不连接到destination以避免回声反馈
+        startDraw();
+      } catch (err) {
+        console.error(err);
+        alert('无法开启麦克风：' + err.message);
+      }
+    }
+
+    function stopMic() {
+      if (micStream) {
+        micStream.getTracks().forEach(t => t.stop());
+        micStream = null;
+      }
+      if (streamSource) {
+        try { streamSource.disconnect(); } catch (e) {}
+        streamSource = null;
+      }
+      // 若仍有音频元素在播放，恢复其连接
+      if (elementSource) {
+        try { elementSource.connect(analyser); analyser.connect(audioCtx.destination); } catch(e){}
+      }
+    }
+
+    micBtn.addEventListener('click', startMic);
+    micStopBtn.addEventListener('click', stopMic);
+
+    // 初次绘制空画布
+    startDraw();
+  </script>
+</body>
+</html>

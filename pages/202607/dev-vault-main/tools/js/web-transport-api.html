@@ -1,0 +1,1176 @@
+<!DOCTYPE html>
+<html tk="title_webtransport_api_playgrou" lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WebTransport API Playground</title>
+<meta name="description" content="Interactive playground for the WebTransport API. Explore HTTP/3 QUIC connections, datagrams, streams, and compare with WebSocket.">
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --surface: #141414;
+    --surface-2: #1e1e1e;
+    --surface-3: #282828;
+    --border: #333;
+    --text: #e0e0e0;
+    --text-dim: #888;
+    --accent: #4fc3f7;
+    --accent-dim: #29698a;
+    --green: #66bb6a;
+    --red: #ef5350;
+    --yellow: #ffd54f;
+    --orange: #ffa726;
+    --purple: #ab47bc;
+    --cyan: #26c6da;
+    --radius: 8px;
+    --font-mono: 'SF Mono', 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 1.5rem 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+
+  header h1 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .api-badge {
+    font-size: 0.7rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: 99px;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+  .badge-supported { background: var(--green); color: #000; }
+  .badge-unsupported { background: var(--red); color: #fff; }
+
+  .main-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    padding: 1.5rem 2rem;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  @media (max-width: 900px) {
+    .main-grid { grid-template-columns: 1fr; }
+    header { padding: 1rem; }
+    .main-grid { padding: 1rem; }
+  }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  .panel-header {
+    background: var(--surface-2);
+    padding: 0.75rem 1rem;
+    font-weight: 600;
+    font-size: 0.9rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .panel-body { padding: 1rem; }
+  .full-width { grid-column: 1 / -1; }
+
+  button {
+    background: var(--accent);
+    color: #000;
+    border: none;
+    border-radius: var(--radius);
+    padding: 0.5rem 1rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s;
+    font-family: var(--font-sans);
+  }
+  button:hover { opacity: 0.85; }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .btn-secondary { background: var(--surface-3); color: var(--text); border: 1px solid var(--border); }
+  .btn-danger { background: var(--red); color: #fff; }
+  .btn-success { background: var(--green); color: #000; }
+  .btn-small { padding: 0.3rem 0.6rem; font-size: 0.75rem; }
+  .btn-row { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+
+  input {
+    background: var(--surface-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.5rem 0.75rem;
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    outline: none;
+    width: 100%;
+  }
+  input:focus { border-color: var(--accent); }
+
+  .form-group {
+    margin-bottom: 1rem;
+  }
+  .form-group label {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    margin-bottom: 0.3rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .info-box {
+    background: var(--surface-3);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 var(--radius) var(--radius) 0;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+    font-size: 0.85rem;
+  }
+
+  .code-block {
+    background: #000;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.75rem;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    overflow-x: auto;
+    white-space: pre;
+    color: var(--text);
+    line-height: 1.5;
+  }
+
+  /* Connection visualization */
+  .conn-viz {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    padding: 2rem 1rem;
+    flex-wrap: wrap;
+  }
+
+  .conn-node {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border: 3px solid var(--border);
+    background: var(--surface-3);
+    transition: all 0.5s;
+  }
+
+  .conn-node.active {
+    border-color: var(--green);
+    box-shadow: 0 0 20px rgba(102, 187, 106, 0.3);
+  }
+
+  .conn-node-label {
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    margin-top: 0.3rem;
+  }
+
+  .conn-pipe {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.2rem;
+    min-width: 120px;
+  }
+
+  .conn-pipe-line {
+    height: 3px;
+    width: 100%;
+    background: var(--border);
+    border-radius: 2px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .conn-pipe-line.active {
+    background: var(--accent-dim);
+  }
+
+  .conn-pipe-line.active::after {
+    content: '';
+    position: absolute;
+    height: 100%;
+    width: 30px;
+    background: var(--accent);
+    border-radius: 2px;
+    animation: flow 1.5s infinite;
+  }
+
+  @keyframes flow {
+    0% { left: -30px; }
+    100% { left: 100%; }
+  }
+
+  .conn-pipe-label {
+    font-size: 0.65rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+  }
+
+  /* State machine */
+  .state-machine {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 1rem 0;
+    flex-wrap: wrap;
+  }
+
+  .state-node {
+    padding: 0.5rem 0.8rem;
+    border-radius: var(--radius);
+    font-size: 0.75rem;
+    font-weight: 600;
+    border: 2px solid var(--border);
+    color: var(--text-dim);
+    transition: all 0.3s;
+  }
+
+  .state-node.active {
+    border-color: var(--accent);
+    color: var(--accent);
+    box-shadow: 0 0 12px rgba(79, 195, 247, 0.3);
+  }
+
+  .state-arrow { color: var(--text-dim); font-size: 1rem; }
+
+  /* Comparison table */
+  .compare-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+  }
+
+  .compare-table th {
+    text-align: left;
+    padding: 0.6rem;
+    border-bottom: 2px solid var(--border);
+    color: var(--text-dim);
+    font-size: 0.7rem;
+    text-transform: uppercase;
+  }
+
+  .compare-table td {
+    padding: 0.6rem;
+    border-bottom: 1px solid var(--surface-3);
+  }
+
+  .compare-table tr:hover td {
+    background: var(--surface-3);
+  }
+
+  .compare-highlight { color: var(--green); font-weight: 600; }
+  .compare-neutral { color: var(--text-dim); }
+  .compare-negative { color: var(--red); }
+
+  /* Latency bars */
+  .latency-chart {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 1rem 0;
+  }
+
+  .latency-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .latency-label {
+    min-width: 120px;
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+
+  .latency-bar-bg {
+    flex: 1;
+    height: 24px;
+    background: var(--surface-3);
+    border-radius: var(--radius);
+    overflow: hidden;
+    position: relative;
+  }
+
+  .latency-bar {
+    height: 100%;
+    border-radius: var(--radius);
+    display: flex;
+    align-items: center;
+    padding-left: 0.5rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #000;
+    transition: width 1s ease-out;
+  }
+
+  /* Stream cards */
+  .stream-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+
+  @media (max-width: 600px) {
+    .stream-grid { grid-template-columns: 1fr; }
+  }
+
+  .stream-card {
+    background: var(--surface-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem;
+  }
+
+  .stream-title {
+    font-weight: 600;
+    font-size: 0.85rem;
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .stream-type {
+    font-size: 0.65rem;
+    padding: 0.15rem 0.4rem;
+    border-radius: 99px;
+    font-weight: 600;
+  }
+  .type-datagram { background: var(--orange); color: #000; }
+  .type-uni { background: var(--purple); color: #fff; }
+  .type-bidi { background: var(--cyan); color: #000; }
+
+  .stream-desc {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    margin-bottom: 0.75rem;
+  }
+
+  .stream-flow {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+  }
+
+  .flow-box {
+    padding: 0.3rem 0.5rem;
+    background: var(--surface-2);
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+  }
+
+  .flow-arrow { color: var(--accent); }
+
+  /* Protocol advantages */
+  .advantage-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 0.75rem;
+  }
+
+  .advantage-card {
+    background: var(--surface-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem;
+  }
+
+  .advantage-title {
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: var(--accent);
+    margin-bottom: 0.3rem;
+  }
+
+  .advantage-desc {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+  }
+
+  /* Error patterns */
+  .error-pattern {
+    background: var(--surface-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.75rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .error-name {
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: var(--red);
+    margin-bottom: 0.3rem;
+  }
+
+  .error-desc {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    margin-bottom: 0.5rem;
+  }
+
+  .tab-bar { display: flex; border-bottom: 1px solid var(--border); }
+  .tab-btn {
+    background: transparent;
+    color: var(--text-dim);
+    border: none;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    padding: 0.5rem 1rem;
+    font-size: 0.8rem;
+    cursor: pointer;
+  }
+  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  .sim-log {
+    background: #000;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.75rem;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    height: 200px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+  }
+
+  .log-info { color: var(--accent); }
+  .log-send { color: var(--green); }
+  .log-recv { color: var(--yellow); }
+  .log-err { color: var(--red); }
+</style>
+</head>
+<body>
+
+
+
+<header>
+  <h1>
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+    WebTransport API Playground
+  </h1>
+  <span class="api-badge" id="supportBadge">Checking...</span>
+</header>
+
+<div class="main-grid">
+
+  <!-- Connection Setup -->
+  <div class="panel">
+    <div class="panel-header">
+      <span>Connection Setup</span>
+      <span id="connStatus" style="font-size:0.75rem;color:var(--text-dim)">Disconnected</span>
+    </div>
+    <div class="panel-body">
+      <div class="info-box">
+        WebTransport uses HTTP/3 over QUIC for low-latency, multiplexed communication.
+        This playground simulates the API behavior for exploration.
+      </div>
+
+      <div class="form-group">
+        <label ti="label_server_url">Server URL</label>
+        <input type="text" id="serverUrl" value="https://example.com:4433/wt" tp="placeholder_https_server_port_path" placeholder="https://server:port/path">
+      </div>
+
+      <div class="form-group">
+        <label ti="label_certificate_fingerprint_o">Certificate Fingerprint (optional)</label>
+        <input type="text" id="certFingerprint" tp="placeholder_sha_256_hash_e_g_7e_f0_20" placeholder="SHA-256 hash (e.g., 7E:F0:20:...)">
+      </div>
+
+      <div class="btn-row" style="margin-bottom:1rem">
+        <button id="connectBtn" onclick="simConnect()" ti="btn_connect">Connect</button>
+        <button id="disconnectBtn" class="btn-danger" onclick="simDisconnect()" disabled ti="btn_disconnect">Disconnect</button>
+      </div>
+
+      <!-- Connection visualization -->
+      <div class="conn-viz">
+        <div class="conn-node" id="clientNode">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          <span class="conn-node-label" ti="label_client">Client</span>
+        </div>
+        <div class="conn-pipe">
+          <div class="conn-pipe-label">HTTP/3 QUIC</div>
+          <div class="conn-pipe-line" id="connPipe1"></div>
+          <div class="conn-pipe-line" id="connPipe2"></div>
+          <div class="conn-pipe-label">0-RTT</div>
+        </div>
+        <div class="conn-node" id="serverNode">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+          <span class="conn-node-label" ti="label_server">Server</span>
+        </div>
+      </div>
+
+      <!-- State Machine -->
+      <div style="font-size:0.8rem;color:var(--text-dim);margin-bottom:0.5rem;text-align:center">Connection State</div>
+      <div class="state-machine">
+        <div class="state-node active" id="stNew">New</div>
+        <span class="state-arrow">&rarr;</span>
+        <div class="state-node" id="stConnecting">Connecting</div>
+        <span class="state-arrow">&rarr;</span>
+        <div class="state-node" id="stConnected">Connected</div>
+        <span class="state-arrow">&rarr;</span>
+        <div class="state-node" id="stClosed">Closed</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Simulation Log -->
+  <div class="panel">
+    <div class="panel-header">
+      <span>Activity Log</span>
+      <button class="btn-small btn-secondary" onclick="clearLog()" ti="btn_clear">Clear</button>
+    </div>
+    <div class="panel-body">
+      <div class="sim-log" id="simLog">
+        <span class="log-info">[info] WebTransport Playground initialized (simulation mode)</span>
+      </div>
+
+      <div style="margin-top:0.75rem">
+        <div class="form-group">
+          <label ti="label_send_datagram">Send Datagram</label>
+          <div style="display:flex;gap:0.5rem">
+            <input type="text" id="datagramInput" tp="placeholder_enter_message" placeholder="Enter message...">
+            <button onclick="simSendDatagram()" id="sendDgBtn" disabled ti="btn_send">Send</button>
+          </div>
+        </div>
+
+        <div class="btn-row">
+          <button class="btn-small btn-secondary" onclick="simOpenUniStream()" id="uniBtn" disabled ti="btn_open_uni_stream">Open Uni Stream</button>
+          <button class="btn-small btn-secondary" onclick="simOpenBidiStream()" id="bidiBtn" disabled ti="btn_open_bidi_stream">Open Bidi Stream</button>
+          <button class="btn-small btn-secondary" onclick="simSendOnStream()" id="streamSendBtn" disabled ti="btn_send_on_stream">Send on Stream</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Datagrams vs Streams -->
+  <div class="panel full-width">
+    <div class="panel-header">
+      <span>Datagrams vs Streams</span>
+    </div>
+    <div class="panel-body">
+      <div class="stream-grid">
+        <div class="stream-card">
+          <div class="stream-title">
+            <span class="stream-type type-datagram">Datagram</span>
+            Unreliable Datagrams
+          </div>
+          <div class="stream-desc">Fire-and-forget messages. No delivery guarantee, no ordering. Best for real-time data where latest value matters most.</div>
+          <div class="stream-flow">
+            <span class="flow-box">Client</span>
+            <span class="flow-arrow">&harr;</span>
+            <span class="flow-box">Server</span>
+          </div>
+          <div style="margin-top:0.75rem">
+            <div class="code-block">// Send datagram
+const writer = transport.datagrams.writable.getWriter();
+await writer.write(new Uint8Array([1, 2, 3]));
+
+// Receive datagrams
+const reader = transport.datagrams.readable.getReader();
+const { value } = await reader.read();</div>
+          </div>
+          <div style="margin-top:0.5rem;font-size:0.75rem;color:var(--text-dim)">
+            Use for: game state, telemetry, live cursor position, audio/video frames
+          </div>
+        </div>
+
+        <div class="stream-card">
+          <div class="stream-title">
+            <span class="stream-type type-uni">Unidirectional</span>
+            One-Way Streams
+          </div>
+          <div class="stream-desc">Reliable, ordered delivery in one direction. Good for sending files, logs, or events.</div>
+          <div class="stream-flow">
+            <span class="flow-box">Sender</span>
+            <span class="flow-arrow">&rarr;</span>
+            <span class="flow-box">Receiver</span>
+          </div>
+          <div style="margin-top:0.75rem">
+            <div class="code-block">// Client opens unidirectional stream
+const stream = await transport.createUnidirectionalStream();
+const writer = stream.getWriter();
+await writer.write(data);
+await writer.close();
+
+// Server receives
+const reader = transport.incomingUnidirectionalStreams.getReader();
+const { value: stream } = await reader.read();</div>
+          </div>
+          <div style="margin-top:0.5rem;font-size:0.75rem;color:var(--text-dim)">
+            Use for: file uploads, event streams, log shipping
+          </div>
+        </div>
+
+        <div class="stream-card">
+          <div class="stream-title">
+            <span class="stream-type type-bidi">Bidirectional</span>
+            Two-Way Streams
+          </div>
+          <div class="stream-desc">Reliable, ordered delivery in both directions. Like a TCP connection but multiplexed without head-of-line blocking.</div>
+          <div class="stream-flow">
+            <span class="flow-box">Client</span>
+            <span class="flow-arrow">&harr;</span>
+            <span class="flow-box">Server</span>
+          </div>
+          <div style="margin-top:0.75rem">
+            <div class="code-block">// Open bidirectional stream
+const stream = await transport.createBidirectionalStream();
+
+// Write to server
+const writer = stream.writable.getWriter();
+await writer.write(request);
+
+// Read response
+const reader = stream.readable.getReader();
+const { value } = await reader.read();</div>
+          </div>
+          <div style="margin-top:0.5rem;font-size:0.75rem;color:var(--text-dim)">
+            Use for: request/response, RPC, interactive protocols
+          </div>
+        </div>
+
+        <div class="stream-card">
+          <div class="stream-title">
+            Multiplexing Advantage
+          </div>
+          <div class="stream-desc">Multiple independent streams share one connection. A slow stream does not block others (no head-of-line blocking at transport layer).</div>
+          <div style="display:flex;flex-direction:column;gap:0.5rem;margin-top:0.75rem">
+            <div style="display:flex;align-items:center;gap:0.5rem">
+              <div style="width:60%;height:6px;background:var(--green);border-radius:3px"></div>
+              <span style="font-size:0.7rem;color:var(--text-dim)">Stream 1 (fast)</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:0.5rem">
+              <div style="width:30%;height:6px;background:var(--yellow);border-radius:3px"></div>
+              <span style="font-size:0.7rem;color:var(--text-dim)">Stream 2 (slow)</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:0.5rem">
+              <div style="width:80%;height:6px;background:var(--accent);border-radius:3px"></div>
+              <span style="font-size:0.7rem;color:var(--text-dim)">Stream 3 (fast)</span>
+            </div>
+            <div style="font-size:0.7rem;color:var(--text-dim);margin-top:0.3rem">
+              Stream 2 being slow does not affect Streams 1 and 3
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Latency Comparison -->
+  <div class="panel">
+    <div class="panel-header">
+      <span>Latency Comparison</span>
+    </div>
+    <div class="panel-body">
+      <div class="info-box">
+        Typical round-trip times for different protocols. WebTransport uses QUIC's 0-RTT
+        connection establishment, avoiding TCP's 3-way handshake + TLS overhead.
+      </div>
+
+      <div class="latency-chart">
+        <div class="latency-row">
+          <div class="latency-label" style="color:var(--accent)">WebTransport</div>
+          <div class="latency-bar-bg">
+            <div class="latency-bar" style="width:20%;background:var(--accent)">0-1 RTT</div>
+          </div>
+        </div>
+        <div class="latency-row">
+          <div class="latency-label" style="color:var(--green)">WebSocket</div>
+          <div class="latency-bar-bg">
+            <div class="latency-bar" style="width:50%;background:var(--green)">2-3 RTT</div>
+          </div>
+        </div>
+        <div class="latency-row">
+          <div class="latency-label" style="color:var(--yellow)">HTTP/2 SSE</div>
+          <div class="latency-bar-bg">
+            <div class="latency-bar" style="width:55%;background:var(--yellow)">2-3 RTT</div>
+          </div>
+        </div>
+        <div class="latency-row">
+          <div class="latency-label" style="color:var(--orange)">HTTP/1.1 Poll</div>
+          <div class="latency-bar-bg">
+            <div class="latency-bar" style="width:85%;background:var(--orange)">3-4 RTT + interval</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="font-size:0.75rem;color:var(--text-dim);margin-top:0.5rem">
+        Connection establishment overhead. WebTransport with 0-RTT can send data immediately on reconnection.
+      </div>
+    </div>
+  </div>
+
+  <!-- Comparison Table -->
+  <div class="panel">
+    <div class="panel-header">
+      <span>Protocol Comparison</span>
+    </div>
+    <div class="panel-body" style="overflow-x:auto">
+      <table class="compare-table">
+        <thead>
+          <tr><th ti="th_feature">Feature</th><th ti="th_webtransport">WebTransport</th><th ti="th_websocket">WebSocket</th><th ti="th_http_2">HTTP/2</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Transport</td>
+            <td class="compare-highlight">QUIC (UDP)</td>
+            <td class="compare-neutral">TCP</td>
+            <td class="compare-neutral">TCP</td>
+          </tr>
+          <tr>
+            <td>Multiplexing</td>
+            <td class="compare-highlight">Yes (no HOL)</td>
+            <td class="compare-negative">No</td>
+            <td class="compare-neutral">Yes (with HOL)</td>
+          </tr>
+          <tr>
+            <td>Unreliable delivery</td>
+            <td class="compare-highlight">Datagrams</td>
+            <td class="compare-negative">No</td>
+            <td class="compare-negative">No</td>
+          </tr>
+          <tr>
+            <td>Connection setup</td>
+            <td class="compare-highlight">0-1 RTT</td>
+            <td class="compare-neutral">2-3 RTT</td>
+            <td class="compare-neutral">2-3 RTT</td>
+          </tr>
+          <tr>
+            <td>Bidirectional</td>
+            <td class="compare-highlight">Yes</td>
+            <td class="compare-highlight">Yes</td>
+            <td class="compare-neutral">Server push only</td>
+          </tr>
+          <tr>
+            <td>Multiple streams</td>
+            <td class="compare-highlight">Unlimited</td>
+            <td class="compare-negative">1 per connection</td>
+            <td class="compare-neutral">~100 concurrent</td>
+          </tr>
+          <tr>
+            <td>Head-of-line blocking</td>
+            <td class="compare-highlight">None</td>
+            <td class="compare-negative">Yes</td>
+            <td class="compare-negative">Yes (TCP level)</td>
+          </tr>
+          <tr>
+            <td>Connection migration</td>
+            <td class="compare-highlight">Yes</td>
+            <td class="compare-negative">No</td>
+            <td class="compare-negative">No</td>
+          </tr>
+          <tr>
+            <td>Browser support</td>
+            <td class="compare-neutral">Chrome 97+</td>
+            <td class="compare-highlight">All browsers</td>
+            <td class="compare-highlight">All browsers</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Protocol Advantages -->
+  <div class="panel full-width">
+    <div class="panel-header">
+      <span>Why WebTransport?</span>
+    </div>
+    <div class="panel-body">
+      <div class="advantage-grid">
+        <div class="advantage-card">
+          <div class="advantage-title">0-RTT Connection</div>
+          <div class="advantage-desc">QUIC enables sending data with the first packet on reconnection. No 3-way handshake needed.</div>
+        </div>
+        <div class="advantage-card">
+          <div class="advantage-title">No Head-of-Line Blocking</div>
+          <div class="advantage-desc">Lost packets on one stream don't block other streams. Each stream is independent at the transport layer.</div>
+        </div>
+        <div class="advantage-card">
+          <div class="advantage-title">Unreliable Datagrams</div>
+          <div class="advantage-desc">Send fire-and-forget messages for real-time data where latest value matters more than every value.</div>
+        </div>
+        <div class="advantage-card">
+          <div class="advantage-title">Connection Migration</div>
+          <div class="advantage-desc">QUIC connections survive IP changes (WiFi to cellular). Uses connection IDs instead of IP:port tuples.</div>
+        </div>
+        <div class="advantage-card">
+          <div class="advantage-title">Built-in Encryption</div>
+          <div class="advantage-desc">TLS 1.3 is mandatory in QUIC. All data is encrypted. No unencrypted fallback possible.</div>
+        </div>
+        <div class="advantage-card">
+          <div class="advantage-title">Stream Multiplexing</div>
+          <div class="advantage-desc">Open thousands of independent streams over a single connection. Each with its own flow control.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Error Handling & Certificate -->
+  <div class="panel full-width">
+    <div class="panel-header">
+      <span>Error Handling & Configuration</span>
+    </div>
+    <div class="tab-bar">
+      <button class="tab-btn active" onclick="showTab('tabErrors',this)" ti="btn_error_patterns">Error Patterns</button>
+      <button class="tab-btn" onclick="showTab('tabCert',this)" ti="btn_certificate_fingerprint">Certificate Fingerprint</button>
+      <button class="tab-btn" onclick="showTab('tabApi',this)" ti="btn_full_api">Full API</button>
+    </div>
+    <div class="panel-body">
+      <div class="tab-content active" id="tabErrors">
+        <div class="error-pattern">
+          <div class="error-name">Connection Failed</div>
+          <div class="error-desc">Server unreachable, certificate mismatch, or HTTP/3 not supported</div>
+          <div class="code-block">try {
+  const transport = new WebTransport(url);
+  await transport.ready;
+} catch (e) {
+  console.error('Connection failed:', e);
+  // Fallback to WebSocket
+}</div>
+        </div>
+
+        <div class="error-pattern">
+          <div class="error-name">Connection Closed</div>
+          <div class="error-desc">Server closed connection or network error</div>
+          <div class="code-block">transport.closed.then(info => {
+  console.log(`Closed: code=${info.closeCode}, reason=${info.reason}`);
+}).catch(err => {
+  console.error('Connection closed with error:', err);
+});</div>
+        </div>
+
+        <div class="error-pattern">
+          <div class="error-name">Stream Error</div>
+          <div class="error-desc">Individual stream can fail without affecting others</div>
+          <div class="code-block">try {
+  const stream = await transport.createBidirectionalStream();
+  // ... use stream
+} catch (e) {
+  // Stream-level error, connection still alive
+  console.error('Stream error:', e);
+}</div>
+        </div>
+      </div>
+
+      <div class="tab-content" id="tabCert">
+        <div class="info-box">
+          During development, you can use self-signed certificates with WebTransport by providing
+          the certificate's SHA-256 fingerprint. The certificate must be valid for no more than 14 days.
+        </div>
+        <div class="code-block">// Connect with certificate fingerprint
+const transport = new WebTransport('https://localhost:4433', {
+  serverCertificateHashes: [{
+    algorithm: 'sha-256',
+    value: hexToArrayBuffer('7E:F0:20:...')
+  }]
+});
+
+// Generate fingerprint from certificate (server-side)
+// openssl x509 -in cert.pem -outform DER | \
+//   openssl dgst -sha256 -binary | \
+//   xxd -p -c 256
+
+// Constraints:
+// - Certificate validity: max 14 days
+// - Must be self-signed or from a private CA
+// - Not applicable to publicly-trusted certificates</div>
+      </div>
+
+      <div class="tab-content" id="tabApi">
+        <div class="code-block">// Create WebTransport connection
+const transport = new WebTransport('https://example.com:4433/wt');
+
+// Wait for connection
+await transport.ready;
+
+// === DATAGRAMS ===
+// Send unreliable datagram
+const dgWriter = transport.datagrams.writable.getWriter();
+await dgWriter.write(new TextEncoder().encode('ping'));
+
+// Receive datagrams
+const dgReader = transport.datagrams.readable.getReader();
+while (true) {
+  const { value, done } = await dgReader.read();
+  if (done) break;
+  console.log('Datagram:', new TextDecoder().decode(value));
+}
+
+// === UNIDIRECTIONAL STREAMS ===
+// Send (client-initiated)
+const uniStream = await transport.createUnidirectionalStream();
+const uniWriter = uniStream.getWriter();
+await uniWriter.write(data);
+await uniWriter.close();
+
+// Receive (server-initiated)
+const uniReader = transport.incomingUnidirectionalStreams.getReader();
+while (true) {
+  const { value: stream, done } = await uniReader.read();
+  if (done) break;
+  // Read from stream.getReader()
+}
+
+// === BIDIRECTIONAL STREAMS ===
+const bidiStream = await transport.createBidirectionalStream();
+const bidiWriter = bidiStream.writable.getWriter();
+const bidiReader = bidiStream.readable.getReader();
+
+await bidiWriter.write(request);
+const { value: response } = await bidiReader.read();
+
+// === CLEANUP ===
+transport.close({ closeCode: 0, reason: 'Done' });</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+
+<script>var _LANG={'title_webtransport_api_playgrou':["WebTransport API Playground", "WebTransport API Playground"],'metadesc_interactive_playground_fo':["Interactive playground for the WebTransport API. Explore HTTP/3 QUIC connections, datagrams, streams, and compare with WebSocket.", "WebTransport API 的交互式演示环境。探索 HTTP/3 QUIC 连接、数据报、数据流，并与 WebSocket 进行比较。"],'btn_connect':["Connect", "连接"],'btn_disconnect':["Disconnect", "断开"],'btn_clear':["Clear", "清除"],'btn_send':["Send", "发送"],'btn_open_uni_stream':["Open Uni Stream", "开放大学流"],'btn_open_bidi_stream':["Open Bidi Stream", "开放比迪流"],'btn_send_on_stream':["Send on Stream", "发送至流媒体"],'btn_error_patterns':["Error Patterns", "错误模式"],'btn_certificate_fingerprint':["Certificate Fingerprint", "证书指纹"],'btn_full_api':["Full API", "完整 API"],'label_client':["Client", "客户"],'label_server':["Server", "服务器"],'placeholder_https_server_port_path':["https://server:port/path", "https://server:port/path"],'placeholder_sha_256_hash_e_g_7e_f0_20':["SHA-256 hash (e.g., 7E:F0:20:...)", "SHA-256 哈希（例如，7E:F0:20:...）"],'placeholder_enter_message':["Enter message...", "请输入留言……"],'th_feature':["Feature", "特征"],'th_webtransport':["WebTransport", "WebTransport"],'th_websocket':["WebSocket", "WebSocket"],'th_http_2':["HTTP/2", "HTTP/2"],'label_server_url':["Server URL", "服务器 URL"],'label_certificate_fingerprint_o':["Certificate Fingerprint (optional)", "证书指纹（可选）"],'label_send_datagram':["Send Datagram", "发送数据报"],'jtc_supported':["Supported", "支持"],'jtc_not_supported':["Not Supported", "不支持。"],'jtc_connected':["Connected", "已连接"],'jtc_disconnected':["Disconnected", "断开连接"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>
+  // State
+  let simConnected = false;
+  let simStreams = { uni: 0, bidi: 0 };
+
+  const isSupported = 'WebTransport' in window;
+
+  function init() {
+    const badge = document.getElementById('supportBadge');
+    if (isSupported) {
+      badge.textContent=T("jtc_supported");
+      badge.className = 'api-badge badge-supported';
+    } else {
+      badge.textContent=T("jtc_not_supported");
+      badge.className = 'api-badge badge-unsupported';
+    }
+  }
+
+  // Simulation functions
+  function simConnect() {
+    const url = document.getElementById('serverUrl').value;
+    if (!url) return;
+
+    log('info', `Connecting to ${url}...`);
+    setState('stConnecting');
+    document.getElementById('connectBtn').disabled = true;
+
+    setTimeout(() => {
+      log('info', 'QUIC handshake initiated (0-RTT)');
+    }, 200);
+
+    setTimeout(() => {
+      log('info', 'TLS 1.3 negotiation complete');
+    }, 500);
+
+    setTimeout(() => {
+      simConnected = true;
+      setState('stConnected');
+      document.getElementById('disconnectBtn').disabled = false;
+      document.getElementById('sendDgBtn').disabled = false;
+      document.getElementById('uniBtn').disabled = false;
+      document.getElementById('bidiBtn').disabled = false;
+      document.getElementById('streamSendBtn').disabled = false;
+      document.getElementById('connStatus').textContent=T("jtc_connected");
+      document.getElementById('connStatus').style.color = 'var(--green)';
+
+      // Activate visual
+      document.getElementById('clientNode').classList.add('active');
+      document.getElementById('serverNode').classList.add('active');
+      document.getElementById('connPipe1').classList.add('active');
+      document.getElementById('connPipe2').classList.add('active');
+
+      log('info', `Connected to ${url}`);
+      log('info', 'transport.ready resolved');
+
+      const fp = document.getElementById('certFingerprint').value;
+      if (fp) {
+        log('info', `Certificate fingerprint verified: ${fp.substring(0, 20)}...`);
+      }
+    }, 800);
+  }
+
+  function simDisconnect() {
+    log('info', 'Closing connection (code: 0, reason: "user initiated")');
+    simConnected = false;
+    simStreams = { uni: 0, bidi: 0 };
+    setState('stClosed');
+    document.getElementById('connectBtn').disabled = false;
+    document.getElementById('disconnectBtn').disabled = true;
+    document.getElementById('sendDgBtn').disabled = true;
+    document.getElementById('uniBtn').disabled = true;
+    document.getElementById('bidiBtn').disabled = true;
+    document.getElementById('streamSendBtn').disabled = true;
+    document.getElementById('connStatus').textContent=T("jtc_disconnected");
+    document.getElementById('connStatus').style.color = 'var(--text-dim)';
+
+    document.getElementById('clientNode').classList.remove('active');
+    document.getElementById('serverNode').classList.remove('active');
+    document.getElementById('connPipe1').classList.remove('active');
+    document.getElementById('connPipe2').classList.remove('active');
+
+    log('info', 'transport.closed resolved');
+  }
+
+  function simSendDatagram() {
+    if (!simConnected) return;
+    const msg = document.getElementById('datagramInput').value;
+    if (!msg) return;
+
+    const bytes = new TextEncoder().encode(msg);
+    log('send', `[datagram] ${msg} (${bytes.length} bytes, unreliable)`);
+    document.getElementById('datagramInput').value = '';
+
+    // Simulate response
+    setTimeout(() => {
+      log('recv', `[datagram] echo: ${msg}`);
+    }, 50 + Math.random() * 100);
+  }
+
+  function simOpenUniStream() {
+    if (!simConnected) return;
+    simStreams.uni++;
+    const id = simStreams.uni;
+    log('info', `Opened unidirectional stream #${id}`);
+    log('send', `[uni-stream #${id}] Stream ready for writing`);
+  }
+
+  function simOpenBidiStream() {
+    if (!simConnected) return;
+    simStreams.bidi++;
+    const id = simStreams.bidi;
+    log('info', `Opened bidirectional stream #${id}`);
+    log('send', `[bidi-stream #${id}] Stream ready for read/write`);
+
+    setTimeout(() => {
+      log('recv', `[bidi-stream #${id}] Server acknowledged stream`);
+    }, 100);
+  }
+
+  function simSendOnStream() {
+    if (!simConnected) return;
+    const totalStreams = simStreams.uni + simStreams.bidi;
+    if (totalStreams === 0) {
+      log('err', 'No streams open. Open a stream first.');
+      return;
+    }
+
+    const streamType = simStreams.bidi > 0 ? 'bidi' : 'uni';
+    const streamId = streamType === 'bidi' ? simStreams.bidi : simStreams.uni;
+    const data = `Hello from stream #${streamId}`;
+
+    log('send', `[${streamType}-stream #${streamId}] ${data}`);
+
+    if (streamType === 'bidi') {
+      setTimeout(() => {
+        log('recv', `[${streamType}-stream #${streamId}] echo: ${data}`);
+      }, 80);
+    }
+  }
+
+  // State machine
+  function setState(activeId) {
+    ['stNew', 'stConnecting', 'stConnected', 'stClosed'].forEach(id => {
+      document.getElementById(id).classList.toggle('active', id === activeId);
+    });
+  }
+
+  // Log
+  function log(type, msg) {
+    const el = document.getElementById('simLog');
+    const ts = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const typeMap = { info: 'log-info', send: 'log-send', recv: 'log-recv', err: 'log-err' };
+    const prefix = { info: 'info', send: 'send', recv: 'recv', err: 'err' };
+    el.innerHTML += `\n<span class="${typeMap[type]}">[${prefix[type]}] ${ts} ${msg}</span>`;
+    el.scrollTop = el.scrollHeight;
+  }
+
+  function clearLog() {
+    document.getElementById('simLog').innerHTML = '<span class="log-info">[info] Log cleared</span>';
+  }
+
+  // Tabs
+  function showTab(tabId, btn) {
+    btn.closest('.panel').querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    btn.closest('.panel').querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById(tabId).classList.add('active');
+    btn.classList.add('active');
+  }
+
+  init();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+</body>
+</html>

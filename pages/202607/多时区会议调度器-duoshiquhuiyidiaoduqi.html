@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>多时区会议调度器</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(45deg, #ff6b6b, #4ecdc4, #45b7d1, #96ceb4, #feca57, #ff9ff3, #54a0ff);
+            background-size: 400% 400%;
+            animation: gradientShift 15s ease infinite;
+            min-height: 100vh;
+            padding: 20px;
+            overflow-x: hidden;
+        }
+        
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+            overflow: hidden;
+            border: 2px solid rgba(255,255,255,0.2);
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .header h1 {
+            font-size: 3em;
+            margin-bottom: 15px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            position: relative;
+            z-index: 1;
+            animation: pulse 2s ease-in-out infinite alternate;
+        }
+        
+        @keyframes pulse {
+            from { text-shadow: 2px 2px 4px rgba(0,0,0,0.3), 0 0 20px rgba(255,255,255,0.5); }
+            to { text-shadow: 2px 2px 4px rgba(0,0,0,0.3), 0 0 30px rgba(255,255,255,0.8); }
+        }
+        
+        .content {
+            padding: 40px;
+        }
+        
+        .section {
+            margin-bottom: 40px;
+            padding: 30px;
+            background: linear-gradient(135deg, rgba(255,255,255,0.9) 0%, rgba(248,249,250,0.9) 100%);
+            border-radius: 15px;
+            border: 2px solid transparent;
+            background-clip: padding-box;
+            position: relative;
+            transition: all 0.3s ease;
+        }
+        
+        .section::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: -1;
+            margin: -2px;
+            border-radius: 15px;
+            background: linear-gradient(45deg, #ff6b6b, #4ecdc4, #45b7d1, #96ceb4, #feca57);
+            background-size: 300% 300%;
+            animation: borderGradient 8s ease infinite;
+        }
+        
+        @keyframes borderGradient {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        
+        .section:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 30px rgba(0,0,0,0.2);
+        }
+        
+        .section h2 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 1.8em;
+            text-align: center;
+            background: linear-gradient(45deg, #667eea, #764ba2, #f093fb);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-weight: bold;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #555;
+            font-size: 1.1em;
+        }
+        
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 15px;
+            border: 3px solid transparent;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            background: linear-gradient(white, white) padding-box,
+                        linear-gradient(45deg, #ff6b6b, #4ecdc4, #45b7d1) border-box;
+            outline: none;
+        }
+        
+        .form-group input:focus, .form-group select:focus {
+            transform: scale(1.02);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            background: linear-gradient(white, white) padding-box,
+                        linear-gradient(45deg, #f093fb, #f5576c) border-box;
+        }
+        
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 50px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        
+        .btn:hover {
+            transform: translateY(-3px) scale(1.05);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+        }
+        
+        .btn:active {
+            transform: translateY(-1px) scale(1.02);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        
+        .participant-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+            background: linear-gradient(135deg, rgba(255,255,255,0.9) 0%, rgba(248,249,250,0.9) 100%);
+            margin-bottom: 15px;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            border: 2px solid transparent;
+            background-clip: padding-box;
+            position: relative;
+            transition: all 0.3s ease;
+        }
+        
+        .participant-item::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: -1;
+            margin: -2px;
+            border-radius: 15px;
+            background: linear-gradient(45deg, #4ecdc4, #45b7d1, #96ceb4);
+        }
+        
+        .participant-item:hover {
+            transform: translateX(5px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+        }
+        
+        .btn-remove {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+        }
+        
+        .btn-remove:hover {
+            transform: scale(1.1);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+        
+        .time-slot {
+            background: linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,249,250,0.95) 100%);
+            padding: 25px;
+            margin-bottom: 20px;
+            border-radius: 15px;
+            border: 3px solid transparent;
+            background-clip: padding-box;
+            position: relative;
+            transition: all 0.3s ease;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+        }
+        
+        .time-slot::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: -1;
+            margin: -3px;
+            border-radius: 15px;
+            background: linear-gradient(45deg, #2ed573, #1e90ff, #9c88ff);
+        }
+        
+        .time-slot:hover {
+            transform: translateY(-5px) scale(1.02);
+            box-shadow: 0 15px 30px rgba(0,0,0,0.2);
+        }
+        
+        .time-slot-header {
+            font-weight: bold;
+            color: #2ed573;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+            text-align: center;
+            background: linear-gradient(45deg, #2ed573, #1e90ff, #9c88ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .meeting-settings {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 25px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>多时区会议调度器</h1>
+            <p>轻松安排跨时区会议，找到最适合所有人的时间</p>
+        </div>
+        
+        <div class="content">
+            <div class="section">
+                <h2>添加参与方</h2>
+                <div class="form-group">
+                    <label for="participantName">参与方姓名</label>
+                    <input type="text" id="participantName" placeholder="请输入姓名">
+                </div>
+                <div class="form-group">
+                    <label for="timezone">时区</label>
+                    <select id="timezone">
+                        <option value="Asia/Shanghai">北京时间 (UTC+8)</option>
+                        <option value="Asia/Tokyo">东京时间 (UTC+9)</option>
+                        <option value="Asia/Seoul">首尔时间 (UTC+9)</option>
+                        <option value="Asia/Singapore">新加坡时间 (UTC+8)</option>
+                        <option value="Asia/Dubai">迪拜时间 (UTC+4)</option>
+                        <option value="Europe/London">伦敦时间 (UTC+0)</option>
+                        <option value="Europe/Paris">巴黎时间 (UTC+1)</option>
+                        <option value="Europe/Berlin">柏林时间 (UTC+1)</option>
+                        <option value="America/New_York">纽约时间 (UTC-5)</option>
+                        <option value="America/Los_Angeles">洛杉矶时间 (UTC-8)</option>
+                        <option value="America/Chicago">芝加哥时间 (UTC-6)</option>
+                        <option value="America/Toronto">多伦多时间 (UTC-5)</option>
+                        <option value="Australia/Sydney">悉尼时间 (UTC+11)</option>
+                        <option value="Pacific/Auckland">奥克兰时间 (UTC+13)</option>
+                    </select>
+                </div>
+                <button class="btn" onclick="addParticipant()">添加参与方</button>
+                
+                <div id="participantsList"></div>
+            </div>
+            
+            <div class="section">
+                <h2>会议设置</h2>
+                <div class="meeting-settings">
+                    <div class="form-group">
+                        <label for="meetingDate">会议日期</label>
+                        <input type="date" id="meetingDate">
+                    </div>
+                    <div class="form-group">
+                        <label for="duration">会议时长（分钟）</label>
+                        <input type="number" id="duration" value="60" min="15" max="480">
+                    </div>
+                    <div class="form-group">
+                        <label for="startTime">开始时间范围（起始）</label>
+                        <input type="time" id="startTime" value="09:00">
+                    </div>
+                    <div class="form-group">
+                        <label for="endTime">结束时间范围（截止）</label>
+                        <input type="time" id="endTime" value="18:00">
+                    </div>
+                </div>
+                <div style="margin-top: 20px;">
+                    <button class="btn" onclick="findMeetingTimes()">查找合适的会议时间</button>
+                </div>
+            </div>
+            
+            <div class="section">
+                <h2>推荐会议时间</h2>
+                <div id="timeSlots">
+                    <div style="text-align: center; color: #666; font-style: italic; padding: 30px;">请先添加参与方并设置会议参数，然后点击查找合适的会议时间</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let participants = [];
+        
+        // 设置默认日期为今天
+        document.getElementById('meetingDate').valueAsDate = new Date();
+        
+        function addParticipant() {
+            const name = document.getElementById('participantName').value.trim();
+            const timezone = document.getElementById('timezone').value;
+            
+            if (!name) {
+                alert('请输入参与方姓名');
+                return;
+            }
+            
+            if (participants.some(p => p.name === name)) {
+                alert('该参与方已存在');
+                return;
+            }
+            
+            const participant = {
+                id: Date.now(),
+                name: name,
+                timezone: timezone
+            };
+            
+            participants.push(participant);
+            updateParticipantsList();
+            
+            // 清空输入框
+            document.getElementById('participantName').value = '';
+            
+            alert('参与方添加成功！');
+        }
+        
+        function removeParticipant(id) {
+            participants = participants.filter(p => p.id !== id);
+            updateParticipantsList();
+            alert('参与方已移除');
+        }
+        
+        function updateParticipantsList() {
+            const list = document.getElementById('participantsList');
+            
+            if (participants.length === 0) {
+                list.innerHTML = '<div style="text-align: center; color: #666; font-style: italic;">暂无参与方</div>';
+                return;
+            }
+            
+            list.innerHTML = participants.map(participant => {
+                const timezoneName = document.querySelector(`#timezone option[value="${participant.timezone}"]`).textContent;
+                return `
+                    <div class="participant-item">
+                        <div class="participant-info">
+                            <div class="participant-name">${participant.name}</div>
+                            <div class="participant-timezone">${timezoneName}</div>
+                        </div>
+                        <button class="btn-remove" onclick="removeParticipant(${participant.id})">移除</button>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        function findMeetingTimes() {
+            if (participants.length === 0) {
+                alert('请先添加参与方');
+                return;
+            }
+            
+            const meetingDate = document.getElementById('meetingDate').value;
+            const duration = parseInt(document.getElementById('duration').value);
+            const startTime = document.getElementById('startTime').value;
+            const endTime = document.getElementById('endTime').value;
+            
+            if (!meetingDate) {
+                alert('请选择会议日期');
+                return;
+            }
+            
+            const timeSlots = generateTimeSlots(meetingDate, startTime, endTime, duration);
+            displayTimeSlots(timeSlots);
+            
+            if (timeSlots.length > 0) {
+                alert(`找到 ${timeSlots.length} 个合适的会议时间`);
+            } else {
+                alert('未找到合适的会议时间');
+            }
+        }
+        
+        function generateTimeSlots(date, startTime, endTime, duration) {
+            const slots = [];
+            const [startHour, startMinute] = startTime.split(':').map(Number);
+            const [endHour, endMinute] = endTime.split(':').map(Number);
+            
+            const startTotalMinutes = startHour * 60 + startMinute;
+            const endTotalMinutes = endHour * 60 + endMinute;
+            
+            // 生成30分钟间隔的时间槽
+            for (let time = startTotalMinutes; time + duration <= endTotalMinutes; time += 30) {
+                const slot = {
+                    startTime: formatTime(time),
+                    endTime: formatTime(time + duration),
+                    participantTimes: []
+                };
+                
+                // 计算每个参与方的当地时间
+                participants.forEach(participant => {
+                    const localTime = convertTimeZone(date, time, participant.timezone);
+                    const localEndTime = convertTimeZone(date, time + duration, participant.timezone);
+                    
+                    slot.participantTimes.push({
+                        name: participant.name,
+                        timezone: participant.timezone,
+                        localTime: localTime,
+                        localEndTime: localEndTime
+                    });
+                });
+                
+                slots.push(slot);
+            }
+            
+            return slots;
+        }
+        
+        function formatTime(totalMinutes) {
+            const hours = Math.floor(totalMinutes / 60);
+            const minutes = totalMinutes % 60;
+            return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+        }
+        
+        function convertTimeZone(date, totalMinutes, targetTimezone) {
+            // 创建基准时间（北京时间 UTC+8）
+            const baseDate = new Date(date);
+            const baseHours = Math.floor(totalMinutes / 60);
+            const baseMinutes = totalMinutes % 60;
+            
+            baseDate.setHours(baseHours, baseMinutes, 0, 0);
+            
+            // 转换为目标时区时间
+            const options = {
+                timeZone: targetTimezone,
+                hour12: false,
+                hour: '2-digit',
+                minute: '2-digit'
+            };
+            
+            return baseDate.toLocaleTimeString('zh-CN', options);
+        }
+        
+        function displayTimeSlots(slots) {
+            const container = document.getElementById('timeSlots');
+            
+            if (slots.length === 0) {
+                container.innerHTML = '<div style="text-align: center; color: #666; font-style: italic; padding: 30px;">在指定的时间范围内没有找到合适的会议时间</div>';
+                return;
+            }
+            
+            container.innerHTML = slots.map((slot, index) => {
+                const participantTimesHtml = slot.participantTimes.map(pt => {
+                    const timezoneName = document.querySelector(`#timezone option[value="${pt.timezone}"]`).textContent;
+                    return `
+                        <div style="padding: 10px; background: rgba(255,255,255,0.8); border-radius: 8px; margin: 5px 0;">
+                            <strong>${pt.name}:</strong> ${pt.localTime} - ${pt.localEndTime} (${timezoneName})
+                        </div>
+                    `;
+                }).join('');
+                
+                return `
+                    <div class="time-slot">
+                        <div class="time-slot-header">
+                            ✨ 推荐时间 ${index + 1}: ${slot.startTime} - ${slot.endTime} (北京时间)
+                        </div>
+                        <div>
+                            ${participantTimesHtml}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        // 初始化显示
+        updateParticipantsList();
+    </script>
+</body>
+</html>

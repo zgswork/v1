@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html tk="title_js_memory_leak_patterns_i" lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JS Memory Leak Patterns — Interactive Heap Visualizer</title>
+<meta name="description" content="Interactive JavaScript memory leak pattern visualizer. See closure leaks, detached DOM, forgotten timers, and event listener leaks with simulated heap graphs.">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0a0a;color:#e6e6e6;min-height:100vh}
+.container{max-width:1000px;margin:0 auto;padding:20px 16px}
+h1{text-align:center;font-size:1.5rem;color:#fff;margin-bottom:4px}
+.subtitle{text-align:center;color:#888;font-size:0.85rem;margin-bottom:20px}
+.tabs{display:flex;gap:6px;margin-bottom:16px;border-bottom:1px solid #222;padding-bottom:8px}
+.tab{padding:8px 16px;border-radius:8px 8px 0 0;border:1px solid transparent;background:transparent;color:#888;cursor:pointer;font-size:0.85rem;font-weight:600}
+.tab.active{background:#1a1a2e;color:#4da6ff;border-color:#333}
+.tab:hover:not(.active){color:#ccc}
+.panel{display:none}.panel.active{display:block}
+
+.presets{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
+.preset{padding:5px 12px;border-radius:16px;border:1px solid #333;background:#161616;color:#888;font-size:0.72rem;cursor:pointer}
+.preset:hover{background:#1c1c1c;color:#ccc}
+.preset.active{background:#1a2744;color:#4da6ff;border-color:#2a4a7a}
+
+.btn{padding:8px 16px;border-radius:8px;border:none;font-weight:600;cursor:pointer;font-size:0.82rem}
+.btn-primary{background:#3b82f6;color:#fff}.btn-primary:hover{background:#2563eb}
+.btn-secondary{background:#333;color:#ccc}.btn-secondary:hover{background:#444}
+.btn-danger{background:#ef4444;color:#fff}.btn-danger:hover{background:#dc2626}
+.btn-sm{padding:5px 10px;font-size:0.72rem}
+
+.layout{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:700px){.layout{grid-template-columns:1fr}}
+
+/* Code panel */
+.code-panel{background:#111;border:1px solid #222;border-radius:10px;padding:14px}
+.code-panel h3{font-size:0.85rem;color:#4da6ff;margin-bottom:6px}
+.code-block{background:#0d0d1a;border:1px solid #222;border-radius:6px;padding:10px;font-family:'Cascadia Code',Consolas,monospace;font-size:0.72rem;color:#93c5fd;line-height:1.5;overflow-x:auto;white-space:pre;margin-bottom:8px}
+.code-block .leak{color:#ef4444;font-weight:600}
+.code-block .fix{color:#10b981;font-weight:600}
+.code-block .comment{color:#555}
+
+/* Heap graph */
+.heap-panel{background:#0d0d1a;border:1px solid #222;border-radius:10px;padding:14px}
+.heap-panel h3{font-size:0.85rem;color:#fff;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center}
+canvas{width:100%;border-radius:6px;background:#0a0a14}
+.heap-stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.stat{background:#111;border:1px solid #222;border-radius:6px;padding:8px}
+.stat-label{font-size:0.65rem;color:#888;text-transform:uppercase}
+.stat-value{font-size:1.1rem;font-weight:700;color:#fff;font-family:'Cascadia Code',Consolas,monospace}
+.stat-value.danger{color:#ef4444}
+.stat-value.ok{color:#10b981}
+
+/* Object list */
+.obj-list{margin-top:12px}
+.obj-item{display:flex;justify-content:space-between;align-items:center;padding:6px 8px;border-bottom:1px solid #1a1a1a;font-size:0.72rem}
+.obj-item .name{color:#93c5fd;font-family:'Cascadia Code',Consolas,monospace}
+.obj-item .size{color:#888}
+.obj-item .status{font-weight:600}
+.obj-item .leaked{color:#ef4444}
+.obj-item .freed{color:#10b981}
+.obj-item .retained{color:#f59e0b}
+
+/* Explanation */
+.explanation{background:#0d1a2e;border:1px solid #1a2744;border-radius:8px;padding:12px;margin-top:12px;font-size:0.75rem;color:#93c5fd;line-height:1.5}
+.explanation strong{color:#fff}
+.explanation .danger{color:#ef4444}
+.explanation .safe{color:#10b981}
+
+/* Controls */
+.controls{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center}
+.toggle-row{display:flex;align-items:center;gap:8px}
+.toggle{width:36px;height:20px;border-radius:10px;background:#333;position:relative;cursor:pointer;transition:background 0.2s;flex-shrink:0}
+.toggle.on{background:#10b981}
+.toggle::after{content:'';position:absolute;width:16px;height:16px;border-radius:50%;background:#fff;top:2px;left:2px;transition:left 0.2s}
+.toggle.on::after{left:18px}
+
+/* Reference */
+.ref-section{margin-bottom:20px}
+.ref-section h3{color:#4da6ff;font-size:0.95rem;margin-bottom:8px}
+.ref-section p,.ref-section li{color:#aaa;font-size:0.82rem;line-height:1.6}
+.ref-section ul{padding-left:20px}
+.code{font-family:'Cascadia Code',Consolas,monospace;background:#1a1a2e;padding:2px 6px;border-radius:3px;color:#93c5fd;font-size:0.78rem}
+.badge{display:inline-block;padding:1px 6px;border-radius:3px;font-size:0.68rem;font-weight:600}
+.badge-red{background:#2e0d0d;color:#ef4444}
+.badge-green{background:#0d2e1f;color:#10b981}
+</style>
+</head>
+<body>
+
+
+<div class="container" style="position:relative">
+<h1 ti="h1_js_memory_leak_patterns">JS Memory Leak Patterns</h1>
+<p class="subtitle" ti="subtitle_see_common_memory_leaks_a">See common memory leaks and their fixes with simulated heap visualization</p>
+
+<div class="tabs">
+<button class="tab active" onclick="showTab('visualizer')" ti="btn_visualizer">Visualizer</button>
+<button class="tab" onclick="showTab('reference')" ti="btn_reference">Reference</button>
+</div>
+
+<div id="tab-visualizer" class="panel active">
+<div class="presets" id="presets"></div>
+<div class="controls">
+<button class="btn btn-primary btn-sm" id="btn-run" onclick="toggleSim()" ti="btn_simulate">▶ Simulate</button>
+<button class="btn btn-secondary btn-sm" onclick="triggerGC()" ti="btn_force_gc">🗑 Force GC</button>
+<div class="toggle-row">
+<div class="toggle" id="fix-toggle" onclick="toggleFix()"></div>
+<span style="font-size:0.75rem;color:#888">Apply Fix</span>
+</div>
+</div>
+<div class="layout">
+<div class="code-panel">
+<h3 id="code-title" ti="h3_leaky_code">Leaky Code</h3>
+<div class="code-block" id="code-block"></div>
+<div class="obj-list" id="obj-list"></div>
+</div>
+<div class="heap-panel">
+<h3>Heap Usage <span id="heap-indicator" style="font-size:0.7rem"></span></h3>
+<canvas id="heap-canvas" height="200"></canvas>
+<div class="heap-stats">
+<div class="stat"><div class="stat-label">Heap Used</div><div class="stat-value" id="stat-used">0 KB</div></div>
+<div class="stat"><div class="stat-label">Objects</div><div class="stat-value" id="stat-objects">0</div></div>
+<div class="stat"><div class="stat-label">Leaked</div><div class="stat-value" id="stat-leaked">0</div></div>
+<div class="stat"><div class="stat-label">GC Runs</div><div class="stat-value" id="stat-gc">0</div></div>
+</div>
+</div>
+</div>
+<div class="explanation" id="explanation"></div>
+</div>
+
+<div id="tab-reference" class="panel">
+<div class="ref-section">
+<h3 ti="h3_common_memory_leak_patter">Common Memory Leak Patterns</h3>
+<ul>
+<li><strong ti="strong_closure_leak">Closure Leak</strong> — Inner function retains reference to outer scope variables, preventing GC even after the outer function returns</li>
+<li><strong ti="strong_detached_dom">Detached DOM</strong> — DOM nodes removed from the tree but still referenced in JavaScript variables</li>
+<li><strong ti="strong_forgotten_timer">Forgotten Timer</strong> — setInterval/setTimeout callbacks hold references that prevent GC</li>
+<li><strong ti="strong_event_listener_leak">Event Listener Leak</strong> — Listeners not removed when elements are destroyed, keeping both callback and element alive</li>
+<li><strong ti="strong_global_variable">Global Variable</strong> — Accidental globals (missing var/let/const) persist for the page lifetime</li>
+<li><strong ti="strong_circular_references">Circular References</strong> — Objects referencing each other, though modern GC handles this (historical issue with IE)</li>
+</ul>
+</div>
+<div class="ref-section">
+<h3 ti="h3_detection_tools">Detection Tools</h3>
+<ul>
+<li><strong ti="strong_chrome_devtools_memory">Chrome DevTools → Memory</strong> — Heap snapshots, allocation timeline, allocation profiler</li>
+<li><strong ti="strong_heap_snapshot_comparison">Heap Snapshot Comparison</strong> — Take snapshot → perform action → take snapshot → compare (look for growing delta)</li>
+<li><strong ti="strong_performance_monitor">Performance Monitor</strong> — Chrome DevTools → More tools → Performance monitor → watch "JS Heap size"</li>
+<li><strong ti="strong_performance_measureuserag">performance.measureUserAgentSpecificMemory()</strong> — Programmatic heap measurement (cross-origin isolated only)</li>
+</ul>
+</div>
+<div class="ref-section">
+<h3 ti="h3_prevention_checklist">Prevention Checklist</h3>
+<ul>
+<li>Always <span class="code">clearInterval()</span> / <span class="code">clearTimeout()</span> when done</li>
+<li>Remove event listeners with <span class="code">removeEventListener()</span> or use <span class="code">{once: true}</span></li>
+<li>Use <span class="code">WeakRef</span> / <span class="code">WeakMap</span> for caches that shouldn't prevent GC</li>
+<li>Set references to <span class="code">null</span> when no longer needed</li>
+<li>Use <span class="code">AbortController</span> to clean up fetch requests and event listeners together</li>
+<li>In SPAs: clean up in component destroy/unmount lifecycle hooks</li>
+</ul>
+</div>
+</div>
+</div>
+
+
+<script>var _LANG={'title_js_memory_leak_patterns_i':["JS Memory Leak Patterns — Interactive Heap Visualizer", "JS 内存泄漏模式 — 交互式堆可视化工具"],'metadesc_interactive_javascript_me':["Interactive JavaScript memory leak pattern visualizer. See closure leaks, detached DOM, forgotten timers, and event listener leaks with simulated heap graphs.", "交互式 JavaScript 内存泄漏模式可视化工具。通过模拟堆图查看闭包泄漏、分离的 DOM、遗忘的定时器和事件监听器泄漏。"],'h1_js_memory_leak_patterns':["JS Memory Leak Patterns", "JS内存泄漏模式"],'h3_leaky_code':["Leaky Code", "泄漏代码"],'h3_common_memory_leak_patter':["Common Memory Leak Patterns", "常见的内存泄漏模式"],'h3_detection_tools':["Detection Tools", "检测工具"],'h3_prevention_checklist':["Prevention Checklist", "预防清单"],'subtitle_see_common_memory_leaks_a':["See common memory leaks and their fixes with simulated heap visualization", "通过模拟堆可视化查看常见的内存泄漏及其修复方法"],'btn_visualizer':["Visualizer", "可视化工具"],'btn_reference':["Reference", "参考"],'btn_simulate':["▶ Simulate", "▶ 模拟"],'btn_force_gc':["🗑 Force GC", "🗑 强制 GC"],'btn_g_slice_0_80_p_name':["]+>/g,'').slice(0,80)}\">${p.name}", "]+&gt;/g,&#39;&#39;).slice(0,80)}&quot;&gt;${p.name}"],'strong_closure_leak':["Closure Leak", "封堵泄漏"],'strong_detached_dom':["Detached DOM", "分离的DOM"],'strong_forgotten_timer':["Forgotten Timer", "被遗忘的计时器"],'strong_event_listener_leak':["Event Listener Leak", "事件监听器泄漏"],'strong_global_variable':["Global Variable", "全局变量"],'strong_circular_references':["Circular References", "循环引用"],'strong_chrome_devtools_memory':["Chrome DevTools → Memory", "Chrome 开发者工具 → 内存"],'strong_heap_snapshot_comparison':["Heap Snapshot Comparison", "堆快照比较"],'strong_performance_monitor':["Performance Monitor", "性能监视器"],'strong_performance_measureuserag':["performance.measureUserAgentSpecificMemory()", "performance.measureUserAgentSpecificMemory()"],'strong_why_it_leaks':["Why it leaks:", "泄漏原因："],'strong_fix':["Fix:", "使固定："],'strong_why_it_leaks_2':["Why it leaks:", "泄漏原因："],'strong_fix_2':["Fix:", "使固定："],'strong_why_it_leaks_3':["Why it leaks:", "泄漏原因："],'strong_fix_3':["Fix:", "使固定："],'strong_why_it_leaks_4':["Why it leaks:", "泄漏原因："],'strong_fix_4':["Fix:", "使固定："],'strong_why_it_leaks_5':["Why it leaks:", "泄漏原因："],'strong_fix_5':["Fix:", "使固定："],'jtc_pause':["⏸ Pause", "⏸ 暂停"],'jtc_simulate':["▶ Simulate", "▶ 模拟"],'jtc_growing':["📈 Growing", "📈 成长中"],'jtc_shrinking':["📉 Shrinking", "📉 缩小"],'jtc_stable':["→ Stable", "→ 稳定"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>
+const PATTERNS = [
+  {name:'Closure Leak',
+   leakCode:`<span class="comment">// Closure retains large data</span>
+function createHandler() {
+  <span class="leak">const hugeData = new Array(10000).fill('x');</span>
+  return function onClick() {
+    console.log(hugeData.length); <span class="comment">// ← retains hugeData</span>
+  };
+}
+
+<span class="leak">const handlers = [];</span>
+setInterval(() => {
+  <span class="leak">handlers.push(createHandler());</span> <span class="comment">// grows forever</span>
+}, 100);`,
+   fixCode:`<span class="comment">// Fix: only capture what you need</span>
+function createHandler() {
+  const hugeData = new Array(10000).fill('x');
+  <span class="fix">const len = hugeData.length;</span> <span class="comment">// extract needed value</span>
+  return function onClick() {
+    console.log(len); <span class="comment">// ← hugeData can be GC'd</span>
+  };
+}
+
+const handlers = [];
+setInterval(() => {
+  handlers.push(createHandler());
+  <span class="fix">if (handlers.length > 10) handlers.shift();</span>
+}, 100);`,
+   leakRate:80, fixRate:5, objType:'Closure+Array',
+   explain:`<strong ti="strong_why_it_leaks" ti="strong_why_it_leaks_2" ti="strong_why_it_leaks_3" ti="strong_why_it_leaks_4" ti="strong_why_it_leaks_5">Why it leaks:</strong> Each closure captures the entire <span class="danger">hugeData</span> array even though only <code>.length</code> is used. The handlers array grows without bound.\n<strong ti="strong_fix" ti="strong_fix_2" ti="strong_fix_3" ti="strong_fix_4" ti="strong_fix_5">Fix:</strong> Extract only the needed value before creating the closure. Limit array growth.`},
+
+  {name:'Detached DOM',
+   leakCode:`<span class="comment">// DOM nodes removed but still referenced</span>
+<span class="leak">const detachedNodes = [];</span>
+
+function replaceContent() {
+  const old = document.getElementById('content');
+  <span class="leak">detachedNodes.push(old);</span> <span class="comment">// ← prevents GC!</span>
+  const newEl = document.createElement('div');
+  newEl.id = 'content';
+  old.parentNode.replaceChild(newEl, old);
+}
+
+setInterval(replaceContent, 200);`,
+   fixCode:`<span class="comment">// Fix: don't keep references to removed DOM</span>
+function replaceContent() {
+  const old = document.getElementById('content');
+  const newEl = document.createElement('div');
+  newEl.id = 'content';
+  old.parentNode.replaceChild(newEl, old);
+  <span class="fix">// old goes out of scope → GC can collect</span>
+}
+
+setInterval(replaceContent, 200);`,
+   leakRate:60, fixRate:2, objType:'DOM Node',
+   explain:`<strong>Why it leaks:</strong> Removed DOM nodes are stored in <span class="danger">detachedNodes</span> array. Each node retains its children, event listeners, and associated data.\n<strong>Fix:</strong> Let removed nodes go out of scope. Use Chrome DevTools "Detached elements" filter to find these.`},
+
+  {name:'Forgotten Timer',
+   leakCode:`<span class="comment">// Timer keeps running after component is gone</span>
+class Component {
+  constructor() {
+    this.data = new Array(5000).fill('data');
+    <span class="leak">this.timer = setInterval(() => {</span>
+      this.update();
+    <span class="leak">}, 100);</span>
+  }
+  update() { /* uses this.data */ }
+  <span class="comment">// No destroy() method!</span>
+}
+
+<span class="leak">let comp = new Component();</span>
+<span class="comment">// comp = null; // This WON'T free memory!</span>
+<span class="comment">// Timer callback still references 'this'</span>`,
+   fixCode:`<span class="comment">// Fix: clear timer on destroy</span>
+class Component {
+  constructor() {
+    this.data = new Array(5000).fill('data');
+    this.timer = setInterval(() => {
+      this.update();
+    }, 100);
+  }
+  update() { /* uses this.data */ }
+  <span class="fix">destroy() {</span>
+    <span class="fix">clearInterval(this.timer);</span>
+    <span class="fix">this.data = null;</span>
+  <span class="fix">}</span>
+}
+
+let comp = new Component();
+<span class="fix">comp.destroy();</span>
+comp = null; <span class="comment">// Now memory can be freed</span>`,
+   leakRate:50, fixRate:0, objType:'Component',
+   explain:`<strong>Why it leaks:</strong> <span class="danger">setInterval</span> holds a reference to the callback, which holds <code>this</code> (the component). Even setting <code>comp = null</code> won't help — the timer keeps the component alive.\n<strong>Fix:</strong> Always <code>clearInterval()</code> before discarding a component.`},
+
+  {name:'Event Listener Leak',
+   leakCode:`<span class="comment">// Listeners accumulate without cleanup</span>
+function setupPage() {
+  const data = new Array(10000).fill('x');
+
+  <span class="leak">window.addEventListener('resize', () => {</span>
+    console.log(data.length); <span class="comment">// retains data</span>
+  <span class="leak">});</span>
+}
+
+<span class="comment">// Called on every "page navigation" in SPA</span>
+<span class="leak">setupPage(); // listener #1</span>
+<span class="leak">setupPage(); // listener #2 (duplicate!)</span>
+<span class="leak">setupPage(); // listener #3 ...</span>`,
+   fixCode:`<span class="comment">// Fix: use AbortController for cleanup</span>
+let controller = null;
+
+function setupPage() {
+  <span class="fix">controller?.abort(); // clean previous</span>
+  <span class="fix">controller = new AbortController();</span>
+  const data = new Array(10000).fill('x');
+
+  window.addEventListener('resize', () => {
+    console.log(data.length);
+  }, <span class="fix">{ signal: controller.signal }</span>);
+}
+
+setupPage(); <span class="comment">// only one listener active</span>
+setupPage(); <span class="comment">// previous auto-removed</span>`,
+   leakRate:70, fixRate:3, objType:'EventListener',
+   explain:`<strong>Why it leaks:</strong> Each <span class="danger">addEventListener</span> call adds a new listener. Anonymous functions can't be removed with <code>removeEventListener</code>. Each retains its closure (including <code>data</code>).\n<strong>Fix:</strong> Use <code>AbortController</code> to remove all listeners at once, or use named functions with <code>removeEventListener</code>.`},
+
+  {name:'Global Accumulator',
+   leakCode:`<span class="comment">// Accidental global grows without limit</span>
+function processData(items) {
+  <span class="leak">results = []; // Missing 'const' → global!</span>
+  items.forEach(item => {
+    results.push(transform(item));
+  });
+  <span class="leak">// window.results persists forever</span>
+}
+
+<span class="comment">// Cache that never evicts</span>
+<span class="leak">const cache = {};</span>
+function fetchData(key) {
+  if (!cache[key]) {
+    <span class="leak">cache[key] = heavyComputation(key);</span>
+  }
+  return cache[key];
+}`,
+   fixCode:`<span class="comment">// Fix: proper scoping + bounded cache</span>
+function processData(items) {
+  <span class="fix">const results = [];</span> <span class="comment">// block-scoped</span>
+  items.forEach(item => {
+    results.push(transform(item));
+  });
+  return results;
+}
+
+<span class="comment">// Use WeakMap or LRU cache</span>
+<span class="fix">const cache = new Map();</span>
+<span class="fix">const MAX_CACHE = 100;</span>
+function fetchData(key) {
+  if (!cache.has(key)) {
+    cache.set(key, heavyComputation(key));
+    <span class="fix">if (cache.size > MAX_CACHE) {</span>
+      <span class="fix">cache.delete(cache.keys().next().value);</span>
+    <span class="fix">}</span>
+  }
+  return cache.get(key);
+}`,
+   leakRate:40, fixRate:2, objType:'Cache Entry',
+   explain:`<strong>Why it leaks:</strong> Missing <code>const/let</code> creates <span class="danger">implicit globals</span> that persist forever. Unbounded caches grow without limit.\n<strong>Fix:</strong> Use strict mode (<code>'use strict'</code>), always declare variables, bound your caches with LRU or WeakMap.`},
+];
+
+let currentPreset = 0;
+let simRunning = false;
+let simTimer = null;
+let fixApplied = false;
+let heapHistory = [];
+let heapUsed = 0;
+let objCount = 0;
+let leakedCount = 0;
+let gcCount = 0;
+let tick = 0;
+let objects = [];
+
+function showTab(id) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + id).classList.add('active');
+  document.querySelector(`.tab[onclick="showTab('${id}')"]`).classList.add('active');
+}
+
+function renderPresets() {
+  document.getElementById('presets').innerHTML = PATTERNS.map((p, i) =>
+    `<button class="preset ${i === currentPreset ? 'active' : ''}" onclick="loadPreset(${i})" title="${p.explain.replace(/<[^ ti="btn_g_slice_0_80_p_name">]+>/g,'').slice(0,80)}">${p.name}</button>`
+  ).join('');
+}
+
+function loadPreset(i) {
+  currentPreset = i;
+  stopSim();
+  fixApplied = false;
+  document.getElementById('fix-toggle').classList.remove('on');
+  renderPresets();
+  renderCode();
+  resetHeap();
+}
+
+function renderCode() {
+  const p = PATTERNS[currentPreset];
+  document.getElementById('code-title').textContent = fixApplied ? '✅ Fixed Code' : '❌ Leaky Code';
+  document.getElementById('code-block').innerHTML = fixApplied ? p.fixCode : p.leakCode;
+  document.getElementById('explanation').innerHTML = p.explain.replace(/\n/g, '<br>');
+}
+
+function resetHeap() {
+  heapHistory = [];
+  heapUsed = 0;
+  objCount = 0;
+  leakedCount = 0;
+  gcCount = 0;
+  tick = 0;
+  objects = [];
+  updateStats();
+  drawHeap();
+  document.getElementById('obj-list').innerHTML = '';
+}
+
+function toggleFix() {
+  fixApplied = !fixApplied;
+  document.getElementById('fix-toggle').classList.toggle('on');
+  renderCode();
+  if (simRunning) { stopSim(); resetHeap(); toggleSim(); }
+  else resetHeap();
+}
+
+function toggleSim() {
+  if (simRunning) { stopSim(); return; }
+  simRunning = true;
+  document.getElementById('btn-run').textContent=T("jtc_pause");
+  simTimer = setInterval(simTick, 100);
+}
+
+function stopSim() {
+  simRunning = false;
+  clearInterval(simTimer);
+  document.getElementById('btn-run').textContent=T("jtc_simulate");
+}
+
+function simTick() {
+  tick++;
+  const p = PATTERNS[currentPreset];
+  const rate = fixApplied ? p.fixRate : p.leakRate;
+
+  // Add objects
+  const newSize = rate + Math.random() * rate * 0.5;
+  heapUsed += newSize;
+  objCount++;
+  const leaked = !fixApplied;
+  if (leaked) leakedCount++;
+  objects.push({type: p.objType, size: newSize, leaked, tick, freed: false});
+
+  // GC simulation (every 20 ticks)
+  if (tick % 20 === 0) {
+    gcCount++;
+    let freed = 0;
+    objects = objects.filter(o => {
+      if (!o.leaked && !o.freed && Math.random() > 0.3) {
+        heapUsed -= o.size;
+        freed++;
+        return false;
+      }
+      return true;
+    });
+    if (freed > 0) heapUsed = Math.max(0, heapUsed);
+  }
+
+  heapHistory.push(heapUsed);
+  if (heapHistory.length > 200) heapHistory.shift();
+
+  updateStats();
+  drawHeap();
+  updateObjList();
+}
+
+function triggerGC() {
+  gcCount++;
+  let freed = 0;
+  objects = objects.filter(o => {
+    if (!o.leaked) {
+      heapUsed -= o.size;
+      freed++;
+      return false;
+    }
+    return true;
+  });
+  heapUsed = Math.max(0, heapUsed);
+  heapHistory.push(heapUsed);
+  if (heapHistory.length > 200) heapHistory.shift();
+  updateStats();
+  drawHeap();
+  updateObjList();
+}
+
+function updateStats() {
+  const usedKB = (heapUsed / 1024).toFixed(1);
+  document.getElementById('stat-used').textContent = usedKB + ' KB';
+  document.getElementById('stat-used').className = 'stat-value ' + (heapUsed > 5000 ? 'danger' : 'ok');
+  document.getElementById('stat-objects').textContent = objects.length;
+  document.getElementById('stat-leaked').textContent = objects.filter(o => o.leaked).length;
+  document.getElementById('stat-leaked').className = 'stat-value ' + (leakedCount > 0 ? 'danger' : 'ok');
+  document.getElementById('stat-gc').textContent = gcCount;
+
+  const indicator = document.getElementById('heap-indicator');
+  if (heapHistory.length > 10) {
+    const recent = heapHistory.slice(-10);
+    const trend = recent[recent.length-1] - recent[0];
+    if (trend > 100) { indicator.textContent=T("jtc_growing"); indicator.style.color = '#ef4444'; }
+    else if (trend < -50) { indicator.textContent=T("jtc_shrinking"); indicator.style.color = '#10b981'; }
+    else { indicator.textContent=T("jtc_stable"); indicator.style.color = '#888'; }
+  }
+}
+
+function drawHeap() {
+  const canvas = document.getElementById('heap-canvas');
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width = canvas.offsetWidth;
+  const h = canvas.height = 200;
+
+  ctx.clearRect(0, 0, w, h);
+
+  if (heapHistory.length < 2) return;
+
+  const maxVal = Math.max(...heapHistory, 100);
+  const step = w / 200;
+
+  // Fill area
+  ctx.beginPath();
+  ctx.moveTo(0, h);
+  heapHistory.forEach((v, i) => {
+    ctx.lineTo(i * step, h - (v / maxVal) * (h - 20));
+  });
+  ctx.lineTo((heapHistory.length - 1) * step, h);
+  ctx.closePath();
+  const grad = ctx.createLinearGradient(0, 0, 0, h);
+  const isLeaking = !fixApplied;
+  grad.addColorStop(0, isLeaking ? 'rgba(239,68,68,0.3)' : 'rgba(16,185,129,0.3)');
+  grad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // Line
+  ctx.beginPath();
+  heapHistory.forEach((v, i) => {
+    const x = i * step, y = h - (v / maxVal) * (h - 20);
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.strokeStyle = isLeaking ? '#ef4444' : '#10b981';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // GC markers
+  ctx.fillStyle = '#888';
+  ctx.font = '9px sans-serif';
+  ctx.fillText(`Max: ${(maxVal/1024).toFixed(1)} KB`, 4, 12);
+}
+
+function updateObjList() {
+  const list = document.getElementById('obj-list');
+  const recent = objects.slice(-8).reverse();
+  list.innerHTML = recent.map(o => `
+    <div class="obj-item">
+      <span class="name">${o.type} #${o.tick}</span>
+      <span class="size">${o.size.toFixed(0)}B</span>
+      <span class="status ${o.leaked ? 'leaked' : o.freed ? 'freed' : 'retained'}">${o.leaked ? '⚠ Leaked' : o.freed ? '✓ Freed' : '● Alive'}</span>
+    </div>
+  `).join('');
+}
+
+renderPresets();
+loadPreset(0);
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+</body>
+</html>

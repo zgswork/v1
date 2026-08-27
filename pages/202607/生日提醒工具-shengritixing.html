@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>生日提醒工具</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/lunar-javascript@1.6.5/index.min.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#4F46E5',
+                        secondary: '#EC4899',
+                        neutral: '#64748B',
+                        light: '#F8FAFC',
+                        dark: '#1E293B'
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .card-shadow {
+                box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            }
+            .transition-custom {
+                transition: all 0.3s ease;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-indigo-50 to-purple-50 min-h-screen">
+    <!-- 顶部导航 -->
+    <header class="bg-white/80 backdrop-blur-md shadow-sm sticky top-0 z-50">
+        <div class="container mx-auto px-4 py-4 flex justify-between items-center">
+            <div class="flex items-center gap-2">
+                <i class="fa fa-birthday-cake text-primary text-2xl"></i>
+                <h1 class="text-[clamp(1.5rem,3vw,2rem)] font-bold text-primary">生日提醒工具</h1>
+            </div>
+            <button id="add-btn" class="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-full flex items-center gap-2 transition-custom shadow-md hover:shadow-lg">
+                <i class="fa fa-plus"></i>
+                <span>添加生日</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- 主内容区 -->
+    <main class="container mx-auto px-4 py-8">
+        <!-- 提醒区域 -->
+        <section id="reminders" class="mb-10">
+            <h2 class="text-[clamp(1.2rem,2vw,1.5rem)] font-semibold mb-4 flex items-center">
+                <i class="fa fa-bell text-secondary mr-2"></i>
+                近期提醒
+            </h2>
+            <div id="reminders-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <!-- 提醒卡片将通过JS动态生成 -->
+                <div class="text-neutral text-center py-10">
+                    <i class="fa fa-calendar-o text-4xl mb-2 opacity-30"></i>
+                    <p>暂无近期生日提醒</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- 所有生日列表 -->
+        <section id="birthdays">
+            <h2 class="text-[clamp(1.2rem,2vw,1.5rem)] font-semibold mb-4 flex items-center">
+                <i class="fa fa-list text-primary mr-2"></i>
+                所有生日
+            </h2>
+            <div class="flex justify-between items-center mb-4">
+                <div class="flex gap-2">
+                    <button id="sort-by-date" class="bg-white px-3 py-1 rounded-full text-sm shadow-sm hover:shadow transition-custom">
+                        <i class="fa fa-sort-numeric-asc mr-1"></i>按日期排序
+                    </button>
+                    <button id="sort-by-name" class="bg-white px-3 py-1 rounded-full text-sm shadow-sm hover:shadow transition-custom">
+                        <i class="fa fa-sort-alpha-asc mr-1"></i>按姓名排序
+                    </button>
+                </div>
+                <div class="relative">
+                    <input type="text" id="search-input" placeholder="搜索姓名..." class="pl-9 pr-4 py-2 rounded-full text-sm border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary">
+                    <i class="fa fa-search absolute left-3 top-1/2 -translate-y-1/2 text-neutral"></i>
+                </div>
+            </div>
+            
+            <div id="birthdays-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <!-- 生日卡片将通过JS动态生成 -->
+                <div class="text-neutral text-center py-10 col-span-full">
+                    <i class="fa fa-user-o text-4xl mb-2 opacity-30"></i>
+                    <p>还没有添加任何生日，点击"添加生日"按钮开始</p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- 添加/编辑生日的模态框 -->
+    <div id="modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center hidden">
+        <div class="bg-white rounded-2xl w-full max-w-md mx-4 overflow-hidden transform transition-all">
+            <div class="p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 id="modal-title" class="text-xl font-bold text-primary">添加生日</h3>
+                    <button id="close-modal" class="text-neutral hover:text-dark transition-custom">
+                        <i class="fa fa-times text-xl"></i>
+                    </button>
+                </div>
+                
+                <form id="birthday-form">
+                    <input type="hidden" id="edit-id">
+                    
+                    <div class="mb-4">
+                        <label for="name" class="block text-sm font-medium text-dark mb-1">姓名</label>
+                        <input type="text" id="name" required class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary">
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label for="birthdate" class="block text-sm font-medium text-dark mb-1">出生日期</label>
+                        <input type="date" id="birthdate" required class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary">
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-dark mb-1">日期类型</label>
+                        <div class="flex gap-4">
+                            <label class="inline-flex items-center">
+                                <input type="radio" name="date-type" value="solar" checked class="text-primary focus:ring-primary">
+                                <span class="ml-2">公历</span>
+                            </label>
+                            <label class="inline-flex items-center">
+                                <input type="radio" name="date-type" value="lunar" class="text-primary focus:ring-primary">
+                                <span class="ml-2">农历</span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-6">
+                        <label for="gift-idea" class="block text-sm font-medium text-dark mb-1">礼物想法（可选）</label>
+                        <textarea id="gift-idea" rows="3" class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary" placeholder="记录一些礼物想法..."></textarea>
+                    </div>
+                    
+                    <div class="flex gap-3">
+                        <button type="button" id="cancel-btn" class="flex-1 px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-custom">取消</button>
+                        <button type="submit" class="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-custom shadow-sm">保存</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- 查看礼物想法的模态框 -->
+    <div id="gift-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center hidden">
+        <div class="bg-white rounded-2xl w-full max-w-md mx-4 overflow-hidden">
+            <div class="p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 id="gift-modal-title" class="text-xl font-bold text-primary">礼物想法</h3>
+                    <button id="close-gift-modal" class="text-neutral hover:text-dark transition-custom">
+                        <i class="fa fa-times text-xl"></i>
+                    </button>
+                </div>
+                
+                <div id="gift-content" class="mb-6 p-4 bg-gray-50 rounded-lg min-h-[100px]">
+                    <!-- 礼物想法内容将通过JS动态生成 -->
+                </div>
+                
+                <button id="close-gift-btn" class="w-full px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-custom shadow-sm">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 底部备注 -->
+    <footer class="bg-white/80 backdrop-blur-md mt-12 py-6 border-t">
+        <div class="container mx-auto px-4 text-center text-neutral text-sm">
+            <p class="mb-1">本工具由 邓文涛(AI版) 制作</p>
+            <p class="mb-1">微信：707547441</p>
+            <p>QQ邮箱：<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="a89f989f9d9c9f9c9c99e8d9d986cbc7c5">[email&#160;protected]</a></p>
+        </div>
+    </footer>
+
+    <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+        // 数据模型
+        class BirthdayManager {
+            constructor() {
+                this.birthdays = JSON.parse(localStorage.getItem('birthdays')) || [];
+                this.init();
+            }
+            
+            init() {
+                // 检查是否有新添加的数据需要处理
+                if (this.birthdays.length === 0) {
+                    // 可以添加一些示例数据用于演示
+                    // this.addSampleData();
+                }
+                this.renderAll();
+                this.checkReminders();
+            }
+            
+            addSampleData() {
+                const samples = [
+                    {
+                        id: Date.now() - 3,
+                        name: "张三",
+                        birthdate: "1990-05-15",
+                        dateType: "solar",
+                        giftIdea: "他喜欢运动，可以考虑买一双运动鞋"
+                    },
+                    {
+                        id: Date.now() - 2,
+                        name: "李四",
+                        birthdate: "1992-12-25",
+                        dateType: "solar",
+                        giftIdea: "她喜欢阅读，可以考虑买一本畅销书"
+                    },
+                    {
+                        id: Date.now() - 1,
+                        name: "王五",
+                        birthdate: "1988-03-10",
+                        dateType: "lunar",
+                        giftIdea: "他最近对摄影感兴趣，可以考虑买一个相机配件"
+                    }
+                ];
+                
+                samples.forEach(sample => {
+                    this.birthdays.push(sample);
+                });
+                
+                this.save();
+            }
+            
+            save() {
+                localStorage.setItem('birthdays', JSON.stringify(this.birthdays));
+                this.renderAll();
+                this.checkReminders();
+            }
+            
+            add(birthday) {
+                const newBirthday = {
+                    id: Date.now(),
+                    ...birthday
+                };
+                this.birthdays.push(newBirthday);
+                this.save();
+                return newBirthday;
+            }
+            
+            update(id, updatedData) {
+                const index = this.birthdays.findIndex(b => b.id === id);
+                if (index !== -1) {
+                    this.birthdays[index] = {
+                        ...this.birthdays[index],
+                        ...updatedData
+                    };
+                    this.save();
+                    return this.birthdays[index];
+                }
+                return null;
+            }
+            
+            delete(id) {
+                this.birthdays = this.birthdays.filter(b => b.id !== id);
+                this.save();
+            }
+            
+            getUpcomingBirthdays(days = 3) {
+                const today = new Date();
+                const upcoming = [];
+                
+                this.birthdays.forEach(birthday => {
+                    const nextBirthday = this.getNextBirthdayDate(birthday);
+                    const diffTime = nextBirthday - today;
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    
+                    if (diffDays >= 0 && diffDays <= days) {
+                        upcoming.push({
+                            ...birthday,
+                            daysUntil: diffDays,
+                            nextBirthday
+                        });
+                    }
+                });
+                
+                // 按剩余天数排序
+                return upcoming.sort((a, b) => a.daysUntil - b.daysUntil);
+            }
+            
+            getNextBirthdayDate(birthday) {
+                const today = new Date();
+                const currentYear = today.getFullYear();
+                let birthDate;
+                
+                if (birthday.dateType === 'lunar') {
+                    // 处理农历生日
+                    const [year, month, day] = birthday.birthdate.split('-').map(Number);
+                    // 将农历转换为公历
+                    const lunar = new Lunar(year, month, day);
+                    const solar = lunar.getSolar();
+                    
+                    // 计算今年的农历生日对应的公历日期
+                    const thisYearLunar = new Lunar(currentYear, month, day);
+                    const thisYearSolar = thisYearLunar.getSolar();
+                    birthDate = new Date(thisYearSolar.getYear(), thisYearSolar.getMonth() - 1, thisYearSolar.getDay());
+                } else {
+                    // 处理公历生日
+                    const [year, month, day] = birthday.birthdate.split('-').map(Number);
+                    birthDate = new Date(currentYear, month - 1, day);
+                }
+                
+                // 如果今年的生日已经过了，使用明年的
+                if (birthDate < today) {
+                    birthDate.setFullYear(currentYear + 1);
+                }
+                
+                return birthDate;
+            }
+            
+            calculateAge(birthday) {
+                const birthDate = new Date(birthday.birthdate);
+                const today = new Date();
+                let age = today.getFullYear() - birthDate.getFullYear();
+                const monthDiff = today.getMonth() - birthDate.getMonth();
+                
+                if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+                    age--;
+                }
+                
+                return age;
+            }
+            
+            formatDate(date) {
+                return date.toLocaleDateString('zh-CN', { month: 'long', day: 'numeric' });
+            }
+            
+            formatBirthday(birthday) {
+                const date = new Date(birthday.birthdate);
+                return date.toLocaleDateString('zh-CN');
+            }
+            
+            sortByDate() {
+                this.birthdays.sort((a, b) => {
+                    const dateA = this.getNextBirthdayDate(a);
+                    const dateB = this.getNextBirthdayDate(b);
+                    return dateA - dateB;
+                });
+                this.renderBirthdays();
+            }
+            
+            sortByName() {
+                this.birthdays.sort((a, b) => a.name.localeCompare(b.name));
+                this.renderBirthdays();
+            }
+            
+            search(query) {
+                if (!query) {
+                    this.renderBirthdays();
+                    return;
+                }
+                
+                const filtered = this.birthdays.filter(b => 
+                    b.name.toLowerCase().includes(query.toLowerCase())
+                );
+                
+                this.renderBirthdays(filtered);
+            }
+            
+            checkReminders() {
+                const upcoming = this.getUpcomingBirthdays();
+                if (upcoming.length > 0) {
+                    this.renderReminders(upcoming);
+                    
+                    // 可以在这里添加浏览器通知功能
+                    // if (Notification.permission === "granted") {
+                    //     upcoming.forEach(b => {
+                    //         new Notification(`${b.name}的生日还有${b.daysUntil}天`);
+                    //     });
+                    // } else if (Notification.permission !== "denied") {
+                    //     Notification.requestPermission();
+                    // }
+                } else {
+                    this.renderReminders([]);
+                }
+            }
+            
+            renderReminders(upcoming = null) {
+                const container = document.getElementById('reminders-container');
+                const reminders = upcoming || this.getUpcomingBirthdays();
+                
+                if (reminders.length === 0) {
+                    container.innerHTML = `
+                        <div class="text-neutral text-center py-10">
+                            <i class="fa fa-calendar-o text-4xl mb-2 opacity-30"></i>
+                            <p>暂无近期生日提醒</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                container.innerHTML = '';
+                reminders.forEach(birthday => {
+                    const card = document.createElement('div');
+                    card.className = 'bg-white rounded-xl p-5 shadow-md hover:shadow-lg transition-custom border-l-4 border-secondary';
+                    
+                    const daysText = birthday.daysUntil === 0 ? '今天' : 
+                                    birthday.daysUntil === 1 ? '明天' : 
+                                    birthday.daysUntil === 2 ? '后天' : 
+                                    `还有${birthday.daysUntil}天`;
+                    
+                    card.innerHTML = `
+                        <div class="flex justify-between items-start mb-3">
+                            <h4 class="font-bold text-lg">${birthday.name}</h4>
+                            <span class="bg-secondary/10 text-secondary px-2 py-1 rounded-full text-sm font-medium">${daysText}</span>
+                        </div>
+                        <p class="text-neutral mb-3">${this.formatDate(birthday.nextBirthday)} ${birthday.dateType === 'lunar' ? '(农历)' : ''}</p>
+                        ${birthday.giftIdea ? `
+                            <div class="mt-3 pt-3 border-t border-gray-100">
+                                <button class="view-gift-btn text-primary hover:text-primary/80 text-sm flex items-center" data-id="${birthday.id}">
+                                    <i class="fa fa-gift mr-1"></i> 查看礼物想法
+                                </button>
+                            </div>
+                        ` : ''}
+                    `;
+                    
+                    container.appendChild(card);
+                });
+                
+                // 添加查看礼物想法的事件监听
+                document.querySelectorAll('.view-gift-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const id = parseInt(btn.getAttribute('data-id'));
+                        this.showGiftIdea(id);
+                    });
+                });
+            }
+            
+            renderBirthdays(filtered = null) {
+                const container = document.getElementById('birthdays-container');
+                const birthdays = filtered || this.birthdays;
+                
+                if (birthdays.length === 0) {
+                    container.innerHTML = `
+                        <div class="text-neutral text-center py-10 col-span-full">
+                            <i class="fa fa-user-o text-4xl mb-2 opacity-30"></i>
+                            <p>还没有添加任何生日，点击"添加生日"按钮开始</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                container.innerHTML = '';
+                birthdays.forEach(birthday => {
+                    const nextBirthday = this.getNextBirthdayDate(birthday);
+                    const daysUntil = Math.ceil((nextBirthday - new Date()) / (1000 * 60 * 60 * 24));
+                    
+                    const card = document.createElement('div');
+                    card.className = 'bg-white rounded-xl p-5 shadow-md hover:shadow-lg transition-custom';
+                    
+                    card.innerHTML = `
+                        <div class="flex justify-between items-start mb-2">
+                            <h4 class="font-bold text-lg">${birthday.name}</h4>
+                            <div class="flex gap-1">
+                                <button class="edit-btn text-neutral hover:text-primary transition-custom p-1" data-id="${birthday.id}">
+                                    <i class="fa fa-pencil"></i>
+                                </button>
+                                <button class="delete-btn text-neutral hover:text-red-500 transition-custom p-1" data-id="${birthday.id}">
+                                    <i class="fa fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <p class="text-neutral mb-2">
+                            ${this.formatBirthday(birthday)} 
+                            <span class="text-xs bg-gray-100 px-1.5 py-0.5 rounded">${birthday.dateType === 'lunar' ? '农历' : '公历'}</span>
+                        </p>
+                        <p class="text-sm text-gray-500 mb-3">
+                            年龄: ${this.calculateAge(birthday)}岁 | 
+                            下次生日: ${this.formatDate(nextBirthday)} (${daysUntil}天后)
+                        </p>
+                        ${birthday.giftIdea ? `
+                            <div class="mt-3 pt-3 border-t border-gray-100">
+                                <button class="view-gift-btn text-primary hover:text-primary/80 text-sm flex items-center" data-id="${birthday.id}">
+                                    <i class="fa fa-gift mr-1"></i> 查看礼物想法
+                                </button>
+                            </div>
+                        ` : ''}
+                    `;
+                    
+                    container.appendChild(card);
+                });
+                
+                // 添加编辑和删除事件监听
+                document.querySelectorAll('.edit-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const id = parseInt(btn.getAttribute('data-id'));
+                        this.showEditForm(id);
+                    });
+                });
+                
+                document.querySelectorAll('.delete-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const id = parseInt(btn.getAttribute('data-id'));
+                        if (confirm('确定要删除这个生日记录吗？')) {
+                            this.delete(id);
+                        }
+                    });
+                });
+                
+                // 添加查看礼物想法的事件监听
+                document.querySelectorAll('.view-gift-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const id = parseInt(btn.getAttribute('data-id'));
+                        this.showGiftIdea(id);
+                    });
+                });
+            }
+            
+            renderAll() {
+                this.renderReminders();
+                this.renderBirthdays();
+            }
+            
+            showAddForm() {
+                document.getElementById('modal-title').textContent = '添加生日';
+                document.getElementById('birthday-form').reset();
+                document.getElementById('edit-id').value = '';
+                document.getElementById('modal').classList.remove('hidden');
+                
+                // 设置默认日期为2000-01-01
+                document.getElementById('birthdate').value = '2000-01-01';
+            }
+            
+            showEditForm(id) {
+                const birthday = this.birthdays.find(b => b.id === id);
+                if (!birthday) return;
+                
+                document.getElementById('modal-title').textContent = '编辑生日';
+                document.getElementById('edit-id').value = birthday.id;
+                document.getElementById('name').value = birthday.name;
+                document.getElementById('birthdate').value = birthday.birthdate;
+                document.getElementById('gift-idea').value = birthday.giftIdea || '';
+                
+                // 设置日期类型
+                document.querySelector(`input[name="date-type"][value="${birthday.dateType}"]`).checked = true;
+                
+                document.getElementById('modal').classList.remove('hidden');
+            }
+            
+            showGiftIdea(id) {
+                const birthday = this.birthdays.find(b => b.id === id);
+                if (!birthday || !birthday.giftIdea) return;
+                
+                document.getElementById('gift-modal-title').textContent = `${birthday.name}的礼物想法`;
+                document.getElementById('gift-content').textContent = birthday.giftIdea;
+                document.getElementById('gift-modal').classList.remove('hidden');
+            }
+            
+            handleFormSubmit(e) {
+                e.preventDefault();
+                
+                const id = document.getElementById('edit-id').value;
+                const name = document.getElementById('name').value;
+                const birthdate = document.getElementById('birthdate').value;
+                const dateType = document.querySelector('input[name="date-type"]:checked').value;
+                const giftIdea = document.getElementById('gift-idea').value.trim();
+                
+                const birthdayData = {
+                    name,
+                    birthdate,
+                    dateType,
+                    giftIdea
+                };
+                
+                if (id) {
+                    this.update(parseInt(id), birthdayData);
+                } else {
+                    this.add(birthdayData);
+                }
+                
+                document.getElementById('modal').classList.add('hidden');
+                document.getElementById('birthday-form').reset();
+            }
+        }
+        
+        // 初始化应用
+        document.addEventListener('DOMContentLoaded', () => {
+            const manager = new BirthdayManager();
+            
+            // 事件监听
+            document.getElementById('add-btn').addEventListener('click', () => {
+                manager.showAddForm();
+            });
+            
+            document.getElementById('close-modal').addEventListener('click', () => {
+                document.getElementById('modal').classList.add('hidden');
+            });
+            
+            document.getElementById('cancel-btn').addEventListener('click', () => {
+                document.getElementById('modal').classList.add('hidden');
+            });
+            
+            document.getElementById('birthday-form').addEventListener('submit', (e) => {
+                manager.handleFormSubmit(e);
+            });
+            
+            document.getElementById('sort-by-date').addEventListener('click', () => {
+                manager.sortByDate();
+            });
+            
+            document.getElementById('sort-by-name').addEventListener('click', () => {
+                manager.sortByName();
+            });
+            
+            document.getElementById('search-input').addEventListener('input', (e) => {
+                manager.search(e.target.value);
+            });
+            
+            document.getElementById('close-gift-modal').addEventListener('click', () => {
+                document.getElementById('gift-modal').classList.add('hidden');
+            });
+            
+            document.getElementById('close-gift-btn').addEventListener('click', () => {
+                document.getElementById('gift-modal').classList.add('hidden');
+            });
+            
+            // 点击模态框外部关闭
+            document.getElementById('modal').addEventListener('click', (e) => {
+                if (e.target === document.getElementById('modal')) {
+                    document.getElementById('modal').classList.add('hidden');
+                }
+            });
+            
+            document.getElementById('gift-modal').addEventListener('click', (e) => {
+                if (e.target === document.getElementById('gift-modal')) {
+                    document.getElementById('gift-modal').classList.add('hidden');
+                }
+            });
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Regex IDE - Sky Blue Full Edition</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
+
+    <style>
+        /* --- 1. 全新天蓝色主题变量 --- */
+        :root {
+            --font-family-code: 'Fira Code', 'Menlo', 'Consolas', 'Courier New', monospace;
+            --primary-color: #007ACC;
+            --accent-color: #3B82F6;
+            --bg-primary: #F0F9FF; /* 主背景 - 天蓝色 */
+            --bg-secondary: #FFFFFF; /* 面板背景 - 白色 */
+            --bg-tertiary: #F8FAFC; /* 输入框背景 - 极浅灰 */
+            --text-primary: #1E293B; /* 主要文字 - 深蓝灰 */
+            --text-secondary: #475569; /* 次要文字 - 蓝灰 */
+            --text-muted: #94A3B8; /* 辅助文字 - 浅灰 */
+            --border-color: #E2E8F0; /* 边框 - 极浅灰 */
+            --shadow-color: rgba(0,0,0,0.05);
+            --error-color: #EF4444;
+            --success-color: #10B981;
+            --highlight-bg: #BFDBFE; /* 高亮背景 - 浅蓝色 */
+            --highlight-border: #60A5FA; /* 高亮边框 - 蓝色 */
+            --explanation-token-color: #0B7285; /* 解析符号颜色 */
+            --explanation-desc-color: #475569; /* 解析描述颜色 */
+            --builder-btn-bg: #F1F5F9;
+            --builder-btn-hover-bg: #E2E8F0;
+            --gutter-color: #E2E8F0;
+            --gutter-hover-color: #007ACC;
+
+            --border-radius: 8px; /* 稍圆润的边角 */
+            --base-spacing: 8px;
+            --transition-speed: 0.2s;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: var(--font-family-code);
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            overflow: hidden;
+        }
+
+        /* --- 2. 三栏式可调节布局 --- */
+        .ide-container {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            height: 100vh;
+            padding-bottom: 60px;
+        }
+
+        .left-panel {
+            display: grid;
+            grid-template-rows: auto 1fr;
+            min-width: 300px;
+        }
+
+        .right-panel {
+            display: flex;
+            flex-direction: column;
+            background: var(--bg-secondary);
+            border-left: 1px solid var(--border-color);
+            min-width: 300px;
+        }
+        
+        .gutter {
+            background-color: var(--gutter-color);
+            cursor: col-resize;
+            width: 5px;
+            transition: background-color var(--transition-speed);
+        }
+        .gutter:hover {
+            background-color: var(--gutter-hover-color);
+        }
+
+        .panel {
+            padding: calc(var(--base-spacing) * 2);
+            background: var(--bg-secondary);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .panel-header {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-bottom: var(--base-spacing);
+            flex-shrink: 0;
+            font-weight: 500;
+        }
+
+        .regex-panel {
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .test-string-panel {
+            position: relative;
+        }
+        .test-string-panel .panel-header {
+            padding-bottom: 0;
+        }
+        
+        /* --- 3. 输入、测试、状态栏 --- */
+        .regex-input-container {
+            display: flex; align-items: center; border: 1px solid var(--border-color);
+            border-radius: var(--border-radius); padding: 0 var(--base-spacing); background-color: var(--bg-tertiary);
+        }
+        .regex-input-container:focus-within { border-color: var(--primary-color); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 15%, transparent); }
+
+        #regex-input {
+            flex-grow: 1; border: none; outline: none; background: transparent;
+            padding: calc(var(--base-spacing) * 1.25); font-family: var(--font-family-code);
+            font-size: 16px; color: var(--text-primary);
+        }
+
+        .regex-flags { display: flex; gap: var(--base-spacing); }
+        .flag-label {
+            cursor: pointer; padding: 4px 10px; border-radius: 4px; font-size: 14px;
+            font-weight: 500; color: var(--text-muted); transition: all var(--transition-speed) ease;
+        }
+        .flag-label input { display: none; }
+        .flag-label:hover { color: var(--text-primary); }
+        .flag-label input:checked + span { background-color: var(--primary-color); color: white; }
+        
+        #test-string-input, #results-display {
+            width: 100%; height: 100%;
+            padding: calc(var(--base-spacing) * 1.5); border: 1px solid var(--border-color);
+            border-radius: var(--border-radius); font-family: var(--font-family-code);
+            font-size: 16px; line-height: 1.8; outline: none; background: var(--bg-tertiary);
+            white-space: pre-wrap; word-wrap: break-word; color: var(--text-primary);
+            resize: none;
+        }
+        #results-display {
+            position: absolute; top: 0; left: 0; pointer-events: none;
+            color: transparent; overflow: auto; background: transparent; border: 1px solid transparent;
+        }
+        .match-highlight { background-color: var(--highlight-bg); border-bottom: 2px solid var(--highlight-border); color: var(--text-primary); border-radius: 2px; }
+        
+        .status-bar {
+            position: absolute; bottom: 0; left: 0; right: 0;
+            padding: 4px calc(var(--base-spacing) * 2); font-size: 13px;
+            background-color: var(--bg-secondary); border-top: 1px solid var(--border-color);
+            color: var(--text-secondary);
+        }
+        .status-bar.error { color: var(--error-color); }
+        .status-bar.success { color: var(--success-color); }
+
+        /* --- 4. 右侧面板 --- */
+        .tab-nav {
+            display: flex;
+            border-bottom: 1px solid var(--border-color);
+            flex-shrink: 0;
+            padding: 0 calc(var(--base-spacing) * 2);
+        }
+        .tab-btn {
+            padding: calc(var(--base-spacing) * 1.5) 0;
+            margin-right: calc(var(--base-spacing) * 2);
+            cursor: pointer;
+            border: none;
+            background: none;
+            color: var(--text-secondary);
+            font-family: var(--font-family-code);
+            border-bottom: 2px solid transparent;
+            margin-bottom: -1px;
+        }
+        .tab-btn.active {
+            color: var(--primary-color);
+            border-bottom-color: var(--primary-color);
+            font-weight: 600;
+        }
+        
+        .tab-content {
+            padding: calc(var(--base-spacing) * 2);
+            overflow-y: auto;
+            height: 100%;
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+
+        .explanation-list { list-style: none; }
+        .explanation-list li { display: flex; gap: var(--base-spacing) * 2; margin-bottom: var(--base-spacing); font-size: 14px; }
+        .explanation-list code { color: var(--explanation-token-color); font-weight: 600; flex-shrink: 0; min-width: 100px; text-align: right; }
+        .explanation-list span { color: var(--explanation-desc-color); }
+
+        .builder-panel h3 {
+            font-size: 14px; margin-top: calc(var(--base-spacing) * 2);
+            margin-bottom: var(--base-spacing); color: var(--text-primary); font-weight: 600;
+        }
+        .builder-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: var(--base-spacing); }
+        .builder-btn {
+            background-color: var(--builder-btn-bg); color: var(--text-secondary); border: 1px solid var(--border-color);
+            border-radius: 4px; padding: var(--base-spacing); font-family: var(--font-family-code);
+            font-size: 14px; cursor: pointer; text-align: center; transition: all var(--transition-speed) ease;
+            font-weight: 500;
+        }
+        .builder-btn:hover { background-color: var(--builder-btn-hover-bg); border-color: var(--primary-color); color: var(--primary-color); }
+
+        /* --- 5. 页脚样式 --- */
+        .site-footer {
+            position: fixed; bottom: 0; left: 0; right: 0; background-color: var(--bg-secondary);
+            border-top: 1px solid var(--border-color); padding: calc(var(--base-spacing) * 1.5);
+            display: flex; justify-content: center; align-items: center; flex-wrap: wrap;
+            gap: calc(var(--base-spacing) * 4); font-size: 14px; color: var(--text-secondary);
+            z-index: 1000; animation: float-animation 5s ease-in-out infinite alternate;
+        }
+        .site-footer a { color: var(--accent-color); text-decoration: none; font-weight: 500; }
+        .site-footer a:hover { text-decoration: underline; }
+        @keyframes float-animation {
+            from { transform: translateY(0px); box-shadow: 0 -2px 10px var(--shadow-color); }
+            to { transform: translateY(-5px); box-shadow: 0 -4px 25px var(--shadow-color); }
+        }
+
+        /* --- 6. 响应式设计 --- */
+        @media (max-width: 1024px) {
+            body { overflow: auto; }
+            .ide-container { grid-template-columns: 1fr; height: auto; padding-bottom: 100px; }
+            .right-panel { border-left: none; border-top: 1px solid var(--border-color); }
+            .gutter { display: none; }
+        }
+        @media (max-width: 768px) {
+            .ide-container { padding: var(--base-spacing); padding-bottom: 140px; }
+            .site-footer { flex-direction: column; gap: var(--base-spacing); text-align: center; animation: none; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="ide-container" id="ide-container">
+        <div class="left-panel" id="left-panel">
+            <div class="panel regex-panel">
+                <div class="panel-header">正则表达式</div>
+                <div class="regex-input-container">
+                    <input type="text" id="regex-input" placeholder="/pattern/flags">
+                    <div class="regex-flags">
+                        <label class="flag-label" title="全局搜索"><input type="checkbox" name="flags" value="g" checked><span>g</span></label>
+                        <label class="flag-label" title="不区分大小写"><input type="checkbox" name="flags" value="i"><span>i</span></label>
+                        <label class="flag-label" title="多行模式"><input type="checkbox" name="flags" value="m"><span>m</span></label>
+                    </div>
+                </div>
+            </div>
+            <div class="panel test-string-panel">
+                 <div class="panel-header">测试字符串</div>
+                 <div style="position: relative; width: 100%; height: 100%;">
+                    <textarea id="test-string-input" placeholder="在此输入要测试的字符串..."></textarea>
+                    <div id="results-display"></div>
+                 </div>
+                 <div class="status-bar" id="status-bar">初始化完毕...</div>
+            </div>
+        </div>
+
+        <div class="gutter" id="gutter"></div>
+
+        <div class="right-panel">
+            <nav class="tab-nav">
+                <button class="tab-btn active" data-tab="explanation">表达式解析</button>
+                <button class="tab-btn" data-tab="builder">可视化构建</button>
+            </nav>
+            <div class="tab-content active" id="explanation">
+                <ul id="explanation-list" class="explanation-list"></ul>
+            </div>
+            <div class="tab-content" id="builder">
+                <h3>常用字符</h3>
+                <div class="builder-grid">
+                    <button class="builder-btn" data-insert="\d">数字</button>
+                    <button class="builder-btn" data-insert="\w">单词字符</button>
+                    <button class="builder-btn" data-insert="\s">空白</button>
+                    <button class="builder-btn" data-insert=".">任意字符</button>
+                    <button class="builder-btn" data-insert="\D">非数字</button>
+                    <button class="builder-btn" data-insert="\W">非单词</button>
+                </div>
+                <h3>字符组</h3>
+                 <div class="builder-grid">
+                    <button class="builder-btn" data-insert="[a-z]">a-z</button>
+                    <button class="builder-btn" data-insert="[A-Z]">A-Z</button>
+                    <button class="builder-btn" data-insert="[0-9]">0-9</button>
+                    <button class="builder-btn" data-insert="[]">自定义 [...]</button>
+                </div>
+                <h3>量词</h3>
+                 <div class="builder-grid">
+                    <button class="builder-btn" data-insert="*">0 次或多次</button>
+                    <button class="builder-btn" data-insert="+">1 次或多次</button>
+                    <button class="builder-btn" data-insert="?">0 次或 1 次</button>
+                    <button class="builder-btn" data-insert="{}">自定义 {n,m}</button>
+                </div>
+                <h3>锚点和分组</h3>
+                 <div class="builder-grid">
+                    <button class="builder-btn" data-insert="^">开头</button>
+                    <button class="builder-btn" data-insert="$">结尾</button>
+                    <button class="builder-btn" data-insert="\b">单词边界</button>
+                    <button class="builder-btn" data-insert="()">捕获组 ()</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="site-footer">
+        <span>制作者：云杉AI编程</span>
+        <span>微信：3087465343</span>
+        <a href="https://t.zsxq.com/TOaGw" target="_blank" rel="noopener noreferrer">「AI编程·垂直小流量复利商业化」</a>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- 元素获取 ---
+            const regexInput = document.getElementById('regex-input');
+            const testStringInput = document.getElementById('test-string-input');
+            const resultsDisplay = document.getElementById('results-display');
+            const statusBar = document.getElementById('status-bar');
+            const flagCheckboxes = document.querySelectorAll('input[name="flags"]');
+            const builderBtns = document.querySelectorAll('.builder-btn');
+            const gutter = document.getElementById('gutter');
+            const leftPanel = document.getElementById('left-panel');
+            const ideContainer = document.getElementById('ide-container');
+            const tabBtns = document.querySelectorAll('.tab-btn');
+            const tabContents = document.querySelectorAll('.tab-content');
+            const explanationList = document.getElementById('explanation-list');
+
+            const explanationMap = {
+                '\\d': '匹配一个数字 (0-9)', '\\D': '匹配一个非数字字符',
+                '\\w': '匹配一个单词字符 (字母, 数字, _)', '\\W': '匹配一个非单词字符',
+                '\\s': '匹配一个空白字符 (空格, tab, 换行等)', '\\S': '匹配一个非空白字符',
+                '.': '匹配除换行符外的任意单个字符',
+                '*': '匹配前面的表达式 0 次或多次', '+': '匹配前面的表达式 1 次或多次',
+                '?': '匹配前面的表达式 0 次或 1 次',
+                '^': '匹配输入的开始位置', '$': '匹配输入的结束位置',
+                '\\b': '匹配一个单词边界', '\\B': '匹配一个非单词边界',
+            };
+
+            function updateAll() {
+                handleRegexTest();
+                explainRegex();
+            }
+
+            // --- 表达式解析 ---
+            function explainRegex() {
+                const pattern = regexInput.value;
+                explanationList.innerHTML = '';
+                if (!pattern) {
+                    explanationList.innerHTML = '<li><span>等待输入表达式...</span></li>';
+                    return;
+                }
+                
+                let i = 0;
+                while (i < pattern.length) {
+                    let token = ''; let description = '未知部分'; let consumed = 1;
+                    const char = pattern[i]; let lookahead = pattern[i+1];
+                    
+                    if (char === '\\') {
+                        token = char + (lookahead || ''); description = explanationMap[token] || `转义字符 '${lookahead}'`; consumed = 2;
+                    } else if (char === '[') {
+                        const end = pattern.indexOf(']', i);
+                        if (end !== -1) { token = pattern.substring(i, end + 1); description = `匹配方括号内的任意一个字符`; consumed = token.length; }
+                    } else if (char === '(') { token = char; description = '开始一个捕获组';
+                    } else if (char === ')') { token = char; description = '结束一个捕获组';
+                    } else if (char === '{') {
+                         const end = pattern.indexOf('}', i);
+                        if (end !== -1) { token = pattern.substring(i, end + 1); description = `量词: 匹配前面的表达式 ${token.slice(1, -1)} 次`; consumed = token.length; }
+                    } else {
+                        token = char; description = explanationMap[token] || `匹配字面量字符 "${token}"`;
+                    }
+                    
+                    const li = document.createElement('li');
+                    li.innerHTML = `<code>${escapeHtml(token)}</code><span>${description}</span>`;
+                    explanationList.appendChild(li);
+                    i += consumed;
+                }
+            }
+
+            // --- 核心测试函数 ---
+            function handleRegexTest() {
+                const pattern = regexInput.value;
+                const testString = testStringInput.value;
+                
+                resultsDisplay.scrollTop = testStringInput.scrollTop;
+                resultsDisplay.scrollLeft = testStringInput.scrollLeft;
+
+                if (!pattern) {
+                    resultsDisplay.innerHTML = escapeHtml(testString);
+                    statusBar.textContent = '请输入正则表达式。';
+                    statusBar.className = 'status-bar';
+                    return;
+                }
+
+                const flags = Array.from(flagCheckboxes).filter(cb => cb.checked).map(cb => cb.value).join('');
+
+                try {
+                    const regex = new RegExp(pattern, flags);
+                    let matchCount = 0;
+                    let highlightedString = escapeHtml(testString);
+
+                    if (flags.includes('g')) {
+                        const matches = [...testString.matchAll(regex)];
+                        matchCount = matches.length;
+                        for (let i = matches.length - 1; i >= 0; i--) {
+                            const match = matches[i];
+                            if (match[0].length === 0) continue;
+                            highlightedString = highlightMatch(highlightedString, match);
+                        }
+                    } else {
+                        const match = testString.match(regex);
+                        if (match && match[0].length > 0) {
+                            matchCount = 1;
+                            highlightedString = highlightMatch(highlightedString, match);
+                        }
+                    }
+
+                    resultsDisplay.innerHTML = highlightedString;
+                    statusBar.textContent = `找到 ${matchCount} 个匹配项。`;
+                    statusBar.className = 'status-bar success';
+
+                } catch (error) {
+                    resultsDisplay.innerHTML = escapeHtml(testString);
+                    statusBar.textContent = `错误: ${error.message}`;
+                    statusBar.className = 'status-bar error';
+                }
+            }
+            
+            function highlightMatch(text, match) {
+                const startIndex = match.index;
+                const endIndex = startIndex + match[0].length;
+                return text.substring(0, startIndex) +
+                    `<span class="match-highlight">${escapeHtml(match[0])}</span>` +
+                    text.substring(endIndex);
+            }
+
+            function escapeHtml(unsafe) {
+                return unsafe.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+            }
+
+            // --- 可视化构建器逻辑 ---
+            function insertAtCursor(text) {
+                const start = regexInput.selectionStart;
+                const end = regexInput.selectionEnd;
+                const originalValue = regexInput.value;
+                let textToInsert = text;
+                let cursorOffset = text.length;
+
+                if (text === '[]' || text === '{}' || text === '()') {
+                    textToInsert = text.substring(0, 1) + text.substring(1);
+                    cursorOffset = 1;
+                }
+
+                regexInput.value = originalValue.substring(0, start) + textToInsert + originalValue.substring(end);
+                regexInput.selectionStart = regexInput.selectionEnd = start + cursorOffset;
+                regexInput.focus();
+                updateAll();
+            }
+
+            builderBtns.forEach(btn => {
+                btn.addEventListener('click', () => insertAtCursor(btn.dataset.insert));
+            });
+            
+            // --- Tab 切换逻辑 ---
+            tabBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    tabBtns.forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    
+                    tabContents.forEach(content => {
+                        content.classList.remove('active');
+                        if (content.id === btn.dataset.tab) {
+                            content.classList.add('active');
+                        }
+                    });
+                });
+            });
+
+            // --- 面板拖拽调节逻辑 ---
+            let isResizing = false;
+            if (gutter) {
+                gutter.addEventListener('mousedown', (e) => {
+                    isResizing = true;
+                    document.body.style.cursor = 'col-resize';
+                    document.body.style.userSelect = 'none';
+                });
+            }
+
+            document.addEventListener('mousemove', (e) => {
+                if (!isResizing) return;
+                const containerRect = ideContainer.getBoundingClientRect();
+                const leftPanelMinWidth = parseInt(getComputedStyle(leftPanel).minWidth);
+                const rightPanelMinWidth = 300;
+                
+                let leftWidth = e.clientX - containerRect.left;
+                
+                if (leftWidth < leftPanelMinWidth) leftWidth = leftPanelMinWidth;
+                if (containerRect.width - leftWidth - gutter.offsetWidth < rightPanelMinWidth) {
+                    leftWidth = containerRect.width - rightPanelMinWidth - gutter.offsetWidth;
+                }
+                
+                const newLeftFlex = leftWidth;
+                const newRightFlex = containerRect.width - leftWidth - gutter.offsetWidth;
+
+                ideContainer.style.gridTemplateColumns = `${newLeftFlex}px auto ${newRightFlex}px`;
+            });
+
+            document.addEventListener('mouseup', () => {
+                isResizing = false;
+                document.body.style.cursor = 'default';
+                document.body.style.userSelect = 'auto';
+            });
+
+            // --- 事件监听 ---
+            regexInput.addEventListener('input', updateAll);
+            testStringInput.addEventListener('input', handleRegexTest);
+            testStringInput.addEventListener('scroll', () => {
+                 resultsDisplay.scrollTop = testStringInput.scrollTop;
+                 resultsDisplay.scrollLeft = testStringInput.scrollLeft;
+            });
+            flagCheckboxes.forEach(cb => cb.addEventListener('change', updateAll));
+
+            // --- 初始化 ---
+            feather.replace();
+            updateAll();
+        });
+    </script>

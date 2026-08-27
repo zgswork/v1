@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>饮食热量估算工具</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3B82F6',
+                        secondary: '#10B981',
+                        accent: '#F59E0B',
+                        danger: '#EF4444',
+                        dark: '#1E293B',
+                        light: '#F8FAFC'
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .card-shadow {
+                box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            }
+            .input-focus {
+                @apply focus:ring-2 focus:ring-primary/50 focus:border-primary focus:outline-none;
+            }
+            .slide-in {
+                animation: slideIn 0.3s ease-out forwards;
+            }
+            .fade-in {
+                animation: fadeIn 0.5s ease-out forwards;
+            }
+            .pulse-subtle {
+                animation: pulseSubtle 2s infinite;
+            }
+        }
+
+        @keyframes slideIn {
+            from { transform: translateY(10px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        @keyframes pulseSubtle {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.8; }
+        }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="bg-gray-50 font-sans text-dark min-h-screen flex flex-col">
+    <!-- 顶部导航 -->
+    <header class="bg-white shadow-sm py-4">
+        <div class="container mx-auto px-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <i class="fa fa-cutlery text-primary text-2xl"></i>
+                    <h1 class="text-xl font-bold">饮食热量估算工具</h1>
+                </div>
+                <div class="text-sm text-gray-500 flex items-center gap-1">
+                    <i class="fa fa-fire text-accent"></i>
+                    <span>轻松掌控每日热量摄入</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主内容区 -->
+    <main class="flex-grow container mx-auto px-4 py-6">
+        <!-- 介绍部分 -->
+        <section class="mb-8 text-center max-w-2xl mx-auto">
+            <p class="text-gray-600">
+                输入食物名称和重量，快速计算食物热量，自动汇总每日摄入总量，帮助您轻松控制饮食。
+            </p>
+        </section>
+
+        <!-- 输入区域 -->
+        <section class="max-w-3xl mx-auto mb-8">
+            <div class="bg-white rounded-xl shadow-md p-6 card-shadow">
+                <h2 class="text-lg font-semibold mb-4 pb-2 border-b border-gray-100">添加食物</h2>
+                
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    <div class="md:col-span-2">
+                        <label for="food-name" class="block text-sm font-medium text-gray-700 mb-1">食物名称</label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">
+                                <i class="fa fa-shopping-basket"></i>
+                            </span>
+                            <input type="text" id="food-name" 
+                                   class="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg input-focus"
+                                   placeholder="例如：米饭、苹果、牛肉">
+                            <div id="food-suggestions" class="hidden absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 max-h-60 overflow-y-auto">
+                                <div class="p-4 text-gray-500 text-center">
+                                    <i class="fa fa-search mb-2"></i>
+                                    <p>输入食物名称或点击下方分类浏览</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label for="food-weight" class="block text-sm font-medium text-gray-700 mb-1">重量 (克)</label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">
+                                <i class="fa fa-balance-scale"></i>
+                            </span>
+                            <input type="number" id="food-weight" 
+                                   class="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg input-focus"
+                                   placeholder="输入克数" min="1" value="100">
+                            <span class="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500">
+                                g
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">点击分类浏览食物</label>
+                    <div class="flex flex-wrap gap-2" id="food-categories">
+                        <!-- 分类标签将在这里动态生成 -->
+                    </div>
+                </div>
+                
+                <button id="add-food" class="w-full bg-primary hover:bg-primary/90 text-white font-medium py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2">
+                    <i class="fa fa-plus"></i>
+                    <span>添加到今日摄入</span>
+                </button>
+                
+                <div class="mt-4 text-sm text-gray-500 text-center">
+                    <p>支持超过150种常见食物，输入名称时会显示热量建议</p>
+                </div>
+            </div>
+        </section>
+        
+        <!-- 食物列表和汇总 -->
+        <section class="max-w-4xl mx-auto">
+            <div class="bg-white rounded-xl shadow-md p-6 card-shadow mb-6">
+                <h2 class="text-lg font-semibold mb-4 pb-2 border-b border-gray-100 flex items-center">
+                    <i class="fa fa-list-alt text-primary mr-2"></i>
+                    今日摄入食物
+                </h2>
+                
+                <div id="food-list-empty" class="py-12 text-center text-gray-500">
+                    <i class="fa fa-utensils text-4xl mb-3 opacity-30"></i>
+                    <p>还没有添加食物，开始记录今天的饮食吧！</p>
+                </div>
+                
+                <div id="food-list" class="hidden">
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200 text-sm">
+                            <thead>
+                                <tr>
+                                    <th class="px-3 py-3 bg-gray-50 text-left font-medium text-gray-500 rounded-tl-lg">食物名称</th>
+                                    <th class="px-3 py-3 bg-gray-50 text-right font-medium text-gray-500">分类</th>
+                                    <th class="px-3 py-3 bg-gray-50 text-right font-medium text-gray-500">重量</th>
+                                    <th class="px-3 py-3 bg-gray-50 text-right font-medium text-gray-500">热量 (千卡)</th>
+                                    <th class="px-3 py-3 bg-gray-50 text-center font-medium text-gray-500 rounded-tr-lg">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="food-items" class="divide-y divide-gray-100">
+                                <!-- 食物项目将在这里动态生成 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 汇总信息 -->
+            <div id="summary-card" class="max-w-md mx-auto bg-white rounded-xl shadow-md p-6 card-shadow hidden fade-in">
+                <h3 class="text-lg font-semibold mb-4 text-center">今日热量汇总</h3>
+                
+                <div class="grid grid-cols-2 gap-4 mb-6">
+                    <div class="bg-gray-50 p-4 rounded-lg text-center">
+                        <p class="text-sm text-gray-500">食物种类</p>
+                        <p id="total-types" class="text-2xl font-bold text-dark">0</p>
+                    </div>
+                    <div class="bg-gray-50 p-4 rounded-lg text-center">
+                        <p class="text-sm text-gray-500">总重量</p>
+                        <p id="total-weight" class="text-2xl font-bold text-dark">0g</p>
+                    </div>
+                </div>
+                
+                <div class="bg-primary/5 p-5 rounded-lg border border-primary/20 text-center">
+                    <p class="text-sm text-gray-500">总热量摄入</p>
+                    <p id="total-calories" class="text-3xl font-bold text-primary">0 千卡</p>
+                </div>
+                
+                <div class="mt-6 flex justify-center">
+                    <button id="reset-day" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 px-6 rounded-lg transition-colors flex items-center gap-1">
+                        <i class="fa fa-refresh"></i>
+                        <span>重置今日记录</span>
+                    </button>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- 页脚 -->
+    <footer class="bg-dark text-white/70 py-6 px-4 text-center text-sm mt-12">
+        <p class="mb-2">本工具由 邓文涛(AI版) 制作</p>
+        <p class="mb-2">微信：707547441</p>
+        <p>QQ邮箱：<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="be898e898b8a898a8a8ffecfcf90ddd1d3">[email&#160;protected]</a></p>
+    </footer>
+
+    <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // 修复：确保数据库正确加载并可访问
+            const foodDatabase = {
+                // 主食类
+                '主食类': {
+                    '米饭': 116,
+                    '面条(煮)': 109,
+                    '面条(干)': 355,
+                    '馒头': 223,
+                    '包子(猪肉馅)': 227,
+                    '饺子(猪肉馅)': 250,
+                    '油条': 388,
+                    '粥': 46,
+                    '面包(白)': 266,
+                    '面包(全麦)': 247,
+                    '燕麦片': 367,
+                    '玉米': 112,
+                    '红薯': 99,
+                    '土豆(煮)': 77,
+                    '土豆(炸)': 312
+                },
+                
+                // 蔬菜类
+                '蔬菜类': {
+                    '白菜': 17,
+                    '青菜': 15,
+                    '菠菜': 28,
+                    '西红柿': 19,
+                    '黄瓜': 16,
+                    '胡萝卜': 41,
+                    '茄子': 21,
+                    '辣椒': 20,
+                    '洋葱': 40,
+                    '西兰花': 34,
+                    '芹菜': 14,
+                    '蘑菇': 20,
+                    '豆腐(北)': 149,
+                    '豆腐(南)': 82
+                },
+                
+                // 水果类
+                '水果类': {
+                    '苹果': 52,
+                    '香蕉': 91,
+                    '橙子': 47,
+                    '西瓜': 30,
+                    '葡萄': 44,
+                    '草莓': 32,
+                    '梨': 44,
+                    '桃子': 42,
+                    '猕猴桃': 56,
+                    '芒果': 65
+                },
+                
+                // 肉类
+                '肉类': {
+                    '猪肉(瘦)': 143,
+                    '猪肉(肥)': 807,
+                    '牛肉(瘦)': 106,
+                    '羊肉(瘦)': 118,
+                    '鸡肉(去皮)': 133,
+                    '鸡肉(带皮)': 167,
+                    '鸡腿': 181,
+                    '鱼肉(平均)': 113,
+                    '虾': 87,
+                    '鸡蛋': 144
+                },
+                
+                // 乳制品
+                '乳制品': {
+                    '牛奶(全脂)': 54,
+                    '牛奶(低脂)': 47,
+                    '酸奶(原味)': 72,
+                    '奶酪(切达)': 378,
+                    '黄油': 892
+                },
+                
+                // 坚果类
+                '坚果类': {
+                    '花生': 567,
+                    '核桃': 627,
+                    '杏仁': 578,
+                    '腰果': 553,
+                    '开心果': 601
+                },
+                
+                // 加工食品
+                '加工食品': {
+                    '巧克力': 586,
+                    '蛋糕(奶油)': 347,
+                    '饼干(甜)': 433,
+                    '薯片': 548,
+                    '方便面': 472,
+                    '火腿肠': 212
+                },
+                
+                // 饮料类
+                '饮料类': {
+                    '可乐': 43,
+                    '雪碧': 49,
+                    '果汁(纯)': 46,
+                    '奶茶(珍珠)': 53,
+                    '啤酒': 32,
+                    '咖啡(黑)': 1
+                }
+            };
+            
+            // 获取DOM元素并验证
+            const foodNameInput = document.getElementById('food-name');
+            const foodWeightInput = document.getElementById('food-weight');
+            const addFoodBtn = document.getElementById('add-food');
+            const foodSuggestions = document.getElementById('food-suggestions');
+            const foodList = document.getElementById('food-list');
+            const foodListEmpty = document.getElementById('food-list-empty');
+            const foodItems = document.getElementById('food-items');
+            const summaryCard = document.getElementById('summary-card');
+            const totalTypes = document.getElementById('total-types');
+            const totalWeight = document.getElementById('total-weight');
+            const totalCalories = document.getElementById('total-calories');
+            const resetDayBtn = document.getElementById('reset-day');
+            const foodCategories = document.getElementById('food-categories');
+            
+            // 存储今日食物列表
+            let todayFoods = [];
+            
+            // 初始化食物分类标签（修复：确保分类标签正确生成）
+            initFoodCategories();
+            
+            // 初始化食物分类标签函数
+            function initFoodCategories() {
+                // 清空现有分类，避免重复生成
+                foodCategories.innerHTML = '';
+                
+                // 生成分类标签
+                Object.keys(foodDatabase).forEach(category => {
+                    const categoryTag = document.createElement('button');
+                    categoryTag.className = 'px-3 py-1 bg-gray-100 hover:bg-primary hover:text-white text-gray-700 rounded-full text-sm transition-colors';
+                    categoryTag.textContent = category;
+                    categoryTag.addEventListener('click', () => {
+                        showCategoryFoods(category);
+                    });
+                    foodCategories.appendChild(categoryTag);
+                });
+            }
+            
+            // 显示分类下的食物（修复：确保正确显示食物选项）
+            function showCategoryFoods(category) {
+                foodSuggestions.innerHTML = '';
+                
+                // 添加分类标题
+                const categoryHeader = document.createElement('div');
+                categoryHeader.className = 'px-4 py-2 bg-primary text-white font-medium';
+                categoryHeader.textContent = category;
+                foodSuggestions.appendChild(categoryHeader);
+                
+                // 添加该分类下的所有食物
+                const foods = Object.keys(foodDatabase[category]);
+                if (foods.length > 0) {
+                    foods.forEach(food => {
+                        const suggestion = document.createElement('div');
+                        suggestion.className = 'px-4 py-2 hover:bg-gray-50 cursor-pointer transition-colors';
+                        suggestion.innerHTML = `
+                            <div class="flex justify-between">
+                                <span>${food}</span>
+                                <span class="text-xs text-gray-500">${foodDatabase[category][food]}千卡/100g</span>
+                            </div>
+                        `;
+                        suggestion.addEventListener('click', function() {
+                            foodNameInput.value = food;
+                            foodSuggestions.classList.add('hidden');
+                            foodWeightInput.focus();
+                        });
+                        foodSuggestions.appendChild(suggestion);
+                    });
+                } else {
+                    // 分类下无食物时显示提示
+                    const emptyMsg = document.createElement('div');
+                    emptyMsg.className = 'px-4 py-3 text-gray-500 text-center';
+                    emptyMsg.textContent = '该分类下暂无食物数据';
+                    foodSuggestions.appendChild(emptyMsg);
+                }
+                
+                // 确保显示食物选项面板
+                foodSuggestions.classList.remove('hidden');
+            }
+            
+            // 食物名称输入提示（修复：确保搜索时正确显示匹配项）
+            foodNameInput.addEventListener('input', function() {
+                const input = this.value.trim().toLowerCase();
+                
+                if (input.length < 1) {
+                    // 输入为空时显示提示信息
+                    foodSuggestions.innerHTML = `
+                        <div class="p-4 text-gray-500 text-center">
+                            <i class="fa fa-search mb-2"></i>
+                            <p>输入食物名称查找，如"苹果"、"牛肉"</p>
+                        </div>
+                    `;
+                    foodSuggestions.classList.remove('hidden');
+                    return;
+                }
+                
+                // 查找匹配的食物，按分类组织
+                const matchesByCategory = {};
+                
+                // 遍历所有分类查找匹配的食物
+                Object.keys(foodDatabase).forEach(category => {
+                    const foods = Object.keys(foodDatabase[category]);
+                    const categoryMatches = foods.filter(food => 
+                        food.toLowerCase().includes(input)
+                    );
+                    
+                    if (categoryMatches.length > 0) {
+                        matchesByCategory[category] = categoryMatches;
+                    }
+                });
+                
+                if (Object.keys(matchesByCategory).length > 0) {
+                    foodSuggestions.innerHTML = '';
+                    
+                    // 按分类显示匹配结果
+                    Object.keys(matchesByCategory).forEach(category => {
+                        // 添加分类标题
+                        const categoryHeader = document.createElement('div');
+                        categoryHeader.className = 'px-4 py-2 bg-gray-50 font-medium text-gray-700';
+                        categoryHeader.textContent = category;
+                        foodSuggestions.appendChild(categoryHeader);
+                        
+                        // 添加该分类下的匹配食物
+                        matchesByCategory[category].forEach(food => {
+                            const suggestion = document.createElement('div');
+                            suggestion.className = 'px-4 py-2 hover:bg-gray-50 cursor-pointer transition-colors';
+                            suggestion.innerHTML = `
+                                <div class="flex justify-between">
+                                    <span>${food}</span>
+                                    <span class="text-xs text-gray-500">${foodDatabase[category][food]}千卡/100g</span>
+                                </div>
+                            `;
+                            suggestion.addEventListener('click', function() {
+                                foodNameInput.value = food;
+                                foodSuggestions.classList.add('hidden');
+                                foodWeightInput.focus();
+                            });
+                            foodSuggestions.appendChild(suggestion);
+                        });
+                    });
+                    
+                    foodSuggestions.classList.remove('hidden');
+                } else {
+                    foodSuggestions.innerHTML = `
+                        <div class="p-4 text-gray-500 text-center">
+                            <i class="fa fa-exclamation-circle mb-2"></i>
+                            <p>未找到"${input}"相关食物</p>
+                            <p class="text-xs mt-1">您可以直接添加并输入其热量值</p>
+                        </div>
+                    `;
+                    foodSuggestions.classList.remove('hidden');
+                }
+            });
+            
+            // 点击输入框显示搜索建议
+            foodNameInput.addEventListener('focus', function() {
+                if (this.value.trim().length === 0) {
+                    foodSuggestions.innerHTML = `
+                        <div class="p-4 text-gray-500 text-center">
+                            <i class="fa fa-search mb-2"></i>
+                            <p>输入食物名称查找，如"苹果"、"牛肉"</p>
+                        </div>
+                    `;
+                    foodSuggestions.classList.remove('hidden');
+                }
+            });
+            
+            // 点击页面其他地方关闭提示
+            document.addEventListener('click', function(e) {
+                if (!foodNameInput.contains(e.target) && !foodSuggestions.contains(e.target)) {
+                    foodSuggestions.classList.add('hidden');
+                }
+            });
+            
+            // 添加食物
+            addFoodBtn.addEventListener('click', addFood);
+            
+            // 按Enter键添加食物
+            foodWeightInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    addFood();
+                }
+            });
+            
+            // 添加食物函数（修复：确保正确处理所有情况）
+            function addFood() {
+                const foodName = foodNameInput.value.trim();
+                const foodWeight = parseFloat(foodWeightInput.value) || 0;
+                
+                // 验证输入
+                if (!foodName) {
+                    alert('请输入食物名称或从列表中选择');
+                    foodNameInput.focus();
+                    return;
+                }
+                
+                if (foodWeight <= 0 || isNaN(foodWeight)) {
+                    alert('请输入有效的食物重量（大于0的数字）');
+                    foodWeightInput.focus();
+                    return;
+                }
+                
+                // 查找食物热量和分类
+                let caloriesPer100g = null;
+                let category = null;
+                let isCustom = false;
+                
+                // 遍历所有分类查找食物
+                Object.keys(foodDatabase).some(cat => {
+                    if (foodDatabase[cat].hasOwnProperty(foodName)) {
+                        caloriesPer100g = foodDatabase[cat][foodName];
+                        category = cat;
+                        return true;
+                    }
+                    return false;
+                });
+                
+                // 如果没有找到，让用户输入热量
+                if (caloriesPer100g === null) {
+                    const inputCalories = prompt(`数据库中没有"${foodName}"的热量信息，请输入每100克的热量（千卡）：`);
+                    if (!inputCalories || isNaN(inputCalories) || parseFloat(inputCalories) < 0) {
+                        alert('请输入有效的热量值（非负数字）');
+                        return;
+                    }
+                    caloriesPer100g = parseFloat(inputCalories);
+                    isCustom = true;
+                    category = '自定义';
+                }
+                
+                // 计算热量
+                const totalCalories = (caloriesPer100g * foodWeight / 100).toFixed(1);
+                
+                // 添加到今日食物列表
+                const foodItem = {
+                    id: Date.now(),
+                    name: foodName,
+                    category: category,
+                    weight: foodWeight,
+                    calories: parseFloat(totalCalories),
+                    isCustom: isCustom
+                };
+                
+                todayFoods.push(foodItem);
+                
+                // 更新界面
+                updateFoodList();
+                updateSummary();
+                
+                // 清空输入框
+                foodNameInput.value = '';
+                foodWeightInput.value = '100';
+                foodNameInput.focus();
+                
+                // 显示成功提示
+                showToast(`${foodName} 添加成功`);
+            }
+            
+            // 更新食物列表
+            function updateFoodList() {
+                if (todayFoods.length === 0) {
+                    foodList.classList.add('hidden');
+                    foodListEmpty.classList.remove('hidden');
+                    return;
+                }
+                
+                foodList.classList.remove('hidden');
+                foodListEmpty.classList.add('hidden');
+                foodItems.innerHTML = '';
+                
+                todayFoods.forEach(food => {
+                    const row = document.createElement('tr');
+                    row.className = 'hover:bg-gray-50 transition-colors slide-in';
+                    row.setAttribute('data-id', food.id);
+                    
+                    row.innerHTML = `
+                        <td class="px-3 py-3 text-left">
+                            ${food.name}
+                            ${food.isCustom ? '<span class="ml-2 text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">自定义</span>' : ''}
+                        </td>
+                        <td class="px-3 py-3 text-right">
+                            <span class="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full">${food.category}</span>
+                        </td>
+                        <td class="px-3 py-3 text-right">${food.weight}g</td>
+                        <td class="px-3 py-3 text-right font-medium">${food.calories}</td>
+                        <td class="px-3 py-3 text-center">
+                            <button class="delete-food text-red-500 hover:text-red-700 transition-colors" data-id="${food.id}">
+                                <i class="fa fa-trash-o"></i>
+                            </button>
+                        </td>
+                    `;
+                    
+                    foodItems.appendChild(row);
+                });
+                
+                // 添加删除事件
+                document.querySelectorAll('.delete-food').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const id = parseInt(this.getAttribute('data-id'));
+                        deleteFood(id);
+                    });
+                });
+            }
+            
+            // 更新汇总信息
+            function updateSummary() {
+                if (todayFoods.length === 0) {
+                    summaryCard.classList.add('hidden');
+                    return;
+                }
+                
+                summaryCard.classList.remove('hidden');
+                
+                // 计算总计
+                const types = todayFoods.length;
+                const weight = todayFoods.reduce((sum, food) => sum + food.weight, 0);
+                const calories = todayFoods.reduce((sum, food) => sum + food.calories, 0);
+                
+                // 更新显示
+                totalTypes.textContent = types;
+                totalWeight.textContent = `${weight}g`;
+                totalCalories.textContent = `${calories.toFixed(1)} 千卡`;
+            }
+            
+            // 删除食物
+            function deleteFood(id) {
+                const foodIndex = todayFoods.findIndex(food => food.id === id);
+                if (foodIndex !== -1) {
+                    const deletedFood = todayFoods.splice(foodIndex, 1)[0];
+                    updateFoodList();
+                    updateSummary();
+                    showToast(`${deletedFood.name} 已移除`);
+                }
+            }
+            
+            // 重置今日记录
+            resetDayBtn.addEventListener('click', function() {
+                if (todayFoods.length === 0) return;
+                
+                if (confirm('确定要清空今日所有食物记录吗？')) {
+                    todayFoods = [];
+                    updateFoodList();
+                    updateSummary();
+                    showToast('今日记录已重置');
+                }
+            });
+            
+            // 显示提示消息
+            function showToast(message) {
+                // 检查是否已有toast
+                let toast = document.getElementById('toast-message');
+                if (toast) {
+                    toast.remove();
+                }
+                
+                // 创建新toast
+                toast = document.createElement('div');
+                toast.id = 'toast-message';
+                toast.className = 'fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-dark text-white px-4 py-2 rounded-lg shadow-lg z-50 fade-in';
+                toast.textContent = message;
+                document.body.appendChild(toast);
+                
+                // 3秒后移除
+                setTimeout(() => {
+                    toast.style.opacity = '0';
+                    toast.style.transition = 'opacity 0.3s ease';
+                    setTimeout(() => toast.remove(), 300);
+                }, 3000);
+            }
+            
+            // 初始化页面时显示搜索提示
+            setTimeout(() => {
+                foodSuggestions.classList.remove('hidden');
+            }, 500);
+        });
+    </script>
+</body>
+</html>

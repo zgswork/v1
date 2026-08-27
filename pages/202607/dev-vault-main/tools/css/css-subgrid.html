@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html tk="title_css_subgrid_playground_de" lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CSS Subgrid Playground — Dev Vault</title>
+<meta name="description" content="Interactive CSS subgrid playground. Align nested grids to parent tracks. Visual builder with presets.">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0a0a;--surface:#141414;--surface2:#1e1e1e;--border:#2a2a2a;
+  --text:#e6e6e6;--text2:#999;--accent:#3b82f6;--accent2:#2563eb;
+  --green:#22c55e;--red:#ef4444;--yellow:#eab308;--purple:#a855f7;
+  --radius:8px;--font:system-ui,-apple-system,sans-serif;--mono:'SF Mono',Consolas,monospace;
+}
+html{font-size:14px}
+body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;overflow-x:hidden}
+h1{font-size:1.4rem;font-weight:700}
+h2{font-size:1.1rem;font-weight:600;color:var(--text2)}
+h3{font-size:.95rem;font-weight:600;margin-bottom:.5rem}
+
+/* Layout */
+.app{display:flex;flex-direction:column;min-height:100vh}
+.header{padding:1rem 1.5rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:1rem;flex-wrap:wrap}
+.header h1 span{color:var(--accent)}
+.main{display:grid;grid-template-columns:280px 1fr;flex:1;overflow:hidden}
+@media(max-width:900px){.main{grid-template-columns:1fr}}
+
+/* Sidebar */
+.sidebar{border-right:1px solid var(--border);overflow-y:auto;padding:1rem;display:flex;flex-direction:column;gap:1rem}
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:.75rem}
+.panel-title{font-size:.85rem;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.75rem}
+
+/* Controls */
+.ctrl{display:flex;flex-direction:column;gap:.35rem;margin-bottom:.6rem}
+.ctrl label{font-size:.8rem;color:var(--text2);display:flex;justify-content:space-between;align-items:center}
+.ctrl label .val{color:var(--text);font-family:var(--mono);font-size:.75rem}
+input[type=range]{-webkit-appearance:none;width:100%;height:6px;background:var(--surface2);border-radius:3px;outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;background:var(--accent);border-radius:50%;cursor:pointer}
+input[type=range]::-moz-range-thumb{width:14px;height:14px;background:var(--accent);border-radius:50%;cursor:pointer;border:0}
+
+.toggle-row{display:flex;align-items:center;justify-content:space-between;padding:.4rem 0}
+.toggle-row span{font-size:.8rem;color:var(--text2)}
+.toggle{position:relative;width:36px;height:20px;cursor:pointer}
+.toggle input{opacity:0;width:0;height:0}
+.toggle .slider{position:absolute;inset:0;background:var(--surface2);border-radius:10px;transition:.2s}
+.toggle .slider::before{content:'';position:absolute;width:16px;height:16px;left:2px;top:2px;background:#666;border-radius:50%;transition:.2s}
+.toggle input:checked+.slider{background:var(--accent)}
+.toggle input:checked+.slider::before{transform:translateX(16px);background:#fff}
+
+/* Presets */
+.presets{display:grid;grid-template-columns:1fr 1fr;gap:.4rem}
+.preset-btn{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:.5rem;color:var(--text);font-size:.75rem;cursor:pointer;text-align:center;transition:.15s}
+.preset-btn:hover{border-color:var(--accent);color:var(--accent)}
+.preset-btn.active{border-color:var(--accent);background:rgba(59,130,246,.1);color:var(--accent)}
+
+/* Content area */
+.content{display:flex;flex-direction:column;overflow:auto}
+.tab-bar{display:flex;border-bottom:1px solid var(--border);padding:0 1rem;gap:0}
+.tab{padding:.6rem 1rem;font-size:.8rem;color:var(--text2);cursor:pointer;border-bottom:2px solid transparent;transition:.15s}
+.tab:hover{color:var(--text)}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+
+.tab-content{flex:1;display:none;padding:1.5rem;overflow:auto}
+.tab-content.active{display:flex;flex-direction:column;gap:1.5rem}
+
+/* Preview grids */
+.preview-area{display:flex;gap:1.5rem;flex-wrap:wrap}
+.preview-box{flex:1;min-width:300px}
+.preview-label{font-size:.85rem;font-weight:600;margin-bottom:.75rem;display:flex;align-items:center;gap:.5rem}
+.preview-label .badge{font-size:.7rem;padding:.15rem .5rem;border-radius:10px;font-weight:500}
+.badge-on{background:rgba(34,197,94,.15);color:var(--green)}
+.badge-off{background:rgba(239,68,68,.15);color:var(--red)}
+
+.grid-container{position:relative;border:1px solid var(--border);border-radius:var(--radius);padding:1rem;background:var(--surface);min-height:300px}
+
+/* Grid overlay */
+.grid-overlay{position:absolute;inset:1rem;pointer-events:none;z-index:1}
+.grid-line-v,.grid-line-h{position:absolute;background:var(--accent);opacity:.15}
+.grid-line-v{width:1px;top:0;bottom:0}
+.grid-line-h{height:1px;left:0;right:0}
+
+/* Parent grid */
+.parent-grid{display:grid;position:relative;z-index:2;min-height:280px}
+.parent-grid>.child-wrapper{border:1px dashed rgba(168,85,247,.4);border-radius:6px;padding:4px;position:relative}
+.parent-grid>.child-wrapper::before{content:attr(data-label);position:absolute;top:-10px;left:8px;font-size:.6rem;color:var(--purple);background:var(--surface);padding:0 4px}
+
+.child-grid{display:grid;height:100%}
+.cell{border-radius:4px;padding:.5rem;font-size:.7rem;font-family:var(--mono);display:flex;align-items:center;justify-content:center;min-height:40px;position:relative;transition:.15s}
+
+/* Cell colors */
+.cell-a{background:rgba(59,130,246,.15);border:1px solid rgba(59,130,246,.3);color:var(--accent)}
+.cell-b{background:rgba(168,85,247,.15);border:1px solid rgba(168,85,247,.3);color:var(--purple)}
+.cell-c{background:rgba(34,197,94,.15);border:1px solid rgba(34,197,94,.3);color:var(--green)}
+.cell-d{background:rgba(234,179,8,.15);border:1px solid rgba(234,179,8,.3);color:var(--yellow)}
+
+/* Code output */
+.code-area{position:relative}
+.code-block{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;font-family:var(--mono);font-size:.8rem;line-height:1.6;color:var(--text);white-space:pre-wrap;overflow-x:auto;max-height:500px;overflow-y:auto}
+.code-block .kw{color:var(--accent)}
+.code-block .val{color:var(--green)}
+.code-block .prop{color:var(--purple)}
+.code-block .comment{color:#555}
+.copy-btn{position:absolute;top:.5rem;right:.5rem;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:.35rem .75rem;color:var(--text2);font-size:.75rem;cursor:pointer;transition:.15s}
+.copy-btn:hover{border-color:var(--accent);color:var(--accent)}
+.copy-btn.copied{border-color:var(--green);color:var(--green)}
+
+/* Comparison */
+.comparison{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem}
+@media(max-width:700px){.comparison{grid-template-columns:1fr}}
+.compare-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow:hidden}
+.compare-title{font-size:.85rem;font-weight:600;margin-bottom:.75rem;display:flex;align-items:center;gap:.5rem}
+
+/* Misalignment markers */
+.misaligned{position:relative}
+.misaligned::after{content:'';position:absolute;right:2px;top:2px;width:6px;height:6px;background:var(--red);border-radius:50%}
+</style>
+</head>
+<body>
+
+
+<div class="app">
+  <header class="header">
+    <h1>CSS <span>Subgrid</span> Playground</h1>
+    <h2 ti="h2_align_nested_grids_to_par">Align nested grids to parent tracks</h2>
+  </header>
+
+  <div class="main">
+    <aside class="sidebar">
+      <!-- Presets -->
+      <div class="panel">
+        <div class="panel-title">Presets</div>
+        <div class="presets">
+          <button class="preset-btn active" data-preset="card" ti="btn_card_grid">Card Grid</button>
+          <button class="preset-btn" data-preset="form" ti="btn_form_layout">Form Layout</button>
+          <button class="preset-btn" data-preset="dashboard" ti="btn_dashboard">Dashboard</button>
+          <button class="preset-btn" data-preset="table" ti="btn_table_like">Table-like</button>
+        </div>
+      </div>
+
+      <!-- Parent Grid -->
+      <div class="panel">
+        <div class="panel-title">Parent Grid</div>
+        <div class="ctrl">
+          <label>Columns <span class="val" id="colsVal">3</span></label>
+          <input type="range" id="cols" min="1" max="6" value="3">
+        </div>
+        <div class="ctrl">
+          <label>Rows <span class="val" id="rowsVal">3</span></label>
+          <input type="range" id="rows" min="1" max="6" value="3">
+        </div>
+        <div class="ctrl">
+          <label>Gap <span class="val" id="gapVal">12px</span></label>
+          <input type="range" id="gap" min="0" max="32" value="12">
+        </div>
+      </div>
+
+      <!-- Child Subgrid -->
+      <div class="panel">
+        <div class="panel-title">Child Subgrid</div>
+        <div class="toggle-row">
+          <span>Subgrid Columns</span>
+          <label class="toggle"><input type="checkbox" id="subCols" checked><span class="slider"></span></label>
+        </div>
+        <div class="toggle-row">
+          <span>Subgrid Rows</span>
+          <label class="toggle"><input type="checkbox" id="subRows" checked><span class="slider"></span></label>
+        </div>
+      </div>
+
+      <!-- Display -->
+      <div class="panel">
+        <div class="panel-title">Display</div>
+        <div class="toggle-row">
+          <span>Show Grid Lines</span>
+          <label class="toggle"><input type="checkbox" id="showLines" checked><span class="slider"></span></label>
+        </div>
+        <div class="toggle-row">
+          <span>Show Cell Labels</span>
+          <label class="toggle"><input type="checkbox" id="showLabels" checked><span class="slider"></span></label>
+        </div>
+      </div>
+    </aside>
+
+    <div class="content">
+      <div class="tab-bar">
+        <div class="tab active" data-tab="preview">Preview</div>
+        <div class="tab" data-tab="compare">Compare</div>
+        <div class="tab" data-tab="code">CSS Output</div>
+      </div>
+
+      <!-- Preview Tab -->
+      <div class="tab-content active" id="tab-preview">
+        <div class="preview-area">
+          <div class="preview-box" style="flex:1;min-width:0">
+            <div class="preview-label">
+              Live Preview
+              <span class="badge badge-on" id="statusBadge">subgrid active</span>
+            </div>
+            <div class="grid-container" id="previewContainer">
+              <div class="grid-overlay" id="gridOverlay"></div>
+              <div class="parent-grid" id="parentGrid"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Compare Tab -->
+      <div class="tab-content" id="tab-compare">
+        <h3 ti="h3_side_by_side_subgrid_vs_n">Side-by-Side: Subgrid vs No Subgrid</h3>
+        <div class="comparison">
+          <div class="compare-box">
+            <div class="compare-title"><span class="badge badge-on">With Subgrid</span></div>
+            <div class="grid-container" id="compareOn"></div>
+          </div>
+          <div class="compare-box">
+            <div class="compare-title"><span class="badge badge-off">Without Subgrid</span></div>
+            <div class="grid-container" id="compareOff"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Code Tab -->
+      <div class="tab-content" id="tab-code">
+        <h3 ti="h3_generated_css">Generated CSS</h3>
+        <div class="code-area">
+          <button class="copy-btn" id="copyBtn" ti="btn_copy_css">Copy CSS</button>
+          <div class="code-block" id="codeOutput"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<script>var _LANG={'title_css_subgrid_playground_de':["CSS Subgrid Playground — Dev Vault", "CSS 子网格练习场 — 开发者宝库"],'metadesc_interactive_css_subgrid_p':["Interactive CSS subgrid playground. Align nested grids to parent tracks. Visual builder with presets.", "交互式 CSS 子网格示例。将嵌套网格与父轨道对齐。带有预设的可视化构建器。"],'h2_align_nested_grids_to_par':["Align nested grids to parent tracks", "将嵌套网格与父轨道对齐"],'h3_side_by_side_subgrid_vs_n':["Side-by-Side: Subgrid vs No Subgrid", "并排比较：带子网格 vs 不带子网格"],'h3_generated_css':["Generated CSS", "生成的 CSS"],'btn_card_grid':["Card Grid", "卡片网格"],'btn_form_layout':["Form Layout", "表单布局"],'btn_dashboard':["Dashboard", "仪表板"],'btn_table_like':["Table-like", "桌子状"],'btn_copy_css':["Copy CSS", "复制 CSS"],'footer_css_subgrid_playground_de':["CSS Subgrid Playground — Dev Vault", "CSS 子网格练习场 — 开发者宝库"],'jtc_subgrid_off':["subgrid off", "子网格关闭"],'jtc_copied':["Copied!", "已复制！"],'jtc_copy_css':["Copy CSS", "复制 CSS"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>
+const $ = s => document.querySelector(s);
+const $$ = s => document.querySelectorAll(s);
+
+// State
+const state = {
+  cols: 3, rows: 3, gap: 12,
+  subCols: true, subRows: true,
+  showLines: true, showLabels: true,
+  preset: 'card'
+};
+
+// Presets define the grid structure
+const presets = {
+  card: {
+    name: 'Card Grid',
+    cols: 3, rows: 3, gap: 16, subCols: false, subRows: true,
+    desc: 'Cards with header/body/footer aligned across rows',
+    build(parent, useSub) {
+      const cols = state.cols;
+      const rows = state.rows;
+      parent.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+      parent.style.gridTemplateRows = `repeat(${rows}, auto)`;
+      parent.style.gap = state.gap + 'px';
+
+      for (let c = 0; c < cols; c++) {
+        const wrapper = mkWrapper(`Card ${c + 1}`);
+        wrapper.style.gridColumn = `${c + 1}`;
+        wrapper.style.gridRow = `1 / ${rows + 1}`;
+
+        const child = mkChild();
+        if (useSub) {
+          child.style.gridTemplateRows = state.subRows ? 'subgrid' : `repeat(${rows}, auto)`;
+          child.style.gridTemplateColumns = '1fr';
+        } else {
+          child.style.gridTemplateRows = `auto 1fr auto`;
+          child.style.gridTemplateColumns = '1fr';
+        }
+        child.style.gap = state.gap + 'px';
+
+        const parts = ['Header', 'Body', 'Footer'];
+        const classes = ['cell-a', 'cell-b', 'cell-c'];
+        for (let r = 0; r < rows; r++) {
+          const idx = r < 3 ? r : r % 3;
+          child.appendChild(mkCell(parts[idx] || `Row ${r+1}`, classes[idx] || 'cell-d'));
+        }
+
+        wrapper.appendChild(child);
+        parent.appendChild(wrapper);
+      }
+    }
+  },
+  form: {
+    name: 'Form Layout',
+    cols: 4, rows: 3, gap: 12, subCols: true, subRows: false,
+    desc: 'Labels and inputs aligned across columns',
+    build(parent, useSub) {
+      const cols = state.cols;
+      const rows = state.rows;
+      parent.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+      parent.style.gridTemplateRows = `repeat(${rows}, auto)`;
+      parent.style.gap = state.gap + 'px';
+
+      const fields = ['Name', 'Email', 'Phone', 'Address', 'City', 'Zip'];
+      for (let r = 0; r < rows; r++) {
+        const wrapper = mkWrapper(`Row ${r + 1}`);
+        wrapper.style.gridColumn = `1 / ${cols + 1}`;
+        wrapper.style.gridRow = `${r + 1}`;
+
+        const child = mkChild();
+        if (useSub) {
+          child.style.gridTemplateColumns = state.subCols ? 'subgrid' : `repeat(${cols}, 1fr)`;
+        } else {
+          child.style.gridTemplateColumns = `120px 1fr 120px 1fr`;
+        }
+        child.style.gap = state.gap + 'px';
+
+        for (let c = 0; c < cols; c++) {
+          const isLabel = c % 2 === 0;
+          const fi = r * (cols / 2) + Math.floor(c / 2);
+          const text = isLabel ? (fields[fi % fields.length] || 'Field') : 'input';
+          child.appendChild(mkCell(text, isLabel ? 'cell-a' : 'cell-b'));
+        }
+
+        wrapper.appendChild(child);
+        parent.appendChild(wrapper);
+      }
+    }
+  },
+  dashboard: {
+    name: 'Dashboard',
+    cols: 3, rows: 3, gap: 12, subCols: true, subRows: true,
+    desc: 'Nested panels inheriting parent grid',
+    build(parent, useSub) {
+      const cols = state.cols;
+      const rows = state.rows;
+      parent.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+      parent.style.gridTemplateRows = `repeat(${rows}, 1fr)`;
+      parent.style.gap = state.gap + 'px';
+      parent.style.minHeight = '350px';
+
+      // Panel 1: spans 2 cols, 2 rows
+      const spanC = Math.min(2, cols);
+      const spanR = Math.min(2, rows);
+
+      const w1 = mkWrapper('Main Panel');
+      w1.style.gridColumn = `1 / ${spanC + 1}`;
+      w1.style.gridRow = `1 / ${spanR + 1}`;
+      const c1 = mkChild();
+      if (useSub) {
+        if (state.subCols) c1.style.gridTemplateColumns = 'subgrid';
+        else c1.style.gridTemplateColumns = `repeat(${spanC}, 1fr)`;
+        if (state.subRows) c1.style.gridTemplateRows = 'subgrid';
+        else c1.style.gridTemplateRows = `repeat(${spanR}, 1fr)`;
+      } else {
+        c1.style.gridTemplateColumns = `repeat(${spanC}, 1fr)`;
+        c1.style.gridTemplateRows = `repeat(${spanR}, 1fr)`;
+      }
+      c1.style.gap = state.gap + 'px';
+      for (let i = 0; i < spanC * spanR; i++) {
+        c1.appendChild(mkCell(`A${i+1}`, 'cell-a'));
+      }
+      w1.appendChild(c1);
+      parent.appendChild(w1);
+
+      // Side panel
+      if (cols > 2) {
+        const w2 = mkWrapper('Side');
+        w2.style.gridColumn = `${cols}`;
+        w2.style.gridRow = `1 / ${spanR + 1}`;
+        const c2 = mkChild();
+        if (useSub && state.subRows) c2.style.gridTemplateRows = 'subgrid';
+        else c2.style.gridTemplateRows = `repeat(${spanR}, 1fr)`;
+        c2.style.gridTemplateColumns = '1fr';
+        c2.style.gap = state.gap + 'px';
+        for (let i = 0; i < spanR; i++) c2.appendChild(mkCell(`B${i+1}`, 'cell-b'));
+        w2.appendChild(c2);
+        parent.appendChild(w2);
+      }
+
+      // Bottom panels
+      if (rows > 2) {
+        for (let c = 0; c < cols; c++) {
+          const w = mkWrapper(`Bottom ${c+1}`);
+          w.style.gridColumn = `${c + 1}`;
+          w.style.gridRow = `${rows}`;
+          const ch = mkChild();
+          ch.style.gridTemplateColumns = '1fr';
+          ch.style.gridTemplateRows = '1fr';
+          ch.appendChild(mkCell(`C${c+1}`, 'cell-c'));
+          w.appendChild(ch);
+          parent.appendChild(w);
+        }
+      }
+    }
+  },
+  table: {
+    name: 'Table-like',
+    cols: 4, rows: 4, gap: 4, subCols: true, subRows: false,
+    desc: 'Rows with aligned columns using subgrid',
+    build(parent, useSub) {
+      const cols = state.cols;
+      const rows = state.rows;
+      parent.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+      parent.style.gridTemplateRows = `repeat(${rows}, auto)`;
+      parent.style.gap = state.gap + 'px';
+
+      const headers = ['ID', 'Name', 'Status', 'Action', 'Date', 'Type'];
+      const classes = ['cell-a', 'cell-b', 'cell-c', 'cell-d'];
+
+      for (let r = 0; r < rows; r++) {
+        const isHeader = r === 0;
+        const wrapper = mkWrapper(isHeader ? 'Header' : `Row ${r}`);
+        wrapper.style.gridColumn = `1 / ${cols + 1}`;
+        wrapper.style.gridRow = `${r + 1}`;
+
+        const child = mkChild();
+        if (useSub) {
+          child.style.gridTemplateColumns = state.subCols ? 'subgrid' : `repeat(${cols}, 1fr)`;
+        } else {
+          child.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+        }
+        child.style.gap = state.gap + 'px';
+
+        for (let c = 0; c < cols; c++) {
+          const text = isHeader ? (headers[c % headers.length]) : `${r}-${c}`;
+          child.appendChild(mkCell(text, isHeader ? 'cell-a' : classes[c % classes.length]));
+        }
+
+        wrapper.appendChild(child);
+        parent.appendChild(wrapper);
+      }
+    }
+  }
+};
+
+function mkWrapper(label) {
+  const d = document.createElement('div');
+  d.className = 'child-wrapper';
+  d.dataset.label = label;
+  return d;
+}
+
+function mkChild() {
+  const d = document.createElement('div');
+  d.className = 'child-grid';
+  return d;
+}
+
+function mkCell(text, cls) {
+  const d = document.createElement('div');
+  d.className = `cell ${cls}`;
+  if (state.showLabels) d.textContent = text;
+  d.dataset.text = text;
+  return d;
+}
+
+// Render
+function render() {
+  renderPreview();
+  renderCompare();
+  renderCode();
+  updateBadge();
+}
+
+function renderPreview() {
+  const parent = $('#parentGrid');
+  parent.innerHTML = '';
+  parent.style.cssText = '';
+  presets[state.preset].build(parent, true);
+  renderOverlay();
+}
+
+function renderCompare() {
+  const on = $('#compareOn');
+  const off = $('#compareOff');
+  on.innerHTML = '';
+  off.innerHTML = '';
+
+  const pOn = document.createElement('div');
+  pOn.className = 'parent-grid';
+  presets[state.preset].build(pOn, true);
+  on.appendChild(pOn);
+
+  const pOff = document.createElement('div');
+  pOff.className = 'parent-grid';
+  presets[state.preset].build(pOff, false);
+  off.appendChild(pOff);
+
+  // Mark misalignment in non-subgrid version after render
+  requestAnimationFrame(() => {
+    const onCells = pOn.querySelectorAll('.cell');
+    const offCells = pOff.querySelectorAll('.cell');
+    onCells.forEach((cell, i) => {
+      if (offCells[i]) {
+        const rOn = cell.getBoundingClientRect();
+        const rOff = offCells[i].getBoundingClientRect();
+        const parentOnR = pOn.getBoundingClientRect();
+        const parentOffR = pOff.getBoundingClientRect();
+        const relOnL = rOn.left - parentOnR.left;
+        const relOffL = rOff.left - parentOffR.left;
+        const relOnT = rOn.top - parentOnR.top;
+        const relOffT = rOff.top - parentOffR.top;
+        if (Math.abs(relOnL - relOffL) > 2 || Math.abs(relOnT - relOffT) > 2 ||
+            Math.abs(rOn.width - rOff.width) > 2 || Math.abs(rOn.height - rOff.height) > 2) {
+          offCells[i].classList.add('misaligned');
+        }
+      }
+    });
+  });
+}
+
+function renderOverlay() {
+  const overlay = $('#gridOverlay');
+  overlay.innerHTML = '';
+  if (!state.showLines) { overlay.style.display = 'none'; return; }
+  overlay.style.display = '';
+
+  const cols = state.cols;
+  const rows = state.rows;
+
+  // Vertical lines
+  for (let i = 1; i < cols; i++) {
+    const line = document.createElement('div');
+    line.className = 'grid-line-v';
+    line.style.left = `calc(${(i / cols) * 100}% - ${state.gap / 2 * (cols - 2 * i) / cols}px)`;
+    overlay.appendChild(line);
+  }
+
+  // Horizontal lines
+  for (let i = 1; i < rows; i++) {
+    const line = document.createElement('div');
+    line.className = 'grid-line-h';
+    line.style.top = `calc(${(i / rows) * 100}% - ${state.gap / 2 * (rows - 2 * i) / rows}px)`;
+    overlay.appendChild(line);
+  }
+}
+
+function updateBadge() {
+  const badge = $('#statusBadge');
+  if (state.subCols || state.subRows) {
+    const parts = [];
+    if (state.subCols) parts.push('columns');
+    if (state.subRows) parts.push('rows');
+    badge.textContent = `subgrid: ${parts.join(' + ')}`;
+    badge.className = 'badge badge-on';
+  } else {
+    badge.textContent=T("jtc_subgrid_off");
+    badge.className = 'badge badge-off';
+  }
+}
+
+function renderCode() {
+  const p = state.preset;
+  const preset = presets[p];
+  const cols = state.cols;
+  const rows = state.rows;
+  const gap = state.gap;
+  const subCols = state.subCols;
+  const subRows = state.subRows;
+
+  let css = '';
+
+  const comment = (t) => `<span class="comment">/* ${t} */</span>`;
+  const kw = (t) => `<span class="kw">${t}</span>`;
+  const prop = (t) => `<span class="prop">${t}</span>`;
+  const val = (t) => `<span class="val">${t}</span>`;
+
+  css += `${comment(`Preset: ${preset.name}`)}\n\n`;
+  css += `${kw('.parent-grid')} {\n`;
+  css += `  ${prop('display')}: ${val('grid')};\n`;
+  css += `  ${prop('grid-template-columns')}: ${val(`repeat(${cols}, 1fr)`)};\n`;
+
+  const rowVal = (p === 'card' || p === 'form' || p === 'table') ? 'auto' : '1fr';
+  css += `  ${prop('grid-template-rows')}: ${val(`repeat(${rows}, ${rowVal})`)};\n`;
+  css += `  ${prop('gap')}: ${val(gap + 'px')};\n`;
+  css += `}\n\n`;
+
+  css += `${kw('.child-wrapper')} {\n`;
+
+  if (p === 'card') {
+    css += `  ${comment('Each card spans all rows')}\n`;
+    css += `  ${prop('grid-row')}: ${val(`1 / ${rows + 1}`)};\n`;
+  } else if (p === 'form' || p === 'table') {
+    css += `  ${comment('Each row spans all columns')}\n`;
+    css += `  ${prop('grid-column')}: ${val(`1 / ${cols + 1}`)};\n`;
+  }
+
+  css += `}\n\n`;
+
+  css += `${kw('.child-grid')} {\n`;
+  css += `  ${prop('display')}: ${val('grid')};\n`;
+
+  if (p === 'card') {
+    css += `  ${prop('grid-template-rows')}: ${subRows ? val('subgrid') : val(`repeat(${rows}, auto)`)};\n`;
+    css += `  ${prop('grid-template-columns')}: ${val('1fr')};\n`;
+    if (subRows) css += `  ${comment('Inherits parent row tracks')}\n`;
+  } else if (p === 'form' || p === 'table') {
+    css += `  ${prop('grid-template-columns')}: ${subCols ? val('subgrid') : val(`repeat(${cols}, 1fr)`)};\n`;
+    if (subCols) css += `  ${comment('Inherits parent column tracks')}\n`;
+  } else {
+    if (subCols) {
+      css += `  ${prop('grid-template-columns')}: ${val('subgrid')};\n`;
+      css += `  ${comment('Inherits parent column tracks')}\n`;
+    }
+    if (subRows) {
+      css += `  ${prop('grid-template-rows')}: ${val('subgrid')};\n`;
+      css += `  ${comment('Inherits parent row tracks')}\n`;
+    }
+    if (!subCols) css += `  ${prop('grid-template-columns')}: ${val('repeat(2, 1fr)')};\n`;
+    if (!subRows) css += `  ${prop('grid-template-rows')}: ${val('repeat(2, 1fr)')};\n`;
+  }
+
+  css += `  ${prop('gap')}: ${val(gap + 'px')};\n`;
+  css += `}\n`;
+
+  $('#codeOutput').innerHTML = css;
+}
+
+function getPlainCSS() {
+  const el = $('#codeOutput');
+  return el.textContent || el.innerText;
+}
+
+// Event Listeners
+$('#cols').addEventListener('input', e => {
+  state.cols = +e.target.value;
+  $('#colsVal').textContent = state.cols;
+  render();
+});
+
+$('#rows').addEventListener('input', e => {
+  state.rows = +e.target.value;
+  $('#rowsVal').textContent = state.rows;
+  render();
+});
+
+$('#gap').addEventListener('input', e => {
+  state.gap = +e.target.value;
+  $('#gapVal').textContent = state.gap + 'px';
+  render();
+});
+
+$('#subCols').addEventListener('change', e => { state.subCols = e.target.checked; render(); });
+$('#subRows').addEventListener('change', e => { state.subRows = e.target.checked; render(); });
+$('#showLines').addEventListener('change', e => { state.showLines = e.target.checked; render(); });
+$('#showLabels').addEventListener('change', e => { state.showLabels = e.target.checked; render(); });
+
+// Presets
+$$('.preset-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    $$('.preset-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const p = btn.dataset.preset;
+    state.preset = p;
+    const def = presets[p];
+    state.cols = def.cols;
+    state.rows = def.rows;
+    state.gap = def.gap;
+    state.subCols = def.subCols;
+    state.subRows = def.subRows;
+
+    $('#cols').value = state.cols;
+    $('#colsVal').textContent = state.cols;
+    $('#rows').value = state.rows;
+    $('#rowsVal').textContent = state.rows;
+    $('#gap').value = state.gap;
+    $('#gapVal').textContent = state.gap + 'px';
+    $('#subCols').checked = state.subCols;
+    $('#subRows').checked = state.subRows;
+
+    render();
+  });
+});
+
+// Tabs
+$$('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    $$('.tab').forEach(t => t.classList.remove('active'));
+    $$('.tab-content').forEach(tc => tc.classList.remove('active'));
+    tab.classList.add('active');
+    $(`#tab-${tab.dataset.tab}`).classList.add('active');
+    if (tab.dataset.tab === 'compare') renderCompare();
+  });
+});
+
+// Copy
+$('#copyBtn').addEventListener('click', () => {
+  const css = getPlainCSS();
+  navigator.clipboard.writeText(css).then(() => {
+    const btn = $('#copyBtn');
+    btn.textContent=T("jtc_copied");
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent=T("jtc_copy_css"); btn.classList.remove('copied'); }, 1500);
+  });
+});
+
+// Init
+render();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+</body>
+</html>

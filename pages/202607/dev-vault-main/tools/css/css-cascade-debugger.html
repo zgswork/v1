@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html tk="title_css_cascade_layer_debugge" lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CSS Cascade + @layer Debugger</title>
+<meta name="description" content="Interactive CSS cascade debugger. See how @layer, specificity, and source order determine which rule wins. Visual cascade evaluation with step-by-step explanations.">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0a0a;color:#e6e6e6;min-height:100vh}
+.container{max-width:1200px;margin:0 auto;padding:16px}
+header{text-align:center;padding:20px 0 16px}
+header h1{font-size:1.6rem;color:#fff;margin-bottom:4px}
+header p{color:#888;font-size:0.85rem}
+.tabs{display:flex;gap:4px;margin-bottom:16px;border-bottom:1px solid #333;padding-bottom:8px}
+.tab{padding:8px 16px;border-radius:8px 8px 0 0;border:1px solid transparent;background:none;color:#888;cursor:pointer;font-size:0.85rem;font-weight:600}
+.tab.active{background:#1a1a2e;color:#4da6ff;border-color:#333;border-bottom-color:#1a1a2e}
+.panel{display:none}.panel.active{display:block}
+
+.split{display:grid;grid-template-columns:1fr 1fr;gap:16px;min-height:500px}
+.edit-panel{background:#111;border:1px solid #333;border-radius:12px;padding:16px;display:flex;flex-direction:column}
+.edit-panel h3{font-size:0.9rem;color:#aaa;margin-bottom:8px}
+textarea{flex:1;background:#0a0a0a;border:1px solid #222;border-radius:8px;padding:10px;color:#e6e6e6;font-family:'Fira Code',monospace;font-size:0.8rem;resize:none;min-height:300px}
+.result-panel{background:#111;border:1px solid #333;border-radius:12px;padding:16px;overflow-y:auto}
+.result-panel h3{font-size:0.9rem;color:#aaa;margin-bottom:12px}
+
+.btn{padding:6px 14px;border-radius:8px;border:1px solid #333;background:#1a1a2e;color:#4da6ff;cursor:pointer;font-size:0.8rem;font-weight:600;transition:background 0.2s}
+.btn:hover{background:#243b6e}
+.controls{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center}
+
+/* Rule cards */
+.rule-card{background:#1a1a1a;border:1px solid #333;border-radius:8px;padding:12px;margin-bottom:8px;transition:all 0.3s}
+.rule-card.winner{border-color:#22c55e;background:#22c55e0a;box-shadow:0 0 12px #22c55e22}
+.rule-card.loser{opacity:0.5}
+.rule-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.rule-selector{font-family:'Fira Code',monospace;color:#4da6ff;font-size:0.85rem;font-weight:600}
+.rule-property{font-family:'Fira Code',monospace;color:#ccc;font-size:0.8rem}
+.rule-meta{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.meta-tag{font-size:0.7rem;padding:2px 6px;border-radius:4px;font-weight:600}
+.meta-layer{background:#8b5cf633;color:#8b5cf6}
+.meta-spec{background:#f59e0b33;color:#f59e0b}
+.meta-order{background:#06b6d433;color:#06b6d4}
+.meta-important{background:#ef444433;color:#ef4444}
+.meta-winner{background:#22c55e33;color:#22c55e}
+
+/* Cascade steps */
+.cascade-steps{margin-top:16px}
+.cascade-step{padding:10px;border-radius:8px;margin-bottom:6px;border-left:3px solid #333}
+.cascade-step h4{font-size:0.85rem;color:#fff;margin-bottom:4px}
+.cascade-step p{font-size:0.8rem;color:#888;line-height:1.5}
+.cascade-step.active{border-left-color:#4da6ff;background:#4da6ff08}
+.cascade-step .eliminated{color:#ef4444;font-size:0.75rem}
+.cascade-step .surviving{color:#22c55e;font-size:0.75rem}
+
+/* Presets */
+.preset-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+.preset-card{background:#161616;border:1px solid #222;border-radius:12px;padding:16px;cursor:pointer;transition:border-color 0.2s}
+.preset-card:hover{border-color:#4da6ff}
+.preset-card h4{color:#fff;font-size:0.9rem;margin-bottom:6px}
+.preset-card p{color:#888;font-size:0.8rem;line-height:1.4}
+
+/* Reference */
+.ref-section{margin-bottom:20px}
+.ref-section h3{color:#4da6ff;font-size:1rem;margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid #222}
+.ref-section p,.ref-section li{color:#bbb;font-size:0.85rem;line-height:1.6}
+.ref-section ul,.ref-section ol{padding-left:20px}
+.ref-section code{background:#1a1a2e;padding:2px 6px;border-radius:4px;color:#4da6ff;font-size:0.8rem}
+
+/* Specificity display */
+.spec-display{display:inline-flex;gap:2px;font-family:'Fira Code',monospace;font-size:0.75rem}
+.spec-display span{padding:1px 4px;border-radius:2px}
+.spec-id{background:#ef444433;color:#ef4444}
+.spec-class{background:#22c55e33;color:#22c55e}
+.spec-element{background:#3b82f633;color:#3b82f6}
+</style>
+</head>
+<body>
+
+
+<div class="container" style="position:relative">
+<header>
+<h1 ti="title_css_cascade_layer_debugge" ti="h1_css_cascade_layer_debugge">CSS Cascade + @layer Debugger</h1>
+<p>See exactly why one CSS rule wins over another — layers, specificity, source order</p>
+</header>
+
+<div class="tabs">
+<button class="tab active" data-tab="debugger" ti="btn_debugger">Debugger</button>
+<button class="tab" data-tab="presets" ti="btn_presets">Presets</button>
+<button class="tab" data-tab="reference" ti="btn_reference">Reference</button>
+</div>
+
+<div class="panel active" id="debugger">
+<div class="controls">
+<button class="btn" id="analyzeBtn" ti="btn_analyze_cascade">🔍 Analyze Cascade</button>
+<label style="color:#888;font-size:0.8rem">Target property:
+<input id="targetProp" type="text" value="color" style="padding:4px 8px;border-radius:4px;border:1px solid #333;background:#0a0a0a;color:#e6e6e6;font-size:0.8rem;width:120px">
+</label>
+<label style="color:#888;font-size:0.8rem">Target element:
+<input id="targetEl" type="text" value=".card" style="padding:4px 8px;border-radius:4px;border:1px solid #333;background:#0a0a0a;color:#e6e6e6;font-size:0.8rem;width:120px">
+</label>
+</div>
+<div class="split">
+<div class="edit-panel">
+<h3 ti="h3_css_rules">CSS Rules</h3>
+<textarea id="cssInput">/* Rules competing for .card's color */
+@layer base, theme, utilities;
+
+@layer base {
+  .card {
+    color: gray;
+  }
+}
+
+@layer theme {
+  .card {
+    color: blue;
+  }
+}
+
+@layer utilities {
+  .card {
+    color: red;
+  }
+}
+
+/* Unlayered rule */
+.card {
+  color: green;
+}</textarea>
+</div>
+<div class="result-panel">
+<h3 ti="h3_cascade_resolution">Cascade Resolution</h3>
+<div id="results">
+<div style="color:#555;padding:20px;text-align:center">Click "Analyze Cascade" to see which rule wins and why</div>
+</div>
+</div>
+</div>
+</div>
+
+<div class="panel" id="presets">
+<div class="preset-grid" id="presetGrid"></div>
+</div>
+
+<div class="panel" id="reference">
+<div class="ref-section">
+<h3 ti="h3_the_css_cascade_priority">The CSS Cascade (Priority Order)</h3>
+<p>When multiple rules target the same property on the same element, the cascade determines the winner using these criteria <strong ti="strong_in_order">in order</strong>:</p>
+<ol>
+<li><strong ti="strong_origin_importance">Origin & Importance</strong>: User-agent → Author → Author <code>!important</code> → User-agent <code>!important</code></li>
+<li><strong ti="strong_inline_styles">Inline styles</strong>: <code>style=""</code> attribute beats all selectors (except <code>!important</code> in layers)</li>
+<li><strong ti="strong_layer_order">@layer order</strong>: Unlayered rules beat all layers. Later layers beat earlier layers. <code>!important</code> <em>reverses</em> layer order.</li>
+<li><strong ti="strong_specificity">Specificity</strong>: (ID count, Class/Attr/Pseudo-class count, Element/Pseudo-element count)</li>
+<li><strong ti="strong_source_order">Source order</strong>: Last rule wins when everything else is equal</li>
+</ol>
+</div>
+<div class="ref-section">
+<h3 ti="h3_layer_and_important">@layer and !important</h3>
+<p>This is the most confusing part of modern CSS cascade:</p>
+<ul>
+<li>Normal rules: Unlayered > later layers > earlier layers</li>
+<li><code>!important</code> rules: Earlier layers > later layers > unlayered. <strong ti="strong_the_order_reverses">The order reverses!</strong></li>
+<li>This means <code>!important</code> in an early <code>@layer</code> can beat <code>!important</code> in a later layer</li>
+</ul>
+</div>
+<div class="ref-section">
+<h3 ti="h3_specificity_calculation">Specificity Calculation</h3>
+<ul>
+<li><strong ti="strong_id_selectors">ID selectors</strong> (<code>#id</code>): 1-0-0</li>
+<li><strong ti="strong_class_attribute_pseudo_cl">Class, attribute, pseudo-class</strong> (<code>.class</code>, <code>[attr]</code>, <code>:hover</code>): 0-1-0</li>
+<li><strong ti="strong_element_pseudo_element">Element, pseudo-element</strong> (<code>div</code>, <code>::before</code>): 0-0-1</li>
+<li><code>:where()</code> contributes 0 specificity. <code>:is()</code> and <code>:not()</code> use their most specific argument.</li>
+</ul>
+</div>
+</div>
+</div>
+
+
+<script>var _LANG={'title_css_cascade_layer_debugge':["CSS Cascade + @layer Debugger", "CSS Cascade + @layer 调试器"],'metadesc_interactive_css_cascade_d':["Interactive CSS cascade debugger. See how @layer, specificity, and source order determine which rule wins. Visual cascade evaluation with step-by-step explanations.", "交互式 CSS 层叠调试器。查看 @layer、优先级和源顺序如何决定哪个规则生效。可视化层叠评估，并提供逐步解释。"],'h1_css_cascade_layer_debugge':["CSS Cascade + @layer Debugger", "CSS Cascade + @layer 调试器"],'h3_css_rules':["CSS Rules", "CSS 规则"],'h3_cascade_resolution':["Cascade Resolution", "级联分辨率"],'h3_the_css_cascade_priority':["The CSS Cascade (Priority Order)", "CSS 级联（优先级顺序）"],'h3_layer_and_important':["@layer and !important", "@layer 和 !important"],'h3_specificity_calculation':["Specificity Calculation", "特异性计算"],'btn_debugger':["Debugger", "调试器"],'btn_presets':["Presets", "预设"],'btn_reference':["Reference", "参考"],'btn_analyze_cascade':["🔍 Analyze Cascade", "🔍 分析级联"],'strong_in_order':["in order", "为了"],'strong_origin_importance':["Origin & Importance", "起源与重要性"],'strong_inline_styles':["Inline styles", "内联样式"],'strong_layer_order':["@layer order", "@layer 顺序"],'strong_specificity':["Specificity", "特异性"],'strong_source_order':["Source order", "源订单"],'strong_the_order_reverses':["The order reverses!", "顺序颠倒了！"],'strong_id_selectors':["ID selectors", "ID 选择器"],'strong_class_attribute_pseudo_cl':["Class, attribute, pseudo-class", "类、属性、伪类"],'strong_element_pseudo_element':["Element, pseudo-element", "元素，伪元素"],'strong_winner_value':["${winner.value}", "${winner.value}"],'jtc_all_competing_rules_lowes':["All Competing Rules (lowest → highest priority)", "所有竞争规则（优先级从低到高）"],'jtc_cascade_resolution_steps':["Cascade Resolution Steps", "级联分辨率步骤"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>
+const PRESETS = [
+  {
+    name: 'Layer Order Basics',
+    desc: 'Three @layer rules compete. Unlayered rule wins because unlayered always beats layered.',
+    css: `@layer base, theme, utilities;\n\n@layer base {\n  .card { color: gray; }\n}\n\n@layer theme {\n  .card { color: blue; }\n}\n\n@layer utilities {\n  .card { color: red; }\n}\n\n/* Unlayered rule */\n.card { color: green; }`,
+    prop: 'color', el: '.card'
+  },
+  {
+    name: '!important Reverses Layers',
+    desc: 'With !important, earlier layers beat later layers. The opposite of normal cascade!',
+    css: `@layer reset, base, theme;\n\n@layer reset {\n  .card { color: black !important; }\n}\n\n@layer base {\n  .card { color: blue !important; }\n}\n\n@layer theme {\n  .card { color: red !important; }\n}`,
+    prop: 'color', el: '.card'
+  },
+  {
+    name: 'Specificity Battle',
+    desc: 'No layers — pure specificity. ID beats class beats element. Count the selectors.',
+    css: `div { color: blue; }\n.card { color: green; }\n#main .card { color: red; }\n.container .wrapper .card { color: purple; }`,
+    prop: 'color', el: '.card'
+  },
+  {
+    name: 'Source Order Tiebreak',
+    desc: 'Same specificity, no layers, no !important. The last rule in source order wins.',
+    css: `.card { color: red; }\n.card { color: blue; }\n.card { color: green; }`,
+    prop: 'color', el: '.card'
+  },
+  {
+    name: '!important vs Specificity',
+    desc: '!important beats higher specificity. Even a low-specificity !important wins.',
+    css: `#main .container .card { color: red; }\n.card { color: blue !important; }`,
+    prop: 'color', el: '.card'
+  },
+  {
+    name: 'Inline Style',
+    desc: 'Inline style beats all selectors. Only !important can override inline.',
+    css: `/* Inline: style="color: red" */\n#id.class { color: blue; }\n.card { color: green !important; }`,
+    prop: 'color', el: '.card'
+  },
+  {
+    name: 'Layer + Specificity',
+    desc: 'Higher specificity in an earlier layer still loses to lower specificity in a later layer.',
+    css: `@layer base, theme;\n\n@layer base {\n  #main .card.active { color: red; }\n}\n\n@layer theme {\n  .card { color: blue; }\n}`,
+    prop: 'color', el: '.card'
+  },
+  {
+    name: ':where() Zero Specificity',
+    desc: ':where() contributes zero specificity. Compare with equivalent :is() selector.',
+    css: `:where(#main) .card { color: red; }\n:is(#main) .card { color: blue; }\n.card { color: green; }`,
+    prop: 'color', el: '.card'
+  }
+];
+
+// Parse specificity from selector
+function calcSpecificity(selector) {
+  let a = 0, b = 0, c = 0;
+  // Remove :where() content (zero specificity)
+  let s = selector.replace(/:where\([^)]*\)/g, '');
+  // Handle :is() and :not() — use content specificity
+  s = s.replace(/:(?:is|not)\(([^)]*)\)/g, (_, inner) => { return inner; });
+  // Count IDs
+  a = (s.match(/#[a-zA-Z_-][\w-]*/g) || []).length;
+  // Count classes, attributes, pseudo-classes
+  const withoutIds = s.replace(/#[a-zA-Z_-][\w-]*/g, '');
+  b = (withoutIds.match(/\.[a-zA-Z_-][\w-]*/g) || []).length
+    + (withoutIds.match(/\[[^\]]+\]/g) || []).length
+    + (withoutIds.match(/:[a-zA-Z-]+(?!\()/g) || []).filter(p => !p.startsWith('::') && p !== ':where' && p !== ':is' && p !== ':not').length;
+  // Count element selectors and pseudo-elements
+  const withoutClassesIds = withoutIds.replace(/\.[a-zA-Z_-][\w-]*/g, '').replace(/\[[^\]]+\]/g, '').replace(/:[a-zA-Z-]+/g, '');
+  c = (withoutClassesIds.match(/(?:^|[\s>+~])([a-zA-Z][\w-]*)/g) || []).length
+    + (s.match(/::[a-zA-Z-]+/g) || []).length;
+  return [a, b, c];
+}
+
+function compareSpec(a, b) {
+  if (a[0] !== b[0]) return a[0] - b[0];
+  if (a[1] !== b[1]) return a[1] - b[1];
+  return a[2] - b[2];
+}
+
+// Parse CSS into rules
+function parseCSS(css) {
+  const rules = [];
+  let layerOrder = [];
+  let sourceOrder = 0;
+
+  // Extract layer order declaration
+  const layerDecl = css.match(/@layer\s+([^;{]+);/);
+  if (layerDecl) {
+    layerOrder = layerDecl[1].split(',').map(s => s.trim());
+  }
+
+  // Parse @layer blocks
+  const layerRegex = /@layer\s+([\w-]+)\s*\{([\s\S]*?)\n\}/g;
+  let match;
+  while ((match = layerRegex.exec(css))) {
+    const layerName = match[1];
+    const layerContent = match[2];
+    const ruleRegex = /([^{]+)\{([^}]+)\}/g;
+    let rMatch;
+    while ((rMatch = ruleRegex.exec(layerContent))) {
+      const selector = rMatch[1].trim();
+      const props = rMatch[2].trim();
+      rules.push({ selector, props, layer: layerName, sourceOrder: sourceOrder++, raw: rMatch[0] });
+    }
+  }
+
+  // Parse unlayered rules (not inside @layer)
+  let unlayered = css;
+  // Remove layer declarations and blocks
+  unlayered = unlayered.replace(/@layer\s+[^;{]+;/g, '');
+  unlayered = unlayered.replace(/@layer\s+[\w-]+\s*\{[\s\S]*?\n\}/g, '');
+  // Remove comments
+  unlayered = unlayered.replace(/\/\*[\s\S]*?\*\//g, '');
+
+  const ruleRegex = /([^{]+)\{([^}]+)\}/g;
+  while ((match = ruleRegex.exec(unlayered))) {
+    const selector = match[1].trim();
+    const props = match[2].trim();
+    if (selector && props) {
+      rules.push({ selector, props, layer: null, sourceOrder: sourceOrder++, raw: match[0] });
+    }
+  }
+
+  return { rules, layerOrder };
+}
+
+// Analyze cascade for a specific property and element
+function analyzeCascade(css, targetProp, targetEl) {
+  const { rules, layerOrder } = parseCSS(css);
+
+  // Filter rules that match target element and have target property
+  const candidates = [];
+  for (const rule of rules) {
+    // Simple match: check if selector could match target element
+    const selectorLower = rule.selector.toLowerCase();
+    const targetLower = targetEl.toLowerCase();
+    // Basic matching: check if target element pattern appears in selector
+    const parts = targetLower.split(/(?=[.#\[])/);
+    const couldMatch = parts.some(p => selectorLower.includes(p)) || selectorLower === '*';
+
+    if (!couldMatch) continue;
+
+    // Check if property exists
+    const propRegex = new RegExp(`${targetProp}\\s*:\\s*([^;]+)`, 'i');
+    const propMatch = rule.props.match(propRegex);
+    if (!propMatch) continue;
+
+    const value = propMatch[1].trim();
+    const isImportant = value.includes('!important');
+    const cleanValue = value.replace(/\s*!important\s*/, '').trim();
+
+    candidates.push({
+      ...rule,
+      value: cleanValue,
+      important: isImportant,
+      specificity: calcSpecificity(rule.selector),
+      layerIndex: rule.layer ? layerOrder.indexOf(rule.layer) : -1
+    });
+  }
+
+  // Sort by cascade priority
+  // 1. !important beats normal
+  // 2. Layer order (unlayered beats layered; for !important it reverses)
+  // 3. Specificity
+  // 4. Source order
+  const sorted = [...candidates].sort((a, b) => {
+    // Important beats non-important
+    if (a.important !== b.important) return a.important ? 1 : -1;
+
+    // Layer ordering
+    const aUnlayered = a.layer === null;
+    const bUnlayered = b.layer === null;
+
+    if (a.important && b.important) {
+      // !important reverses layer order: earlier layer > later layer > unlayered
+      if (aUnlayered !== bUnlayered) return aUnlayered ? -1 : 1;
+      if (a.layerIndex !== b.layerIndex) return a.layerIndex - b.layerIndex; // Earlier wins
+    } else {
+      // Normal: unlayered > later layer > earlier layer
+      if (aUnlayered !== bUnlayered) return aUnlayered ? 1 : -1;
+      if (a.layerIndex !== b.layerIndex) return a.layerIndex - b.layerIndex;
+    }
+
+    // Specificity
+    const specComp = compareSpec(a.specificity, b.specificity);
+    if (specComp !== 0) return specComp;
+
+    // Source order
+    return a.sourceOrder - b.sourceOrder;
+  });
+
+  return { candidates: sorted, layerOrder };
+}
+
+function renderResults(analysis) {
+  const container = document.getElementById('results');
+  container.innerHTML = '';
+
+  if (analysis.candidates.length === 0) {
+    container.innerHTML = '<div style="color:#888;padding:20px;text-align:center">No matching rules found. Check your target element and property.</div>';
+    return;
+  }
+
+  const winner = analysis.candidates[analysis.candidates.length - 1];
+
+  // Winner announcement
+  const winnerDiv = document.createElement('div');
+  winnerDiv.style.cssText = 'background:#22c55e0a;border:1px solid #22c55e33;border-radius:8px;padding:12px;margin-bottom:16px;text-align:center';
+  winnerDiv.innerHTML = `<div style="color:#22c55e;font-weight:700;font-size:0.9rem">🏆 Winner</div>
+    <div style="font-family:'Fira Code',monospace;color:#fff;font-size:1rem;margin:6px 0"><span style="color:#4da6ff">${winner.selector}</span> { ${document.getElementById('targetProp').value}: <strong ti="strong_winner_value">${winner.value}</strong> }</div>
+    <div style="color:#888;font-size:0.8rem">${winner.layer ? `@layer ${winner.layer}` : 'Unlayered'}${winner.important ? ' !important' : ''} · Specificity (${winner.specificity.join(',')})</div>`;
+  container.appendChild(winnerDiv);
+
+  // All rules ranked
+  const heading = document.createElement('h4');
+  heading.style.cssText = 'color:#aaa;font-size:0.85rem;margin-bottom:8px';
+  heading.textContent=T("jtc_all_competing_rules_lowes");
+  container.appendChild(heading);
+
+  analysis.candidates.forEach((rule, i) => {
+    const isWinner = i === analysis.candidates.length - 1;
+    const card = document.createElement('div');
+    card.className = `rule-card ${isWinner ? 'winner' : 'loser'}`;
+
+    const spec = rule.specificity;
+    card.innerHTML = `
+      <div class="rule-header">
+        <span class="rule-selector">${rule.selector}</span>
+        <span class="rule-property">${document.getElementById('targetProp').value}: ${rule.value}</span>
+      </div>
+      <div class="rule-meta">
+        ${rule.layer ? `<span class="meta-tag meta-layer">@layer ${rule.layer}</span>` : '<span class="meta-tag" style="background:#ffffff11;color:#aaa">unlayered</span>'}
+        <span class="meta-tag meta-spec">specificity: <span class="spec-display"><span class="spec-id">${spec[0]}</span><span class="spec-class">${spec[1]}</span><span class="spec-element">${spec[2]}</span></span></span>
+        <span class="meta-tag meta-order">order: #${rule.sourceOrder + 1}</span>
+        ${rule.important ? '<span class="meta-tag meta-important">!important</span>' : ''}
+        ${isWinner ? '<span class="meta-tag meta-winner">WINNER</span>' : ''}
+      </div>
+    `;
+    container.appendChild(card);
+  });
+
+  // Step-by-step cascade explanation
+  const stepsDiv = document.createElement('div');
+  stepsDiv.className = 'cascade-steps';
+  const stepsHeading = document.createElement('h4');
+  stepsHeading.style.cssText = 'color:#aaa;font-size:0.85rem;margin:16px 0 8px';
+  stepsHeading.textContent=T("jtc_cascade_resolution_steps");
+  container.appendChild(stepsHeading);
+
+  const allRules = analysis.candidates;
+  const steps = [];
+
+  // Step 1: !important check
+  const importantRules = allRules.filter(r => r.important);
+  const normalRules = allRules.filter(r => !r.important);
+  if (importantRules.length > 0 && normalRules.length > 0) {
+    steps.push({
+      title: 'Step 1: !important',
+      desc: `${importantRules.length} rule(s) have !important → all ${normalRules.length} normal rule(s) eliminated`,
+      active: true
+    });
+  } else {
+    steps.push({
+      title: 'Step 1: !important',
+      desc: importantRules.length > 0 ? 'All rules have !important — proceed to layer order' : 'No !important rules — proceed to layer order',
+      active: false
+    });
+  }
+
+  // Step 2: Layer order
+  const remaining = importantRules.length > 0 ? importantRules : allRules;
+  const layered = remaining.filter(r => r.layer !== null);
+  const unlayered = remaining.filter(r => r.layer === null);
+  if (layered.length > 0 && unlayered.length > 0) {
+    const layerWins = importantRules.length > 0 ? 'layered (!important reverses: earlier layers win)' : 'unlayered (unlayered beats all layers)';
+    steps.push({
+      title: 'Step 2: @layer Order',
+      desc: `${unlayered.length} unlayered, ${layered.length} layered. Winner: ${layerWins}`,
+      active: true
+    });
+  } else if (layered.length > 1) {
+    steps.push({
+      title: 'Step 2: @layer Order',
+      desc: `All layered. ${importantRules.length > 0 ? 'Earlier layer wins (!important reversal)' : 'Later layer wins'}`,
+      active: true
+    });
+  } else {
+    steps.push({ title: 'Step 2: @layer Order', desc: 'No layer conflict — proceed to specificity', active: false });
+  }
+
+  // Step 3: Specificity
+  const specs = remaining.map(r => r.specificity.join(','));
+  const uniqueSpecs = new Set(specs);
+  if (uniqueSpecs.size > 1) {
+    steps.push({
+      title: 'Step 3: Specificity',
+      desc: `Different specificities found: ${[...uniqueSpecs].join(' vs ')}. Highest wins.`,
+      active: true
+    });
+  } else {
+    steps.push({ title: 'Step 3: Specificity', desc: `All same specificity (${specs[0] || 'N/A'}) — proceed to source order`, active: false });
+  }
+
+  // Step 4: Source order
+  steps.push({
+    title: 'Step 4: Source Order',
+    desc: 'If all else is equal, the last rule in source order wins.',
+    active: uniqueSpecs.size <= 1
+  });
+
+  steps.forEach(step => {
+    const stepEl = document.createElement('div');
+    stepEl.className = `cascade-step ${step.active ? 'active' : ''}`;
+    stepEl.innerHTML = `<h4>${step.title}</h4><p>${step.desc}</p>`;
+    container.appendChild(stepEl);
+  });
+}
+
+// Event handlers
+document.getElementById('analyzeBtn').addEventListener('click', () => {
+  const css = document.getElementById('cssInput').value;
+  const prop = document.getElementById('targetProp').value;
+  const el = document.getElementById('targetEl').value;
+  const analysis = analyzeCascade(css, prop, el);
+  renderResults(analysis);
+});
+
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById(tab.dataset.tab).classList.add('active');
+  });
+});
+
+// Presets
+const presetGrid = document.getElementById('presetGrid');
+PRESETS.forEach(p => {
+  const card = document.createElement('div');
+  card.className = 'preset-card';
+  card.innerHTML = `<h4>${p.name}</h4><p>${p.desc}</p>`;
+  card.addEventListener('click', () => {
+    document.getElementById('cssInput').value = p.css;
+    document.getElementById('targetProp').value = p.prop;
+    document.getElementById('targetEl').value = p.el;
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.querySelector('[data-tab="debugger"]').classList.add('active');
+    document.getElementById('debugger').classList.add('active');
+    const analysis = analyzeCascade(p.css, p.prop, p.el);
+    renderResults(analysis);
+  });
+  presetGrid.appendChild(card);
+});
+
+// Initial analysis
+document.getElementById('analyzeBtn').click();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+</body>
+</html>

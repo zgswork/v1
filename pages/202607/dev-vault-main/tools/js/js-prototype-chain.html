@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html tk="title_js_prototype_chain_visual" lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JS Prototype Chain Visualizer</title>
+<meta name="description" content="Interactive JavaScript prototype chain visualizer. Write constructor functions, use Object.create(), and see the full prototype chain with property delegation and method resolution.">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0f1117;--surface:#1a1d27;--surface2:#242837;--border:#2e3347;--text:#e4e7f1;--dim:#8b90a5;--accent:#6c8cff;--accent2:#a78bfa;--green:#4ade80;--red:#f87171;--orange:#fbbf24;--cyan:#22d3ee;--chain-line:#4a5080}
+body{font-family:'SF Mono',Monaco,'Cascadia Code',monospace;background:var(--bg);color:var(--text);min-height:100vh}
+.header{padding:16px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px}
+.header h1{font-size:15px;font-weight:600}
+.header span{color:var(--dim);font-size:12px}
+.tabs{display:flex;border-bottom:1px solid var(--border);background:var(--surface)}
+.tab{padding:10px 20px;font-size:12px;cursor:pointer;border:none;background:none;color:var(--dim);font-family:inherit;border-bottom:2px solid transparent;transition:all .2s}
+.tab:hover{color:var(--text)}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.panel{display:none;height:calc(100vh - 95px);overflow:auto}
+.panel.active{display:flex}
+
+/* Editor Panel */
+.editor-panel{flex-direction:column}
+.editor-top{display:flex;flex:1;min-height:0}
+.editor-area{flex:1;display:flex;flex-direction:column}
+.editor-area label{padding:8px 16px;font-size:11px;color:var(--dim);background:var(--surface);border-bottom:1px solid var(--border)}
+.editor-area textarea{flex:1;background:var(--bg);color:var(--text);border:none;padding:16px;font-family:inherit;font-size:13px;resize:none;outline:none;line-height:1.6}
+.editor-actions{padding:12px 16px;background:var(--surface);border-top:1px solid var(--border);display:flex;gap:8px;align-items:center}
+.btn{padding:8px 16px;border-radius:6px;border:none;font-family:inherit;font-size:12px;cursor:pointer;transition:all .2s}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{background:#5a7aee}
+.btn-secondary{background:var(--surface2);color:var(--text);border:1px solid var(--border)}
+.btn-secondary:hover{background:var(--border)}
+.error-msg{color:var(--red);font-size:12px;margin-left:12px}
+
+/* Chain Visualization */
+.viz-area{flex:1;padding:24px;overflow:auto;background:var(--bg)}
+.chain-container{display:flex;flex-direction:column;gap:0;align-items:center;min-width:fit-content}
+.chain-node{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:0;min-width:320px;max-width:480px;width:100%;position:relative}
+.chain-node.null-proto{border-style:dashed;opacity:.7}
+.chain-node-header{padding:10px 14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+.chain-node-title{font-size:13px;font-weight:600}
+.chain-node-tag{font-size:10px;padding:2px 8px;border-radius:10px;background:var(--surface2)}
+.chain-node-tag.constructor{color:var(--accent)}
+.chain-node-tag.proto{color:var(--accent2)}
+.chain-node-tag.builtin{color:var(--cyan)}
+.chain-node-tag.null{color:var(--dim)}
+.chain-node-props{padding:8px 14px}
+.chain-prop{display:flex;align-items:baseline;gap:8px;padding:3px 0;font-size:12px}
+.chain-prop-name{color:var(--green);min-width:100px}
+.chain-prop-type{color:var(--dim);font-size:10px;min-width:60px}
+.chain-prop-value{color:var(--text);word-break:break-all}
+.chain-prop.shadowed .chain-prop-name{color:var(--orange);text-decoration:line-through}
+.chain-prop.shadowed .chain-prop-value{color:var(--dim)}
+.chain-arrow{display:flex;flex-direction:column;align-items:center;color:var(--chain-line);padding:2px 0}
+.chain-arrow svg{width:20px;height:32px}
+.chain-arrow-label{font-size:10px;color:var(--dim)}
+.no-props{color:var(--dim);font-size:11px;font-style:italic;padding:4px 0}
+
+/* Presets Panel */
+.presets-panel{flex-direction:column;padding:24px;gap:16px}
+.preset-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;cursor:pointer;transition:all .2s}
+.preset-card:hover{border-color:var(--accent);transform:translateY(-1px)}
+.preset-card h3{font-size:13px;margin-bottom:6px}
+.preset-card p{font-size:11px;color:var(--dim);line-height:1.5}
+.presets-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+
+/* Inspect Panel */
+.inspect-panel{flex-direction:column;padding:24px;gap:16px}
+.inspect-input{display:flex;gap:8px;align-items:center}
+.inspect-input input{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:8px 12px;color:var(--text);font-family:inherit;font-size:13px;outline:none}
+.inspect-input input:focus{border-color:var(--accent)}
+.inspect-result{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;flex:1;overflow:auto}
+.inspect-section{margin-bottom:16px}
+.inspect-section h3{font-size:12px;color:var(--accent);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px}
+.resolution-path{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px}
+.resolution-step{padding:4px 10px;border-radius:4px;background:var(--surface2)}
+.resolution-step.found{background:var(--accent);color:#fff}
+.resolution-step.miss{opacity:.5}
+.resolution-arrow-inline{color:var(--dim)}
+
+/* Code Panel */
+.code-panel{flex-direction:column}
+.code-block{flex:1;padding:24px;overflow:auto}
+.code-block pre{font-size:13px;line-height:1.6;white-space:pre-wrap}
+.code-block .comment{color:var(--dim)}
+.code-block .keyword{color:var(--accent2)}
+.code-block .string{color:var(--green)}
+.code-block .func{color:var(--accent)}
+.code-block .num{color:var(--orange)}
+</style>
+</head>
+<body>
+
+
+
+<div class="header">
+  <h1 ti="title_js_prototype_chain_visual" ti="h1_js_prototype_chain_visual">JS Prototype Chain Visualizer</h1>
+  <span>Write code → See the chain → Understand delegation</span>
+</div>
+
+<div class="tabs">
+  <button class="tab active" data-tab="editor" ti="btn_editor">Editor</button>
+  <button class="tab" data-tab="presets" ti="btn_presets">Presets</button>
+  <button class="tab" data-tab="inspect" ti="btn_inspect">Inspect</button>
+  <button class="tab" data-tab="code" ti="btn_reference">Reference</button>
+</div>
+
+<!-- Editor Panel -->
+<div class="panel editor-panel active" id="panel-editor">
+  <div class="editor-top">
+    <div class="editor-area" style="flex:0 0 45%;border-right:1px solid var(--border)">
+      <label ti="label_javascript_code">JavaScript Code</label>
+      <textarea id="codeInput" spellcheck="false" tp="placeholder_write_constructor_functi" placeholder="// Write constructor functions, classes, or Object.create()
+// Then specify which object to visualize below
+
+function Animal(name) {
+  this.name = name;
+}
+Animal.prototype.speak = function() {
+  return this.name + ' speaks';
+};
+
+function Dog(name, breed) {
+  Animal.call(this, name);
+  this.breed = breed;
+}
+Dog.prototype = Object.create(Animal.prototype);
+Dog.prototype.constructor = Dog;
+Dog.prototype.bark = function() {
+  return 'Woof!';
+};
+
+const rex = new Dog('Rex', 'Shepherd');">// Write constructor functions, classes, or Object.create()
+// Then specify which object to visualize below
+
+function Animal(name) {
+  this.name = name;
+}
+Animal.prototype.speak = function() {
+  return this.name + ' speaks';
+};
+
+function Dog(name, breed) {
+  Animal.call(this, name);
+  this.breed = breed;
+}
+Dog.prototype = Object.create(Animal.prototype);
+Dog.prototype.constructor = Dog;
+Dog.prototype.bark = function() {
+  return 'Woof!';
+};
+
+const rex = new Dog('Rex', 'Shepherd');</textarea>
+    </div>
+    <div class="viz-area" id="vizArea">
+      <div style="color:var(--dim);text-align:center;padding-top:80px">
+        <p>Click <strong ti="strong_visualize" ti="strong_visualize_2">Visualize</strong> to see the prototype chain</p>
+        <p style="font-size:11px;margin-top:8px">Enter the variable name of the object to inspect below</p>
+      </div>
+    </div>
+  </div>
+  <div class="editor-actions">
+    <input id="targetVar" type="text" value="rex" tp="placeholder_variable_name_to_visualiz" placeholder="Variable name to visualize" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:7px 12px;color:var(--text);font-family:inherit;font-size:12px;width:200px;outline:none">
+    <button class="btn btn-primary" onclick="visualize()" ti="btn_visualize">Visualize</button>
+    <button class="btn btn-secondary" onclick="clearViz()" ti="btn_clear">Clear</button>
+    <span class="error-msg" id="errorMsg"></span>
+  </div>
+</div>
+
+<!-- Presets Panel -->
+<div class="panel presets-panel" id="panel-presets">
+  <h2 style="font-size:14px;color:var(--dim)" ti="h2_preset_examples">Preset Examples</h2>
+  <div class="presets-grid" id="presetsGrid"></div>
+</div>
+
+<!-- Inspect Panel -->
+<div class="panel inspect-panel" id="panel-inspect">
+  <div class="inspect-input">
+    <span style="font-size:12px;color:var(--dim)">Property lookup:</span>
+    <input id="inspectProp" type="text" tp="placeholder_e_g_speak_tostring_hasown" placeholder="e.g. speak, toString, hasOwnProperty" value="speak">
+    <button class="btn btn-primary" onclick="inspectProperty()" ti="btn_resolve">Resolve</button>
+  </div>
+  <div class="inspect-result" id="inspectResult">
+    <div style="color:var(--dim);font-size:12px">Visualize an object first, then trace how property lookup walks the chain.</div>
+  </div>
+</div>
+
+<!-- Code Panel -->
+<div class="panel code-panel" id="panel-code">
+  <div class="code-block">
+    <pre id="refCode"></pre>
+  </div>
+</div>
+
+
+<script>var _LANG={'title_js_prototype_chain_visual':["JS Prototype Chain Visualizer", "JS原型链可视化工具"],'metadesc_interactive_javascript_pr':["Interactive JavaScript prototype chain visualizer. Write constructor functions, use Object.create(), and see the full prototype chain with property delegation and method resolution.", "交互式 JavaScript 原型链可视化工具。编写构造函数，使用 Object.create()，即可查看包含属性委托和方法解析的完整原型链。"],'h1_js_prototype_chain_visual':["JS Prototype Chain Visualizer", "JS原型链可视化工具"],'h2_preset_examples':["Preset Examples", "预设示例"],'h3_p_name':["${p.name}", "${p.name}"],'h3_resolution_path_for_escht':["Resolution Path for \"' + escHTML(prop) + '\"", "解析路径“&#39; + escHTML(prop) + &#39;”"],'h3_result':["Result", "结果"],'h3_shadowing_detected':["Shadowing Detected", "检测到阴影"],'btn_editor':["Editor", "编辑"],'btn_presets':["Presets", "预设"],'btn_inspect':["Inspect", "检查"],'btn_reference':["Reference", "参考"],'btn_visualize':["Visualize", "可视化"],'btn_clear':["Clear", "清除"],'btn_resolve':["Resolve", "解决"],'label_prototype':["[[Prototype]]", "[[原型]]"],'placeholder_write_constructor_functi':["// Write constructor functions, classes, or Object.create()\n// Then specify which object to visualize below\n\nfunction Animal(name) {\n  this.name = name;\n}\nAnimal.prototype.speak = function() {\n  return this.name + ' speaks';\n};\n\nfunction Dog(name, breed) {\n  Animal.call(this, name);\n  this.breed = breed;\n}\nDog.prototype = Object.create(Animal.prototype);\nDog.prototype.constructor = Dog;\nDog.prototype.bark = function() {\n  return 'Woof!';\n};\n\nconst rex = new Dog('Rex', 'Shepherd');", "// 编写构造函数、类或 Object.create() // 然后在下面指定要可视化的对象 function Animal(name) { this.name = name; } Animal.prototype.speak = function() { return this.name + &#39; speaks&#39;; }; function Dog(name, breed) { Animal.call(this, name); this.breed = breed; } Dog.prototype = Object.create(Animal.prototype); Dog.prototype.constructor = Dog; Dog.prototype.bark = function() { return &#39;Woof!&#39;; }; const rex = new Dog(&#39;Rex&#39;, &#39;Shepherd&#39;);"],'placeholder_variable_name_to_visualiz':["Variable name to visualize", "要可视化的变量名"],'placeholder_e_g_speak_tostring_hasown':["e.g. speak, toString, hasOwnProperty", "例如 speak、toString、hasOwnProperty"],'strong_visualize':["Visualize", "可视化"],'strong_visualize_2':["Visualize", "可视化"],'strong_eschtml_node_name':["${escHTML(node.name)}", "${escHTML(node.name)}"],'strong_eschtml_n_name':["${escHTML(n.name)}", "${escHTML(n.name)}"],'label_javascript_code':["JavaScript Code", "JavaScript 代码"],'jtc_enter_a_variable_name_to':["Enter a variable name to visualize", "输入要可视化的变量名"],'jtlword_null':["null", "无效的"],'jtlword_visualize':["Visualize", "可视化"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>
+// Tab switching
+document.querySelectorAll('.tab').forEach(t => {
+  t.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    document.getElementById('panel-' + t.dataset.tab).classList.add('active');
+  });
+});
+
+// State
+let currentChain = null;
+let currentScope = null;
+
+// Presets
+const PRESETS = [
+  {
+    name: 'Constructor Inheritance',
+    desc: 'Classic ES5 pattern: Animal → Dog → instance. Shows prototype delegation and constructor property.',
+    code: `function Animal(name) {
+  this.name = name;
+}
+Animal.prototype.speak = function() {
+  return this.name + ' speaks';
+};
+
+function Dog(name, breed) {
+  Animal.call(this, name);
+  this.breed = breed;
+}
+Dog.prototype = Object.create(Animal.prototype);
+Dog.prototype.constructor = Dog;
+Dog.prototype.bark = function() { return 'Woof!'; };
+
+const rex = new Dog('Rex', 'Shepherd');`,
+    target: 'rex'
+  },
+  {
+    name: 'ES6 Class Extends',
+    desc: 'Modern class syntax with extends/super. Same chain as constructor pattern under the hood.',
+    code: `class Shape {
+  constructor(color) {
+    this.color = color;
+  }
+  area() { return 0; }
+  describe() { return this.color + ' shape'; }
+}
+
+class Circle extends Shape {
+  constructor(color, radius) {
+    super(color);
+    this.radius = radius;
+  }
+  area() { return Math.PI * this.radius ** 2; }
+}
+
+const c = new Circle('red', 5);`,
+    target: 'c'
+  },
+  {
+    name: 'Object.create() Chain',
+    desc: 'Pure prototypal inheritance without constructors. Direct object-to-object delegation.',
+    code: `const base = {
+  type: 'entity',
+  describe() {
+    return 'I am a ' + this.type;
+  }
+};
+
+const player = Object.create(base);
+player.type = 'player';
+player.hp = 100;
+player.attack = function() { return 'slash!'; };
+
+const mage = Object.create(player);
+mage.type = 'mage';
+mage.mana = 50;
+mage.cast = function() { return 'fireball!'; };`,
+    target: 'mage'
+  },
+  {
+    name: 'Property Shadowing',
+    desc: 'Same property name at multiple levels. Shows which value wins and which are shadowed.',
+    code: `function Base() {}
+Base.prototype.value = 'from Base.prototype';
+Base.prototype.shared = 'not shadowed';
+
+function Mid() {
+  this.value = 'from Mid instance';
+}
+Mid.prototype = Object.create(Base.prototype);
+Mid.prototype.constructor = Mid;
+Mid.prototype.value = 'from Mid.prototype';
+
+const obj = new Mid();`,
+    target: 'obj'
+  },
+  {
+    name: 'Null Prototype',
+    desc: 'Object.create(null) — no prototype at all. No toString, no hasOwnProperty. Pure dictionary.',
+    code: `const dict = Object.create(null);
+dict.key1 = 'value1';
+dict.key2 = 42;
+dict.key3 = true;
+
+// Compare with normal object
+const normal = { key1: 'value1', key2: 42 };`,
+    target: 'dict'
+  },
+  {
+    name: 'Mixin Pattern',
+    desc: 'Object.assign to copy properties. Mixins are flat copies, not prototype links.',
+    code: `const Serializable = {
+  serialize() { return JSON.stringify(this); },
+  type: 'serializable'
+};
+
+const EventEmitter = {
+  on(evt, fn) { this._events = this._events || {}; (this._events[evt] = this._events[evt] || []).push(fn); },
+  emit(evt) { (this._events?.[evt] || []).forEach(fn => fn()); },
+  type: 'emitter'
+};
+
+class Model {
+  constructor(data) {
+    this.data = data;
+  }
+}
+
+Object.assign(Model.prototype, Serializable, EventEmitter);
+
+const m = new Model({ id: 1 });`,
+    target: 'm'
+  },
+  {
+    name: 'Three-Level Class',
+    desc: 'Deep inheritance: Vehicle → Car → ElectricCar. Watch method resolution order.',
+    code: `class Vehicle {
+  constructor(make) { this.make = make; }
+  start() { return 'vroom'; }
+  toString() { return '[Vehicle: ' + this.make + ']'; }
+}
+
+class Car extends Vehicle {
+  constructor(make, model) {
+    super(make);
+    this.model = model;
+    this.wheels = 4;
+  }
+  drive() { return 'driving ' + this.model; }
+}
+
+class ElectricCar extends Car {
+  constructor(make, model, range) {
+    super(make, model);
+    this.range = range;
+    this.battery = 100;
+  }
+  start() { return 'silent hum'; }
+  charge() { this.battery = 100; return 'charged'; }
+}
+
+const tesla = new ElectricCar('Tesla', 'Model 3', 350);`,
+    target: 'tesla'
+  },
+  {
+    name: 'Symbol & Getter',
+    desc: 'Non-enumerable properties, Symbols, and getters in the chain.',
+    code: `const idSym = Symbol('id');
+
+class Entity {
+  constructor(name) {
+    this.name = name;
+    this[idSym] = Math.random().toString(36).slice(2);
+  }
+  get displayName() {
+    return '[' + this.name + ']';
+  }
+}
+
+Object.defineProperty(Entity.prototype, 'hidden', {
+  value: 'secret',
+  enumerable: false,
+  writable: true
+});
+
+const e = new Entity('hero');`,
+    target: 'e'
+  }
+];
+
+// Render presets
+const presetsGrid = document.getElementById('presetsGrid');
+PRESETS.forEach((p, i) => {
+  const card = document.createElement('div');
+  card.className = 'preset-card';
+  card.innerHTML = `<h3 ti="h3_p_name">${p.name}</h3><p>${p.desc}</p>`;
+  card.addEventListener('click', () => {
+    document.getElementById('codeInput').value = p.code;
+    document.getElementById('targetVar').value = p.target;
+    document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(x => x.classList.remove('active'));
+    document.querySelector('[data-tab="editor"]').classList.add('active');
+    document.getElementById('panel-editor').classList.add('active');
+    visualize();
+  });
+  presetsGrid.appendChild(card);
+});
+
+// Reference code
+document.getElementById('refCode').innerHTML = highlightJS(`// Prototype Chain Basics
+// Every object has an internal [[Prototype]] link
+// accessed via Object.getPrototypeOf(obj) or obj.__proto__
+
+// === Constructor Pattern ===
+function Foo(x) {
+  this.x = x;          // own property on instance
+}
+Foo.prototype.getX = function() {
+  return this.x;       // shared via prototype
+};
+const f = new Foo(42);
+
+// Chain: f → Foo.prototype → Object.prototype → null
+Object.getPrototypeOf(f) === Foo.prototype;        // true
+Object.getPrototypeOf(Foo.prototype) === Object.prototype; // true
+Object.getPrototypeOf(Object.prototype) === null;   // true
+
+// === Object.create() ===
+const parent = { greet() { return 'hi'; } };
+const child = Object.create(parent);
+child.name = 'child';
+
+// Chain: child → parent → Object.prototype → null
+child.greet();  // 'hi' — delegated to parent
+
+// === Property Lookup ===
+// When accessing obj.prop:
+// 1. Check obj's own properties
+// 2. Check obj.[[Prototype]]'s own properties
+// 3. Continue up the chain
+// 4. Reach null → return undefined
+
+// === Shadowing ===
+child.greet = function() { return 'hello'; };
+// Now child.greet is an own property
+// parent.greet still exists but is "shadowed"
+
+// === Checking Own vs Inherited ===
+child.hasOwnProperty('name');   // true
+child.hasOwnProperty('greet');  // true (after shadowing)
+'greet' in child;               // true (checks full chain)
+
+// === Object.create(null) ===
+const dict = Object.create(null);
+// No prototype at all — no toString, no hasOwnProperty
+// Useful as a pure key-value store
+
+// === ES6 Class (syntactic sugar) ===
+class Base {
+  constructor(v) { this.v = v; }
+  method() { return this.v; }
+}
+class Derived extends Base {
+  constructor(v, w) {
+    super(v);
+    this.w = w;
+  }
+  method() {
+    return super.method() + this.w; // super calls parent
+  }
+}
+// Under the hood, same prototype chain mechanism`);
+
+function highlightJS(code) {
+  return code
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/(\/\/.*)/g, '<span class="comment">$1</span>')
+    .replace(/\b(function|const|let|var|class|extends|new|return|this|super|true|false|null|undefined|typeof|instanceof)\b/g, '<span class="keyword">$1</span>')
+    .replace(/('(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")/g, '<span class="string">$1</span>')
+    .replace(/\b(\d+)\b/g, '<span class="num">$1</span>');
+}
+
+// Core: Execute code and build chain
+function visualize() {
+  const code = document.getElementById('codeInput').value;
+  const target = document.getElementById('targetVar').value.trim();
+  const errEl = document.getElementById('errorMsg');
+  errEl.textContent = '';
+
+  if (!target) {
+    errEl.textContent=T("jtc_enter_a_variable_name_to");
+    return;
+  }
+
+  try {
+    // Create isolated scope
+    const scopeVars = {};
+    const wrappedCode = `
+      'use strict';
+      ${code}
+      ;
+      try { return { target: ${target}, __allVars: { ${extractVarNames(code).map(v => `'${v}': typeof ${v} !== 'undefined' ? ${v} : undefined`).join(', ')} } }; }
+      catch(e) { throw new Error('Variable "${target}" is not defined'); }
+    `;
+    const fn = new Function(wrappedCode);
+    const result = fn();
+
+    if (result.target === undefined || result.target === null) {
+      if (result.target === null) {
+        errEl.textContent = `"${target}" is null — no prototype chain`;
+        return;
+      }
+      errEl.textContent = `"${target}" is undefined`;
+      return;
+    }
+
+    if (typeof result.target !== 'object' && typeof result.target !== 'function') {
+      // Auto-box primitives for demonstration
+      result.target = Object(result.target);
+    }
+
+    currentScope = result.__allVars;
+    currentChain = buildChain(result.target);
+    renderChain(currentChain, target);
+  } catch (e) {
+    errEl.textContent = e.message;
+  }
+}
+
+function extractVarNames(code) {
+  const names = new Set();
+  // Match var/let/const declarations
+  const declRe = /\b(?:var|let|const)\s+([a-zA-Z_$][\w$]*)/g;
+  let m;
+  while ((m = declRe.exec(code))) names.add(m[1]);
+  // Match function declarations
+  const fnRe = /\bfunction\s+([a-zA-Z_$][\w$]*)/g;
+  while ((m = fnRe.exec(code))) names.add(m[1]);
+  // Match class declarations
+  const clRe = /\bclass\s+([a-zA-Z_$][\w$]*)/g;
+  while ((m = clRe.exec(code))) names.add(m[1]);
+  return [...names];
+}
+
+function buildChain(obj) {
+  const chain = [];
+  let current = obj;
+  const seen = new Set();
+
+  while (current !== null) {
+    if (seen.has(current)) break; // circular protection
+    seen.add(current);
+
+    const node = {
+      obj: current,
+      name: getNodeName(current, chain.length),
+      tag: getNodeTag(current, chain.length),
+      props: getOwnProps(current),
+      isBuiltin: isBuiltinProto(current)
+    };
+    chain.push(node);
+    current = Object.getPrototypeOf(current);
+  }
+
+  // Add null terminator
+  chain.push({ obj: null, name: 'null', tag: 'null', props: [], isBuiltin: false });
+
+  // Mark shadowed properties
+  markShadowed(chain);
+
+  return chain;
+}
+
+function getNodeName(obj, depth) {
+  if (obj === Object.prototype) return 'Object.prototype';
+  if (obj === Function.prototype) return 'Function.prototype';
+  if (obj === Array.prototype) return 'Array.prototype';
+  if (obj === String.prototype) return 'String.prototype';
+  if (obj === Number.prototype) return 'Number.prototype';
+  if (obj === Boolean.prototype) return 'Boolean.prototype';
+  if (obj === RegExp.prototype) return 'RegExp.prototype';
+  if (obj === Date.prototype) return 'Date.prototype';
+  if (obj === Map.prototype) return 'Map.prototype';
+  if (obj === Set.prototype) return 'Set.prototype';
+  if (obj === Promise.prototype) return 'Promise.prototype';
+
+  const ctor = obj.constructor;
+  if (ctor && ctor.name && depth === 0) {
+    return `${ctor.name} instance`;
+  }
+  if (ctor && ctor.name && obj === ctor.prototype) {
+    return `${ctor.name}.prototype`;
+  }
+  if (depth === 0) return 'target object';
+  return 'Object';
+}
+
+function getNodeTag(obj, depth) {
+  if (obj === Object.prototype || obj === Function.prototype ||
+      obj === Array.prototype || obj === String.prototype ||
+      obj === Number.prototype || obj === Boolean.prototype) return 'builtin';
+  if (depth === 0) return 'constructor';
+  return 'proto';
+}
+
+function isBuiltinProto(obj) {
+  const builtins = [Object.prototype, Function.prototype, Array.prototype,
+    String.prototype, Number.prototype, Boolean.prototype, RegExp.prototype,
+    Date.prototype, Map.prototype, Set.prototype, Promise.prototype];
+  return builtins.includes(obj);
+}
+
+function getOwnProps(obj) {
+  const props = [];
+  // Get all own property names including non-enumerable
+  const names = Object.getOwnPropertyNames(obj);
+  const symbols = Object.getOwnPropertySymbols(obj);
+
+  for (const name of names) {
+    try {
+      const desc = Object.getOwnPropertyDescriptor(obj, name);
+      props.push({
+        name,
+        descriptor: desc,
+        value: formatValue(desc, obj, name),
+        type: getValueType(desc),
+        enumerable: desc.enumerable,
+        isSymbol: false
+      });
+    } catch (e) {
+      props.push({ name, value: '[error]', type: 'unknown', enumerable: true, isSymbol: false });
+    }
+  }
+
+  for (const sym of symbols) {
+    try {
+      const desc = Object.getOwnPropertyDescriptor(obj, sym);
+      props.push({
+        name: sym.toString(),
+        descriptor: desc,
+        value: formatValue(desc, obj, sym),
+        type: getValueType(desc),
+        enumerable: desc.enumerable,
+        isSymbol: true
+      });
+    } catch (e) {
+      props.push({ name: sym.toString(), value: '[error]', type: 'unknown', enumerable: true, isSymbol: true });
+    }
+  }
+
+  return props;
+}
+
+function formatValue(desc, obj, key) {
+  if (desc.get || desc.set) {
+    const parts = [];
+    if (desc.get) parts.push('get');
+    if (desc.set) parts.push('set');
+    return `[${parts.join('/')}]`;
+  }
+  const val = desc.value;
+  if (val === undefined) return 'undefined';
+  if (val === null) return 'null';
+  if (typeof val === 'function') {
+    const name = val.name || 'anonymous';
+    const src = val.toString();
+    if (src.length < 60) return src.replace(/\s+/g, ' ');
+    return `ƒ ${name}()`;
+  }
+  if (typeof val === 'string') return val.length > 50 ? `"${val.slice(0, 47)}..."` : `"${val}"`;
+  if (typeof val === 'symbol') return val.toString();
+  if (typeof val === 'object') {
+    if (Array.isArray(val)) return `[Array(${val.length})]`;
+    const ctor = val.constructor?.name || 'Object';
+    return `{${ctor}}`;
+  }
+  return String(val);
+}
+
+function getValueType(desc) {
+  if (desc.get || desc.set) return 'accessor';
+  const val = desc.value;
+  if (typeof val === 'function') return 'function';
+  return typeof val;
+}
+
+function markShadowed(chain) {
+  const seen = new Set();
+  for (const node of chain) {
+    if (!node.props) continue;
+    for (const prop of node.props) {
+      if (seen.has(prop.name)) {
+        prop.shadowed = true;
+      } else {
+        seen.add(prop.name);
+        prop.shadowed = false;
+      }
+    }
+  }
+}
+
+function renderChain(chain, targetName) {
+  const viz = document.getElementById('vizArea');
+  viz.innerHTML = '';
+
+  const container = document.createElement('div');
+  container.className = 'chain-container';
+
+  chain.forEach((node, i) => {
+    // Node
+    const el = document.createElement('div');
+    el.className = 'chain-node' + (node.obj === null ? ' null-proto' : '');
+
+    if (node.obj === null) {
+      el.innerHTML = `
+        <div class="chain-node-header">
+          <span class="chain-node-title">null</span>
+          <span class="chain-node-tag null">end of chain</span>
+        </div>
+        <div class="chain-node-props">
+          <div class="no-props">No prototype — chain terminates here</div>
+        </div>`;
+    } else {
+      const displayName = i === 0 ? `${targetName} (${node.name})` : node.name;
+      const visibleProps = node.isBuiltin
+        ? node.props.filter(p => ['constructor', 'toString', 'valueOf', 'hasOwnProperty'].includes(p.name)).slice(0, 6)
+        : node.props;
+      const hiddenCount = node.isBuiltin ? node.props.length - visibleProps.length : 0;
+
+      let propsHTML = '';
+      if (visibleProps.length === 0 && !node.isBuiltin) {
+        propsHTML = '<div class="no-props">No own properties</div>';
+      } else {
+        propsHTML = visibleProps.map(p => {
+          const cls = p.shadowed ? ' shadowed' : '';
+          const enumCls = !p.enumerable ? ' style="opacity:.7"' : '';
+          const typeColor = p.type === 'function' ? 'var(--accent)' : p.type === 'accessor' ? 'var(--accent2)' : 'var(--dim)';
+          const shadowLabel = p.shadowed ? ' <span style="color:var(--orange);font-size:10px">(shadowed)</span>' : '';
+          return `<div class="chain-prop${cls}"${enumCls}>
+            <span class="chain-prop-name">${escHTML(p.name)}</span>
+            <span class="chain-prop-type" style="color:${typeColor}">${p.type}</span>
+            <span class="chain-prop-value">${escHTML(p.value)}${shadowLabel}</span>
+          </div>`;
+        }).join('');
+        if (hiddenCount > 0) {
+          propsHTML += `<div class="no-props">+ ${hiddenCount} more built-in properties</div>`;
+        }
+      }
+
+      el.innerHTML = `
+        <div class="chain-node-header">
+          <span class="chain-node-title">${escHTML(displayName)}</span>
+          <span class="chain-node-tag ${node.tag}">${node.tag === 'constructor' ? 'instance' : node.tag}</span>
+        </div>
+        <div class="chain-node-props">${propsHTML}</div>`;
+    }
+
+    container.appendChild(el);
+
+    // Arrow between nodes
+    if (i < chain.length - 1) {
+      const arrow = document.createElement('div');
+      arrow.className = 'chain-arrow';
+      arrow.innerHTML = `
+        <svg viewBox="0 0 20 32">
+          <line x1="10" y1="0" x2="10" y2="24" stroke="var(--chain-line)" stroke-width="2"/>
+          <polygon points="4,24 10,32 16,24" fill="var(--chain-line)"/>
+        </svg>
+        <span class="chain-arrow-label" ti="label_prototype">[[Prototype]]</span>`;
+      container.appendChild(arrow);
+    }
+  });
+
+  viz.appendChild(container);
+}
+
+function escHTML(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function clearViz() {
+  document.getElementById('vizArea').innerHTML = `
+    <div style="color:var(--dim);text-align:center;padding-top:80px">
+      <p>Click <strong>Visualize</strong> to see the prototype chain</p>
+    </div>`;
+  currentChain = null;
+}
+
+// Inspect: property resolution
+function inspectProperty() {
+  const prop = document.getElementById('inspectProp').value.trim();
+  const result = document.getElementById('inspectResult');
+
+  if (!currentChain) {
+    result.innerHTML = '<div style="color:var(--dim);font-size:12px">Visualize an object first.</div>';
+    return;
+  }
+  if (!prop) {
+    result.innerHTML = '<div style="color:var(--dim);font-size:12px">Enter a property name.</div>';
+    return;
+  }
+
+  let html = '';
+
+  // Resolution path
+  html += '<div class="inspect-section"><h3 ti="h3_resolution_path_for_escht">Resolution Path for "' + escHTML(prop) + '"</h3>';
+  html += '<div class="resolution-path">';
+
+  let found = false;
+  let foundAt = -1;
+  for (let i = 0; i < currentChain.length; i++) {
+    const node = currentChain[i];
+    if (node.obj === null) {
+      html += `<span class="resolution-step miss">null</span>`;
+      break;
+    }
+    const hasProp = node.props.some(p => p.name === prop);
+    if (hasProp && !found) {
+      html += `<span class="resolution-step found">${escHTML(node.name)} ✓</span>`;
+      found = true;
+      foundAt = i;
+    } else {
+      html += `<span class="resolution-step${found ? ' miss' : ''}">${escHTML(node.name)}${!found ? ' ✗' : ''}</span>`;
+    }
+    if (i < currentChain.length - 1) {
+      html += '<span class="resolution-arrow-inline">→</span>';
+    }
+  }
+  html += '</div></div>';
+
+  // Result
+  html += '<div class="inspect-section"><h3 ti="h3_result">Result</h3>';
+  if (found) {
+    const node = currentChain[foundAt];
+    const propInfo = node.props.find(p => p.name === prop);
+    html += `<div style="font-size:12px">
+      <p>Found at: <strong ti="strong_eschtml_node_name">${escHTML(node.name)}</strong> (depth ${foundAt})</p>
+      <p style="margin-top:4px">Type: <span style="color:var(--accent)">${propInfo.type}</span></p>
+      <p style="margin-top:4px">Value: <code style="color:var(--green)">${escHTML(propInfo.value)}</code></p>
+      <p style="margin-top:4px">Enumerable: ${propInfo.enumerable ? 'yes' : 'no'}</p>
+      ${foundAt > 0 ? '<p style="margin-top:4px;color:var(--orange)">⚠ Inherited (not an own property of the target)</p>' : '<p style="margin-top:4px;color:var(--green)">✓ Own property of the target</p>'}
+    </div>`;
+  } else {
+    html += `<div style="font-size:12px;color:var(--red)">
+      <p>Property "${escHTML(prop)}" not found anywhere in the chain.</p>
+      <p style="margin-top:4px">Result: <code>undefined</code></p>
+    </div>`;
+  }
+  html += '</div>';
+
+  // All occurrences (for shadowing)
+  const occurrences = currentChain.filter(n => n.props && n.props.some(p => p.name === prop));
+  if (occurrences.length > 1) {
+    html += '<div class="inspect-section"><h3 ti="h3_shadowing_detected">Shadowing Detected</h3>';
+    html += `<div style="font-size:12px">
+      <p style="color:var(--orange)">"${escHTML(prop)}" exists at ${occurrences.length} levels:</p>
+      <ul style="margin-top:6px;padding-left:20px">`;
+    occurrences.forEach((n, i) => {
+      const p = n.props.find(p => p.name === prop);
+      html += `<li style="margin-top:4px${i > 0 ? ';opacity:.6' : ''}">
+        <strong ti="strong_eschtml_n_name">${escHTML(n.name)}</strong>: ${escHTML(p.value)}
+        ${i === 0 ? ' ← <span style="color:var(--green)">wins</span>' : ' ← <span style="color:var(--dim)">shadowed</span>'}
+      </li>`;
+    });
+    html += '</ul></div>';
+  }
+
+  result.innerHTML = html;
+}
+
+// Auto-visualize on load
+visualize();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+</body>
+</html>

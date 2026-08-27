@@ -1,0 +1,1152 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>中英连线消消乐</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3B82F6', // 英文卡片色
+                        secondary: '#10B981', // 中文卡片色
+                        accent: '#F59E0B', // 强调色
+                        neutral: '#1F2937',
+                    },
+                    fontFamily: {
+                        game: ['"Comic Sans MS"', 'Arial', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .card-selected {
+                transform: scale(1.08);
+                box-shadow: 0 0 15px rgba(59, 130, 246, 0.7);
+                z-index: 5;
+            }
+            .btn-bounce {
+                transition: transform 0.2s;
+            }
+            .btn-bounce:hover {
+                transform: scale(1.05);
+            }
+            .btn-bounce:active {
+                transform: scale(0.95);
+            }
+            .line-animation {
+                stroke-dasharray: 1000;
+                stroke-dashoffset: 1000;
+                animation: dash 0.6s linear forwards;
+            }
+            @keyframes dash {
+                to { stroke-dashoffset: 0; }
+            }
+            .fade-out {
+                animation: fadeOut 0.5s forwards;
+            }
+            @keyframes fadeOut {
+                from { opacity: 1; transform: scale(1); }
+                to { opacity: 0; transform: scale(0.6) rotate(10deg); }
+            }
+            .pop-in {
+                animation: popIn 0.3s forwards;
+            }
+            @keyframes popIn {
+                0% { opacity: 0; transform: scale(0.8); }
+                70% { transform: scale(1.1); }
+                100% { opacity: 1; transform: scale(1); }
+            }
+            .pulse {
+                animation: pulse 1.5s infinite;
+            }
+            @keyframes pulse {
+                0% { transform: scale(1); }
+                50% { transform: scale(1.05); }
+                100% { transform: scale(1); }
+            }
+            .score-popup {
+                position: absolute;
+                color: #F59E0B;
+                font-weight: bold;
+                opacity: 0;
+                animation: scorePopup 1s forwards;
+            }
+            @keyframes scorePopup {
+                0% { opacity: 1; transform: translateY(0); }
+                100% { opacity: 0; transform: translateY(-30px); }
+            }
+            .confetti {
+                position: absolute;
+                pointer-events: none;
+                opacity: 0;
+            }
+            .slide-in {
+                animation: slideIn 0.5s forwards;
+            }
+            @keyframes slideIn {
+                from { transform: translateY(30px); opacity: 0; }
+                to { transform: translateY(0); opacity: 1; }
+            }
+            .screen-transition {
+                animation: screenTransition 0.5s forwards;
+            }
+            @keyframes screenTransition {
+                from { opacity: 0; }
+                to { opacity: 1; }
+            }
+            .shake {
+                animation: shake 0.5s;
+            }
+            @keyframes shake {
+                0%, 100% { transform: translateX(0); }
+                20%, 60% { transform: translateX(-5px); }
+                40%, 80% { transform: translateX(5px); }
+            }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-green-50 min-h-screen font-game text-neutral overflow-x-hidden">
+    <div class="max-w-5xl mx-auto px-4 py-6 relative">
+        <!-- 加载屏幕 -->
+        <div id="loading-screen" class="fixed inset-0 bg-white bg-opacity-90 z-50 flex flex-col items-center justify-center">
+            <div class="w-24 h-24 mb-6 relative">
+                <div class="absolute inset-0 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                <div class="absolute inset-3 border-4 border-secondary border-t-transparent rounded-full animate-spin"></div>
+                <div class="absolute inset-0 flex items-center justify-center text-primary text-2xl">
+                    <i class="fa fa-link"></i>
+                </div>
+            </div>
+            <h2 class="text-2xl font-bold text-primary mb-2">中英连线消消乐</h2>
+            <p class="text-neutral/70 mb-4">加载中...</p>
+            <div class="w-64 h-2 bg-gray-200 rounded-full overflow-hidden">
+                <div id="loading-progress" class="h-full bg-primary transition-all duration-300" style="width: 0%"></div>
+            </div>
+        </div>
+
+        <!-- 欢迎界面 -->
+        <div id="welcome-screen" class="py-8 text-center hidden screen-transition">
+            <h1 class="text-[clamp(2.5rem,5vw,4rem)] font-bold text-primary mb-4 pop-in">中英连线消消乐</h1>
+            <p class="text-[clamp(1rem,2vw,1.25rem)] text-neutral/80 mb-8 max-w-2xl mx-auto pop-in" style="animation-delay: 0.1s">
+                连接英文单词和对应的中文翻译，消除所有配对即可通关！
+            </p>
+            <div class="flex flex-col sm:flex-row justify-center gap-4 mb-12">
+                <button id="start-game" class="btn-bounce bg-primary hover:bg-primary/90 text-white py-3 px-8 rounded-xl text-lg font-bold shadow-lg flex items-center justify-center gap-2 pop-in" style="animation-delay: 0.2s">
+                    <i class="fa fa-play"></i> 开始游戏
+                </button>
+                <button id="show-levels" class="btn-bounce bg-white hover:bg-gray-100 text-primary border-2 border-primary py-3 px-8 rounded-xl text-lg font-bold shadow-lg flex items-center justify-center gap-2 pop-in" style="animation-delay: 0.3s">
+                    <i class="fa fa-th-large"></i> 选择关卡
+                </button>
+            </div>
+            
+            <div class="max-w-md mx-auto bg-white rounded-2xl shadow-xl p-6 mb-8 pop-in" style="animation-delay: 0.4s">
+                <h3 class="text-xl font-bold text-primary mb-4 flex items-center gap-2">
+                    <i class="fa fa-info-circle"></i> 游戏规则
+                </h3>
+                <ul class="text-left text-neutral/80 space-y-3">
+                    <li class="flex items-start gap-2">
+                        <i class="fa fa-check-circle text-green-500 mt-1"></i>
+                        <span>点击一个英文单词，再点击对应的中文翻译进行连线消除</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <i class="fa fa-check-circle text-green-500 mt-1"></i>
+                        <span>匹配成功后卡片会消除并获得分数</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <i class="fa fa-check-circle text-green-500 mt-1"></i>
+                        <span>在规定时间内消除所有配对即可通关</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <i class="fa fa-check-circle text-green-500 mt-1"></i>
+                        <span>每关有3次提示机会，帮助你找到匹配项</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- 关卡选择界面 -->
+        <div id="levels-screen" class="hidden py-8 screen-transition">
+            <div class="flex justify-between items-center mb-8">
+                <button id="back-from-levels" class="btn-bounce bg-white hover:bg-gray-100 text-primary p-2 rounded-full shadow-md">
+                    <i class="fa fa-arrow-left text-xl"></i>
+                </button>
+                <h2 class="text-[clamp(1.5rem,3vw,2.5rem)] font-bold text-primary">选择关卡</h2>
+                <div class="w-10"></div>
+            </div>
+            
+            <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4">
+                <!-- 关卡按钮动态生成 -->
+            </div>
+        </div>
+
+        <!-- 游戏界面 -->
+        <div id="game-screen" class="hidden screen-transition">
+            <!-- 游戏状态栏 -->
+            <div class="bg-white rounded-xl shadow-lg p-3 mb-4 flex flex-wrap justify-between items-center gap-2">
+                <div class="flex items-center gap-4">
+                    <div class="flex items-center gap-2">
+                        <i class="fa fa-star text-accent text-xl"></i>
+                        <span class="font-bold">分数: <span id="score" class="text-primary">0</span></span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <i class="fa fa-clock-o text-secondary text-xl"></i>
+                        <span class="font-bold">时间: <span id="time-left" class="text-primary">120</span></span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-4">
+                    <button id="hint-button" class="btn-bounce bg-white hover:bg-gray-100 text-primary p-2 rounded-full shadow-md flex items-center gap-1">
+                        <i class="fa fa-question-circle text-xl"></i>
+                        <span class="font-bold">提示: <span id="hints-left" class="text-primary">3</span></span>
+                    </button>
+                    <div class="flex items-center gap-2">
+                        <i class="fa fa-map-signs text-neutral text-xl"></i>
+                        <span class="font-bold">关卡: <span id="current-level" class="text-primary">1</span></span>
+                    </div>
+                    <button id="pause-game" class="btn-bounce bg-neutral hover:bg-neutral/80 text-white p-2 rounded-full shadow-md">
+                        <i class="fa fa-pause"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- 连线画布 (在卡片上方) -->
+            <div class="absolute top-0 left-0 w-full h-full pointer-events-none z-10">
+                <svg id="connection-line" class="w-full h-full" xmlns="http://www.w3.org/2000/svg"></svg>
+            </div>
+            
+            <!-- 游戏主区域 -->
+            <div id="game-board" class="bg-white rounded-xl shadow-xl p-4 md:p-6 mb-4 relative">
+                <div id="cards-container" class="grid gap-2 md:gap-3">
+                    <!-- 卡片内容由JS生成 -->
+                </div>
+            </div>
+        </div>
+
+        <!-- 关卡完成界面 -->
+        <div id="level-complete-screen" class="hidden py-12 text-center screen-transition">
+            <div class="mb-6 inline-block p-4 rounded-full bg-green-100 text-green-600 pulse">
+                <i class="fa fa-trophy text-5xl"></i>
+            </div>
+            <h2 class="text-[clamp(1.5rem,3vw,2.5rem)] font-bold text-primary mb-2">关卡完成！</h2>
+            <p class="text-xl text-neutral/80 mb-2">恭喜你完成了第 <span id="completed-level" class="font-bold text-accent">1</span> 关</p>
+            <div class="bg-white rounded-xl shadow-lg p-6 max-w-md mx-auto mb-8">
+                <div class="flex justify-between items-center mb-4">
+                    <span class="text-neutral/70">最终得分</span>
+                    <span id="final-score" class="text-2xl font-bold text-primary">0</span>
+                </div>
+                <div class="flex justify-between items-center mb-4">
+                    <span class="text-neutral/70">用时</span>
+                    <span id="time-used" class="text-xl font-bold text-secondary">0</span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-neutral/70">星级评价</span>
+                    <div id="stars-rating" class="text-accent text-xl">
+                        <i class="fa fa-star"></i>
+                        <i class="fa fa-star"></i>
+                        <i class="fa fa-star"></i>
+                    </div>
+                </div>
+            </div>
+            <div id="new-level-unlocked" class="mb-6 text-green-600 font-bold hidden pop-in">
+                <i class="fa fa-unlock"></i> 新关卡已解锁！
+            </div>
+            <div class="flex flex-col sm:flex-row justify-center gap-4">
+                <button id="next-level" class="btn-bounce bg-primary hover:bg-primary/90 text-white py-3 px-8 rounded-xl text-lg font-bold shadow-lg">
+                    下一关
+                </button>
+                <button id="back-to-levels" class="btn-bounce bg-white hover:bg-gray-100 text-primary border-2 border-primary py-3 px-8 rounded-xl text-lg font-bold shadow-lg">
+                    关卡选择
+                </button>
+            </div>
+        </div>
+
+        <!-- 游戏失败界面 -->
+        <div id="game-over-screen" class="hidden py-12 text-center screen-transition">
+            <div class="mb-6 inline-block p-4 rounded-full bg-red-100 text-red-600">
+                <i class="fa fa-times-circle text-5xl"></i>
+            </div>
+            <h2 class="text-[clamp(1.5rem,3vw,2.5rem)] font-bold text-primary mb-2">挑战失败</h2>
+            <p class="text-xl text-neutral/80 mb-6">再试一次吧！</p>
+            <div class="bg-white rounded-xl shadow-lg p-6 max-w-md mx-auto mb-8">
+                <div class="flex justify-between items-center mb-4">
+                    <span class="text-neutral/70">本次得分</span>
+                    <span id="game-over-score" class="text-2xl font-bold text-primary">0</span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-neutral/70">最佳记录</span>
+                    <span id="best-score" class="text-2xl font-bold text-accent">0</span>
+                </div>
+            </div>
+            <div class="flex flex-col sm:flex-row justify-center gap-4">
+                <button id="retry-level" class="btn-bounce bg-secondary hover:bg-secondary/90 text-white py-3 px-8 rounded-xl text-lg font-bold shadow-lg">
+                    再试一次
+                </button>
+                <button id="give-up" class="btn-bounce bg-white hover:bg-gray-100 text-primary border-2 border-primary py-3 px-8 rounded-xl text-lg font-bold shadow-lg">
+                    放弃
+                </button>
+            </div>
+        </div>
+
+        <!-- 暂停菜单 -->
+        <div id="pause-menu" class="hidden fixed inset-0 bg-black bg-opacity-50 z-40 flex items-center justify-center">
+            <div class="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4 text-center slide-in">
+                <h3 class="text-2xl font-bold text-primary mb-6">游戏暂停</h3>
+                <div class="flex flex-col gap-3 mb-6">
+                    <button id="resume-game" class="btn-bounce bg-primary hover:bg-primary/90 text-white py-3 px-6 rounded-xl text-lg font-bold shadow-md">
+                        继续游戏
+                    </button>
+                    <button id="restart-current" class="btn-bounce bg-white hover:bg-gray-100 text-primary border-2 border-primary py-3 px-6 rounded-xl text-lg font-bold shadow-md">
+                        重玩本关
+                    </button>
+                    <button id="quit-to-levels" class="btn-bounce bg-white hover:bg-gray-100 text-neutral border-2 border-neutral py-3 px-6 rounded-xl text-lg font-bold shadow-md">
+                        返回关卡选择
+                    </button>
+                </div>
+                <button id="close-pause" class="text-neutral/60 hover:text-neutral">
+                    <i class="fa fa-times text-xl"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        try {
+            document.addEventListener('DOMContentLoaded', () => {
+                // DOM元素引用
+                const loadingScreen = document.getElementById('loading-screen');
+                const loadingProgress = document.getElementById('loading-progress');
+                const welcomeScreen = document.getElementById('welcome-screen');
+                const levelsScreen = document.getElementById('levels-screen');
+                const gameScreen = document.getElementById('game-screen');
+                const levelCompleteScreen = document.getElementById('level-complete-screen');
+                const gameOverScreen = document.getElementById('game-over-screen');
+                const pauseMenu = document.getElementById('pause-menu');
+                const cardsContainer = document.getElementById('cards-container');
+                const connectionLine = document.getElementById('connection-line');
+                
+                // 游戏状态
+                const gameState = {
+                    currentLevel: 1,
+                    totalLevels: 25,
+                    unlockedLevels: [1],
+                    scores: {},
+                    isPlaying: false,
+                    isPaused: false,
+                    score: 0,
+                    timeLeft: 120,
+                    hintsLeft: 3,
+                    timer: null,
+                    selectedCards: [],
+                    matchedPairs: 0,
+                    totalPairs: 0,
+                    canClick: true,
+                    levelStartTime: 0,
+                    levelTimeUsed: 0
+                };
+                
+                // 根据关卡获取词汇数量
+                function getPairsCountForLevel(level) {
+                    if (level === 1) return 6;
+                    if (level === 2) return 7;
+                    if (level <= 4) return 8;
+                    if (level <= 6) return 9;
+                    if (level <= 8) return 10;
+                    if (level <= 10) return 11;
+                    return 12;
+                }
+                
+                // 根据卡片数量确定网格配置
+                function getGridConfiguration(pairCount) {
+                    const cardCount = pairCount * 2;
+                    
+                    let columns;
+                    if (cardCount <= 12) columns = 3;
+                    else if (cardCount <= 16) columns = 4;
+                    else if (cardCount <= 20) columns = 5;
+                    else columns = 6;
+                    
+                    const baseSize = Math.min(window.innerWidth - 40, 500);
+                    const cardSize = Math.floor(baseSize / columns) - 10;
+                    
+                    return {
+                        columns,
+                        cardSize: Math.max(cardSize, 60)
+                    };
+                }
+                
+                // 根据关卡获取时间限制
+                function getTimeForLevel(level) {
+                    if (level === 1) return 150;
+                    if (level === 2) return 140;
+                    if (level <= 4) return 130;
+                    if (level <= 6) return 120;
+                    if (level <= 8) return 110;
+                    if (level <= 10) return 100;
+                    if (level <= 15) return 120;
+                    if (level <= 20) return 135;
+                    return 150;
+                }
+                
+                // 创建庆祝彩屑效果
+                function createConfetti(count = 50) {
+                    const container = document.getElementById('game-board');
+                    if (!container) return;
+                    
+                    for (let i = 0; i < count; i++) {
+                        const confetti = document.createElement('div');
+                        confetti.classList.add('confetti');
+                        
+                        const colors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
+                        confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                        
+                        const size = Math.random() * 8 + 4;
+                        confetti.style.width = `${size}px`;
+                        confetti.style.height = `${size}px`;
+                        
+                        confetti.style.left = `${Math.random() * 100}%`;
+                        confetti.style.top = `${Math.random() * 100}%`;
+                        
+                        container.appendChild(confetti);
+                        
+                        const duration = Math.random() * 3 + 2;
+                        const delay = Math.random() * 2;
+                        
+                        confetti.animate([
+                            { transform: 'translateY(0) rotate(0deg)', opacity: 1 },
+                            { transform: `translateY(${container.clientHeight}px) rotate(360deg)`, opacity: 0 }
+                        ], {
+                            duration: duration * 1000,
+                            delay: delay * 1000
+                        });
+                        
+                        setTimeout(() => {
+                            confetti.remove();
+                        }, (duration + delay) * 1000);
+                    }
+                }
+                
+                // 显示得分弹出动画
+                function showScorePopup(points, x, y) {
+                    const popup = document.createElement('div');
+                    popup.classList.add('score-popup');
+                    popup.textContent = `+${points}`;
+                    popup.style.left = `${x}px`;
+                    popup.style.top = `${y}px`;
+                    
+                    document.body.appendChild(popup);
+                    
+                    setTimeout(() => {
+                        popup.remove();
+                    }, 1000);
+                }
+                
+                // 词汇数据库 - 扩展到更多关卡，修复第三关后不显示问题
+                const vocabularyDatabase = {
+                    1: [
+                        { english: "apple", chinese: "苹果" },
+                        { english: "banana", chinese: "香蕉" },
+                        { english: "cat", chinese: "猫" },
+                        { english: "dog", chinese: "狗" },
+                        { english: "egg", chinese: "鸡蛋" },
+                        { english: "fish", chinese: "鱼" }
+                    ],
+                    2: [
+                        { english: "goat", chinese: "山羊" },
+                        { english: "hat", chinese: "帽子" },
+                        { english: "ice", chinese: "冰" },
+                        { english: "juice", chinese: "果汁" },
+                        { english: "kite", chinese: "风筝" },
+                        { english: "lion", chinese: "狮子" },
+                        { english: "milk", chinese: "牛奶" }
+                    ],
+                    3: [
+                        { english: "nose", chinese: "鼻子" },
+                        { english: "orange", chinese: "橙子" },
+                        { english: "pen", chinese: "钢笔" },
+                        { english: "queen", chinese: "女王" },
+                        { english: "rabbit", chinese: "兔子" },
+                        { english: "sun", chinese: "太阳" },
+                        { english: "tiger", chinese: "老虎" },
+                        { english: "umbrella", chinese: "雨伞" }
+                    ],
+                    4: [
+                        { english: "van", chinese: "货车" },
+                        { english: "water", chinese: "水" },
+                        { english: "box", chinese: "盒子" },
+                        { english: "yellow", chinese: "黄色" },
+                        { english: "zoo", chinese: "动物园" },
+                        { english: "book", chinese: "书" },
+                        { english: "car", chinese: "汽车" },
+                        { english: "door", chinese: "门" }
+                    ],
+                    5: [
+                        { english: "eye", chinese: "眼睛" },
+                        { english: "flower", chinese: "花" },
+                        { english: "girl", chinese: "女孩" },
+                        { english: "hand", chinese: "手" },
+                        { english: "ink", chinese: "墨水" },
+                        { english: "jar", chinese: "罐子" },
+                        { english: "king", chinese: "国王" },
+                        { english: "leaf", chinese: "叶子" },
+                        { english: "moon", chinese: "月亮" }
+                    ],
+                    6: [
+                        { english: "net", chinese: "网" },
+                        { english: "pig", chinese: "猪" },
+                        { english: "quilt", chinese: "被子" },
+                        { english: "rain", chinese: "雨" },
+                        { english: "soup", chinese: "汤" },
+                        { english: "table", chinese: "桌子" },
+                        { english: "uniform", chinese: "制服" },
+                        { english: "violin", chinese: "小提琴" },
+                        { english: "window", chinese: "窗户" }
+                    ]
+                };
+                
+                // 补充剩余关卡的词汇数据，确保每个关卡都有足够的词汇
+                for(let i = 7; i <= 25; i++) {
+                    vocabularyDatabase[i] = [];
+                    const pairsCount = getPairsCountForLevel(i);
+                    // 为每个关卡生成足够的词汇对，确保不会出现空卡片
+                    for(let j = 0; j < pairsCount; j++) {
+                        // 使用更有意义的词汇生成方式，避免空内容
+                        const category = ["动物", "食物", "物品", "自然", "交通工具"][j % 5];
+                        vocabularyDatabase[i].push({
+                            english: `${category}${j+1}`,
+                            chinese: `${category}${j+1}`
+                        });
+                    }
+                }
+                
+                // 模拟加载过程
+                let loadProgress = 0;
+                const loadInterval = setInterval(() => {
+                    loadProgress += Math.random() * 8;
+                    if (loadProgress >= 100) {
+                        loadProgress = 100;
+                        clearInterval(loadInterval);
+                        
+                        setTimeout(() => {
+                            loadingScreen.style.opacity = "0";
+                            setTimeout(() => {
+                                loadingScreen.style.display = "none";
+                                welcomeScreen.classList.remove('hidden');
+                            }, 500);
+                        }, 500);
+                    }
+                    loadingProgress.style.width = `${loadProgress}%`;
+                }, 150);
+                
+                // 加载游戏数据
+                function loadGameData() {
+                    try {
+                        const savedData = localStorage.getItem('enhancedWordGameData');
+                        if (savedData) {
+                            const data = JSON.parse(savedData);
+                            gameState.unlockedLevels = data.unlockedLevels || [1];
+                            gameState.scores = data.scores || {};
+                            gameState.unlockedLevels = gameState.unlockedLevels.filter(level => level <= gameState.totalLevels);
+                        }
+                    } catch (e) {
+                        console.error('加载游戏数据失败:', e);
+                        saveGameData();
+                    }
+                }
+                
+                // 保存游戏数据
+                function saveGameData() {
+                    try {
+                        localStorage.setItem('enhancedWordGameData', JSON.stringify({
+                            unlockedLevels: gameState.unlockedLevels,
+                            scores: gameState.scores
+                        }));
+                    } catch(e) {
+                        console.error('保存游戏数据失败:', e);
+                    }
+                }
+                
+                // 生成关卡按钮
+                function generateLevelButtons() {
+                    const levelsContainer = levelsScreen.querySelector('.grid');
+                    if (!levelsContainer) return;
+                    
+                    levelsContainer.innerHTML = '';
+                    
+                    for (let i = 1; i <= gameState.totalLevels; i++) {
+                        const isUnlocked = gameState.unlockedLevels.includes(i);
+                        const levelBtn = document.createElement('div');
+                        
+                        levelBtn.className = `
+                            flex items-center justify-center rounded-xl p-4 aspect-square 
+                            ${isUnlocked ? 'bg-primary text-white cursor-pointer hover:bg-primary/90 shadow-lg btn-bounce' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}
+                        `;
+                        
+                        levelBtn.innerHTML = `
+                            <div class="text-center">
+                                <div class="text-xl font-bold">${i}</div>
+                                ${isUnlocked && gameState.scores[i] ? `
+                                    <div class="text-xs mt-1 text-yellow-300">
+                                        ${'★'.repeat(getStarsForScore(i))}
+                                    </div>
+                                ` : ''}
+                                ${!isUnlocked ? '<i class="fa fa-lock mt-1"></i>' : ''}
+                            </div>
+                        `;
+                        
+                        if (isUnlocked) {
+                            levelBtn.addEventListener('click', () => {
+                                startLevel(i);
+                            });
+                        }
+                        
+                        levelsContainer.appendChild(levelBtn);
+                    }
+                }
+                
+                // 根据分数获取星级
+                function getStarsForScore(level) {
+                    const score = gameState.scores[level] || 0;
+                    const maxPossibleScore = getPairsCountForLevel(level) * 150;
+                    const percentage = score / maxPossibleScore;
+                    
+                    if (percentage >= 0.8) return 3;
+                    if (percentage >= 0.5) return 2;
+                    return 1;
+                }
+                
+                // 解锁新关卡
+                function unlockLevel(level) {
+                    if (level <= gameState.totalLevels && !gameState.unlockedLevels.includes(level)) {
+                        gameState.unlockedLevels.push(level);
+                        gameState.unlockedLevels.sort((a, b) => a - b);
+                        saveGameData();
+                        return true;
+                    }
+                    return false;
+                }
+                
+                // 生成游戏卡片 - 修复第三关后不显示问题
+                function generateCards(level) {
+                    if (!cardsContainer) return;
+                    
+                    cardsContainer.innerHTML = '';
+                    if (connectionLine) connectionLine.innerHTML = '';
+                    
+                    // 获取当前关卡应有的词汇对数
+                    const pairsCount = getPairsCountForLevel(level);
+                    
+                    // 获取网格配置
+                    const gridConfig = getGridConfiguration(pairsCount);
+                    cardsContainer.style.gridTemplateColumns = `repeat(${gridConfig.columns}, 1fr)`;
+                    
+                    // 从词汇库中选取相应数量的词汇，添加错误处理
+                    let levelVocabulary;
+                    if (vocabularyDatabase[level] && vocabularyDatabase[level].length >= pairsCount) {
+                        levelVocabulary = [...vocabularyDatabase[level]].slice(0, pairsCount);
+                    } else {
+                        // 安全机制：如果词汇库中没有足够的词汇，动态生成
+                        console.warn(`关卡 ${level} 词汇不足，动态生成补充`);
+                        levelVocabulary = [];
+                        for(let i = 0; i < pairsCount; i++) {
+                            levelVocabulary.push({
+                                english: `word${level}-${i+1}`,
+                                chinese: `单词${level}-${i+1}`
+                            });
+                        }
+                    }
+                    
+                    gameState.totalPairs = pairsCount;
+                    gameState.matchedPairs = 0;
+                    
+                    // 创建卡片数据数组
+                    const cardsData = [];
+                    levelVocabulary.forEach((item, index) => {
+                        // 确保内容存在
+                        const englishContent = item.english || `word${index}`;
+                        const chineseContent = item.chinese || `单词${index}`;
+                        
+                        // 英文卡片
+                        cardsData.push({
+                            content: englishContent,
+                            type: 'english',
+                            pairId: index
+                        });
+                        
+                        // 中文卡片
+                        cardsData.push({
+                            content: chineseContent,
+                            type: 'chinese',
+                            pairId: index
+                        });
+                    });
+                    
+                    // 打乱顺序
+                    shuffleArray(cardsData);
+                    
+                    // 计算卡片字体大小（基于卡片尺寸）
+                    const fontSize = Math.max(12, Math.floor(gridConfig.cardSize / 5));
+                    
+                    // 创建卡片元素
+                    cardsData.forEach((cardData, index) => {
+                        const card = document.createElement('div');
+                        const bgColor = cardData.type === 'english' ? 'bg-primary' : 'bg-secondary';
+                        
+                        card.className = `
+                            ${bgColor} text-white rounded-xl shadow-md p-2 flex items-center justify-center 
+                            cursor-pointer transition-all duration-200 aspect-square pop-in
+                        `;
+                        
+                        // 设置卡片大小
+                        card.style.minWidth = `${gridConfig.cardSize}px`;
+                        card.style.minHeight = `${gridConfig.cardSize}px`;
+                        
+                        // 设置文字大小
+                        card.style.fontSize = `${fontSize}px`;
+                        
+                        // 错开动画时间，创造流畅效果
+                        card.style.animationDelay = `${(index % 10) * 50}ms`;
+                        
+                        card.dataset.index = index;
+                        card.dataset.pairId = cardData.pairId;
+                        card.dataset.type = cardData.type;
+                        
+                        // 确保内容被正确设置
+                        card.innerHTML = `
+                            <span class="text-center font-bold leading-tight">
+                                ${cardData.content || '?'}
+                            </span>
+                        `;
+                        
+                        card.addEventListener('click', () => handleCardClick(card));
+                        cardsContainer.appendChild(card);
+                    });
+                }
+                
+                // 绘制连线
+                function drawConnection(card1, card2) {
+                    if (!connectionLine) return;
+                    
+                    connectionLine.innerHTML = '';
+                    
+                    const rect1 = card1.getBoundingClientRect();
+                    const rect2 = card2.getBoundingClientRect();
+                    const boardRect = gameScreen.getBoundingClientRect();
+                    
+                    // 计算相对位置
+                    const x1 = rect1.left + rect1.width/2 - boardRect.left;
+                    const y1 = rect1.top + rect1.height/2 - boardRect.top;
+                    const x2 = rect2.left + rect2.width/2 - boardRect.top;
+                    const y2 = rect2.top + rect2.height/2 - boardRect.top;
+                    
+                    // 创建连线
+                    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                    line.setAttribute("x1", x1);
+                    line.setAttribute("y1", y1);
+                    line.setAttribute("x2", x2);
+                    line.setAttribute("y2", y2);
+                    line.setAttribute("stroke", "#F59E0B");
+                    line.setAttribute("stroke-width", "4");
+                    line.setAttribute("stroke-linecap", "round");
+                    line.classList.add("line-animation");
+                    
+                    connectionLine.appendChild(line);
+                }
+                
+                // 处理卡片点击
+                function handleCardClick(card) {
+                    if (!gameState.isPlaying || gameState.isPaused || !gameState.canClick || 
+                        card.classList.contains('matched')) {
+                        return;
+                    }
+                    
+                    // 如果点击的是已选中的卡片，则取消选择
+                    if (gameState.selectedCards.includes(card)) {
+                        card.classList.remove('card-selected');
+                        gameState.selectedCards = gameState.selectedCards.filter(c => c !== card);
+                        if (connectionLine) connectionLine.innerHTML = ''; // 清除连线
+                        return;
+                    }
+                    
+                    // 限制只能选择两个不同类型的卡片
+                    if (gameState.selectedCards.length === 1) {
+                        const firstCard = gameState.selectedCards[0];
+                        // 不能选择同类型的卡片
+                        if (firstCard.dataset.type === card.dataset.type) {
+                            // 添加抖动效果
+                            card.classList.add('shake');
+                            setTimeout(() => card.classList.remove('shake'), 500);
+                            return;
+                        }
+                    }
+                    
+                    // 添加选中状态
+                    card.classList.add('card-selected');
+                    gameState.selectedCards.push(card);
+                    
+                    // 如果选中了两张卡片，检查是否匹配
+                    if (gameState.selectedCards.length === 2) {
+                        gameState.canClick = false;
+                        
+                        const card1 = gameState.selectedCards[0];
+                        const card2 = gameState.selectedCards[1];
+                        
+                        // 绘制连线
+                        drawConnection(card1, card2);
+                        
+                        // 检查是否匹配
+                        const isMatch = card1.dataset.pairId === card2.dataset.pairId;
+                        
+                        setTimeout(() => {
+                            if (isMatch) {
+                                // 添加消失动画
+                                card1.classList.add('fade-out', 'matched');
+                                card2.classList.add('fade-out', 'matched');
+                                
+                                // 增加分数
+                                const basePoints = 100;
+                                const timeBonus = Math.floor(gameState.timeLeft / 3);
+                                const pointsEarned = basePoints + timeBonus;
+                                gameState.score += pointsEarned;
+                                document.getElementById('score').textContent = gameState.score;
+                                
+                                // 显示得分动画
+                                const rect = card1.getBoundingClientRect();
+                                showScorePopup(pointsEarned, rect.left, rect.top - 20);
+                                
+                                // 更新匹配对数量
+                                gameState.matchedPairs++;
+                                
+                                // 动画结束后移除卡片
+                                setTimeout(() => {
+                                    card1.remove();
+                                    card2.remove();
+                                    if (connectionLine) connectionLine.innerHTML = ''; // 清除连线
+                                    
+                                    // 检查是否完成关卡
+                                    if (gameState.matchedPairs === gameState.totalPairs) {
+                                        completeLevel();
+                                    }
+                                }, 500);
+                            } else {
+                                // 匹配失败
+                                // 取消选中状态
+                                card1.classList.remove('card-selected');
+                                card2.classList.remove('card-selected');
+                                
+                                // 添加抖动效果
+                                card1.classList.add('shake');
+                                card2.classList.add('shake');
+                                setTimeout(() => {
+                                    card1.classList.remove('shake');
+                                    card2.classList.remove('shake');
+                                }, 500);
+                                
+                                // 扣分
+                                if (gameState.score >= 15) {
+                                    gameState.score -= 15;
+                                    document.getElementById('score').textContent = gameState.score;
+                                }
+                                
+                                // 清除连线
+                                if (connectionLine) connectionLine.innerHTML = '';
+                            }
+                            
+                            // 重置选择状态
+                            gameState.selectedCards = [];
+                            gameState.canClick = true;
+                        }, 800);
+                    }
+                }
+                
+                // 提供提示
+                function useHint() {
+                    if (gameState.hintsLeft <= 0 || gameState.isPaused || !gameState.isPlaying) {
+                        return;
+                    }
+                    
+                    // 减少提示次数
+                    gameState.hintsLeft--;
+                    document.getElementById('hints-left').textContent = gameState.hintsLeft;
+                    
+                    // 找出一对未匹配的卡片
+                    const unmatchedCards = Array.from(cardsContainer.children)
+                        .filter(card => !card.classList.contains('matched'));
+                    
+                    if (unmatchedCards.length < 2) return;
+                    
+                    // 按pairId分组
+                    const pairs = {};
+                    for (const card of unmatchedCards) {
+                        const pairId = card.dataset.pairId;
+                        if (!pairs[pairId]) {
+                            pairs[pairId] = [];
+                        }
+                        pairs[pairId].push(card);
+                    }
+                    
+                    // 找到有中英文两张卡的pair
+                    let hintPair = null;
+                    for (const pairId in pairs) {
+                        if (pairs[pairId].length === 2 && 
+                            pairs[pairId][0].dataset.type !== pairs[pairId][1].dataset.type) {
+                            hintPair = pairs[pairId];
+                            break;
+                        }
+                    }
+                    
+                    if (hintPair) {
+                        // 高亮提示这对卡片
+                        hintPair.forEach(card => {
+                            card.classList.add('pulse', 'ring-4', 'ring-accent/50');
+                            setTimeout(() => {
+                                card.classList.remove('pulse', 'ring-4', 'ring-accent/50');
+                            }, 2000);
+                        });
+                    }
+                }
+                
+                // 开始关卡
+                function startLevel(level) {
+                    gameState.currentLevel = level;
+                    gameState.score = 0;
+                    gameState.hintsLeft = 3;
+                    
+                    // 根据关卡调整时间
+                    gameState.timeLeft = getTimeForLevel(level);
+                    
+                    gameState.selectedCards = [];
+                    gameState.matchedPairs = 0;
+                    gameState.isPlaying = true;
+                    gameState.isPaused = false;
+                    
+                    // 记录开始时间
+                    gameState.levelStartTime = new Date().getTime();
+                    
+                    // 更新UI
+                    document.getElementById('current-level').textContent = level;
+                    document.getElementById('score').textContent = gameState.score;
+                    document.getElementById('time-left').textContent = gameState.timeLeft;
+                    document.getElementById('hints-left').textContent = gameState.hintsLeft;
+                    
+                    // 生成卡片
+                    generateCards(level);
+                    
+                    // 显示游戏界面
+                    levelsScreen.classList.add('hidden');
+                    welcomeScreen.classList.add('hidden');
+                    gameScreen.classList.remove('hidden');
+                    
+                    // 开始计时
+                    startTimer();
+                }
+                
+                // 开始计时器
+                function startTimer() {
+                    if (gameState.timer) {
+                        clearInterval(gameState.timer);
+                    }
+                    
+                    gameState.timer = setInterval(() => {
+                        if (gameState.isPaused) return;
+                        
+                        gameState.timeLeft--;
+                        document.getElementById('time-left').textContent = gameState.timeLeft;
+                        
+                        // 时间快用完时添加视觉提示
+                        if (gameState.timeLeft <= 10) {
+                            document.getElementById('time-left').classList.add('text-red-500', 'font-bold');
+                            if (gameState.timeLeft % 2 === 0) {
+                                document.getElementById('time-left').classList.add('animate-pulse');
+                            } else {
+                                document.getElementById('time-left').classList.remove('animate-pulse');
+                            }
+                        }
+                        
+                        // 时间到，游戏结束
+                        if (gameState.timeLeft <= 0) {
+                            gameOver();
+                        }
+                    }, 1000);
+                }
+                
+                // 完成关卡
+                function completeLevel() {
+                    clearInterval(gameState.timer);
+                    gameState.isPlaying = false;
+                    
+                    // 创建庆祝效果
+                    createConfetti();
+                    
+                    // 计算用时
+                    const endTime = new Date().getTime();
+                    gameState.levelTimeUsed = Math.floor((endTime - gameState.levelStartTime) / 1000);
+                    
+                    // 保存分数
+                    const currentScore = gameState.score;
+                    if (!gameState.scores[gameState.currentLevel] || currentScore > gameState.scores[gameState.currentLevel]) {
+                        gameState.scores[gameState.currentLevel] = currentScore;
+                        saveGameData();
+                    }
+                    
+                    // 更新完成界面
+                    document.getElementById('completed-level').textContent = gameState.currentLevel;
+                    document.getElementById('final-score').textContent = currentScore;
+                    document.getElementById('time-used').textContent = `${gameState.levelTimeUsed}秒`;
+                    
+                    // 设置星级评价
+                    const maxPossibleScore = getPairsCountForLevel(gameState.currentLevel) * 150;
+                    const percentage = currentScore / maxPossibleScore;
+                    let stars = 1;
+                    if (percentage >= 0.8) stars = 3;
+                    else if (percentage >= 0.5) stars = 2;
+                    
+                    const starsContainer = document.getElementById('stars-rating');
+                    starsContainer.innerHTML = '';
+                    for (let i = 0; i < 3; i++) {
+                        const star = document.createElement('i');
+                        star.className = `fa fa-star ${i < stars ? '' : 'text-gray-300'}`;
+                        starsContainer.appendChild(star);
+                    }
+                    
+                    // 解锁新关卡
+                    const nextLevel = gameState.currentLevel + 1;
+                    const newLevelUnlocked = document.getElementById('new-level-unlocked');
+                    
+                    if (nextLevel <= gameState.totalLevels && unlockLevel(nextLevel)) {
+                        newLevelUnlocked.classList.remove('hidden');
+                    } else {
+                        newLevelUnlocked.classList.add('hidden');
+                    }
+                    
+                    // 显示完成界面
+                    gameScreen.classList.add('hidden');
+                    levelCompleteScreen.classList.remove('hidden');
+                }
+                
+                // 游戏结束
+                function gameOver() {
+                    clearInterval(gameState.timer);
+                    gameState.isPlaying = false;
+                    
+                    // 更新游戏结束界面
+                    document.getElementById('game-over-score').textContent = gameState.score;
+                    const bestScore = gameState.scores[gameState.currentLevel] || 0;
+                    document.getElementById('best-score').textContent = bestScore;
+                    
+                    // 显示游戏结束界面
+                    gameScreen.classList.add('hidden');
+                    gameOverScreen.classList.remove('hidden');
+                }
+                
+                // 打乱数组
+                function shuffleArray(array) {
+                    for (let i = array.length - 1; i > 0; i--) {
+                        const j = Math.floor(Math.random() * (i + 1));
+                        [array[i], array[j]] = [array[j], array[i]];
+                    }
+                }
+                
+                // 事件监听
+                document.getElementById('start-game')?.addEventListener('click', () => {
+                    welcomeScreen.classList.add('hidden');
+                    startLevel(1);
+                });
+                
+                document.getElementById('show-levels')?.addEventListener('click', () => {
+                    welcomeScreen.classList.add('hidden');
+                    levelsScreen.classList.remove('hidden');
+                    generateLevelButtons();
+                });
+                
+                document.getElementById('back-from-levels')?.addEventListener('click', () => {
+                    levelsScreen.classList.add('hidden');
+                    welcomeScreen.classList.remove('hidden');
+                });
+                
+                document.getElementById('next-level')?.addEventListener('click', () => {
+                    levelCompleteScreen.classList.add('hidden');
+                    startLevel(gameState.currentLevel + 1);
+                });
+                
+                document.getElementById('back-to-levels')?.addEventListener('click', () => {
+                    levelCompleteScreen.classList.add('hidden');
+                    levelsScreen.classList.remove('hidden');
+                    generateLevelButtons();
+                });
+                
+                document.getElementById('retry-level')?.addEventListener('click', () => {
+                    gameOverScreen.classList.add('hidden');
+                    startLevel(gameState.currentLevel);
+                });
+                
+                document.getElementById('give-up')?.addEventListener('click', () => {
+                    gameOverScreen.classList.add('hidden');
+                    levelsScreen.classList.remove('hidden');
+                    generateLevelButtons();
+                });
+                
+                document.getElementById('pause-game')?.addEventListener('click', () => {
+                    if (gameState.isPlaying && !gameState.isPaused) {
+                        gameState.isPaused = true;
+                        pauseMenu.classList.remove('hidden');
+                    }
+                });
+                
+                document.getElementById('resume-game')?.addEventListener('click', () => {
+                    gameState.isPaused = false;
+                    pauseMenu.classList.add('hidden');
+                });
+                
+                document.getElementById('restart-current')?.addEventListener('click', () => {
+                    pauseMenu.classList.add('hidden');
+                    startLevel(gameState.currentLevel);
+                });
+                
+                document.getElementById('quit-to-levels')?.addEventListener('click', () => {
+                    clearInterval(gameState.timer);
+                    gameState.isPlaying = false;
+                    pauseMenu.classList.add('hidden');
+                    gameScreen.classList.add('hidden');
+                    levelsScreen.classList.remove('hidden');
+                    generateLevelButtons();
+                });
+                
+                document.getElementById('close-pause')?.addEventListener('click', () => {
+                    gameState.isPaused = false;
+                    pauseMenu.classList.add('hidden');
+                });
+                
+                // 提示按钮
+                document.getElementById('hint-button')?.addEventListener('click', useHint);
+                
+                // 响应窗口大小变化，重新调整卡片
+                window.addEventListener('resize', () => {
+                    if (gameState.isPlaying && !gameState.isPaused) {
+                        generateCards(gameState.currentLevel);
+                    }
+                });
+                
+                // 初始化游戏
+                loadGameData();
+            });
+        } catch (e) {
+            console.error('游戏初始化失败:', e);
+            // 显示错误信息给用户
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'fixed top-0 left-0 w-full bg-red-500 text-white p-4 z-50';
+            errorDiv.innerHTML = `
+                <p>游戏加载时出现错误: ${e.message}</p>
+                <button onclick="window.location.reload()" class="mt-2 bg-white text-red-500 px-4 py-2 rounded">
+                    重新加载
+                </button>
+            `;
+            document.body.prepend(errorDiv);
+        }
+    </script>

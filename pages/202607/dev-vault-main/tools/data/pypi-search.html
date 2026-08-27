@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html tk="title_pypi_search_python_packag" lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PyPI Search — Python Package Explorer</title>
+<meta name="description" content="Search and explore PyPI packages. Version history, dependencies, download stats, license info. Faster than pypi.org.">
+<meta property="og:title" content="PyPI Search — Python Package Explorer">
+<meta property="og:description" content="Search and explore Python packages from PyPI. Version history, license, and more.">
+<meta property="og:type" content="website">
+<link rel="canonical" href="https://gokuscraper.github.io/dev-vault/pypi-search/">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0d1117;--surface:#161b22;--border:#30363d;--text:#e6edf3;--muted:#8b949e;--accent:#3776ab;--blue:#58a6ff;--green:#3fb950;--red:#f85149;--yellow:#d29922;--pypi:#006dad}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;line-height:1.6}
+a{color:var(--blue);text-decoration:none}
+a:hover{text-decoration:underline}
+code{background:rgba(110,118,129,.2);padding:1px 5px;border-radius:3px;font-size:13px;font-family:monospace}
+
+.container{max-width:800px;margin:0 auto;padding:24px 16px}
+header{text-align:center;margin-bottom:24px}
+header h1{font-size:28px;margin-bottom:6px}
+header h1 span{color:var(--pypi)}
+header p{color:var(--muted);font-size:14px}
+
+.search-row{display:flex;gap:8px;margin-bottom:20px}
+.search-row input{flex:1;padding:10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:15px;outline:none}
+.search-row input:focus{border-color:var(--pypi)}
+.search-row button{padding:10px 18px;background:var(--pypi);color:#fff;border:none;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer}
+.search-row button:hover{opacity:.9}
+.search-row button:disabled{opacity:.5;cursor:not-allowed}
+
+.status{text-align:center;color:var(--muted);padding:12px;font-size:14px}
+.status.error{color:var(--red)}
+
+.pkg-detail{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:16px}
+.pkg-detail h2{font-size:20px;margin-bottom:4px}
+.pkg-detail h2 a{color:var(--text)}
+.pkg-detail .summary{color:var(--muted);font-size:14px;margin-bottom:10px}
+.pkg-detail .meta{display:flex;flex-wrap:wrap;gap:12px;font-size:13px;color:var(--muted);margin-bottom:10px}
+.pkg-detail .meta span{display:flex;align-items:center;gap:4px}
+.pkg-detail .install{background:rgba(0,109,173,.1);border:1px solid rgba(0,109,173,.3);border-radius:6px;padding:8px 12px;font-family:monospace;font-size:14px;display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.pkg-detail .install button{background:none;border:none;color:var(--blue);cursor:pointer;font-size:12px}
+.classifiers{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}
+.classifier{background:rgba(55,118,171,.1);color:var(--pypi);padding:2px 8px;border-radius:10px;font-size:11px}
+
+.versions-section{margin-bottom:16px}
+.versions-section h3{font-size:14px;color:var(--muted);margin-bottom:8px}
+.version-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:6px}
+.version-chip{background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:6px 8px;font-family:monospace;font-size:12px;display:flex;justify-content:space-between}
+.version-chip.latest{border-color:var(--green);color:var(--green)}
+.version-chip .date{color:var(--muted);font-size:11px}
+
+.search-results{display:grid;gap:10px}
+.result-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;cursor:pointer;transition:border-color .2s}
+.result-card:hover{border-color:var(--pypi)}
+.result-card h3{font-size:15px;margin-bottom:2px}
+.result-card h3 a{color:var(--text)}
+.result-card .desc{color:var(--muted);font-size:13px;margin-bottom:6px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.result-card .info{font-size:12px;color:var(--muted);display:flex;gap:10px}
+
+.deps-section{margin-bottom:16px}
+.deps-section h3{font-size:14px;color:var(--muted);margin-bottom:8px}
+.dep-list{display:flex;flex-wrap:wrap;gap:6px}
+.dep{background:var(--surface);border:1px solid var(--border);padding:3px 10px;border-radius:12px;font-size:12px;cursor:pointer;color:var(--blue)}
+.dep:hover{border-color:var(--blue)}
+
+.loading{display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--pypi);border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:6px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+footer{text-align:center;padding:24px 16px;color:var(--muted);font-size:13px;border-top:1px solid var(--border);margin-top:32px}
+@media(max-width:600px){.search-row{flex-direction:column}.pkg-detail .meta{flex-direction:column;gap:4px}}
+</style>
+</head>
+<body>
+
+
+
+<div class="container" style="position:relative">
+  <header>
+    <h1><span>PyPI</span> Search</h1>
+    <p>Explore Python packages — versions, deps, license, classifiers</p>
+  </header>
+
+  <div class="search-row">
+    <input type="text" id="input" tp="placeholder_search_packages_or_enter" placeholder="Search packages or enter exact name (e.g. requests, flask, numpy)" autocomplete="off">
+    <button id="btn" onclick="search()" ti="btn_search">Search</button>
+  </div>
+
+  <div id="status"></div>
+  <div id="content"></div>
+</div>
+
+<footer>
+  <p>PyPI Search — Data from <a href="https://pypi.org/" target="_blank">PyPI</a> | Part of <a href="https://gokuscraper.github.io/dev-vault/" target="_blank" ti="footer_dev_vault">Dev Vault</a></p>
+</footer>
+
+
+<script>var _LANG={'title_pypi_search_python_packag':["PyPI Search — Python Package Explorer", "PyPI 搜索 — Python 包管理器"],'metadesc_search_and_explore_pypi_p':["Search and explore PyPI packages. Version history, dependencies, download stats, license info. Faster than pypi.org.", "搜索和浏览 PyPI 软件包。版本历史记录、依赖项、下载统计、许可证信息。比 pypi.org 更快。"],'h3_dependencies_uniquedeps_l':["Dependencies (${uniqueDeps.length})", "依赖项（${uniqueDeps.length}）"],'h3_recent_versions':["Recent Versions", "最新版本"],'btn_search':["Search", "搜索"],'btn_copy':["Copy", "复制"],'placeholder_search_packages_or_enter':["Search packages or enter exact name (e.g. requests, flask, numpy)", "搜索软件包或输入确切名称（例如 requests、flask、numpy）"],'footer_dev_vault':["Dev Vault", "开发者宝库"],'link_esc_r_name':["${esc(r.name)}", "${esc(r.name)}"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>
+const PYPI = 'https://pypi.org';
+const inp = document.getElementById('input');
+const btn = document.getElementById('btn');
+const statusEl = document.getElementById('status');
+const contentEl = document.getElementById('content');
+
+inp.addEventListener('keydown', e => { if (e.key === 'Enter') search(); });
+
+const q = new URLSearchParams(location.search).get('q');
+if (q) { inp.value = q; search(); }
+
+async function search() {
+  const query = inp.value.trim();
+  if (!query) return;
+
+  btn.disabled = true;
+  statusEl.innerHTML = '<span class="loading"></span> Searching...';
+  statusEl.className = 'status';
+  contentEl.innerHTML = '';
+
+  // Try exact package first
+  try {
+    const res = await fetch(`${PYPI}/pypi/${encodeURIComponent(query)}/json`);
+    if (res.ok) {
+      const data = await res.json();
+      statusEl.textContent = '';
+      renderPackage(data);
+      updateURL(query);
+      btn.disabled = false;
+      return;
+    }
+  } catch {}
+
+  // Fall back to search
+  try {
+    const res = await fetch(`${PYPI}/search/?q=${encodeURIComponent(query)}&o=`);
+    if (!res.ok) throw new Error('Search failed');
+    const html = await res.text();
+    const results = parseSearchResults(html);
+
+    if (results.length === 0) {
+      statusEl.textContent = `No packages found for "${query}"`;
+    } else {
+      statusEl.textContent = `${results.length} results`;
+      renderSearchResults(results);
+    }
+  } catch {
+    // PyPI search doesn't support CORS, fall back to simple API
+    statusEl.textContent = `Package "${query}" not found. Try the exact package name.`;
+    statusEl.className = 'status error';
+  }
+
+  btn.disabled = false;
+  updateURL(query);
+}
+
+function parseSearchResults(html) {
+  // PyPI search HTML parsing (basic)
+  const results = [];
+  const regex = /<a class="package-snippet"[^>]*href="\/project\/([^/]+)\/"[^>]*>[\s\S]*?<h3[^>]*>[\s\S]*?<span[^>]*>([^<]*)<\/span>[\s\S]*?<span[^>]*>([^<]*)<\/span>[\s\S]*?<p[^>]*>([^<]*)<\/p>/g;
+  let m;
+  while ((m = regex.exec(html)) !== null) {
+    results.push({ name: m[1], version: m[3].trim(), desc: m[4].trim() });
+  }
+  return results;
+}
+
+async function loadPackage(name) {
+  inp.value = name;
+  statusEl.innerHTML = '<span class="loading"></span> Loading...';
+  contentEl.innerHTML = '';
+  try {
+    const res = await fetch(`${PYPI}/pypi/${encodeURIComponent(name)}/json`);
+    if (!res.ok) throw new Error('Not found');
+    const data = await res.json();
+    statusEl.textContent = '';
+    renderPackage(data);
+    updateURL(name);
+  } catch {
+    statusEl.textContent = `Failed to load "${name}"`;
+    statusEl.className = 'status error';
+  }
+}
+
+function renderPackage(data) {
+  const info = data.info;
+  const versions = Object.keys(data.releases).reverse();
+  const latestFiles = data.releases[info.version] || [];
+  const size = latestFiles.reduce((s, f) => Math.max(s, f.size || 0), 0);
+
+  // Extract dependencies from requires_dist
+  const deps = (info.requires_dist || []).map(d => d.split(';')[0].split(' ')[0].split('(')[0].split('[')[0].trim()).filter(Boolean);
+  const uniqueDeps = [...new Set(deps)];
+
+  // Python version
+  const pyVer = info.requires_python || '';
+
+  // Classifiers categories
+  const topics = (info.classifiers || []).filter(c => c.startsWith('Topic')).map(c => c.split(' :: ').pop());
+  const devStatus = (info.classifiers || []).find(c => c.startsWith('Development Status'));
+
+  let html = `<div class="pkg-detail">
+    <h2><a href="${info.project_url || info.package_url}" target="_blank">${esc(info.name)}</a> <span style="color:var(--green);font-size:14px">v${esc(info.version)}</span></h2>
+    <div class="summary">${esc(info.summary || '')}</div>
+    <div class="meta">
+      ${info.author ? `<span>By ${esc(info.author)}</span>` : ''}
+      ${info.license ? `<span>${esc(info.license)}</span>` : ''}
+      ${pyVer ? `<span>Python ${esc(pyVer)}</span>` : ''}
+      ${size ? `<span>${formatBytes(size)}</span>` : ''}
+      <span>${versions.length} versions</span>
+    </div>
+    <div class="install">
+      <span>pip install ${esc(info.name)}</span>
+      <button onclick="copyText('pip install ${info.name}')" ti="btn_copy">Copy</button>
+    </div>
+    ${info.project_urls ? renderLinks(info.project_urls) : ''}
+    ${devStatus ? `<div style="font-size:12px;color:var(--muted);margin-top:6px">${esc(devStatus)}</div>` : ''}
+    ${topics.length ? `<div class="classifiers">${topics.slice(0,8).map(t => `<span class="classifier">${esc(t)}</span>`).join('')}</div>` : ''}
+  </div>`;
+
+  // Dependencies
+  if (uniqueDeps.length > 0) {
+    html += `<div class="deps-section">
+      <h3 ti="h3_dependencies_uniquedeps_l">Dependencies (${uniqueDeps.length})</h3>
+      <div class="dep-list">${uniqueDeps.map(d => `<span class="dep" onclick="loadPackage('${esc(d)}')">${esc(d)}</span>`).join('')}</div>
+    </div>`;
+  }
+
+  // Versions
+  const displayVersions = versions.slice(0, 20);
+  html += `<div class="versions-section">
+    <h3 ti="h3_recent_versions">Recent Versions</h3>
+    <div class="version-list">${displayVersions.map(v => {
+      const files = data.releases[v] || [];
+      const date = files[0]?.upload_time_iso_8601;
+      const dateStr = date ? new Date(date).toLocaleDateString('en-US', {month:'short',day:'numeric',year:'2-digit'}) : '';
+      const isLatest = v === info.version;
+      return `<div class="version-chip ${isLatest ? 'latest' : ''}">
+        <span>${esc(v)}</span>
+        <span class="date">${dateStr}</span>
+      </div>`;
+    }).join('')}</div>
+    ${versions.length > 20 ? `<div style="font-size:12px;color:var(--muted);margin-top:6px">+${versions.length - 20} more versions</div>` : ''}
+  </div>`;
+
+  contentEl.innerHTML = html;
+}
+
+function renderLinks(urls) {
+  const entries = Object.entries(urls).slice(0, 5);
+  if (entries.length === 0) return '';
+  return `<div style="font-size:12px;margin-top:6px">${entries.map(([k,v]) =>
+    `<a href="${esc(v)}" target="_blank" style="margin-right:12px">${esc(k)}</a>`
+  ).join('')}</div>`;
+}
+
+function renderSearchResults(results) {
+  contentEl.innerHTML = `<div class="search-results">${results.map(r => `
+    <div class="result-card" onclick="loadPackage('${esc(r.name)}')">
+      <h3><a href="#" ti="link_esc_r_name">${esc(r.name)}</a> <span style="color:var(--green);font-size:12px">${esc(r.version)}</span></h3>
+      <div class="desc">${esc(r.desc)}</div>
+    </div>
+  `).join('')}</div>`;
+}
+
+function copyText(text) {
+  navigator.clipboard.writeText(text);
+}
+
+function updateURL(q) {
+  const url = new URL(location);
+  url.searchParams.set('q', q);
+  history.replaceState(null, '', url);
+}
+
+function formatBytes(b) {
+  if (b >= 1e6) return (b/1e6).toFixed(1) + ' MB';
+  if (b >= 1e3) return (b/1e3).toFixed(1) + ' KB';
+  return b + ' B';
+}
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = String(s || '');
+  return d.innerHTML;
+}
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+</body>
+</html>

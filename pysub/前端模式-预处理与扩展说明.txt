@@ -1,0 +1,167 @@
+================================================================================
+pysub / 前端 Pyodide 模式 —— py 文件预处理、离线包与按需加载 说明
+================================================================================
+适用版本：runtime.js ?v=20260827j 及以后
+阅读对象：后期需要新增功能 / 修改 Python 逻辑 / 加第三方库时参考
+
+--------------------------------------------------------------------------------
+一、整体架构（双模）
+--------------------------------------------------------------------------------
+- 后端模式（Flask）：访问 <BASE>/api/health 返回 200 即走后端，runtime.js 直接透传
+  fetch，pysub 完全不参与（app.pyw 不引用 browser_server）。
+- 前端模式（纯 Pyodide）：没有 Flask，浏览器里用 Python-WASM 跑一份“伪后端”
+  pysub.browser_server，由 runtime.js 拦截 /auth /dxf /search 三类请求并转交。
+
+本说明只讲前端模式下的 Python 预处理要点。
+
+--------------------------------------------------------------------------------
+二、启动（boot）到底干了什么（最小集）
+--------------------------------------------------------------------------------
+runtime.js 的 boot() 只在启动时做四件事：
+  1) 加载 Pyodide 运行时（static/pyodide/，本地托管）。
+  2) 用 Python 标准库预建目录（/pysub、/app/static/data）—— 因为 Pyodide 的
+     FS.writeFile 不会自动建父目录，父目录缺失会抛 ErrnoError(errno 44/ENOENT)。
+  3) 把“登录/菜单必需”的最小文件写入虚拟文件系统：
+        pysub/__init__.py
+        pysub/browser_server.py
+        static/data/users.json
+        static/data/menus.json
+  4) sys.path.insert(0, '/') 然后把 /pysub 挂载到 import 路径，最后 import pysub.browser_server。
+
+注意：pysub 下其余 *.py（dxf.py、search.py、utils.py、profile_engine.py、
+dxf_generator.py）是 Flask 后端专用，或在 browser_server 内被【延迟 import】，
+不会在“导入 browser_server”时触发，所以启动阶段【不需要也不下载】它们。
+
+--------------------------------------------------------------------------------
+三、新增/修改 py 逻辑的预处理规则（重点）
+--------------------------------------------------------------------------------
+A. 前端模式真正执行的是 pysub/browser_server.py
+   - 它复用业务函数：auth_user/auth_login/...、dxf_generate、search_api。
+   - 后端模式仍由 dxf.py / search.py / auth.py 各自跑，互不影响。
+   - 所以新功能通常要在 browser_server.py 里加一个 dispatch 分支 + 处理函数。
+
+B.【重型依赖必须延迟导入，禁止在模块顶层 import】
+   - 错误写法（会导致启动即崩）：
+        import ezdxf
+        import numpy
+        import sqlite3
+        import jieba
+     写在 browser_server.py 或 dxf_generator.py 顶层，导入 browser_server 时就会
+     去加载这些包；而它们只在用户真正使用时才需要。
+   - 正确写法（函数内延迟 import）：
+        def dxf_generate(body):
+            ...
+            from .dxf_generator import create_dxf   # 调用时才 import
+        def search_api(query):
+            import sqlite3
+            import jieba
+   - 当前 dxf_generator.py 顶层 import ezdxf/qrcode/barcode 是可以的，因为 dxf_generator
+     本身只在绘图时被延迟 import（见下）；但如果你把它改成模块顶层被 browser_server
+     直接 import，就要把这些重依赖再下移一层。
+
+C. 返回值必须是 dict，异常用 _err 返回，不要向外抛
+   - browser_server 用 _ok(...) / _err(...) 构造统一响应字典。
+   - runtime.js 侧会把 Python 的 dict 用 json.dumps 转成字符串再回传，避开
+     PyProxy(dict) 无法被 JS 取 .status/.json 属性的坑（曾导致登录拿到 null）。
+   - 任何异常都要在 _err 里包成 {"success":False,"message":...}，不要让 Pyodide 崩。
+
+D. 数据来源：虚拟文件系统，不是服务器磁盘
+   - 运行时由 runtime.js 把文件写进 Pyodide 虚拟 FS，路径前缀是 /app。
+   - 代码里用全局 APP_ROOT = "/app" 拼路径，例如：
+        os.path.join(APP_ROOT, "static", "data", "users.json")
+        os.path.join(APP_ROOT, "static", "data", "excel_search.db")
+   - 不要把路径写死成 Windows 绝对路径（D:/...），那是后端模式才有。
+
+E. 绘图功能需要的 pysub 源文件（按需写入）
+   - 绘图时 browser_server.dxf_generate 会 `from .dxf_generator import create_dxf`，
+     而 dxf_generator 又 `from .profile_engine import ProfileEngine`。
+   - 这两个文件（dxf_generator.py、profile_engine.py）不在启动集里，由
+     runtime.js 的 ensureFeature("dxf") 在【首次点击绘图】时补写到 /pysub/。
+   - 若你给绘图新增了别的 pysub 子模块依赖，记得在 ensureFeature("dxf") 的
+     pyTasks 里也加进去，否则会 ModuleNotFoundError。
+
+--------------------------------------------------------------------------------
+四、第三方库（离线 wheel / zip）怎么加
+--------------------------------------------------------------------------------
+A. 文件放哪
+   - 全部放 static/pyodide/packages/，并在同目录 manifest.json 登记。
+   - 【原生 wasm 包】必须用 Pyodide 专用构建版，不能用普通 PyPI 的 wheel：
+        * PyPI 上的 numpy 是 x86/manylinux，里面的 .so 在浏览器 wasm 跑不了。
+        * 正确来源：https://cdn.jsdelivr.net/pyodide/v0.26.4/full/<文件名>
+          例如 numpy-1.26.4-cp312-cp312-pyodide_2024_0_wasm32.whl
+        * sqlite3 在 Pyodide 里是 .zip 包（含 _sqlite3.so），同样从这里下。
+   - 【纯 python 包】（ezdxf、fonttools、typing_extensions、pyparsing、qrcode、
+     python-barcode、jieba 等）普通 py3-none-any wheel 即可；jieba 没有 wheel，
+     用 sdist 打成 jieba.zip（顶层是 jieba/ 目录）注入 /jieba。
+
+B. manifest.json 结构
+   {
+     "wheels": [ 全部离线包文件名（启动不装，仅作清单） ],
+     "features": {
+       "dxf":    [ 绘图所需的全部包，含 numpy/ezdxf/qrcode/... ],
+       "search": [ "sqlite3-1.0.0.zip" ]
+     },
+     "jieba": "jieba.zip"
+   }
+   - features 用于【按需安装】：首次用某功能才拉对应包，减少启动请求。
+
+C. 安装策略（runtime.js 内已实现，无需改）
+   - 原生包（正则 /pyodide.*\.whl$/ 或 /sqlite3.*\.zip$/）走 pyodide.loadPackage，
+     才能正确注册编译后的 .so；loadPackage 失败再回退到直接解压。
+   - 纯 python 包直接把 wheel 解压到 sysconfig purelib（离线、不解析依赖、
+     不联网、不依赖被墙 CDN）；解压失败再回退 loadPackage。
+
+--------------------------------------------------------------------------------
+五、懒加载（按需 GET）—— 为什么要、怎么加
+--------------------------------------------------------------------------------
+现状：启动只 GET 4 个最小文件；其余重量级资源在【首次使用】时才下载：
+   - 点“绘图” → ensureFeature("dxf")：补写 dxf_generator.py/profile_engine.py，
+     并安装 features.dxf 里的所有 wheel（numpy→ezdxf 链等）。
+   - 点“搜索” → ensureFeature("search")：安装 sqlite3，写入 excel_search.db（约
+     9.6MB，不再启动即下），注入 jieba.zip。
+   已安装过的 feature 有 _installed 标记，不会重复下载。
+
+要新增一个需要离线包的功能（例如“导出 PDF”）：
+   1) 把依赖包放进 static/pyodide/packages/，并在 manifest.json 的 wheels 与
+      features.<新功能名> 里登记。
+   2) 在 runtime.js 的 ensureFeature() 里加一个分支：
+        if (feature === "pdf") { return ensureXxx(); }
+      或直接复用已有逻辑（若复用 dxf 的包则不必新建）。
+   3) 在 pyDispatch() 里按路径/方法判断，把该 feature 串进 ensureFeature 调用：
+        else if (path === "/export/pdf") feature = "pdf";
+   4) browser_server.py 里加对应处理函数与 dispatch 分支（遵循第三节规则）。
+   5) 升 RUNTIME_VERSION 并同步 8 处 HTML 的 ?v=（见第七节）。
+
+--------------------------------------------------------------------------------
+六、控制台日志纪律
+--------------------------------------------------------------------------------
+- 只有 console.error / console.warn 会输出（启动失败、安装回退、JSON 解析失败等）。
+- 正常流程的 console.log（运行模式、就绪、安装完成等）已全部注释掉，避免刷屏。
+- 临时调试时可取消注释对应行；但提交/发布前请重新注释，保持控制台只显示错误。
+
+--------------------------------------------------------------------------------
+七、改完 runtime.js 必做：版本号强刷
+--------------------------------------------------------------------------------
+浏览器会缓存 runtime.js，改了逻辑不升版本号会“没生效”。
+- 改 static/js/runtime.js 后：把文件顶部 var RUNTIME_VERSION = "20260827j" 升一位
+  （如 20260827k）。
+- 同时把 8 处 HTML（index.html + pages/*.html）里 runtime.js?v=20260827j 同步升到
+  同一版本。可用下方命令批量替换：
+    old="runtime.js?v=20260827j"; new="runtime.js?v=20260827k"
+  然后强制刷新（Ctrl+Shift+R）测试。
+
+--------------------------------------------------------------------------------
+八、常见排错对照
+--------------------------------------------------------------------------------
+- ModuleNotFoundError: No module named 'pysub'
+    → boot 末尾漏了 sys.path.insert(0,'/')，或 __init__.py/browser_server.py 没写进 FS。
+- ErrnoError errno 44 / ENOENT（资源写入跳过）
+    → FS.writeFile 父目录不存在；确认 boot 用 Python 预建了 /pysub、/app/static/data。
+- fetchUser 拿到 null / Cannot read properties of null
+    → Python 返回的是 PyProxy(dict)，属性取不到；应改为 Python 侧 json.dumps(dict)。
+- No module named 'ezdxf' / 'typing_extensions' / 'numpy' / 'sqlite3'(_sqlite3)
+    → 缺对应离线包。numpy/sqlite3 必须用 Pyodide 专用构建版（见第四节 A）。
+      且记得在 manifest.json 的 features 里登记，确保按需安装会被触发。
+- 搜索 500 但 Network 面板看得到 Response 体
+    → 直接发那条 /search/api/search 的响应内容，里面有 Python traceback，定位最快。
+================================================================================

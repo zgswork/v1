@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>格式转换 - 图片处理工具集</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {}
+            }
+        }
+    </script>
+    <style>
+        :root {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --bg-tertiary: #334155;
+            --text-primary: #f8fafc;
+            --text-secondary: #cbd5e1;
+            --text-muted: #64748b;
+            --border-color: rgba(255, 255, 255, 0.1);
+            --glass-bg: rgba(255, 255, 255, 0.1);
+            --accent-primary: #667eea;
+            --accent-secondary: #764ba2;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #667eea 100%);
+            min-height: 100vh;
+            color: var(--text-primary);
+            transition: all 0.3s ease;
+        }
+        
+        body.animated {
+            background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 50%, #f093fb 100%);
+            background-size: 400% 400%;
+            animation: gradientShift 15s ease infinite;
+        }
+        
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        
+        .glass-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border-color);
+            border-radius: 0.75rem;
+            box-shadow: 0 8px 32px rgba(102, 126, 234, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+        }
+        
+        .glass-card:hover {
+            background: rgba(255, 255, 255, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 12px 40px rgba(102, 126, 234, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+        
+        .gradient-button {
+            background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+            transition: all 0.3s ease;
+            border: none;
+            color: white;
+            font-weight: 600;
+        }
+        
+        .gradient-button:hover {
+            background: linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+            transform: translateY(-2px) scale(1.05);
+        }
+        
+        .format-button {
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+        }
+        
+        .format-button.active {
+            border-color: var(--accent-color);
+            background: rgba(102, 126, 234, 0.2);
+        }
+        
+        .format-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+        }
+        
+        .file-item {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .file-item::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, var(--accent-color), var(--accent-secondary));
+            transform: scaleX(0);
+            transition: transform 0.3s ease;
+        }
+
+        .file-item:hover::before {
+            transform: scaleX(1);
+        }
+        
+        .file-item:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+        }
+        
+        .progress-bar {
+            background: linear-gradient(90deg, var(--accent-color), var(--accent-secondary));
+            transition: width 0.3s ease;
+            border-radius: 4px;
+        }
+        
+        .dropzone {
+            border: 2px dashed rgba(102, 126, 234, 0.5);
+            transition: all 0.3s ease;
+        }
+        
+        .dropzone.dragover {
+            border-color: var(--accent-color);
+            background: rgba(102, 126, 234, 0.1);
+        }
+
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 12px 16px;
+            border-radius: 8px;
+            color: white;
+            font-weight: 500;
+            z-index: 1000;
+            animation: slideIn 0.3s ease;
+        }
+        
+        .toast.success {
+            background: rgba(34, 197, 94, 0.9);
+            border-left: 4px solid #22c55e;
+        }
+
+        .toast.error {
+            background: rgba(239, 68, 68, 0.9);
+            border-left: 4px solid #ef4444;
+        }
+
+        .toast.info {
+            background: rgba(251, 191, 36, 0.9);
+            border-left: 4px solid #fbbf24;
+        }
+        
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+
+        
+        /* 修复下拉选择框样式 */
+        select {
+            background-color: rgba(30, 41, 59, 0.8) !important;
+            color: #f8fafc !important;
+            border: 1px solid rgba(255, 255, 255, 0.2) !important;
+        }
+        
+        select option {
+            background-color: #1e293b !important;
+            color: #f8fafc !important;
+            padding: 8px !important;
+        }
+        
+        select option:hover {
+            background-color: #334155 !important;
+        }
+    </style>
+</head>
+<body class="text-white">
+    <!-- Header -->
+    <header class="glass-card border-b border-white/20 sticky top-0 z-50">
+        <div class="px-6 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+                        <span class="text-white font-bold text-sm">IT</span>
+                    </div>
+                    <span class="text-xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+                        图片工具集 - 格式转换
+                    </span>
+                </div>
+                
+                <div class="flex items-center space-x-4">
+                    <button id="colorToggle" class="gradient-button px-4 py-2 rounded-lg text-sm font-medium text-white">
+                        <svg class="w-4 h-4 mr-2 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zM21 5a2 2 0 00-2-2h-4a2 2 0 00-2 2v6a2 2 0 002 2h4a2 2 0 002-2V5z"></path>
+                        </svg>
+                        切换颜色
+                    </button>
+                    <div class="flex items-center space-x-3 glass-card px-3 py-2">
+                        <div class="w-8 h-8 bg-gradient-to-r from-green-400 to-blue-500 rounded-full flex items-center justify-center">
+                            <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"></path>
+                            </svg>
+                        </div>
+                        <div class="hidden sm:block">
+                            <div class="text-sm font-medium text-white">风沙</div>
+                            <div class="text-xs text-gray-400">开发者</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-6 py-8 space-y-8">
+        <!-- Page Title -->
+        <div class="text-center relative">
+            <h1 class="text-4xl font-bold text-white mb-4">
+                <svg class="inline-block w-10 h-10 mr-3 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                </svg>
+                图片格式转换
+            </h1>
+            <p class="text-xl text-gray-400">
+                支持多种图片格式互相转换，保持高质量输出
+            </p>
+        </div>
+
+        <!-- Format Selection -->
+        <div class="glass-card p-6">
+            <h3 class="text-lg font-semibold text-white mb-4 flex items-center">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                </svg>
+                选择目标格式
+            </h3>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <button class="format-button glass-card p-4 text-center active" data-format="jpeg">
+                    <div class="text-2xl mb-2">📷</div>
+                    <div class="font-semibold text-white">JPEG</div>
+                    <div class="text-sm text-gray-400">适合照片，文件较小</div>
+                </button>
+                
+                <button class="format-button glass-card p-4 text-center" data-format="png">
+                    <div class="text-2xl mb-2">🖼️</div>
+                    <div class="font-semibold text-white">PNG</div>
+                    <div class="text-sm text-gray-400">支持透明背景，无损压缩</div>
+                </button>
+                
+                <button class="format-button glass-card p-4 text-center" data-format="webp">
+                    <div class="text-2xl mb-2">🌐</div>
+                    <div class="font-semibold text-white">WebP</div>
+                    <div class="text-sm text-gray-400">现代格式，体积小画质好</div>
+                </button>
+            </div>
+        </div>
+
+
+
+        <!-- Upload Area -->
+        <div class="glass-card p-8">
+            <div id="dropzone" class="dropzone rounded-lg p-8 text-center cursor-pointer">
+                <svg class="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                </svg>
+                <p class="text-lg font-medium text-gray-300 mb-2">拖拽图片到此处或点击选择</p>
+                <p class="text-sm text-gray-400">支持 JPG、PNG、WebP、BMP、GIF、TIFF 格式</p>
+                <input type="file" id="fileInput" multiple accept="image/*" class="hidden">
+            </div>
+        </div>
+
+        <!-- File List -->
+        <div id="fileList" class="space-y-4"></div>
+
+        <!-- Batch Actions -->
+        <div id="batchActions" class="glass-card p-4 hidden">
+            <div class="flex flex-wrap gap-4 justify-center">
+                <button id="batchConvert" class="gradient-button px-6 py-2 rounded-lg font-medium text-white">
+                    批量转换
+                </button>
+                <button id="batchDownload" class="bg-green-600 hover:bg-green-700 px-6 py-2 rounded-lg font-medium text-white transition-colors">
+                    批量下载
+                </button>
+                <button id="downloadZip" class="bg-purple-600 hover:bg-purple-700 px-6 py-2 rounded-lg font-medium text-white transition-colors">
+                    打包下载ZIP
+                </button>
+                <button id="clearAll" class="bg-red-600 hover:bg-red-700 px-6 py-2 rounded-lg font-medium text-white transition-colors">
+                    清空所有
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="glass-card border-t border-white/20 mt-auto">
+        <div class="px-6 py-4">
+            <div class="flex flex-col md:flex-row items-center justify-between space-y-4 md:space-y-0">
+                <div class="flex items-center space-x-4 text-sm text-gray-400">
+                    <div class="flex items-center space-x-2">
+                        <span>&copy; 2025 图片处理工具集</span>
+                        <span class="text-gray-600">|</span>
+                        <span class="flex items-center space-x-1">
+                            <span>Made with</span>
+                            <svg class="w-4 h-4 text-red-400" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clip-rule="evenodd"></path>
+                            </svg>
+                            <span>by 风沙</span>
+                        </span>
+                    </div>
+                </div>
+                
+                <div class="flex items-center text-sm">
+                    <div class="flex items-center space-x-2 glass-card px-4 py-2">
+                        <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                        </svg>
+                        <span class="text-white font-medium" id="currentTime"></span>
+                    </div>
+                </div>
+                
+                <div class="flex items-center space-x-4 text-xs text-gray-500">
+                    <span>联系作者</span>
+                    <div class="flex items-center space-x-2">
+                        <span class="px-2 py-1 bg-green-500/20 text-green-300 rounded">微信: Love_Gws_1314</span>
+                        <span class="px-2 py-1 bg-blue-500/20 text-blue-300 rounded">作者: 风沙</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // 全局变量
+        let files = [];
+        let targetFormat = 'jpeg';
+        let settings = {
+            quality: 1.0  // 默认最高质量
+        };
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeEventListeners();
+            updateTime();
+            setInterval(updateTime, 1000);
+        });
+
+        function initializeEventListeners() {
+            // 颜色切换按钮
+            document.getElementById('colorToggle').addEventListener('click', toggleColorAnimation);
+            
+            // 格式选择
+            document.querySelectorAll('.format-button').forEach(button => {
+                button.addEventListener('click', selectFormat);
+            });
+            
+
+            
+            // 文件上传
+            const dropzone = document.getElementById('dropzone');
+            const fileInput = document.getElementById('fileInput');
+            
+            dropzone.addEventListener('click', () => fileInput.click());
+            dropzone.addEventListener('dragover', handleDragOver);
+            dropzone.addEventListener('dragleave', handleDragLeave);
+            dropzone.addEventListener('drop', handleDrop);
+            fileInput.addEventListener('change', handleFileSelect);
+            
+            // 批量操作
+            document.getElementById('batchConvert').addEventListener('click', batchConvert);
+            document.getElementById('batchDownload').addEventListener('click', batchDownload);
+            document.getElementById('downloadZip').addEventListener('click', downloadZip);
+            document.getElementById('clearAll').addEventListener('click', clearAll);
+        }
+        
+        function toggleColorAnimation() {
+            const body = document.body;
+            const button = document.getElementById('colorToggle');
+            
+            if (body.classList.contains('animated')) {
+                body.classList.remove('animated');
+                button.innerHTML = `
+                    <svg class="w-4 h-4 mr-2 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zM21 5a2 2 0 00-2-2h-4a2 2 0 00-2 2v6a2 2 0 002 2h4a2 2 0 002-2V5z"></path>
+                    </svg>
+                    开启动画
+                `;
+                showToast('已关闭颜色动画', 'info');
+            } else {
+                body.classList.add('animated');
+                button.innerHTML = `
+                    <svg class="w-4 h-4 mr-2 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9V0m0 9a3 3 0 103 3m-3-3a3 3 0 00-3 3m3-3H0m9 0h9"></path>
+                    </svg>
+                    关闭动画
+                `;
+                showToast('已开启颜色动画', 'success');
+            }
+        }
+
+        function selectFormat(e) {
+            document.querySelectorAll('.format-button').forEach(btn => btn.classList.remove('active'));
+            e.currentTarget.classList.add('active');
+            targetFormat = e.currentTarget.dataset.format;
+        }
+
+
+
+        function handleDragOver(e) {
+            e.preventDefault();
+            e.currentTarget.classList.add('dragover');
+        }
+
+        function handleDragLeave(e) {
+            e.preventDefault();
+            e.currentTarget.classList.remove('dragover');
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            e.currentTarget.classList.remove('dragover');
+            const droppedFiles = Array.from(e.dataTransfer.files);
+            addFiles(droppedFiles);
+        }
+
+        function handleFileSelect(e) {
+            const selectedFiles = Array.from(e.target.files);
+            addFiles(selectedFiles);
+        }
+
+        function addFiles(newFiles) {
+            const validFiles = newFiles.filter(file => {
+                if (!file.type.startsWith('image/')) {
+                    showToast(`${file.name} 不是有效的图片文件`, 'error');
+                    return false;
+                }
+                if (file.size > 50 * 1024 * 1024) {
+                    showToast(`${file.name} 文件过大 (>50MB)`, 'error');
+                    return false;
+                }
+                return true;
+            });
+
+            validFiles.forEach(file => {
+                const fileObj = {
+                    id: Date.now() + Math.random(),
+                    file: file,
+                    name: file.name,
+                    size: file.size,
+                    type: file.type,
+                    preview: URL.createObjectURL(file),
+                    converted: null,
+                    status: 'pending'
+                };
+                files.push(fileObj);
+            });
+
+            if (validFiles.length > 0) {
+                showToast(`成功添加 ${validFiles.length} 个文件`, 'success');
+                renderFileList();
+                updateBatchActions();
+            }
+        }
+
+        function renderFileList() {
+            const container = document.getElementById('fileList');
+            container.innerHTML = '';
+
+            files.forEach(fileObj => {
+                const fileElement = createFileElement(fileObj);
+                container.appendChild(fileElement);
+            });
+        }
+
+        function createFileElement(fileObj) {
+            const div = document.createElement('div');
+            div.className = 'glass-card p-4 file-item';
+            
+            const originalFormat = fileObj.type.split('/')[1].toUpperCase();
+            const targetFormatUpper = targetFormat.toUpperCase();
+            
+            div.innerHTML = `
+                <div class="flex items-center space-x-4">
+                    <img src="${fileObj.preview}" alt="${fileObj.name}" class="w-16 h-16 object-cover rounded-lg">
+                    <div class="flex-1">
+                        <h4 class="font-medium text-white">${fileObj.name}</h4>
+                        <p class="text-sm text-gray-400">${formatFileSize(fileObj.size)} • ${fileObj.type}</p>
+                        <div class="flex items-center space-x-2 mt-1">
+                            <span class="text-xs px-2 py-1 bg-blue-500/20 text-blue-300 rounded">${originalFormat}</span>
+                            <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
+                            </svg>
+                            <span class="text-xs px-2 py-1 bg-green-500/20 text-green-300 rounded">${targetFormatUpper}</span>
+                        </div>
+                        ${fileObj.status === 'processing' ? `
+                            <div class="mt-2">
+                                <div class="w-full bg-gray-700 rounded-full h-2">
+                                    <div class="progress-bar h-2 rounded-full" style="width: ${fileObj.progress || 0}%"></div>
+                                </div>
+                            </div>
+                        ` : ''}
+                        ${fileObj.converted ? `
+                            <p class="text-sm text-green-400 mt-1">
+                                转换完成 • ${formatFileSize(fileObj.converted.size)} • ${targetFormatUpper} 格式
+                            </p>
+                        ` : ''}
+                    </div>
+                    <div class="flex space-x-2">
+                        ${fileObj.status === 'pending' ? `
+                            <button onclick="convertFile('${fileObj.id}')" class="gradient-button px-4 py-2 rounded-lg text-sm font-medium text-white">
+                                转换
+                            </button>
+                        ` : ''}
+                        ${fileObj.converted ? `
+                            <button onclick="downloadFile('${fileObj.id}')" class="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg text-sm font-medium text-white transition-colors">
+                                下载
+                            </button>
+                        ` : ''}
+                        <button onclick="removeFile('${fileObj.id}')" class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg text-sm font-medium text-white transition-colors">
+                            删除
+                        </button>
+                    </div>
+                </div>
+            `;
+            return div;
+        }
+
+        async function convertFile(fileId) {
+            const fileObj = files.find(f => f.id == fileId);
+            if (!fileObj) return;
+
+            fileObj.status = 'processing';
+            fileObj.progress = 0;
+            renderFileList();
+
+            try {
+                const converted = await convertImageFormat(fileObj.file, targetFormat, settings);
+                fileObj.converted = converted;
+                fileObj.status = 'completed';
+                fileObj.progress = 100;
+                showToast(`${fileObj.name} 转换完成`, 'success');
+            } catch (error) {
+                fileObj.status = 'error';
+                showToast(`${fileObj.name} 转换失败: ${error.message}`, 'error');
+            }
+
+            renderFileList();
+        }
+
+        async function convertImageFormat(file, format, settings) {
+            return new Promise((resolve, reject) => {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                const img = new Image();
+
+                img.onload = function() {
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+
+                    // 绘制图片
+                    ctx.drawImage(img, 0, 0);
+
+                    // 转换格式
+                    const mimeType = `image/${format}`;
+                    const quality = (format === 'png') ? undefined : settings.quality;
+
+                    canvas.toBlob((blob) => {
+                        if (blob) {
+                            const originalName = file.name.replace(/\.[^/.]+$/, '');
+                            const newName = `${originalName}.${format}`;
+                            
+                            resolve({
+                                blob: blob,
+                                size: blob.size,
+                                name: newName,
+                                type: mimeType
+                            });
+                        } else {
+                            reject(new Error('格式转换失败'));
+                        }
+                    }, mimeType, quality);
+                };
+
+                img.onerror = () => reject(new Error('图片加载失败'));
+                img.src = URL.createObjectURL(file);
+            });
+        }
+
+        function downloadFile(fileId) {
+            const fileObj = files.find(f => f.id == fileId);
+            if (!fileObj || !fileObj.converted) return;
+
+            const url = URL.createObjectURL(fileObj.converted.blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileObj.converted.name;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            showToast('下载成功', 'success');
+        }
+
+        function removeFile(fileId) {
+            files = files.filter(f => f.id != fileId);
+            renderFileList();
+            updateBatchActions();
+        }
+
+        async function batchConvert() {
+            const pendingFiles = files.filter(f => f.status === 'pending');
+            if (pendingFiles.length === 0) {
+                showToast('没有可转换的文件', 'warning');
+                return;
+            }
+
+            for (const fileObj of pendingFiles) {
+                await convertFile(fileObj.id);
+            }
+        }
+
+        function batchDownload() {
+            const convertedFiles = files.filter(f => f.converted);
+            if (convertedFiles.length === 0) {
+                showToast('没有可下载的转换文件', 'warning');
+                return;
+            }
+
+            convertedFiles.forEach(fileObj => {
+                downloadFile(fileObj.id);
+            });
+        }
+
+        async function downloadZip() {
+            const convertedFiles = files.filter(f => f.converted);
+            if (convertedFiles.length === 0) {
+                showToast('没有可下载的转换文件', 'warning');
+                return;
+            }
+
+            try {
+                const zip = new JSZip();
+                const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+                
+                // 添加文件到ZIP
+                for (const fileObj of convertedFiles) {
+                    zip.file(fileObj.converted.name, fileObj.converted.blob);
+                }
+
+                // 生成ZIP文件
+                const zipBlob = await zip.generateAsync({type: 'blob'});
+                
+                // 下载ZIP文件
+                const url = URL.createObjectURL(zipBlob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `converted_images_${timestamp}.zip`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+
+                showToast(`成功打包下载 ${convertedFiles.length} 个文件`, 'success');
+            } catch (error) {
+                showToast('ZIP打包失败: ' + error.message, 'error');
+            }
+        }
+
+        function clearAll() {
+            if (files.length === 0) return;
+            
+            if (confirm('确定要清空所有文件吗？')) {
+                files.forEach(fileObj => {
+                    if (fileObj.preview) URL.revokeObjectURL(fileObj.preview);
+                });
+                files = [];
+                renderFileList();
+                updateBatchActions();
+                showToast('已清空所有文件', 'info');
+            }
+        }
+
+        function updateBatchActions() {
+            const batchActions = document.getElementById('batchActions');
+            batchActions.style.display = files.length > 0 ? 'block' : 'none';
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function updateTime() {
+            const now = new Date();
+            const timeString = now.toLocaleDateString('zh-CN', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                weekday: 'long'
+            }) + ' ' + now.toLocaleTimeString('zh-CN', {
+                hour12: false
+            });
+            document.getElementById('currentTime').textContent = timeString;
+        }
+
+        function showToast(message, type = 'info') {
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                if (document.body.contains(toast)) {
+                    document.body.removeChild(toast);
+                }
+            }, 3000);
+        }
+    </script>
+</body>
+</html>

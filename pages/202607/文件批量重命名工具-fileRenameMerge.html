@@ -1,0 +1,1387 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文件批量重命名工具</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4f46e5, #7c3aed);
+            padding: 30px;
+            text-align: center;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .main-content {
+            padding: 30px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+
+        .left-panel > .section:not(:last-child) {
+            margin-bottom: 20px;
+        }
+
+        .right-panel > .section:not(:last-child) {
+            margin-bottom: 20px;
+        }
+
+        .section {
+            background: #f8fafc;
+            border-radius: 15px;
+            padding: 25px;
+            border: 1px solid #e2e8f0;
+            margin-bottom: 20px;
+            transition: height 0.3s ease; /* Smooth height transitions for dynamic sections */
+        }
+
+        .section h2 {
+            color: #1e293b;
+            margin-bottom: 20px;
+            font-size: 1.4rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .file-upload {
+            border: 2px dashed #cbd5e1;
+            border-radius: 12px;
+            padding: 40px;
+            text-align: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .file-upload:hover {
+            border-color: #4f46e5;
+            background-color: #f1f5f9;
+        }
+
+        .file-upload.dragover {
+            border-color: #4f46e5;
+            background-color: #eef2ff;
+        }
+
+        .file-upload input[type="file"] {
+            display: none;
+        }
+
+        .upload-text {
+            color: #64748b;
+            font-size: 1.1rem;
+            margin-top: 10px;
+        }
+
+        .upload-icon {
+            width: 48px;
+            height: 48px;
+            margin: 0 auto 15px;
+            background: #4f46e5;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 24px;
+        }
+
+        .mode-selector {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .mode-option {
+            position: relative;
+        }
+
+        .mode-option input[type="radio"] {
+            display: none;
+        }
+
+        .mode-label {
+            display: block;
+            padding: 20px;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: white;
+        }
+
+        .mode-label:hover {
+            border-color: #4f46e5;
+            transform: translateY(-2px);
+        }
+
+        .mode-option input[type="radio"]:checked + .mode-label {
+            border-color: #4f46e5;
+            background: #eef2ff;
+            color: #4f46e5;
+            font-weight: 600;
+        }
+
+        .mode-config {
+            display: none;
+            margin-top: 20px;
+        }
+
+        .mode-config.active {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #374151;
+            font-weight: 500;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #4f46e5;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #4f46e5, #7c3aed);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+            margin-top: 20px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(79, 70, 229, 0.3);
+        }
+
+        .btn:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .file-list {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            background: white;
+        }
+
+        .file-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            border-bottom: 1px solid #f3f4f6;
+        }
+
+        .file-item:last-child {
+            border-bottom: none;
+        }
+
+        .file-original {
+            color: #6b7280;
+            font-family: monospace;
+        }
+
+        .file-renamed {
+            color: #059669;
+            font-family: monospace;
+            font-weight: 600;
+        }
+
+        .template-help {
+            background: #fef3c7;
+            border: 1px solid #f59e0b;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            font-size: 0.9rem;
+            color: #92400e;
+        }
+
+        .template-help code {
+            background: #fff;
+            border: 1px solid #d97706;
+            border-radius: 4px;
+            padding: 2px 6px;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 0.85rem;
+            color: #1f2937;
+        }
+
+        .template-help small {
+            color: #6b7280;
+            font-style: italic;
+            display: block;
+            margin-top: 2px;
+            margin-left: 10px;
+        }
+
+        .help-content {
+            height: 400px; /* Initial height, will be adjusted by JavaScript to match rename mode section */
+            min-height: 200px;
+            overflow-y: auto;
+            padding: 20px;
+            background: white;
+            border-radius: 10px;
+            border: 1px solid #e5e7eb;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            transition: height 0.3s ease; /* Smooth height transitions */
+        }
+
+        .help-content h3 {
+            color: #1f2937;
+            font-size: 1.1rem;
+            margin: 20px 0 10px 0;
+            font-weight: 600;
+        }
+
+        .help-content h4 {
+            color: #374151;
+            font-size: 1rem;
+            margin: 15px 0 8px 0;
+            font-weight: 500;
+        }
+
+        .help-content ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+
+        .help-content li {
+            margin: 5px 0;
+            color: #4b5563;
+        }
+
+        .help-content code {
+            background: #f3f4f6;
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+            padding: 2px 6px;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 0.85rem;
+            color: #1f2937;
+        }
+
+        .help-content strong {
+            color: #1f2937;
+            font-weight: 600;
+        }
+
+        .help-content::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .help-content::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 4px;
+        }
+
+        .help-content::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+
+        .help-content::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        .checkbox-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-top: 10px;
+        }
+
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .checkbox-item input[type="checkbox"] {
+            width: auto;
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+            
+            .mode-selector {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📁 文件批量重命名工具</h1>
+            <p>简单、快速、安全的文件重命名解决方案</p>
+        </div>
+
+        <div class="main-content">
+            <div class="left-panel">
+                <!-- File Upload Section -->
+                <div class="section">
+                    <h2>📂 选择文件</h2>
+                    <div class="file-upload" id="fileUpload">
+                        <div class="upload-icon">📁</div>
+                        <div class="upload-text">
+                            <strong>点击或拖拽文件到此处</strong><br>
+                            支持多文件选择（最多200个文件）
+                        </div>
+                        <input type="file" id="fileInput" multiple>
+                    </div>
+                    <div id="selectedFiles" style="margin-top: 20px; display: none;">
+                        <h3 id="fileListTitle">已选择的文件：</h3>
+                        <div class="file-list" id="fileList"></div>
+                    </div>
+                </div>
+
+                <!-- Mode Selection Section -->
+                <div class="section">
+                    <h2>⚙️ 重命名模式</h2>
+                    <div class="mode-selector">
+                        <div class="mode-option">
+                            <input type="radio" id="prefixMode" name="renameMode" value="prefix">
+                            <label for="prefixMode" class="mode-label">
+                                <div>🔤 修改前缀</div>
+                                <small>批量添加或修改文件名前缀</small>
+                            </label>
+                        </div>
+                        <div class="mode-option">
+                            <input type="radio" id="suffixMode" name="renameMode" value="suffix">
+                            <label for="suffixMode" class="mode-label">
+                                <div>📝 修改后缀</div>
+                                <small>批量添加或修改文件名后缀</small>
+                            </label>
+                        </div>
+                        <div class="mode-option">
+                            <input type="radio" id="replaceMode" name="renameMode" value="replace">
+                            <label for="replaceMode" class="mode-label">
+                                <div>🔄 字符替换</div>
+                                <small>批量替换指定字符</small>
+                            </label>
+                        </div>
+                        <div class="mode-option">
+                            <input type="radio" id="templateMode" name="renameMode" value="template">
+                            <label for="templateMode" class="mode-label">
+                                <div>📋 模板重命名</div>
+                                <small>使用模板批量重命名</small>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Mode Configurations -->
+                    <div id="prefixConfig" class="mode-config">
+                        <div class="form-group">
+                            <label for="prefixText">前缀文本:</label>
+                            <input type="text" id="prefixText" placeholder="输入要添加的前缀">
+                        </div>
+                        <div class="checkbox-group">
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="replacePrefixMode">
+                                <label for="replacePrefixMode">替换现有前缀（而非添加）</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="suffixConfig" class="mode-config">
+                        <div class="form-group">
+                            <label for="suffixText">后缀文本:</label>
+                            <input type="text" id="suffixText" placeholder="输入要添加的后缀（不包含扩展名）">
+                        </div>
+                        <div class="checkbox-group">
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="replaceSuffixMode">
+                                <label for="replaceSuffixMode">替换现有后缀（而非添加）</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="replaceConfig" class="mode-config">
+                        <div class="form-group">
+                            <label for="findText">查找文本:</label>
+                            <input type="text" id="findText" placeholder="输入要替换的文本">
+                        </div>
+                        <div class="form-group">
+                            <label for="replaceText">替换为:</label>
+                            <input type="text" id="replaceText" placeholder="输入替换后的文本">
+                        </div>
+                        <div class="checkbox-group">
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="caseSensitive">
+                                <label for="caseSensitive">区分大小写</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="replaceAll">
+                                <label for="replaceAll">替换所有匹配项</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="templateConfig" class="mode-config">
+                        <div class="template-help">
+                            <strong>模板变量说明：</strong><br>
+                            {name} = 原文件名（不含扩展名）<br>
+                            {ext} = 文件扩展名<br>
+                            {index} = 序号（从1开始）<br>
+                            {index0} = 序号（从0开始）<br><br>
+                            <strong>常用模板示例：</strong><br>
+                            <div style="margin: 8px 0;">
+                                <strong>添加序号：</strong> <code>IMG_{index}_{name}.{ext}</code><br>
+                                <small>photo.jpg → IMG_1_photo.jpg</small>
+                            </div>
+                            <div style="margin: 8px 0;">
+                                <strong>统一前缀：</strong> <code>2024年_{name}.{ext}</code><br>
+                                <small>vacation.jpg → 2024年_vacation.jpg</small>
+                            </div>
+                            <div style="margin: 8px 0;">
+                                <strong>简单重命名：</strong> <code>文档{index}.{ext}</code><br>
+                                <small>report.pdf → 文档1.pdf</small>
+                            </div>
+                            <div style="margin: 8px 0;">
+                                <strong>保留原名：</strong> <code>{name}_备份_{index}.{ext}</code><br>
+                                <small>data.xlsx → data_备份_1.xlsx</small>
+                            </div>
+                            <div style="margin: 8px 0;">
+                                <strong>从0开始：</strong> <code>第{index0}个_{name}.{ext}</code><br>
+                                <small>test.txt → 第0个_test.txt</small>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="templateText">命名模板:</label>
+                            <input type="text" id="templateText" placeholder="例如: IMG_{index}_{name}.{ext} 或 文档{index}.{ext}">
+                        </div>
+                        <div class="form-group">
+                            <label for="keepPrefix">保留前缀字符数:</label>
+                            <input type="number" id="keepPrefix" min="0" value="0" placeholder="0">
+                        </div>
+                        <div class="form-group">
+                            <label for="keepSuffix">保留后缀字符数:</label>
+                            <input type="number" id="keepSuffix" min="0" value="0" placeholder="0">
+                        </div>
+                        <div class="form-group">
+                            <label for="fixedChars">固定字符位置 (格式: 位置:字符，多个用逗号分隔):</label>
+                            <input type="text" id="fixedChars" placeholder="例如: 3:A,7:B (第3位固定为A，第7位固定为B)">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="right-panel">
+                <!-- Preview Section -->
+                <div class="section">
+                    <h2>👀 重命名预览</h2>
+                    <div id="previewContainer">
+                        <div style="text-align: center; color: #9ca3af; padding: 40px;">
+                            请选择文件和重命名模式，并填写必要参数
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Download Section -->
+                <div class="section">
+                    <h2>💾 下载选项</h2>
+                    <p style="color: #6b7280; margin-bottom: 20px;">
+                        选择下载重命名脚本或直接下载重命名后的文件压缩包。
+                    </p>
+                    <div style="display: grid; grid-template-columns: 1fr; gap: 15px;">
+                        <button class="btn" id="downloadBtn" disabled onclick="downloadRenameScript()">
+                            📝 下载重命名脚本
+                        </button>
+                        <button class="btn" id="downloadZipBtn" disabled onclick="downloadRenamedFilesZip()" style="background: linear-gradient(135deg, #059669, #10b981);">
+                            📦 下载重命名文件ZIP包
+                        </button>
+                    </div>
+                    <div id="downloadProgress" style="display: none; margin-top: 15px;">
+                        <div style="background: #f3f4f6; border-radius: 10px; overflow: hidden;">
+                            <div id="progressBar" style="background: linear-gradient(135deg, #059669, #10b981); height: 8px; width: 0%; transition: width 0.3s ease;"></div>
+                        </div>
+                        <p id="progressText" style="color: #6b7280; font-size: 0.9rem; margin-top: 5px; text-align: center;">准备打包文件...</p>
+                    </div>
+                </div>
+                
+                <!-- Help Documentation Section -->
+                <div class="section">
+                    <h2>📖 使用说明</h2>
+                    <div class="help-content">
+                        <h3>📦 功能特点</h3>
+                        <p>这是一个基于HTML、CSS和JavaScript开发的文件批量重命名工具，具有以下特点：</p>
+                        <ul>
+                            <li>🎨 现代化的用户界面设计</li>
+                            <li>📁 支持拖拽和点击选择多个文件</li>
+                            <li>⚙️ 四种重命名模式，互斥选择</li>
+                            <li>👀 实时自动预览重命名结果</li>
+                            <li>💾 生成PowerShell重命名脚本</li>
+                            <li>📦 直接下载重命名后的文件ZIP包</li>
+                        </ul>
+
+                        <h3>⚙️ 四种重命名模式</h3>
+                        
+                        <h4>1. 🔤 修改前缀模式</h4>
+                        <ul>
+                            <li><strong>功能</strong>：为文件名添加或替换前缀</li>
+                            <li><strong>选项</strong>：
+                                <ul>
+                                    <li>前缀文本：输入要添加的前缀内容</li>
+                                    <li>替换现有前缀：勾选后会智能替换现有前缀而非直接添加</li>
+                                </ul>
+                            </li>
+                        </ul>
+
+                        <h4>2. 📝 修改后缀模式</h4>
+                        <ul>
+                            <li><strong>功能</strong>：为文件名添加或替换后缀（不包含文件扩展名）</li>
+                            <li><strong>选项</strong>：
+                                <ul>
+                                    <li>后缀文本：输入要添加的后缀内容</li>
+                                    <li>替换现有后缀：勾选后会智能替换现有后缀而非直接添加</li>
+                                </ul>
+                            </li>
+                        </ul>
+
+                        <h4>3. 🔄 字符替换模式</h4>
+                        <ul>
+                            <li><strong>功能</strong>：批量替换文件名中的指定字符或文本</li>
+                            <li><strong>选项</strong>：
+                                <ul>
+                                    <li>查找文本：输入要被替换的文本</li>
+                                    <li>替换为：输入替换后的文本</li>
+                                    <li>区分大小写：是否区分大小写进行匹配</li>
+                                    <li>替换所有匹配项：是否替换所有找到的匹配项</li>
+                                </ul>
+                            </li>
+                        </ul>
+
+                        <h4>4. 📋 模板重命名模式</h4>
+                        <ul>
+                            <li><strong>功能</strong>：使用自定义模板批量重命名文件</li>
+                            <li><strong>模板变量</strong>：
+                                <ul>
+                                    <li><code>{name}</code>：原文件名（不含扩展名）</li>
+                                    <li><code>{ext}</code>：文件扩展名</li>
+                                    <li><code>{index}</code>：序号（从1开始）</li>
+                                    <li><code>{index0}</code>：序号（从0开始）</li>
+                                </ul>
+                            </li>
+                            <li><strong>高级选项</strong>：
+                                <ul>
+                                    <li>保留前缀字符数：保留原文件名开头的指定字符数</li>
+                                    <li>保留后缀字符数：保留原文件名结尾的指定字符数</li>
+                                    <li>固定字符位置：在指定位置设置固定字符（格式：位置:字符）</li>
+                                </ul>
+                            </li>
+                        </ul>
+
+                        <h3>📋 使用步骤</h3>
+                        <ol>
+                            <li><strong>选择文件</strong>
+                                <ul>
+                                    <li>点击上传区域或直接拖拽文件到上传区域</li>
+                                    <li>支持一次选择多个文件（最多200个文件）</li>
+                                    <li>如果选择超过200个文件，系统会自动只处理前200个</li>
+                                </ul>
+                            </li>
+                            <li><strong>选择重命名模式</strong>
+                                <ul>
+                                    <li>从四种模式中选择一种（只能选择一种）</li>
+                                    <li>根据选择的模式配置相应参数</li>
+                                </ul>
+                            </li>
+                            <li><strong>查看实时预览</strong>
+                                <ul>
+                                    <li>配置参数后会自动在右侧预览区域显示重命名结果</li>
+                                    <li>无需点击任何按钮，预览会实时更新</li>
+                                </ul>
+                            </li>
+                            <li><strong>选择下载方式</strong>
+                                <p>确认预览结果无误后，有两种下载选项：</p>
+                                <ul>
+                                    <li><strong>选项A：下载重命名脚本</strong>
+                                        <ul>
+                                            <li>点击"📝 下载重命名脚本"按钮</li>
+                                            <li>系统会生成PowerShell脚本文件(.ps1)</li>
+                                            <li>将脚本文件放到包含目标文件的文件夹中执行</li>
+                                        </ul>
+                                    </li>
+                                    <li><strong>选项B：下载重命名文件ZIP包</strong>
+                                        <ul>
+                                            <li>点击"📦 下载重命名文件ZIP包"按钮</li>
+                                            <li>系统会自动将所有文件按照新文件名打包成ZIP文件</li>
+                                            <li>带有实时进度显示，下载完成后直接解压即可使用</li>
+                                        </ul>
+                                    </li>
+                                </ul>
+                            </li>
+                        </ol>
+
+                        <h3>📝 模板使用示例</h3>
+                        
+                        <h4>基础模板变量</h4>
+                        <ul>
+                            <li><code>{name}</code> = 原文件名（不含扩展名）</li>
+                            <li><code>{ext}</code> = 文件扩展名</li>
+                            <li><code>{index}</code> = 序号（从1开始）</li>
+                            <li><code>{index0}</code> = 序号（从0开始）</li>
+                        </ul>
+
+                        <h4>常用模板示例</h4>
+                        
+                        <div style="margin: 15px 0;">
+                            <strong>示例1：添加序号</strong><br>
+                            模板：<code>IMG_{index}_{name}.{ext}</code><br>
+                            原文件：<code>photo.jpg</code><br>
+                            结果：<code>IMG_1_photo.jpg</code>
+                        </div>
+
+                        <div style="margin: 15px 0;">
+                            <strong>示例2：统一前缀</strong><br>
+                            模板：<code>2024年_{name}.{ext}</code><br>
+                            原文件：<code>vacation.jpg</code><br>
+                            结果：<code>2024年_vacation.jpg</code>
+                        </div>
+
+                        <div style="margin: 15px 0;">
+                            <strong>示例3：简单重命名</strong><br>
+                            模板：<code>文档{index}.{ext}</code><br>
+                            原文件：<code>report.pdf</code><br>
+                            结果：<code>文档1.pdf</code>
+                        </div>
+
+                        <div style="margin: 15px 0;">
+                            <strong>示例4：保留原名</strong><br>
+                            模板：<code>{name}_备份_{index}.{ext}</code><br>
+                            原文件：<code>data.xlsx</code><br>
+                            结果：<code>data_备份_1.xlsx</code>
+                        </div>
+
+                        <h3>📦 ZIP包下载的优势</h3>
+                        <p>📦 <strong>新增的ZIP包下载功能</strong>提供了更便捷的使用体验：</p>
+                        <ul>
+                            <li>✅ <strong>即时可用</strong>：下载后直接解压，无需运行脚本</li>
+                            <li>✅ <strong>跨平台</strong>：ZIP文件在Windows、Mac、Linux上都可以使用</li>
+                            <li>✅ <strong>安全便捷</strong>：避免了脚本执行的权限问题</li>
+                            <li>✅ <strong>进度可视化</strong>：实时显示打包进度和文件处理状态</li>
+                            <li>✅ <strong>完整性保证</strong>：所有文件都以重命名后的文件名保存在ZIP中</li>
+                        </ul>
+
+                        <h3>🔄 实时预览功能</h3>
+                        <p>🆕 <strong>智能实时预览</strong>让操作更加便捷：</p>
+                        <ul>
+                            <li>⚡ <strong>即时响应</strong>：任何参数修改都会立即更新预览</li>
+                            <li>🎯 <strong>智能检测</strong>：自动检测配置是否完整，符合条件时自动显示预览</li>
+                            <li>🚫 <strong>一键清除</strong>：参数不完整时自动清空预览区域</li>
+                            <li>📝 <strong>无需手动触发</strong>：告别繁琐的"生成预览"按钮点击</li>
+                            <li>🔄 <strong>支持所有模式</strong>：四种重命名模式都支持实时预览</li>
+                        </ul>
+
+                        <h4>触发实时预览的操作：</h4>
+                        <ul>
+                            <li>选择或更改文件</li>
+                            <li>切换重命名模式</li>
+                            <li>修改任何配置参数</li>
+                            <li>勾选或取消选项框</li>
+                        </ul>
+
+                        <h3>⚠️ 注意事项</h3>
+                        <ul>
+                            <li>⚠️ 请在执行重命名脚本前备份重要文件</li>
+                            <li>⚠️ 确保目标文件夹中没有同名文件，避免覆盖</li>
+                            <li>⚠️ 四种模式互斥，一次只能选择一种</li>
+                            <li>⚠️ 脚本方式仅生成重命名脚本，不会直接修改文件</li>
+                            <li>⚠️ 生成的PowerShell脚本需要在Windows系统中运行</li>
+                            <li>⚠️ 最多支持同时处理200个文件</li>
+                            <li>⚠️ ZIP包下载需要足够的浏览器内存来处理大文件</li>
+                            <li>⚠️ 建议单次处理的文件总大小不超过500MB</li>
+                        </ul>
+
+                        <h3>🌐 浏览器兼容性</h3>
+                        <ul>
+                            <li>✅ Chrome 90+</li>
+                            <li>✅ Firefox 85+</li>
+                            <li>✅ Edge 90+</li>
+                            <li>✅ Safari 14+</li>
+                        </ul>
+
+                        <h3>⚡ 技术特点</h3>
+                        <ul>
+                            <li>纯前端实现，无需服务器</li>
+                            <li>响应式设计，支持移动端访问</li>
+                            <li>文件处理完全在浏览器本地进行</li>
+                            <li>安全性高，文件不会上传到服务器</li>
+                            <li>使用JSZip库实现ZIP文件打包功能</li>
+                            <li>支持大文件处理和进度显示</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let selectedFiles = [];
+        let renamedFiles = [];
+
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeFileUpload();
+            initializeModeSelection();
+            clearPreview(); // Initialize with disabled download buttons
+            
+            // Initial height adjustment after a small delay to ensure all elements are rendered
+            setTimeout(adjustHelpContentHeight, 200);
+            
+            // Add window resize listener to adjust height dynamically
+            window.addEventListener('resize', function() {
+                setTimeout(adjustHelpContentHeight, 100);
+            });
+            
+            // Set up a ResizeObserver to watch the rename mode section for height changes
+            if (window.ResizeObserver) {
+                const renameModeSection = document.querySelector('.left-panel .section:nth-child(2)');
+                if (renameModeSection) {
+                    const resizeObserver = new ResizeObserver(function(entries) {
+                        // Adjust help content height when rename mode section height changes
+                        setTimeout(adjustHelpContentHeight, 50);
+                    });
+                    resizeObserver.observe(renameModeSection);
+                }
+            }
+        });
+
+        // File upload functionality
+        function initializeFileUpload() {
+            const fileUpload = document.getElementById('fileUpload');
+            const fileInput = document.getElementById('fileInput');
+
+            fileUpload.addEventListener('click', () => fileInput.click());
+            fileUpload.addEventListener('dragover', handleDragOver);
+            fileUpload.addEventListener('dragleave', handleDragLeave);
+            fileUpload.addEventListener('drop', handleDrop);
+            fileInput.addEventListener('change', handleFileSelect);
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault();
+            document.getElementById('fileUpload').classList.add('dragover');
+        }
+
+        function handleDragLeave(e) {
+            e.preventDefault();
+            document.getElementById('fileUpload').classList.remove('dragover');
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            document.getElementById('fileUpload').classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            processFiles(files);
+        }
+
+        function handleFileSelect(e) {
+            const files = e.target.files;
+            processFiles(files);
+        }
+
+        function processFiles(files) {
+            const maxFiles = 200;
+            const fileArray = Array.from(files);
+            
+            if (fileArray.length > maxFiles) {
+                // Show warning message for too many files
+                alert(`⚠️ 文件数量超出限制！\n\n选择了 ${fileArray.length} 个文件，但最多只能处理 ${maxFiles} 个文件。\n\n将只处理前 ${maxFiles} 个文件。`);
+                selectedFiles = fileArray.slice(0, maxFiles);
+            } else {
+                selectedFiles = fileArray;
+            }
+            
+            updateFileList();
+        }
+
+        function updateFileList() {
+            const fileList = document.getElementById('fileList');
+            const selectedFilesContainer = document.getElementById('selectedFiles');
+            const fileListTitle = document.getElementById('fileListTitle');
+            const maxFiles = 200;
+            
+            if (selectedFiles.length > 0) {
+                selectedFilesContainer.style.display = 'block';
+                
+                // Update title with file count and limit info
+                const titleColor = selectedFiles.length >= maxFiles ? 'color: #dc2626;' : 'color: #059669;';
+                fileListTitle.innerHTML = `已选择的文件：<span style="${titleColor} font-weight: bold;">${selectedFiles.length}/${maxFiles}</span>`;
+                
+                fileList.innerHTML = selectedFiles.map(file => `
+                    <div class="file-item">
+                        <span class="file-original">${file.name}</span>
+                        <span style="color: #6b7280;">${formatFileSize(file.size)}</span>
+                    </div>
+                `).join('');
+            } else {
+                selectedFilesContainer.style.display = 'none';
+            }
+            
+            // Auto-generate preview when files change
+            autoGeneratePreview();
+            
+            // Adjust help content height when file list changes (affects left panel layout)
+            setTimeout(adjustHelpContentHeight, 150);
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        // Mode selection functionality
+        function initializeModeSelection() {
+            const modeRadios = document.querySelectorAll('input[name="renameMode"]');
+            modeRadios.forEach(radio => {
+                radio.addEventListener('change', handleModeChange);
+            });
+
+            // Add input listeners for real-time preview
+            const inputs = document.querySelectorAll('#prefixText, #suffixText, #findText, #replaceText, #templateText, #keepPrefix, #keepSuffix, #fixedChars');
+            inputs.forEach(input => {
+                input.addEventListener('input', autoGeneratePreview);
+            });
+
+            // Add checkbox listeners for real-time preview
+            const checkboxes = document.querySelectorAll('#replacePrefixMode, #replaceSuffixMode, #caseSensitive, #replaceAll');
+            checkboxes.forEach(checkbox => {
+                checkbox.addEventListener('change', autoGeneratePreview);
+            });
+        }
+
+        function handleModeChange(e) {
+            // Hide all mode configs
+            document.querySelectorAll('.mode-config').forEach(config => {
+                config.classList.remove('active');
+            });
+
+            // Show selected mode config
+            const selectedMode = e.target.value;
+            const configElement = document.getElementById(selectedMode + 'Config');
+            if (configElement) {
+                configElement.classList.add('active');
+            }
+
+            // Auto-generate preview when mode changes
+            autoGeneratePreview();
+            
+            // Adjust help content height when mode changes (affects left panel height)
+            setTimeout(adjustHelpContentHeight, 100);
+        }
+
+        function autoGeneratePreview() {
+            const selectedMode = document.querySelector('input[name="renameMode"]:checked');
+            
+            // Check if we have the necessary inputs for preview
+            let canGenerate = selectedFiles.length > 0 && selectedMode;
+            
+            if (canGenerate && selectedMode) {
+                const mode = selectedMode.value;
+                switch (mode) {
+                    case 'prefix':
+                        canGenerate = document.getElementById('prefixText').value.trim() !== '';
+                        break;
+                    case 'suffix':
+                        canGenerate = document.getElementById('suffixText').value.trim() !== '';
+                        break;
+                    case 'replace':
+                        canGenerate = document.getElementById('findText').value.trim() !== '';
+                        break;
+                    case 'template':
+                        canGenerate = document.getElementById('templateText').value.trim() !== '';
+                        break;
+                }
+            }
+            
+            if (canGenerate) {
+                generatePreview();
+            } else {
+                // Clear preview if conditions not met
+                clearPreview();
+            }
+        }
+
+        function clearPreview() {
+            renamedFiles = [];
+            const previewContainer = document.getElementById('previewContainer');
+            previewContainer.innerHTML = '<div style="text-align: center; color: #9ca3af; padding: 40px;">请选择文件和重命名模式，并填写必要参数</div>';
+            document.getElementById('downloadBtn').disabled = true;
+            document.getElementById('downloadZipBtn').disabled = true;
+        }
+
+        // Preview generation
+        function generatePreview() {
+            const selectedMode = document.querySelector('input[name="renameMode"]:checked');
+            if (!selectedMode || selectedFiles.length === 0) return;
+
+            const mode = selectedMode.value;
+            renamedFiles = [];
+
+            selectedFiles.forEach((file, index) => {
+                const originalName = file.name;
+                let newName = '';
+
+                switch (mode) {
+                    case 'prefix':
+                        newName = applyPrefixMode(originalName);
+                        break;
+                    case 'suffix':
+                        newName = applySuffixMode(originalName);
+                        break;
+                    case 'replace':
+                        newName = applyReplaceMode(originalName);
+                        break;
+                    case 'template':
+                        newName = applyTemplateMode(originalName, index);
+                        break;
+                }
+
+                renamedFiles.push({
+                    originalName: originalName,
+                    newName: newName
+                });
+            });
+
+            updatePreviewDisplay();
+            document.getElementById('downloadBtn').disabled = false;
+            document.getElementById('downloadZipBtn').disabled = false;
+        }
+
+        function applyPrefixMode(fileName) {
+            const prefixText = document.getElementById('prefixText').value;
+            const replaceMode = document.getElementById('replacePrefixMode').checked;
+            
+            if (replaceMode) {
+                // Find where the actual filename starts (skip existing prefix)
+                const parts = fileName.split('.');
+                const nameWithoutExt = parts.slice(0, -1).join('.');
+                const ext = parts.length > 1 ? '.' + parts[parts.length - 1] : '';
+                
+                // Simple heuristic: assume prefix ends at first number, underscore, or space
+                const match = nameWithoutExt.match(/^[a-zA-Z]*([0-9_\s].*|$)/);
+                const newName = match ? prefixText + match[1] : prefixText;
+                return newName + ext;
+            } else {
+                return prefixText + fileName;
+            }
+        }
+
+        function applySuffixMode(fileName) {
+            const suffixText = document.getElementById('suffixText').value;
+            const replaceMode = document.getElementById('replaceSuffixMode').checked;
+            
+            const lastDotIndex = fileName.lastIndexOf('.');
+            const nameWithoutExt = lastDotIndex !== -1 ? fileName.substring(0, lastDotIndex) : fileName;
+            const ext = lastDotIndex !== -1 ? fileName.substring(lastDotIndex) : '';
+            
+            if (replaceMode) {
+                // Simple heuristic: assume suffix starts at last underscore or number sequence
+                const match = nameWithoutExt.match(/^(.*?)([_\s][a-zA-Z0-9]*|[0-9]+)?$/);
+                const baseName = match ? match[1] : nameWithoutExt;
+                return baseName + suffixText + ext;
+            } else {
+                return nameWithoutExt + suffixText + ext;
+            }
+        }
+
+        function applyReplaceMode(fileName) {
+            const findText = document.getElementById('findText').value;
+            const replaceText = document.getElementById('replaceText').value;
+            const caseSensitive = document.getElementById('caseSensitive').checked;
+            const replaceAll = document.getElementById('replaceAll').checked;
+            
+            let result = fileName;
+            
+            if (replaceAll) {
+                const flags = caseSensitive ? 'g' : 'gi';
+                const regex = new RegExp(escapeRegExp(findText), flags);
+                result = fileName.replace(regex, replaceText);
+            } else {
+                if (caseSensitive) {
+                    const index = fileName.indexOf(findText);
+                    if (index !== -1) {
+                        result = fileName.substring(0, index) + replaceText + fileName.substring(index + findText.length);
+                    }
+                } else {
+                    const index = fileName.toLowerCase().indexOf(findText.toLowerCase());
+                    if (index !== -1) {
+                        result = fileName.substring(0, index) + replaceText + fileName.substring(index + findText.length);
+                    }
+                }
+            }
+            
+            return result;
+        }
+
+        function applyTemplateMode(fileName, index) {
+            const template = document.getElementById('templateText').value;
+            const keepPrefix = parseInt(document.getElementById('keepPrefix').value) || 0;
+            const keepSuffix = parseInt(document.getElementById('keepSuffix').value) || 0;
+            const fixedChars = document.getElementById('fixedChars').value;
+            
+            const lastDotIndex = fileName.lastIndexOf('.');
+            const nameWithoutExt = lastDotIndex !== -1 ? fileName.substring(0, lastDotIndex) : fileName;
+            const ext = lastDotIndex !== -1 ? fileName.substring(lastDotIndex + 1) : '';
+            
+            let processedName = nameWithoutExt;
+            
+            // Apply keep prefix/suffix
+            if (keepPrefix > 0 || keepSuffix > 0) {
+                const prefix = nameWithoutExt.substring(0, keepPrefix);
+                const suffix = keepSuffix > 0 ? nameWithoutExt.substring(nameWithoutExt.length - keepSuffix) : '';
+                const middle = nameWithoutExt.substring(keepPrefix, nameWithoutExt.length - keepSuffix);
+                processedName = prefix + middle + suffix;
+            }
+            
+            // Replace template variables
+            let result = template
+                .replace(/\{name\}/g, processedName)
+                .replace(/\{ext\}/g, ext)
+                .replace(/\{index\}/g, (index + 1).toString())
+                .replace(/\{index0\}/g, index.toString());
+            
+            // Apply fixed characters
+            if (fixedChars.trim()) {
+                result = applyFixedCharacters(result, fixedChars);
+            }
+            
+            return result;
+        }
+
+        function applyFixedCharacters(str, fixedCharsInput) {
+            const chars = str.split('');
+            const fixedRules = fixedCharsInput.split(',');
+            
+            fixedRules.forEach(rule => {
+                const [pos, char] = rule.split(':');
+                if (pos && char) {
+                    const position = parseInt(pos.trim()) - 1; // Convert to 0-based index
+                    if (position >= 0 && position < chars.length) {
+                        chars[position] = char.trim();
+                    }
+                }
+            });
+            
+            return chars.join('');
+        }
+
+        function escapeRegExp(string) {
+            return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        }
+
+        function updatePreviewDisplay() {
+            const previewContainer = document.getElementById('previewContainer');
+            
+            if (renamedFiles.length === 0) {
+                previewContainer.innerHTML = '<div style="text-align: center; color: #9ca3af; padding: 40px;">暂无预览内容</div>';
+                return;
+            }
+            
+            const previewHTML = `
+                <div class="file-list">
+                    ${renamedFiles.map(file => `
+                        <div class="file-item">
+                            <div>
+                                <div class="file-original">${file.originalName}</div>
+                                <div class="file-renamed">→ ${file.newName}</div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+            
+            previewContainer.innerHTML = previewHTML;
+        }
+
+        // Download functionality
+        function downloadRenameScript() {
+            if (renamedFiles.length === 0) return;
+            
+            // Generate PowerShell script for Windows
+            const scriptContent = generatePowerShellScript();
+            const blob = new Blob([scriptContent], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'rename_files.ps1';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function generatePowerShellScript() {
+            let script = `# File Rename Script Generated by File Batch Rename Tool
+# Please run this script in the directory containing your files
+# 请在包含文件的目录中运行此脚本
+
+Write-Host "Starting batch file rename operation..." -ForegroundColor Green
+Write-Host "开始批量文件重命名操作..." -ForegroundColor Green
+
+$currentPath = Get-Location
+Write-Host "Current directory: $currentPath" -ForegroundColor Yellow
+Write-Host "当前目录: $currentPath" -ForegroundColor Yellow
+
+$renamedCount = 0
+$errorCount = 0
+
+`;
+
+            renamedFiles.forEach((file, index) => {
+                if (file.originalName !== file.newName) {
+                    script += `
+# File ${index + 1}: ${file.originalName} -> ${file.newName}
+if (Test-Path "${file.originalName}") {
+    try {
+        Rename-Item -Path "${file.originalName}" -NewName "${file.newName}" -ErrorAction Stop
+        Write-Host "✓ Renamed: ${file.originalName} -> ${file.newName}" -ForegroundColor Green
+        $renamedCount++
+    }
+    catch {
+        Write-Host "✗ Error renaming ${file.originalName}: $($_.Exception.Message)" -ForegroundColor Red
+        $errorCount++
+    }
+}
+else {
+    Write-Host "✗ File not found: ${file.originalName}" -ForegroundColor Red
+    $errorCount++
+}
+`;
+                }
+            });
+
+            script += `
+Write-Host "
+Rename operation completed!" -ForegroundColor Green
+Write-Host "重命名操作完成!" -ForegroundColor Green
+Write-Host "Successfully renamed: $renamedCount files" -ForegroundColor Green
+Write-Host "成功重命名: $renamedCount 个文件" -ForegroundColor Green
+if ($errorCount -gt 0) {
+    Write-Host "Errors encountered: $errorCount files" -ForegroundColor Red
+    Write-Host "遇到错误: $errorCount 个文件" -ForegroundColor Red
+}
+
+Read-Host "Press Enter to close / 按回车键关闭"
+`;
+
+            return script;
+        }
+
+        // Download renamed files as ZIP
+        async function downloadRenamedFilesZip() {
+            if (renamedFiles.length === 0 || selectedFiles.length === 0) return;
+            
+            const progressContainer = document.getElementById('downloadProgress');
+            const progressBar = document.getElementById('progressBar');
+            const progressText = document.getElementById('progressText');
+            const downloadZipBtn = document.getElementById('downloadZipBtn');
+            
+            // Show progress
+            progressContainer.style.display = 'block';
+            downloadZipBtn.disabled = true;
+            downloadZipBtn.textContent = '📦 正在打包...';
+            
+            try {
+                const zip = new JSZip();
+                const totalFiles = selectedFiles.length;
+                
+                // Add files to zip with progress tracking
+                for (let i = 0; i < selectedFiles.length; i++) {
+                    const file = selectedFiles[i];
+                    const renamedFile = renamedFiles[i];
+                    
+                    // Update progress
+                    const progress = ((i + 1) / totalFiles) * 100;
+                    progressBar.style.width = progress + '%';
+                    progressText.textContent = `正在处理文件 ${i + 1}/${totalFiles}: ${renamedFile.newName}`;
+                    
+                    // Read file as blob and add to zip
+                    try {
+                        const fileBlob = await readFileAsBlob(file);
+                        zip.file(renamedFile.newName, fileBlob);
+                    } catch (error) {
+                        console.warn(`Failed to read file ${file.name}:`, error);
+                        // Skip this file and continue
+                        continue;
+                    }
+                    
+                    // Small delay to allow UI update
+                    await new Promise(resolve => setTimeout(resolve, 10));
+                }
+                
+                progressText.textContent = '正在生成ZIP文件...';
+                
+                // Generate ZIP blob
+                const zipBlob = await zip.generateAsync({
+                    type: 'blob',
+                    compression: 'DEFLATE',
+                    compressionOptions: {
+                        level: 6
+                    }
+                }, function updateCallback(metadata) {
+                    const progress = metadata.percent;
+                    progressBar.style.width = progress + '%';
+                    progressText.textContent = `生成ZIP文件: ${Math.round(progress)}%`;
+                });
+                
+                // Download the ZIP file
+                const url = URL.createObjectURL(zipBlob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'renamed_files.zip';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                // Success feedback
+                progressBar.style.width = '100%';
+                progressText.textContent = '✅ ZIP文件下载完成！';
+                progressBar.style.background = 'linear-gradient(135deg, #059669, #10b981)';
+                
+                setTimeout(() => {
+                    progressContainer.style.display = 'none';
+                    progressBar.style.width = '0%';
+                    progressBar.style.background = 'linear-gradient(135deg, #059669, #10b981)';
+                }, 3000);
+                
+            } catch (error) {
+                console.error('Error creating ZIP file:', error);
+                progressText.textContent = '❌ 创建ZIP文件时出错，请重试';
+                progressBar.style.background = 'linear-gradient(135deg, #dc2626, #ef4444)';
+                
+                setTimeout(() => {
+                    progressContainer.style.display = 'none';
+                    progressBar.style.width = '0%';
+                    progressBar.style.background = 'linear-gradient(135deg, #059669, #10b981)';
+                }, 3000);
+            } finally {
+                downloadZipBtn.disabled = false;
+                downloadZipBtn.textContent = '📦 下载重命名文件ZIP包';
+            }
+        }
+
+        // Helper function to read file as blob
+        function readFileAsBlob(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    resolve(new Blob([e.target.result], { type: file.type }));
+                };
+                reader.onerror = function(e) {
+                    reject(new Error('Failed to read file'));
+                };
+                reader.readAsArrayBuffer(file);
+            });
+        }
+
+        // Function to adjust help content height to match rename mode section height
+        function adjustHelpContentHeight() {
+            const helpContent = document.querySelector('.help-content');
+            if (!helpContent) return;
+            
+            // Find the rename mode section in left panel
+            const leftPanel = document.querySelector('.left-panel');
+            if (!leftPanel) return;
+            
+            // Get the rename mode section (the second section in left panel)
+            const renameModeSection = leftPanel.querySelector('.section:nth-child(2)');
+            if (!renameModeSection) return;
+            
+            // Get the height of rename mode section
+            const renameModeHeight = renameModeSection.offsetHeight;
+            
+            // Set minimum height constraint
+            const minHeight = 200;
+            
+            // Use the rename mode section height, but ensure it's not less than minimum
+            let finalHeight = Math.max(minHeight, renameModeHeight);
+            
+            // Apply the height to help content
+            helpContent.style.height = finalHeight + 'px';
+        }
+    </script>
+</body>
+</html>

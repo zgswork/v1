@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>进程调度可视化：FCFS / SJF / RR / 优先级</title>
+  <style>
+:root{--bg:#fff;--bg2:#f5f5f4;--tx:#1a1a1a;--tx2:#6b6b6b;--tx3:#9a9a9a;--bd:rgba(0,0,0,.12);--bd2:rgba(0,0,0,.25);--bl:#378ADD;--blb:#E6F1FB;--gn:#1D9E75;--gnb:#E1F5EE;--rd:#E24B4A;--rdb:#FCEBEB;--or:#D08B1A;--orb:#FDF3E0;--gy:#B4B2A9;--gyb:#F1EFE8;--pp:#534AB7;--ppb:#EEEDFE;--tl:#0F6E56;--tlb:#E1F5EE;--mono:'SF Mono','Cascadia Code','Consolas',monospace;--sans:system-ui,-apple-system,sans-serif}
+@media(prefers-color-scheme:dark){:root{--bg:#1a1a1a;--bg2:#2c2c2a;--tx:#e8e8e8;--tx2:#b3b3b3;--tx3:#7b7b7b;--bd:rgba(255,255,255,.12);--bd2:rgba(255,255,255,.25);--bl:#85B7EB;--blb:#0C447C;--gn:#5DCAA5;--gnb:#085041;--rd:#F09595;--rdb:#501313;--or:#E8B84D;--orb:#5C3D00;--gy:#888780;--gyb:#444441;--pp:#AFA9EC;--ppb:#26215C;--tl:#5DCAA5;--tlb:#085041}}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:var(--sans);background:var(--bg);color:var(--tx);display:flex;justify-content:center;padding:32px 16px;line-height:1.75}
+.c{max-width:880px;width:100%}
+h1{font-size:28px;font-weight:600;margin-bottom:6px}
+h2{font-size:18px;font-weight:600;margin:34px 0 12px;padding-bottom:6px;border-bottom:1px solid var(--bd)}
+h3{font-size:15px;font-weight:600;margin:20px 0 10px}
+p{font-size:14px;color:var(--tx2);margin-bottom:10px}
+p b{color:var(--tx);font-weight:600}
+.sub{font-size:14px;color:var(--tx2);margin-bottom:24px}
+code{font-family:var(--mono);font-size:12px;background:var(--bg2);padding:1px 5px;border-radius:4px}
+pre{background:var(--bg2);border:1px solid var(--bd);border-radius:10px;padding:14px 16px;overflow-x:auto;margin:10px 0 16px;font-family:var(--mono);font-size:12px;color:var(--tx)}
+table{width:100%;border-collapse:collapse;font-size:13px;margin:12px 0}
+th{text-align:left;padding:8px 10px;background:var(--bg2);border:1px solid var(--bd);font-weight:600}
+td{padding:8px 10px;border:1px solid var(--bd);color:var(--tx2)}
+.toc{background:var(--bg2);border:1px solid var(--bd);border-radius:10px;padding:16px 20px;margin:16px 0 28px}
+.toc a{display:block;font-size:13px;color:var(--bl);text-decoration:none;padding:3px 0}
+.toc a:hover{text-decoration:underline}
+.info,.warn,.ok{padding:10px 14px;border-radius:0 8px 8px 0;margin:14px 0;font-size:13px}
+.info{border-left:3px solid var(--bl);background:var(--blb);color:var(--tx)}
+.warn{border-left:3px solid var(--or);background:var(--orb);color:var(--tx)}
+.ok{border-left:3px solid var(--gn);background:var(--gnb);color:var(--tx)}
+.compare{display:flex;gap:16px;flex-wrap:wrap;margin:16px 0}
+.compare>div{flex:1;min-width:240px;border:1px solid var(--bd);border-radius:12px;padding:16px;background:var(--bg)}
+.w{border:1px solid var(--bd);border-radius:12px;padding:20px;margin:18px 0;background:var(--bg)}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.tab{padding:6px 14px;border-radius:8px;font-size:13px;font-weight:600;border:1px solid var(--bd);background:var(--bg2);color:var(--tx2);cursor:pointer}
+.tab.on{background:var(--blb);color:var(--bl);border-color:var(--bl)}
+.ctrl{display:flex;align-items:center;gap:12px;margin:10px 0}
+.btn{padding:6px 16px;border:1px solid var(--bd);border-radius:8px;background:var(--bg2);color:var(--tx);cursor:pointer;font-size:13px}
+.btn:disabled{opacity:.35;cursor:default}
+.dots{display:flex;gap:6px;align-items:center}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--bd2)}
+.dot.on{background:var(--bl)}
+.cap{font-size:13px;color:var(--tx2);line-height:1.7;min-height:54px;margin-top:8px}
+.gtable{width:100%;border-collapse:collapse;font-size:12px;margin:10px 0;overflow-x:auto;display:block}
+.gth{padding:6px 10px;background:var(--bg2);border:1px solid var(--bd);font-weight:600;text-align:center;white-space:nowrap;font-size:12px}
+.gtd{padding:6px 4px;border:1px solid var(--bd);text-align:center;font-family:var(--mono);font-size:11px;color:var(--tx2);min-width:34px;white-space:nowrap}
+.gtd.g-proc{text-align:left;font-weight:600;color:var(--tx);font-family:var(--sans);min-width:82px;padding-left:8px}
+.gtd.g-p0{background:var(--blb);color:var(--bl);font-weight:600}
+.gtd.g-p1{background:var(--gnb);color:var(--gn);font-weight:600}
+.gtd.g-p2{background:var(--orb);color:var(--or);font-weight:600}
+.gtd.g-p3{background:var(--ppb);color:var(--pp);font-weight:600}
+.gtd.g-idle{background:var(--gyb);color:var(--gy);font-style:italic}
+.gtd.g-focus{outline:2px solid var(--bd2);outline-offset:-2px}
+.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:14px}
+.metric{border:1px solid var(--bd);border-radius:10px;padding:12px;background:var(--bg2)}
+.metric .k{font-size:12px;color:var(--tx3);margin-bottom:6px}
+.metric .v{font-size:20px;font-weight:700;color:var(--tx)}
+  </style>
+</head>
+<body>
+<div class="c">
+  <h1>进程调度可视化</h1>
+  <p class="sub">用同一组进程数据，对比 <b>FCFS</b>、<b>SJF</b>、<b>RR</b> 和 <b>优先级调度</b> 的执行顺序、甘特图和平均等待时间。</p>
+
+  <div class="toc">
+    <a href="#s1">1. 题目数据与观察目标</a>
+    <a href="#s2">2. 四种算法核心规则</a>
+    <a href="#s3">3. 交互式甘特图动画</a>
+    <a href="#s4">4. 指标对比与手算验证</a>
+    <a href="#s5">5. 总结</a>
+  </div>
+
+  <h2 id="s1">1. 题目数据与观察目标</h2>
+  <p>我们使用同一组进程来对比四种调度算法。这样做的意义是：<b>改变算法</b>，其他条件不变，读者才能直观看到等待时间、完成顺序和响应性到底是怎么被调度策略改变的。</p>
+  <table>
+    <thead>
+      <tr><th>进程</th><th>到达时间</th><th>服务时间</th><th>优先级</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>P1</td><td>0</td><td>5</td><td>2</td></tr>
+      <tr><td>P2</td><td>1</td><td>3</td><td>1</td></tr>
+      <tr><td>P3</td><td>2</td><td>1</td><td>4</td></tr>
+      <tr><td>P4</td><td>4</td><td>2</td><td>3</td></tr>
+    </tbody>
+  </table>
+  <div class="info">本页把 <b>优先级数值越小视为优先级越高</b>。RR 的时间片固定为 <code>2</code>。</div>
+  <p>需要观察三个层次。第一层是<b>先后顺序</b>：谁先运行，谁后运行。第二层是<b>时序行为</b>：有没有抢占，时间片是否打断执行。第三层是<b>指标结果</b>：平均等待时间和平均周转时间是否真的改善。</p>
+
+  <h2 id="s2">2. 四种算法核心规则</h2>
+  <div class="compare">
+    <div>
+      <h3>FCFS</h3>
+      <p>按到达顺序执行，属于<b>非抢占式</b>调度。实现最简单，但容易出现<b>护航效应</b>，即短进程被长进程挡在后面。</p>
+    </div>
+    <div>
+      <h3>SJF</h3>
+      <p>每次从已到达的进程中选<b>服务时间最短</b>的执行。这里使用非抢占版，优点是平均等待时间通常更小。</p>
+    </div>
+    <div>
+      <h3>RR</h3>
+      <p>每个进程最多运行一个时间片。时间片用完后若未完成，就回到就绪队列尾部。它强调<b>响应公平性</b>。</p>
+    </div>
+    <div>
+      <h3>优先级调度</h3>
+      <p>每次从就绪队列中选<b>优先级最高</b>的进程执行。这里为了便于手算，采用<b>非抢占式</b>版本。</p>
+    </div>
+  </div>
+  <p>408 做题时，最常见错误不是公式不会，而是把“谁有资格被选中”看错了。比如 SJF 只能在<b>当前已经到达</b>的进程里选最短作业，不能提前选未来才到达的 P4。</p>
+
+  <h2 id="s3">3. 交互式甘特图动画</h2>
+  <p>下面的交互区是本页的核心参考实现。你可以切换算法，再用“上一步 / 下一步”推进动画。每一步说明都会同时写清楚<b>发生了什么</b>和<b>为什么这样选</b>，这是写操作系统动画时必须遵守的语义要求。</p>
+
+  <div class="w">
+    <div class="tabs" id="tabs"></div>
+    <div id="sched-gantt"></div>
+    <div class="ctrl">
+      <button class="btn" id="prevBtn">上一步</button>
+      <div class="dots" id="dots"></div>
+      <button class="btn" id="nextBtn">下一步</button>
+    </div>
+    <div class="cap" id="cap"></div>
+    <div class="metrics">
+      <div class="metric"><div class="k">平均等待时间</div><div class="v" id="avgWait">-</div></div>
+      <div class="metric"><div class="k">平均周转时间</div><div class="v" id="avgTurn">-</div></div>
+      <div class="metric"><div class="k">当前算法</div><div class="v" id="algoName">-</div></div>
+    </div>
+  </div>
+
+  <h2 id="s4">4. 指标对比与手算验证</h2>
+  <p>动画是帮助建立时序直觉，考试最终还是要落回到<b>完成时间</b>、<b>周转时间</b>和<b>等待时间</b>。因此参考实现必须把这些结果写出来，让读者能反向核对甘特图。</p>
+  <table>
+    <thead>
+      <tr><th>算法</th><th>执行顺序</th><th>平均等待时间</th><th>平均周转时间</th><th>观察</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>FCFS</td><td>P1 → P2 → P3 → P4</td><td>3.75</td><td>6.50</td><td>简单，但短作业被长作业拖住</td></tr>
+      <tr><td>SJF</td><td>P1 → P3 → P4 → P2</td><td>3.00</td><td>5.75</td><td>平均等待时间更优</td></tr>
+      <tr><td>RR(q=2)</td><td>P1 → P2 → P3 → P1 → P4 → P2 → P1</td><td>4.25</td><td>7.00</td><td>响应更公平，但切换更频繁</td></tr>
+      <tr><td>优先级</td><td>P1 → P2 → P4 → P3</td><td>4.00</td><td>6.75</td><td>更照顾高优先级任务</td></tr>
+    </tbody>
+  </table>
+  <pre>P1(FCFS): 完成时间 5，周转时间 = 5 - 0 = 5，等待时间 = 5 - 5 = 0
+P2(FCFS): 完成时间 8，周转时间 = 8 - 1 = 7，等待时间 = 7 - 3 = 4
+P3(FCFS): 完成时间 9，周转时间 = 9 - 2 = 7，等待时间 = 7 - 1 = 6
+P4(FCFS): 完成时间 11，周转时间 = 11 - 4 = 7，等待时间 = 7 - 2 = 5
+平均等待时间 = (0 + 4 + 6 + 5) / 4 = 3.75? 不对。
+
+注意：FCFS 的甘特图中 P1 运行 0-5，P2 运行 5-8，P3 运行 8-9，P4 运行 9-11
+因此等待时间应为：
+P1 = 0
+P2 = 5 - 1 = 4
+P3 = 8 - 2 = 6
+P4 = 9 - 4 = 5
+平均等待时间 = (0 + 4 + 6 + 5) / 4 = 3.75
+
+为了和动画完全一致，本页最终结果采用严格按甘特图复核后的数值。</pre>
+  <div class="warn">这段手算展示故意保留了一个“先写错再复核”的过程。写 Skill 时也应该这样提醒模型：<b>所有调度指标必须回到甘特图逐个核对</b>，不能只凭直觉口算。</div>
+
+  <h2 id="s5">5. 总结</h2>
+  <p><b>FCFS</b> 强在简单，弱在护航效应。<b>SJF</b> 往往能优化平均等待时间，但需要已知或估计服务时间。<b>RR</b> 更强调交互系统中的公平响应，代价是上下文切换增加。<b>优先级调度</b> 能服务关键任务，但如果没有老化机制，就可能引发低优先级进程饥饿。</p>
+  <div class="ok">如果你要把这份页面作为 Skill 参考实现继续扩展，最值得复用的结构就是：<b>同一组输入数据 + 多算法切换 + 甘特图 + 手算指标复核</b>。这套结构非常适合 408 操作系统的调度章节。</div>
+</div>
+
+<script>
+var procLabels=['P1','P2','P3','P4'];
+var timeMax=11;
+var cases={
+  fcfs:{
+    title:'FCFS',
+    avgWait:'3.75',
+    avgTurn:'6.50',
+    steps:[
+      {time:0,hl:0,bars:[{pid:'P1',start:0,end:5,cls:'g-p0'}],cap:'时刻 0：只有 <b>P1</b> 到达，FCFS 按先来先服务原则直接让 P1 运行。'},
+      {time:5,hl:1,bars:[{pid:'P1',start:0,end:5,cls:'g-p0'},{pid:'P2',start:5,end:8,cls:'g-p1'}],cap:'时刻 5：P1 完成。就绪队列里已到达的进程按到达先后是 P2、P3、P4，因此 FCFS 选择 <b>P2</b>。'},
+      {time:8,hl:2,bars:[{pid:'P1',start:0,end:5,cls:'g-p0'},{pid:'P2',start:5,end:8,cls:'g-p1'},{pid:'P3',start:8,end:9,cls:'g-p2'}],cap:'时刻 8：P2 完成。剩余已到达进程中，最早进入队列的是 <b>P3</b>，所以继续按队头执行。'},
+      {time:9,hl:3,bars:[{pid:'P1',start:0,end:5,cls:'g-p0'},{pid:'P2',start:5,end:8,cls:'g-p1'},{pid:'P3',start:8,end:9,cls:'g-p2'},{pid:'P4',start:9,end:11,cls:'g-p3'}],cap:'时刻 9：P3 很短，但在 FCFS 中并不会因为短而被提前照顾。最后轮到 <b>P4</b> 运行到完成。'}
+    ]
+  },
+  sjf:{
+    title:'SJF',
+    avgWait:'3.00',
+    avgTurn:'5.75',
+    steps:[
+      {time:0,hl:0,bars:[{pid:'P1',start:0,end:5,cls:'g-p0'}],cap:'时刻 0：只有 <b>P1</b> 到达，即便它不是最短，也只能先执行 P1。SJF 不能选择未来还没到达的进程。'},
+      {time:5,hl:1,bars:[{pid:'P1',start:0,end:5,cls:'g-p0'},{pid:'P3',start:5,end:6,cls:'g-p2'}],cap:'时刻 5：P2、P3、P4 都已到达，服务时间分别为 3、1、2。SJF 选最短的 <b>P3</b>。'},
+      {time:6,hl:2,bars:[{pid:'P1',start:0,end:5,cls:'g-p0'},{pid:'P3',start:5,end:6,cls:'g-p2'},{pid:'P4',start:6,end:8,cls:'g-p3'}],cap:'时刻 6：剩余 P2(3) 和 P4(2)，SJF 继续选更短的 <b>P4</b>。'},
+      {time:8,hl:3,bars:[{pid:'P1',start:0,end:5,cls:'g-p0'},{pid:'P3',start:5,end:6,cls:'g-p2'},{pid:'P4',start:6,end:8,cls:'g-p3'},{pid:'P2',start:8,end:11,cls:'g-p1'}],cap:'时刻 8：最后只剩 <b>P2</b>。这一顺序体现了 SJF 通过优先短作业来压低平均等待时间。'}
+    ]
+  },
+  rr:{
+    title:'RR (q=2)',
+    avgWait:'4.25',
+    avgTurn:'7.00',
+    steps:[
+      {time:0,hl:0,bars:[{pid:'P1',start:0,end:2,cls:'g-p0'}],cap:'时刻 0-2：<b>P1</b> 先运行一个时间片。RR 只允许连续运行 q=2 个时间单位。'},
+      {time:2,hl:1,bars:[{pid:'P1',start:0,end:2,cls:'g-p0'},{pid:'P2',start:2,end:4,cls:'g-p1'}],cap:'时刻 2：P1 时间片耗尽但未完成，进入就绪队列尾部。此时队首是 <b>P2</b>，所以切换到 P2。'},
+      {time:4,hl:2,bars:[{pid:'P1',start:0,end:2,cls:'g-p0'},{pid:'P2',start:2,end:4,cls:'g-p1'},{pid:'P3',start:4,end:5,cls:'g-p2'}],cap:'时刻 4：P2 还剩 1 个时间单位，但也先回队尾；队首轮到 <b>P3</b>。P3 只需 1 个时间单位，因此在本轮直接完成。'},
+      {time:5,hl:3,bars:[{pid:'P1',start:0,end:2,cls:'g-p0'},{pid:'P2',start:2,end:4,cls:'g-p1'},{pid:'P3',start:4,end:5,cls:'g-p2'},{pid:'P1',start:5,end:7,cls:'g-p0'}],cap:'时刻 5：当前队列顺序是 P1、P4、P2，因此回到 <b>P1</b>。这体现了 RR 的公平轮转语义。'},
+      {time:7,hl:4,bars:[{pid:'P1',start:0,end:2,cls:'g-p0'},{pid:'P2',start:2,end:4,cls:'g-p1'},{pid:'P3',start:4,end:5,cls:'g-p2'},{pid:'P1',start:5,end:7,cls:'g-p0'},{pid:'P4',start:7,end:9,cls:'g-p3'}],cap:'时刻 7：P1 还剩 1 个时间单位，再次回到队尾。此时轮到 <b>P4</b>，它刚好在一个时间片内完成。'},
+      {time:9,hl:5,bars:[{pid:'P1',start:0,end:2,cls:'g-p0'},{pid:'P2',start:2,end:4,cls:'g-p1'},{pid:'P3',start:4,end:5,cls:'g-p2'},{pid:'P1',start:5,end:7,cls:'g-p0'},{pid:'P4',start:7,end:9,cls:'g-p3'},{pid:'P2',start:9,end:10,cls:'g-p1'}],cap:'时刻 9：队首回到 <b>P2</b>。它只剩 1 个时间单位，因此本轮完成。'},
+      {time:10,hl:6,bars:[{pid:'P1',start:0,end:2,cls:'g-p0'},{pid:'P2',start:2,end:4,cls:'g-p1'},{pid:'P3',start:4,end:5,cls:'g-p2'},{pid:'P1',start:5,end:7,cls:'g-p0'},{pid:'P4',start:7,end:9,cls:'g-p3'},{pid:'P2',start:9,end:10,cls:'g-p1'},{pid:'P1',start:10,end:11,cls:'g-p0'}],cap:'时刻 10：最后由 <b>P1</b> 补完剩余 1 个时间单位。RR 的好处是响应公平，但平均等待时间未必最优。'}
+    ]
+  },
+  priority:{
+    title:'优先级',
+    avgWait:'4.00',
+    avgTurn:'6.75',
+    steps:[
+      {time:0,hl:0,bars:[{pid:'P1',start:0,end:5,cls:'g-p0'}],cap:'时刻 0：只有 <b>P1</b> 到达，因此即使优先级规则存在，也只能先运行 P1。'},
+      {time:5,hl:1,bars:[{pid:'P1',start:0,end:5,cls:'g-p0'},{pid:'P2',start:5,end:8,cls:'g-p1'}],cap:'时刻 5：P2、P3、P4 都在就绪队列。因为这里规定数值越小优先级越高，所以优先级最高的是 <b>P2(1)</b>。'},
+      {time:8,hl:2,bars:[{pid:'P1',start:0,end:5,cls:'g-p0'},{pid:'P2',start:5,end:8,cls:'g-p1'},{pid:'P4',start:8,end:10,cls:'g-p3'}],cap:'时刻 8：剩余 P3(4) 和 P4(3)，因此优先级更高的 <b>P4</b> 先执行。'},
+      {time:10,hl:3,bars:[{pid:'P1',start:0,end:5,cls:'g-p0'},{pid:'P2',start:5,end:8,cls:'g-p1'},{pid:'P4',start:8,end:10,cls:'g-p3'},{pid:'P3',start:10,end:11,cls:'g-p2'}],cap:'时刻 10：最后轮到优先级最低的 <b>P3</b>。如果系统长期不断到来更高优先级进程，就可能引发低优先级任务饥饿。'}
+    ]
+  }
+};
+var order=['fcfs','sjf','rr','priority'];
+var curAlgo='fcfs';
+var curStep=0;
+function dots(total,cur){
+  var el=document.getElementById('dots');el.innerHTML='';
+  for(var i=0;i<total;i++){var d=document.createElement('div');d.className='dot'+(i===cur?' on':'');el.appendChild(d)}
+}
+function renderTabs(){
+  var host=document.getElementById('tabs');host.innerHTML='';
+  order.forEach(function(key){
+    var b=document.createElement('button');
+    b.className='tab'+(key===curAlgo?' on':'');
+    b.textContent=cases[key].title;
+    b.onclick=function(){curAlgo=key;curStep=0;renderTabs();render()};
+    host.appendChild(b);
+  });
+}
+function render(){
+  var data=cases[curAlgo],step=data.steps[curStep],h='<table class="gtable"><thead><tr><th class="gth">进程</th>';
+  for(var t=0;t<timeMax;t++) h+='<th class="gth">'+t+'</th>';
+  h+='<th class="gth">'+timeMax+'</th></tr></thead><tbody>';
+  for(var r=0;r<procLabels.length;r++){
+    var pid=procLabels[r];
+    h+='<tr><td class="gtd g-proc">'+pid+'</td>';
+    for(var c=0;c<timeMax;c++){
+      var cls='gtd',txt='';
+      for(var i=0;i<step.bars.length;i++){
+        var bar=step.bars[i];
+        if(bar.pid===pid&&c>=bar.start&&c<bar.end){
+          cls+=' '+bar.cls;
+          if(step.hl===i) cls+=' g-focus';
+          txt=pid;
+          break;
+        }
+      }
+      h+='<td class="'+cls+'">'+txt+'</td>';
+    }
+    h+='<td class="gtd"></td></tr>';
+  }
+  h+='<tr><td class="gtd g-proc">CPU</td>';
+  for(var c=0;c<timeMax;c++){
+    var cpuCls='gtd g-idle',cpuTxt='idle';
+    for(var j=0;j<step.bars.length;j++){
+      var cpuBar=step.bars[j];
+      if(c>=cpuBar.start&&c<cpuBar.end){
+        cpuCls='gtd '+cpuBar.cls+(step.hl===j?' g-focus':'');
+        cpuTxt=cpuBar.pid;
+        break;
+      }
+    }
+    h+='<td class="'+cpuCls+'">'+cpuTxt+'</td>';
+  }
+  h+='<td class="gtd"></td></tr></tbody></table>';
+  h+='<p style="font-size:12px;color:var(--tx3);margin-top:8px">当前时刻：<code>'+step.time+'</code></p>';
+  document.getElementById('sched-gantt').innerHTML=h;
+  document.getElementById('cap').innerHTML=step.cap;
+  document.getElementById('avgWait').textContent=data.avgWait;
+  document.getElementById('avgTurn').textContent=data.avgTurn;
+  document.getElementById('algoName').textContent=data.title;
+  document.getElementById('prevBtn').disabled=curStep===0;
+  document.getElementById('nextBtn').disabled=curStep===data.steps.length-1;
+  dots(data.steps.length,curStep);
+}
+document.getElementById('prevBtn').onclick=function(){if(curStep>0){curStep--;render()}};
+document.getElementById('nextBtn').onclick=function(){if(curStep<cases[curAlgo].steps.length-1){curStep++;render()}};
+document.addEventListener('keydown',function(e){
+  if(e.key==='ArrowLeft'&&curStep>0){curStep--;render()}
+  if(e.key==='ArrowRight'&&curStep<cases[curAlgo].steps.length-1){curStep++;render()}
+});
+renderTabs();
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html tk="title_battery_status_api_playgr" lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Battery Status API Playground</title>
+<meta name="description" content="Interactive Battery Status API explorer — real-time charging state, level chart, event listeners, and power-aware patterns.">
+<style>
+:root {
+  --bg: #0a0a0a;
+  --surface: #141414;
+  --surface2: #1e1e1e;
+  --border: #2a2a2a;
+  --text: #e0e0e0;
+  --text-dim: #888;
+  --accent: #6c5ce7;
+  --accent2: #00cec9;
+  --green: #00b894;
+  --red: #e74c3c;
+  --orange: #f39c12;
+  --yellow: #ffeaa7;
+  --radius: 8px;
+  --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --mono: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  line-height: 1.6;
+}
+header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 1.5rem 2rem;
+  text-align: center;
+}
+header h1 {
+  font-size: 1.8rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+header p { color: var(--text-dim); margin-top: 0.3rem; font-size: 0.95rem; }
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+}
+.card h2 {
+  font-size: 1.1rem;
+  margin-bottom: 1rem;
+  color: var(--accent2);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.no-support {
+  background: var(--surface2);
+  border: 1px solid var(--red);
+  border-radius: var(--radius);
+  padding: 2rem;
+  text-align: center;
+  color: var(--red);
+  font-size: 1.1rem;
+  line-height: 1.8;
+}
+/* Battery visual */
+.battery-visual {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2rem;
+  flex-wrap: wrap;
+  padding: 2rem 0;
+}
+.battery-icon {
+  width: 200px;
+  height: 100px;
+  border: 3px solid var(--text);
+  border-radius: 8px;
+  position: relative;
+  overflow: hidden;
+}
+.battery-icon::after {
+  content: '';
+  position: absolute;
+  right: -14px;
+  top: 30%;
+  width: 10px;
+  height: 40%;
+  background: var(--text);
+  border-radius: 0 4px 4px 0;
+}
+.battery-fill {
+  position: absolute;
+  left: 3px; bottom: 3px; top: 3px;
+  border-radius: 4px;
+  transition: width 0.5s, background 0.5s;
+}
+.battery-pct {
+  position: absolute;
+  width: 100%;
+  text-align: center;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 2rem;
+  font-weight: 700;
+  font-family: var(--mono);
+  z-index: 2;
+  text-shadow: 0 0 8px rgba(0,0,0,0.8);
+}
+.battery-status-text {
+  text-align: center;
+}
+.battery-status-text .charge-state {
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+.battery-status-text .charge-state.charging { color: var(--green); }
+.battery-status-text .charge-state.discharging { color: var(--orange); }
+.battery-status-text .charge-state.full { color: var(--accent2); }
+/* Info grid */
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.75rem;
+}
+.info-item {
+  background: var(--surface2);
+  padding: 0.75rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+.info-item .label { color: var(--text-dim); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+.info-item .value { font-family: var(--mono); color: var(--text); margin-top: 0.2rem; font-size: 1rem; }
+/* Chart */
+.chart-wrap {
+  position: relative;
+  width: 100%;
+  height: 250px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+canvas { display: block; width: 100%; height: 100%; }
+/* Event log */
+.event-log {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.75rem;
+  max-height: 200px;
+  overflow-y: auto;
+  font-family: var(--mono);
+  font-size: 0.8rem;
+}
+.event-log .entry {
+  padding: 0.3rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.event-log .entry:last-child { border-bottom: none; }
+.event-log .time { color: var(--text-dim); margin-right: 0.5rem; }
+.event-log .evt-charging { color: var(--green); }
+.event-log .evt-level { color: var(--accent2); }
+.event-log .evt-time { color: var(--orange); }
+/* Patterns */
+.patterns-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1rem;
+}
+.pattern-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1rem;
+}
+.pattern-card h3 { font-size: 0.95rem; color: var(--accent); margin-bottom: 0.5rem; }
+.pattern-card p { font-size: 0.85rem; color: var(--text-dim); margin-bottom: 0.5rem; }
+.pattern-card code {
+  display: block;
+  background: var(--bg);
+  padding: 0.5rem;
+  border-radius: 4px;
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  color: var(--accent2);
+  white-space: pre-wrap;
+  overflow-x: auto;
+}
+/* Estimator */
+.estimator {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1rem;
+}
+.est-card {
+  background: var(--surface2);
+  border-radius: 6px;
+  padding: 1rem;
+  text-align: center;
+}
+.est-card .est-label { font-size: 0.8rem; color: var(--text-dim); }
+.est-card .est-value { font-size: 1.8rem; font-weight: 700; font-family: var(--mono); color: var(--accent2); margin: 0.3rem 0; }
+.est-card .est-unit { font-size: 0.75rem; color: var(--text-dim); }
+/* Two column */
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+@media (max-width: 768px) {
+  .two-col { grid-template-columns: 1fr; }
+  header h1 { font-size: 1.4rem; }
+  .container { padding: 1rem; }
+  .battery-icon { width: 150px; height: 75px; }
+  .battery-pct { font-size: 1.5rem; }
+}
+</style>
+</head>
+<body>
+
+
+
+
+<header>
+  <h1 ti="title_battery_status_api_playgr" ti="h1_battery_status_api_playgr" ti="title_battery_status_api_playgr" ti="h1_battery_status_api_playgr">Battery Status API Playground</h1>
+  <p>Real-time battery monitoring, level history, and power-aware application patterns</p>
+</header>
+
+<div class="container" style="position:relative">
+  <div id="no-support" class="no-support" style="display:none;">
+    Your browser does not support the Battery Status API.<br>
+    This API is available in Chromium-based browsers (Chrome, Edge, Opera).<br>
+    Firefox removed support in v52, and Safari never implemented it.
+  </div>
+
+  <div id="main-content" style="display:none;">
+    <!-- Battery Visual -->
+    <div class="card">
+      <h2 ti="h2_battery_status" ti="h2_battery_status">🔋 Battery Status</h2>
+      <div class="battery-visual">
+        <div class="battery-icon">
+          <div class="battery-fill" id="battery-fill"></div>
+          <div class="battery-pct" id="battery-pct">--%</div>
+        </div>
+        <div class="battery-status-text">
+          <div class="charge-state" id="charge-state">Loading...</div>
+          <div id="charge-detail" style="color:var(--text-dim);font-size:0.9rem;margin-top:0.3rem;"></div>
+        </div>
+      </div>
+      <div class="info-grid" id="info-grid"></div>
+    </div>
+
+    <div class="two-col">
+      <!-- Level Chart -->
+      <div class="card">
+        <h2 ti="h2_battery_level_over_time" ti="h2_battery_level_over_time">📈 Battery Level Over Time</h2>
+        <div class="chart-wrap">
+          <canvas id="chart"></canvas>
+        </div>
+        <p style="margin-top:0.5rem;font-size:0.8rem;color:var(--text-dim);">Chart updates every 10 seconds. Data resets on page reload.</p>
+      </div>
+
+      <!-- Event Log -->
+      <div class="card">
+        <h2 ti="h2_event_log" ti="h2_event_log">📋 Event Log</h2>
+        <div class="event-log" id="event-log"></div>
+      </div>
+    </div>
+
+    <!-- Battery Life Estimator -->
+    <div class="card">
+      <h2 ti="h2_battery_life_estimator" ti="h2_battery_life_estimator">⏱️ Battery Life Estimator</h2>
+      <div class="estimator" id="estimator"></div>
+    </div>
+
+    <!-- Power-Aware Patterns -->
+    <div class="card">
+      <h2 ti="h2_power_aware_application" ti="h2_power_aware_application">💡 Power-Aware Application Patterns</h2>
+      <div class="patterns-grid">
+        <div class="pattern-card">
+          <h3 ti="h3_reduce_polling_frequency" ti="h3_reduce_polling_frequency">Reduce Polling Frequency</h3>
+          <p>When battery is low, increase intervals for non-critical updates.</p>
+          <code>const interval = battery.level < 0.2
+  ? 60000  // 1 min when low
+  : 10000; // 10s normally</code>
+        </div>
+        <div class="pattern-card">
+          <h3 ti="h3_defer_heavy_operations" ti="h3_defer_heavy_operations">Defer Heavy Operations</h3>
+          <p>Postpone background sync, prefetching, or video preloading.</p>
+          <code>if (battery.charging ||
+    battery.level > 0.5) {
+  prefetchNextPage();
+}</code>
+        </div>
+        <div class="pattern-card">
+          <h3 ti="h3_adaptive_media_quality" ti="h3_adaptive_media_quality">Adaptive Media Quality</h3>
+          <p>Lower video resolution or disable autoplay on low battery.</p>
+          <code>const quality = battery.level > 0.3
+  ? 'high' : 'low';
+video.src = `/stream?q=${quality}`;</code>
+        </div>
+        <div class="pattern-card">
+          <h3 ti="h3_dark_mode_activation" ti="h3_dark_mode_activation">Dark Mode Activation</h3>
+          <p>Switch to dark theme on OLED screens when battery is low to save power.</p>
+          <code>if (battery.level < 0.15 &&
+    !battery.charging) {
+  document.body.classList
+    .add('power-saver');
+}</code>
+        </div>
+        <div class="pattern-card">
+          <h3 ti="h3_notification_strategy" ti="h3_notification_strategy">Notification Strategy</h3>
+          <p>Batch notifications instead of pushing individually when battery is limited.</p>
+          <code>const strategy = battery.level < 0.2
+  ? 'batch' : 'immediate';
+notifier.setMode(strategy);</code>
+        </div>
+        <div class="pattern-card">
+          <h3 ti="h3_analytics_throttling" ti="h3_analytics_throttling">Analytics Throttling</h3>
+          <p>Reduce analytics event frequency or defer sending when not charging.</p>
+          <code>if (!battery.charging &&
+    battery.level < 0.3) {
+  analytics.setFlushInterval(
+    300000 // 5 min batches
+  );
+}</code>
+        </div>
+      </div>
+    </div>
+
+    <!-- Device Comparison Guide -->
+    <div class="card">
+      <h2 ti="h2_device_battery_compariso" ti="h2_device_battery_compariso">📱 Device Battery Comparison Guide</h2>
+      <p style="color:var(--text-dim);margin-bottom:1rem;font-size:0.9rem;">Typical battery capacities and expected web browsing durations (approximate).</p>
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+          <thead>
+            <tr style="border-bottom:2px solid var(--border);text-align:left;">
+              <th style="padding:0.5rem;color:var(--accent2);" ti="th_device_type" ti="th_device_type">Device Type</th>
+              <th style="padding:0.5rem;color:var(--accent2);" ti="th_capacity" ti="th_capacity">Capacity</th>
+              <th style="padding:0.5rem;color:var(--accent2);" ti="th_web_browse" ti="th_web_browse">Web Browse</th>
+              <th style="padding:0.5rem;color:var(--accent2);" ti="th_video_play" ti="th_video_play">Video Play</th>
+              <th style="padding:0.5rem;color:var(--accent2);" ti="th_api_availability" ti="th_api_availability">API Availability</th>
+            </tr>
+          </thead>
+          <tbody style="color:var(--text-dim);">
+            <tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:0.5rem;">Smartphone</td><td style="padding:0.5rem;">3000–5000 mAh</td>
+              <td style="padding:0.5rem;">8–15 hrs</td><td style="padding:0.5rem;">10–20 hrs</td>
+              <td style="padding:0.5rem;color:var(--green);">Chrome Android</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:0.5rem;">Laptop</td><td style="padding:0.5rem;">40–100 Wh</td>
+              <td style="padding:0.5rem;">5–12 hrs</td><td style="padding:0.5rem;">8–18 hrs</td>
+              <td style="padding:0.5rem;color:var(--green);">Chrome/Edge</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:0.5rem;">Tablet</td><td style="padding:0.5rem;">5000–10000 mAh</td>
+              <td style="padding:0.5rem;">8–14 hrs</td><td style="padding:0.5rem;">10–16 hrs</td>
+              <td style="padding:0.5rem;color:var(--green);">Chrome</td>
+            </tr>
+            <tr>
+              <td style="padding:0.5rem;">Desktop</td><td style="padding:0.5rem;">N/A (AC)</td>
+              <td style="padding:0.5rem;">N/A</td><td style="padding:0.5rem;">N/A</td>
+              <td style="padding:0.5rem;color:var(--text-dim);">No battery</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<script>var _LANG={'title_battery_status_api_playgr':["Battery Status API Playground", "Battery Status API 演练场"],'metadesc_interactive_battery_statu':["Interactive Battery Status API explorer — real-time charging state, level chart, event listeners, and power-aware patterns.", "交互式 Battery Status API 浏览器 — 实时充电状态、电量图表、事件监听器和功耗感知模式。"],'h1_battery_status_api_playgr':["Battery Status API Playground", "Battery Status API 演练场"],'h2_battery_status':["🔋 Battery Status", "🔋 电池状态"],'h2_battery_level_over_time':["📈 Battery Level Over Time", "📈 电池电量随时间变化"],'h2_event_log':["📋 Event Log", "📋 事件日志"],'h2_battery_life_estimator':["⏱️ Battery Life Estimator", "⏱️ 电池寿命估算器"],'h2_power_aware_application':["💡 Power-Aware Application Patterns", "💡 功耗感知应用模式"],'h2_device_battery_compariso':["📱 Device Battery Comparison Guide", "📱 设备电池对比指南"],'h3_reduce_polling_frequency':["Reduce Polling Frequency", "降低轮询频率"],'h3_defer_heavy_operations':["Defer Heavy Operations", "延迟重操作"],'h3_adaptive_media_quality':["Adaptive Media Quality", "自适应媒体质量"],'h3_dark_mode_activation':["Dark Mode Activation", "深色模式激活"],'h3_notification_strategy':["Notification Strategy", "通知策略"],'h3_analytics_throttling':["Analytics Throttling", "分析节流"],'th_device_type':["Device Type", "设备类型"],'th_capacity':["Capacity", "容量"],'th_web_browse':["Web Browse", "网页浏览"],'th_video_play':["Video Play", "视频播放"],'th_api_availability':["API Availability", "API 可用性"],'jtc_fully_charged':["Fully Charged", "已充满"],'jtc_charging':["Charging", "充电中"],'jtc_discharging':["Discharging", "放电中"],'jtc_battery_api_error':["Battery API error:", "Battery API 错误："],'jtcpre_battery_api_error':["Battery API error: ", "Battery API 错误："]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>
+(function() {
+  'use strict';
+
+  if (!('getBattery' in navigator)) {
+    document.getElementById('no-support').style.display = 'block';
+    return;
+  }
+
+  const mainContent = document.getElementById('main-content');
+  const eventLogEl = document.getElementById('event-log');
+  const events = [];
+  const chartData = [];
+  let canvas, ctx;
+
+  function logEvent(msg, type) {
+    const ts = new Date().toTimeString().slice(0, 8);
+    events.unshift({ ts, msg, type });
+    if (events.length > 100) events.pop();
+    eventLogEl.innerHTML = events.map(e =>
+      `<div class="entry"><span class="time">${e.ts}</span><span class="evt-${e.type}">${e.msg}</span></div>`
+    ).join('');
+  }
+
+  function formatTime(seconds) {
+    if (!seconds || !isFinite(seconds)) return 'N/A';
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    if (h > 0) return `${h}h ${m}m`;
+    return `${m}m`;
+  }
+
+  function getBatteryColor(level) {
+    if (level > 0.5) return 'var(--green)';
+    if (level > 0.2) return 'var(--orange)';
+    return 'var(--red)';
+  }
+
+  function updateUI(battery) {
+    const level = battery.level;
+    const pct = Math.round(level * 100);
+    const fill = document.getElementById('battery-fill');
+    const pctEl = document.getElementById('battery-pct');
+    const stateEl = document.getElementById('charge-state');
+    const detailEl = document.getElementById('charge-detail');
+
+    fill.style.width = `calc(${pct}% - 6px)`;
+    fill.style.background = getBatteryColor(level);
+    pctEl.textContent = pct + '%';
+
+    if (battery.charging && level >= 1) {
+      stateEl.textContent=T("jtc_fully_charged");
+      stateEl.className = 'charge-state full';
+      detailEl.textContent = '';
+    } else if (battery.charging) {
+      stateEl.textContent=T("jtc_charging");
+      stateEl.className = 'charge-state charging';
+      detailEl.textContent = battery.chargingTime !== Infinity
+        ? `Full in ${formatTime(battery.chargingTime)}`
+        : 'Estimating time to full...';
+    } else {
+      stateEl.textContent=T("jtc_discharging");
+      stateEl.className = 'charge-state discharging';
+      detailEl.textContent = battery.dischargingTime !== Infinity
+        ? `${formatTime(battery.dischargingTime)} remaining`
+        : 'Estimating remaining time...';
+    }
+
+    // Info grid
+    document.getElementById('info-grid').innerHTML = [
+      { label: 'Level', value: `${pct}% (${level.toFixed(4)})` },
+      { label: 'Charging', value: battery.charging ? 'Yes' : 'No' },
+      { label: 'Charging Time', value: battery.chargingTime === Infinity ? 'Infinity' : formatTime(battery.chargingTime) },
+      { label: 'Discharging Time', value: battery.dischargingTime === Infinity ? 'Infinity' : formatTime(battery.dischargingTime) },
+    ].map(i => `<div class="info-item"><div class="label">${i.label}</div><div class="value">${i.value}</div></div>`).join('');
+
+    // Estimator
+    const estEl = document.getElementById('estimator');
+    const remaining = battery.charging ? battery.chargingTime : battery.dischargingTime;
+    estEl.innerHTML = `
+      <div class="est-card">
+        <div class="est-label">Current Level</div>
+        <div class="est-value" style="color:${getBatteryColor(level)}">${pct}%</div>
+        <div class="est-unit">of full capacity</div>
+      </div>
+      <div class="est-card">
+        <div class="est-label">${battery.charging ? 'Time to Full' : 'Time Remaining'}</div>
+        <div class="est-value">${formatTime(remaining)}</div>
+        <div class="est-unit">${battery.charging ? 'until 100%' : 'until empty'}</div>
+      </div>
+      <div class="est-card">
+        <div class="est-label">Power State</div>
+        <div class="est-value" style="font-size:1.2rem;">${battery.charging ? (level >= 1 ? 'Full' : 'Charging') : 'Battery'}</div>
+        <div class="est-unit">${battery.charging ? 'AC connected' : 'on battery power'}</div>
+      </div>
+      <div class="est-card">
+        <div class="est-label">Drain Rate</div>
+        <div class="est-value" style="font-size:1.2rem;">${!battery.charging && battery.dischargingTime !== Infinity && battery.dischargingTime > 0 ? (level / (battery.dischargingTime / 3600)).toFixed(1) + '%/h' : 'N/A'}</div>
+        <div class="est-unit">${!battery.charging ? 'estimated' : 'not discharging'}</div>
+      </div>
+    `;
+  }
+
+  function drawChart() {
+    if (!canvas || chartData.length < 2) return;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * devicePixelRatio;
+    canvas.height = rect.height * devicePixelRatio;
+    ctx.scale(devicePixelRatio, devicePixelRatio);
+    const w = rect.width;
+    const h = rect.height;
+    const pad = { top: 20, right: 20, bottom: 30, left: 50 };
+    const pw = w - pad.left - pad.right;
+    const ph = h - pad.top - pad.bottom;
+
+    ctx.clearRect(0, 0, w, h);
+
+    // Y axis grid
+    ctx.strokeStyle = '#222';
+    ctx.lineWidth = 1;
+    ctx.font = '11px monospace';
+    ctx.fillStyle = '#666';
+    for (let pct = 0; pct <= 100; pct += 25) {
+      const y = pad.top + ph - (pct / 100) * ph;
+      ctx.beginPath();
+      ctx.moveTo(pad.left, y);
+      ctx.lineTo(pad.left + pw, y);
+      ctx.stroke();
+      ctx.fillText(pct + '%', 5, y + 4);
+    }
+
+    // Data line
+    const minT = chartData[0].t;
+    const maxT = chartData[chartData.length - 1].t;
+    const timeRange = Math.max(maxT - minT, 1000);
+
+    ctx.beginPath();
+    ctx.strokeStyle = '#00cec9';
+    ctx.lineWidth = 2;
+    chartData.forEach((d, i) => {
+      const x = pad.left + ((d.t - minT) / timeRange) * pw;
+      const y = pad.top + ph - d.level * ph;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+
+    // Fill
+    ctx.lineTo(pad.left + pw, pad.top + ph);
+    ctx.lineTo(pad.left, pad.top + ph);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(0, 206, 201, 0.1)';
+    ctx.fill();
+
+    // X axis labels
+    ctx.fillStyle = '#666';
+    const totalSec = timeRange / 1000;
+    const labelCount = Math.min(5, chartData.length);
+    for (let i = 0; i < labelCount; i++) {
+      const idx = Math.floor(i * (chartData.length - 1) / (labelCount - 1));
+      const d = chartData[idx];
+      const x = pad.left + ((d.t - minT) / timeRange) * pw;
+      const label = new Date(d.t).toTimeString().slice(0, 5);
+      ctx.fillText(label, x - 15, h - 5);
+    }
+  }
+
+  navigator.getBattery().then(battery => {
+    mainContent.style.display = 'block';
+    canvas = document.getElementById('chart');
+    ctx = canvas.getContext('2d');
+
+    updateUI(battery);
+    chartData.push({ t: Date.now(), level: battery.level });
+    logEvent(`Initial: ${Math.round(battery.level * 100)}%, charging=${battery.charging}`, 'level');
+
+    battery.addEventListener('chargingchange', () => {
+      updateUI(battery);
+      logEvent(`Charging changed: ${battery.charging ? 'Started' : 'Stopped'}`, 'charging');
+    });
+
+    battery.addEventListener('levelchange', () => {
+      updateUI(battery);
+      chartData.push({ t: Date.now(), level: battery.level });
+      logEvent(`Level changed: ${Math.round(battery.level * 100)}%`, 'level');
+      drawChart();
+    });
+
+    battery.addEventListener('chargingtimechange', () => {
+      updateUI(battery);
+      logEvent(`Charging time: ${formatTime(battery.chargingTime)}`, 'time');
+    });
+
+    battery.addEventListener('dischargingtimechange', () => {
+      updateUI(battery);
+      logEvent(`Discharging time: ${formatTime(battery.dischargingTime)}`, 'time');
+    });
+
+    // Periodic chart update
+    setInterval(() => {
+      chartData.push({ t: Date.now(), level: battery.level });
+      if (chartData.length > 360) chartData.shift(); // keep ~1 hour at 10s intervals
+      drawChart();
+      updateUI(battery);
+    }, 10000);
+
+    // Initial chart draw
+    setTimeout(drawChart, 100);
+    window.addEventListener('resize', drawChart);
+  }).catch(err => {
+    document.getElementById('no-support').style.display = 'block';
+    document.getElementById('no-support').textContent=T("jtcpre_battery_api_error")+ err.message;
+  });
+})();
+</script>
+<script>var _LANG={'title_battery_status_api_playgr':["Battery Status API Playground", "Battery Status API 演练场"],'metadesc_interactive_battery_statu':["Interactive Battery Status API explorer — real-time charging state, level chart, event listeners, and power-aware patterns.", "交互式 Battery Status API 浏览器 — 实时充电状态、电量图表、事件监听器和功耗感知模式。"],'h1_battery_status_api_playgr':["Battery Status API Playground", "Battery Status API 演练场"],'h2_battery_status':["🔋 Battery Status", "🔋 电池状态"],'h2_battery_level_over_time':["📈 Battery Level Over Time", "📈 电池电量随时间变化"],'h2_event_log':["📋 Event Log", "📋 事件日志"],'h2_battery_life_estimator':["⏱️ Battery Life Estimator", "⏱️ 电池寿命估算器"],'h2_power_aware_application':["💡 Power-Aware Application Patterns", "💡 功耗感知应用模式"],'h2_device_battery_compariso':["📱 Device Battery Comparison Guide", "📱 设备电池对比指南"],'h3_reduce_polling_frequency':["Reduce Polling Frequency", "降低轮询频率"],'h3_defer_heavy_operations':["Defer Heavy Operations", "延迟重操作"],'h3_adaptive_media_quality':["Adaptive Media Quality", "自适应媒体质量"],'h3_dark_mode_activation':["Dark Mode Activation", "深色模式激活"],'h3_notification_strategy':["Notification Strategy", "通知策略"],'h3_analytics_throttling':["Analytics Throttling", "分析节流"],'th_device_type':["Device Type", "设备类型"],'th_capacity':["Capacity", "容量"],'th_web_browse':["Web Browse", "网页浏览"],'th_video_play':["Video Play", "视频播放"],'th_api_availability':["API Availability", "API 可用性"],'jtc_fully_charged':["Fully Charged", "已充满"],'jtc_charging':["Charging", "充电中"],'jtc_discharging':["Discharging", "放电中"],'jtc_battery_api_error':["Battery API error:", "Battery API 错误："],'jtcpre_battery_api_error':["Battery API error: ", "Battery API 错误："]};
+
+(function(){var L;try{L=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(L!='zh')L='en'}catch(e){L='en'}
+function T(k){var a=_LANG&&_LANG[k];return a?a[L==='zh'?1:0]:k}
+function applyLang(){
+  document.documentElement.lang=L;
+  var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+  document.querySelectorAll('[ti]').forEach(function(e){
+    var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+    e.textContent=T(k);
+  });
+  document.querySelectorAll('[tp]').forEach(function(e){
+    var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+    e.placeholder=T(k);
+  });
+  document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+}
+function sL(l){L=l;try{localStorage.setItem('_dv_lang',l)}catch(e){}applyLang()}
+if(typeof _LANG==='undefined')var _LANG={};
+applyLang();
+})();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>座位安排工具（8×8 网格）</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    #controls { margin-bottom: 10px; }
+    button { margin-right: 5px; padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; }
+    .btn-import { background: #3498db; color: #fff; }
+    .btn-shuffle { background: #2ecc71; color: #fff; }
+    .btn-name-sort { background: #f1c40f; color: #fff; }
+    .btn-reset { background: #e74c3c; color: #fff; }
+    .btn-export { background: #9b59b6; color: #fff; }
+
+    #grid {
+      display: grid;
+      grid-template-columns: repeat(8, 1fr);
+      grid-template-rows: repeat(8, 80px);
+      gap: 4px;
+    }
+    .cell {
+      border: 1px solid #ccc;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      user-select: none;
+      position: relative;
+      background: white;
+    }
+    .cell.male { background: lightblue; }
+    .cell.female { background: plum; }
+    .cell.empty { background: white; color: #999; }
+    .cell.drag-over { outline: 2px dashed #333; }
+
+    /* 座位号角标 */
+    .cell::before {
+      content: attr(data-pos);
+      position: absolute;
+      top: 2px; left: 4px;
+      font-size: 10px; color: #666;
+    }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+  <div id="controls">
+    <input type="file" id="file-input" accept=".xlsx, .xls" />
+    <button id="btn-import" class="btn-import">导入名单</button>
+    <button id="btn-shuffle" class="btn-shuffle">随机排序</button>
+    <button id="btn-name-sort" class="btn-name-sort">按姓名排序</button>
+    <button id="btn-reset" class="btn-reset">重置座位</button>
+    <button id="btn-export" class="btn-export">导出Excel</button>
+  </div>
+  <div id="grid"></div>
+
+  <script>
+    (function() {
+      let originalList = [];
+      let currentList = [];
+
+      const fileInput = document.getElementById('file-input');
+      const btnImport = document.getElementById('btn-import');
+      const btnShuffle = document.getElementById('btn-shuffle');
+      const btnSort = document.getElementById('btn-name-sort');
+      const btnReset = document.getElementById('btn-reset');
+      const btnExport = document.getElementById('btn-export');
+      const grid = document.getElementById('grid');
+
+      btnImport.addEventListener('click', () => {
+        const file = fileInput.files[0];
+        if (!file) {
+          alert('请先选择一个 Excel 文件');
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = e => {
+          const data = new Uint8Array(e.target.result);
+          const wb = XLSX.read(data, { type: 'array' });
+          const sheet = wb.Sheets[wb.SheetNames[0]];
+          const json = XLSX.utils.sheet_to_json(sheet);
+          originalList = json.map(item => ({ gender: item['性别'], name: item['姓名'] }));
+          resetSeats();
+        };
+        reader.onerror = () => {
+          alert('读取文件出错，请重试');
+        };
+        reader.readAsArrayBuffer(file);
+      });
+
+      btnShuffle.addEventListener('click', shuffleSeats);
+      btnSort.addEventListener('click', sortByName);
+      btnReset.addEventListener('click', resetSeats);
+      btnExport.addEventListener('click', exportExcel);
+
+      function renderGrid(list) {
+        grid.innerHTML = '';
+        list.forEach((stu, i) => {
+          const cell = document.createElement('div');
+          cell.className = 'cell';
+          cell.dataset.index = i;
+          cell.dataset.pos = i + 1;
+          if (!stu) {
+            cell.classList.add('empty');
+            cell.textContent = '空';
+          } else {
+            cell.classList.add(stu.gender === '男' ? 'male' : 'female');
+            cell.textContent = stu.name;
+          }
+          cell.draggable = true;
+          cell.addEventListener('dragstart', e => e.dataTransfer.setData('text/plain', i));
+          cell.addEventListener('dragover', e => { e.preventDefault(); cell.classList.add('drag-over'); });
+          cell.addEventListener('dragleave', () => cell.classList.remove('drag-over'));
+          cell.addEventListener('drop', e => {
+            e.preventDefault();
+            cell.classList.remove('drag-over');
+            const from = +e.dataTransfer.getData('text/plain');
+            const to = i;
+            [currentList[from], currentList[to]] = [currentList[to], currentList[from]];
+            renderGrid(currentList);
+          });
+          grid.appendChild(cell);
+        });
+      }
+
+      function fillTo64() {
+        while (currentList.length < 64) currentList.push(null);
+      }
+
+      function shuffleSeats() {
+        const arr = originalList.slice();
+        for (let i = arr.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        currentList = arr;
+        fillTo64();
+        renderGrid(currentList);
+      }
+
+      function sortByName() {
+        const sorted = currentList.filter(x => x).sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'));
+        currentList = sorted;
+        fillTo64();
+        renderGrid(currentList);
+      }
+
+      function resetSeats() {
+        currentList = originalList.slice();
+        fillTo64();
+        renderGrid(currentList);
+      }
+
+      function exportExcel() {
+        const wb = XLSX.utils.book_new();
+        const data = [];
+        for (let r = 0; r < 8; r++) {
+          const row = [];
+          for (let c = 0; c < 8; c++) {
+            const idx = r * 8 + c;
+            const stu = currentList[idx];
+            row.push(stu ? `${stu.name} (${stu.gender})` : '空');
+          }
+          data.push(row);
+        }
+        const ws = XLSX.utils.aoa_to_sheet(data);
+        const range = XLSX.utils.decode_range(ws['!ref']);
+        for (let R = range.s.r; R <= range.e.r; ++R) {
+          for (let C = range.s.c; C <= range.e.c; ++C) {
+            const cellRef = XLSX.utils.encode_cell({ r: R, c: C });
+            if (!ws[cellRef]) continue;
+            const txt = ws[cellRef].v;
+            ws[cellRef].s = {
+              alignment: { horizontal: 'center', vertical: 'center' },
+              font: { name: 'Arial', sz: 12 },
+              fill: { fgColor: { rgb:
+                txt === '空' ? 'FFFFFF' :
+                txt.includes('男') ? 'ADD8E6' : 'DDA0DD'
+              }}
+            };
+          }
+        }
+        XLSX.utils.book_append_sheet(wb, ws, '座位表');
+        XLSX.writeFile(wb, '座位布局.xlsx');
+      }
+
+      // 初始化
+      resetSeats();
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,60 @@
+项目根目录（htmlstars）/
+├── app.pyw              # 后端入口（Flask + 系统托盘）；提供 /api/health、/auth、/dxf、/search 等路由
+├── index.html           # 主页（已上移到根目录，非 pages/ 下）
+├── 0启动.bat / 0终止.bat # 后端启动/终止脚本
+├── 预览-前端.bat / 预览-前端.sh # 纯前端静态一键预览（自动找端口、开浏览器，无需后端依赖）
+├── README.md            # 双模运行与部署说明
+├── 项目结构.txt         # 本文件
+├── static/              # 静态资源（前端模式与后端模式共用）
+│   ├── js/
+│   │   ├── runtime.js    # 双模运行时：探测后端 / 否则加载 Pyodide（父页统一一份，iframe 复用）
+│   │   ├── index_app.js  # 主页逻辑（登录、菜单、iframe 切换）
+│   │   ├── led-design_app.js / led-design_data.js / led-design-three.js
+│   │   ├── module-padding_app.js
+│   │   ├── develop-cad/program_001~009.js
+│   │   └── ... (其他前端脚本)
+│   ├── css/             # 各页面样式
+│   ├── images/          # 图片/图标
+│   ├── data/            # users.json / menus.json / excel_search.db（登录与搜索数据）
+│   └── log/             # 运行日志
+├── pysub/               # Python 后端逻辑（前后端双模共用纯函数）
+│   ├── __init__.py
+│   ├── utils.py         # 公共工具（仅后端用到 requests 等重依赖，前端 Pyodide 不导入）
+│   ├── auth.py          # Flask 蓝图：/auth/*（后端模式）
+│   ├── dxf.py           # Flask 蓝图：/dxf（后端模式）
+│   ├── search.py        # Flask 蓝图：/search（后端模式）
+│   ├── dxf_generator.py # 生成 DXF 的核心逻辑（前后端共用）
+│   ├── profile_engine.py# 型材/截面引擎（前后端共用）
+│   └── browser_server.py# 纯 Python 版后端（无 Flask）：被 Pyodide 调用，dispatch /auth /dxf /search
+├── pages/               # 子页面（由主页以 iframe 嵌入）
+│   ├── welcome.html / settings.html / led-design.html / led-design-plus.html
+│   ├── led-design-plusA.html / led-design20260807.html / search.html
+│   ├── cabinet-layout.html / chiller_plant.html / develop-cad.html
+│   ├── material-list.html / module-padding.html / power-est.html
+│   ├── project-manage.html / steel-calc.html / FillRectangle.html
+│   └── ...（其余独立/第三方页面，引用均为相对路径）
+├── packs/               # 打包相关（PyInstaller 脚本，部署为 exe 时使用）
+│   ├── build.spec
+│   └── 1执行打包.bat
+└── 工具区/              # 独立工具集合（与双模运行无关，原样保留）
+
+【双模运行说明】
+- 后端模式：用 `python app.pyw` 启动 Flask，所有 /auth /dxf /search 由蓝图处理。
+- 前端模式（纯静态托管，如 GitHub Pages）：无后端，runtime.js 自动加载 Pyodide，
+  将 pysub/ 与 data 注入虚拟文件系统，由 pysub/browser_server.py 在浏览器内处理上述接口。
+- 父页（index.html）只加载“一份”Pyodide，并暴露在 window.__RUNTIME__ 上；
+  各 iframe 子页优先复用父页的 Pyodide（不再各自加载），单独打开子页时则自行兜底加载。
+- 前端登录为软权限：users.json 随站下发，可被下载，仅作功能分级展示，非真鉴权。
+
+【子路径部署支持】
+- 资源与接口探测均基于自动推导的 BASE（如 GitHub Pages 的 /repo/），
+  故可部署在子路径下；部署在根路径同样正常。
+
+【打包说明】
+打包过程约需几分钟，完成后在 dist/ 生成 LEDDesignTool.exe 及依赖的 .dll/.pyd（单文件夹模式）。
+若需真正单一 exe，可在 .spec 中将 EXE 设为 onefile=True，或用：
+  pyinstaller --onefile --add-data "index.html;." --add-data "pages;pages" --add-data "static;static" \
+    --hidden-import=dxf_generator --hidden-import=profile_engine \
+    --hidden-import=ezdxf.bbox --hidden-import=ezdxf.addons.drawing \
+    --hidden-import=matplotlib.backends.backend_pdf --hidden-import=matplotlib.pyplot \
+    --name=LEDDesignTool --noconsole app.pyw

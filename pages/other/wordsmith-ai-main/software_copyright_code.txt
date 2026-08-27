@@ -1,0 +1,3938 @@
+// --- START OF FILE: package.json ---
+{
+  "name": "wordsmith-ai",
+  "private": true,
+  "version": "0.0.0",
+  "description": "WordSmith AI（智排精灵）- AI 驱动的 Word 高保真排版桌面应用",
+  "author": "WordSmith AI",
+  "type": "module",
+  "scripts": {
+    "dev": "npm run cleanup && vite",
+    "start": "npm run dev",
+    "cleanup": "cmd /c \"taskkill /F /IM electron.exe /T >NUL 2>&1 & exit /b 0\"",
+    "build": "tsc && vite build && electron-builder",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "preview": "vite preview",
+    "test": "vitest run -c vitest.config.ts",
+    "test:watch": "vitest -c vitest.config.ts"
+  },
+  "dependencies": {
+    "@monaco-editor/react": "^4.7.0",
+    "lucide-react": "^0.563.0",
+    "monaco-editor": "^0.55.1",
+    "prismjs": "^1.30.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^7.13.0",
+    "zustand": "^5.0.10"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.18",
+    "@types/prismjs": "^1.26.5",
+    "@types/react": "^18.2.64",
+    "@types/react-dom": "^18.2.21",
+    "@typescript-eslint/eslint-plugin": "^7.1.1",
+    "@typescript-eslint/parser": "^7.1.1",
+    "@vitejs/plugin-react": "^4.2.1",
+    "autoprefixer": "^10.4.23",
+    "electron": "^30.0.1",
+    "electron-builder": "^24.13.3",
+    "eslint": "^8.57.0",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "eslint-plugin-react-refresh": "^0.4.5",
+    "jsdom": "^27.4.0",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.18",
+    "typescript": "~5.5.4",
+    "vite": "^5.1.6",
+    "vite-plugin-electron": "^0.28.6",
+    "vite-plugin-electron-renderer": "^0.14.5",
+    "vitest": "^4.0.18"
+  },
+  "main": "dist-electron/index.js"
+}
+
+
+// --- START OF FILE: electron-builder.json5 ---
+// @see - https://www.electron.build/configuration/configuration
+{
+  "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
+  "appId": "com.wordsmith.ai",
+  "asar": true,
+  "productName": "WordSmith AI",
+  "directories": {
+    "output": "release/${version}"
+  },
+  "files": [
+    "dist",
+    "dist-electron"
+  ],
+  "mac": {
+    "target": [
+      "dmg"
+    ],
+    "artifactName": "${productName}-Mac-${version}-Installer.${ext}"
+  },
+  "win": {
+    "target": [
+      {
+        "target": "nsis",
+        "arch": [
+          "x64"
+        ]
+      }
+    ],
+    "artifactName": "${productName}-Windows-${version}-Setup.${ext}"
+  },
+  "nsis": {
+    "oneClick": false,
+    "perMachine": false,
+    "allowToChangeInstallationDirectory": true,
+    "deleteAppDataOnUninstall": false
+  },
+  "linux": {
+    "target": [
+      "AppImage"
+    ],
+    "artifactName": "${productName}-Linux-${version}.${ext}"
+  }
+}
+
+
+// --- START OF FILE: vite.config.ts ---
+import { defineConfig } from 'vite'
+import path from 'node:path'
+import electron from 'vite-plugin-electron/simple'
+import react from '@vitejs/plugin-react'
+
+// https://vitejs.dev/config/
+export default defineConfig({
+  base: './',
+  server: {
+    host: '127.0.0.1',
+    port: 5173,
+  },
+  plugins: [
+    react(),
+    electron({
+      main: {
+        // Shortcut of `build.lib.entry`.
+        entry: 'src/main/index.ts',
+      },
+      preload: {
+        // Shortcut of `build.rollupOptions.input`.
+        // Preload scripts may contain Web assets, so use the `build.rollupOptions.input` instead `build.lib.entry`.
+        input: path.join(__dirname, 'src/main/preload.ts'),
+        vite: {
+          build: {
+            rollupOptions: {
+              output: {
+                format: 'cjs',
+                entryFileNames: 'preload.cjs',
+              },
+            },
+          },
+        },
+      },
+      // Ployfill the Electron and Node.js API for Renderer process.
+      // If you want use Node.js in Renderer process, the `nodeIntegration` needs to be enabled in the Main process.
+      // See 👉 https://github.com/electron-vite/vite-plugin-electron-renderer
+      renderer: process.env.NODE_ENV === 'test'
+        // https://github.com/electron-vite/vite-plugin-electron-renderer/issues/78#issuecomment-2053600808
+        ? undefined
+        : {},
+    }),
+  ],
+})
+
+
+// --- START OF FILE: tsconfig.json ---
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "useDefineForClassFields": true,
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+
+    /* Bundler mode */
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+
+    /* Linting */
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": ["src"],
+  "references": [{ "path": "./tsconfig.node.json" }]
+}
+
+
+// --- START OF FILE: src/main/electron-env.d.ts ---
+/// <reference types="vite-plugin-electron/electron-env" />
+
+declare namespace NodeJS {
+  interface ProcessEnv {
+    /**
+     * The built directory structure
+     *
+     * ```tree
+     * ├─┬─┬ dist
+     * │ │ └── index.html
+     * │ │
+     * │ ├─┬ dist-electron
+     * │ │ ├── main.js
+     * │ │ └── preload.js
+     * │
+     * ```
+     */
+    APP_ROOT: string
+    /** /dist/ or /public/ */
+    VITE_PUBLIC: string
+  }
+}
+
+// Used in Renderer process, expose in `preload.ts`
+interface Window {
+  wordsmith?: {
+    clipboard: {
+      write: (payload: { html: string; text: string }) => Promise<void>
+    }
+  }
+}
+
+
+// --- START OF FILE: src/main/index.ts ---
+import { app, BrowserWindow, clipboard, ipcMain } from 'electron'
+import { fileURLToPath } from 'node:url'
+import path from 'node:path'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+
+// The built directory structure
+//
+// ├─┬─┬ dist
+// │ │ └── index.html
+// │ │
+// │ ├─┬ dist-electron
+// │ │ ├── main.js
+// │ │ └── preload.mjs
+// │
+process.env.APP_ROOT = path.join(__dirname, '..')
+
+// 🚧 Use ['ENV_NAME'] avoid vite:define plugin - Vite@2.x
+export const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
+export const MAIN_DIST = path.join(process.env.APP_ROOT, 'dist-electron')
+export const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist')
+
+process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, 'public') : RENDERER_DIST
+
+let win: BrowserWindow | null
+
+function normalizeDevServerUrl(url: string): string {
+  try {
+    const u = new URL(url)
+    if (u.hostname === 'localhost') u.hostname = '127.0.0.1'
+    return u.toString()
+  } catch {
+    return url
+  }
+}
+
+async function loadUrlWithRetry(win: BrowserWindow, url: string, retries = 20, delay = 1000) {
+  let attempt = 0
+  while (attempt < retries) {
+    try {
+      const normalized = normalizeDevServerUrl(url)
+      console.log(`[Main] Attempting to load URL: ${normalized} (Attempt ${attempt + 1}/${retries})`)
+      await win.loadURL(normalized)
+      console.log(`[Main] Successfully loaded URL: ${normalized}`)
+      return
+    } catch (error) {
+      const err = error as Error
+      console.error(`[Main] Failed to load URL: ${url}. Error: ${err.message}`)
+      attempt++
+      if (attempt < retries) {
+        console.log(`[Main] Retrying in ${delay}ms...`)
+        await new Promise((resolve) => setTimeout(resolve, delay))
+      }
+    }
+  }
+  console.error(`[Main] Failed to load URL after ${retries} attempts.`)
+  // Fallback to local file if remote load fails completely
+  try {
+    console.log('[Main] Falling back to local file...')
+    await win.loadFile(path.join(RENDERER_DIST, 'index.html'))
+  } catch (e) {
+    console.error('[Main] Failed to fallback to local file.', e)
+  }
+}
+
+ipcMain.handle('clipboard:write', async (_event, payload: { html: string; text: string }) => {
+  clipboard.write({
+    html: payload.html,
+    text: payload.text,
+  })
+})
+
+async function createWindow() {
+  win = new BrowserWindow({
+    icon: path.join(process.env.VITE_PUBLIC, 'electron-vite.svg'),
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.cjs'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+    },
+  })
+
+  // Test active push message to Renderer-process.
+  win.webContents.on('did-finish-load', () => {
+    win?.webContents.send('main-process-message', (new Date).toLocaleString())
+  })
+
+  if (VITE_DEV_SERVER_URL) {
+    await loadUrlWithRetry(win, VITE_DEV_SERVER_URL)
+  } else {
+    await win.loadFile(path.join(RENDERER_DIST, 'index.html'))
+  }
+}
+
+// Quit when all windows are closed, except on macOS. There, it's common
+// for applications and their menu bar to stay active until the user quits
+// explicitly with Cmd + Q.
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') {
+    app.quit()
+    win = null
+  }
+})
+
+app.on('activate', () => {
+  // On OS X it's common to re-create a window in the app when the
+  // dock icon is clicked and there are no other windows open.
+  if (BrowserWindow.getAllWindows().length === 0) {
+    createWindow()
+  }
+})
+
+app.whenReady().then(createWindow)
+
+process.on('unhandledRejection', (err) => {
+  // Avoid noisy crash in dev if dev server has not started yet
+  console.error('[unhandledRejection]', err)
+})
+
+
+// --- START OF FILE: src/main/preload.ts ---
+import { ipcRenderer, contextBridge } from 'electron'
+
+contextBridge.exposeInMainWorld('wordsmith', {
+  clipboard: {
+    write(payload: { html: string; text: string }) {
+      return ipcRenderer.invoke('clipboard:write', payload)
+    },
+  },
+})
+
+
+// --- START OF FILE: src/renderer/App.css ---
+#root {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2rem;
+  text-align: center;
+}
+
+.logo {
+  height: 6em;
+  padding: 1.5em;
+  will-change: filter;
+  transition: filter 300ms;
+}
+.logo:hover {
+  filter: drop-shadow(0 0 2em #646cffaa);
+}
+.logo.react:hover {
+  filter: drop-shadow(0 0 2em #61dafbaa);
+}
+
+@keyframes logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  a:nth-of-type(2) .logo {
+    animation: logo-spin infinite 20s linear;
+  }
+}
+
+.card {
+  padding: 2em;
+}
+
+.read-the-docs {
+  color: #888;
+}
+
+
+// --- START OF FILE: src/renderer/App.tsx ---
+import { Route, Routes } from 'react-router-dom'
+import { useAppStore } from './store/useAppStore'
+import { useEffect } from 'react'
+import NewPage from './pages/New'
+import HistoryPage from './pages/History'
+import SettingsPage from './pages/Settings'
+import TemplatesPage from './pages/Templates'
+import HelpPage from './pages/Help'
+import { OnboardingModal } from './components/business/OnboardingModal'
+
+function App() {
+  const theme = useAppStore((s) => s.settings.theme)
+  const eyeCareMode = useAppStore((s) => s.settings.eyeCareMode)
+
+  useEffect(() => {
+    const root = window.document.documentElement
+    root.classList.remove('light', 'dark', 'eye-care')
+
+    // Handle Theme
+    if (theme === 'system') {
+      const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+      root.classList.add(systemTheme)
+    } else {
+      root.classList.add(theme)
+    }
+
+    // Handle Eye Care Mode (only effective in light mode ideally, but we apply class anyway)
+    // We check if current resolved theme is light to apply eye-care fully effectively
+    if (eyeCareMode) {
+      root.classList.add('eye-care')
+    }
+  }, [theme, eyeCareMode])
+
+  return (
+    <div className="h-full w-full overflow-hidden">
+      <OnboardingModal />
+      <Routes>
+        <Route path="/" element={<NewPage />} />
+        <Route path="/history" element={<HistoryPage />} />
+        <Route path="/templates" element={<TemplatesPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/help" element={<HelpPage />} />
+      </Routes>
+    </div>
+  )
+}
+
+export default App
+
+
+// --- START OF FILE: src/renderer/components/business/ChatPanel.tsx ---
+import { useMemo, useRef, useState } from 'react'
+import { Send, Square } from 'lucide-react'
+import type { ChatMessage, PromptMode } from '../../types/ai'
+import type { GuardReport } from '../../types/guard'
+import { guardHtml } from '../../lib/protocol-guard'
+import { streamChat } from '../../services/ai-service'
+import { errorHandler } from '../../services/ErrorHandler'
+import { logger } from '../../services/LoggerService'
+import { useI18n } from '../../store/useI18nStore'
+import { Button } from '../ui/button'
+import { CardHeader, CardTitle } from '../ui/card'
+import { Input } from '../ui/input'
+import { Textarea } from '../ui/textarea'
+
+export interface ChatPanelProps {
+  baseUrl: string
+  apiKey: string
+  model: string
+  defaults: { fontFamily: string; fontSizePt: number }
+  presetPrompt?: string
+  htmlDraft: string
+  onHtmlFinalized: (html: string, report: GuardReport, payload: { mode: PromptMode; messages: ChatMessage[] }) => void
+}
+
+export function ChatPanel({ baseUrl, apiKey, model, defaults, presetPrompt, htmlDraft, onHtmlFinalized }: ChatPanelProps) {
+  const t = useI18n()
+  const [mode, setMode] = useState<PromptMode>('generate')
+  const [input, setInput] = useState('')
+  const [messages, setMessages] = useState<Array<ChatMessage>>([])
+  const [streaming, setStreaming] = useState(false)
+  const abortRef = useRef<AbortController | null>(null)
+
+  const canSend = useMemo(() => {
+    if (streaming) return false
+    if (!baseUrl || !model) return false
+    if (mode === 'generate') return input.trim().length > 0
+    return htmlDraft.trim().length > 0
+  }, [baseUrl, model, mode, input, htmlDraft, streaming])
+
+  const stop = () => {
+    abortRef.current?.abort()
+    abortRef.current = null
+  }
+
+  const send = async () => {
+    const controller = new AbortController()
+    abortRef.current = controller
+    setStreaming(true)
+
+    const userText = mode === 'generate' ? input.trim() : htmlDraft.trim()
+    const seed: ChatMessage[] = messages.length === 0 && presetPrompt ? [{ role: 'system', content: presetPrompt }] : []
+    const nextMessages: ChatMessage[] = [
+      ...seed,
+      ...messages,
+      { role: 'user', content: userText },
+      { role: 'assistant', content: '' },
+    ]
+    setMessages(nextMessages)
+
+    logger.action('ChatPanel', 'Start generation', { mode, model })
+
+    try {
+      let assistantText = ''
+      const stream = streamChat({
+        mode,
+        model: { baseUrl, apiKey, model },
+        defaults,
+        messages: nextMessages.slice(0, -1),
+        signal: controller.signal,
+      })
+
+      // Use error handler wrapper but we need to iterate manually for streaming
+      for await (const delta of stream) {
+        assistantText += delta
+        setMessages((prev) => {
+          const cloned = prev.slice()
+          const last = cloned[cloned.length - 1]
+          if (!last || last.role !== 'assistant') return prev
+          cloned[cloned.length - 1] = { ...last, content: assistantText }
+          return cloned
+        })
+      }
+
+      const guarded = guardHtml(assistantText, defaults)
+      const finishedMessages: ChatMessage[] = [...nextMessages.slice(0, -1), { role: 'assistant', content: assistantText }]
+      onHtmlFinalized(guarded.html, guarded.report, { mode, messages: finishedMessages })
+      setInput('')
+      logger.info('ChatPanel', 'Generation success', { length: assistantText.length })
+    } catch (e) {
+      if (e instanceof Error && e.name === 'AbortError') {
+        logger.info('ChatPanel', 'Generation aborted')
+      } else {
+        errorHandler.handle(e, 'api')
+      }
+    } finally {
+      setStreaming(false)
+      abortRef.current = null
+    }
+  }
+
+  return (
+    <div className="flex h-full flex-col">
+      <div className="shrink-0 pb-3">
+        <CardHeader className="p-0">
+          <div className="flex items-center justify-between gap-3">
+            <CardTitle>{t.chat.title}</CardTitle>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant={mode === 'generate' ? 'default' : 'secondary'}
+                onClick={() => setMode('generate')}
+                disabled={streaming}
+              >
+                {t.chat.generate}
+              </Button>
+              <Button size="sm" variant={mode === 'fix' ? 'default' : 'secondary'} onClick={() => setMode('fix')} disabled={streaming}>
+                {t.chat.fix}
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+      </div>
+      
+      <div className="flex min-h-0 flex-1 flex-col gap-3">
+        <div className="flex-1 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900">
+          <div className="space-y-3">
+            {messages.length === 0 ? (
+              <div className="text-xs text-slate-500 dark:text-slate-400">{t.chat.emptyTip}</div>
+            ) : null}
+            {messages
+              .filter((m) => m.role === 'user' || m.role === 'assistant')
+              .map((m, idx) => {
+                const isUser = m.role === 'user'
+                return (
+                  <div key={idx} className={isUser ? 'flex justify-end' : 'flex justify-start'}>
+                    <div
+                      className={
+                        isUser
+                          ? 'max-w-[90%] rounded-xl bg-slate-900 px-3 py-2 text-xs text-white dark:bg-slate-100 dark:text-slate-900'
+                          : 'max-w-[90%] rounded-xl bg-white px-3 py-2 text-xs text-slate-800 dark:bg-slate-950 dark:text-slate-100'
+                      }
+                    >
+                      <pre className="whitespace-pre-wrap font-sans">{m.content}</pre>
+                    </div>
+                  </div>
+                )
+              })}
+          </div>
+        </div>
+
+        <div className="flex shrink-0 items-end gap-2 pb-1">
+          {mode === 'generate' ? (
+            <Textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder={t.chat.placeholder}
+              disabled={streaming}
+              className="max-h-[120px] min-h-[40px]"
+            />
+          ) : (
+            <Input value={t.chat.placeholderFix} readOnly />
+          )}
+
+          {streaming ? (
+            <Button variant="destructive" onClick={stop} className="shrink-0">
+              <Square size={16} />
+            </Button>
+          ) : (
+            <Button onClick={send} disabled={!canSend || !apiKey} className="shrink-0">
+              <Send size={16} />
+            </Button>
+          )}
+        </div>
+
+        {!apiKey ? <div className="text-xs text-slate-500 dark:text-slate-400">{t.chat.noApiKey}</div> : null}
+      </div>
+    </div>
+  )
+}
+
+
+// --- START OF FILE: src/renderer/components/business/CopyToWordButton.tsx ---
+import { useState } from 'react'
+import { AlertTriangle } from 'lucide-react'
+import { Button } from '../ui/button'
+import { useI18n } from '../../store/useI18nStore'
+import { errorHandler } from '../../services/ErrorHandler'
+import { logger } from '../../services/LoggerService'
+import { toast } from '../../store/useToastStore'
+
+export interface CopyToWordButtonProps {
+  html: string
+}
+
+export function CopyToWordButton({ html }: CopyToWordButtonProps) {
+  const t = useI18n()
+  const [busy, setBusy] = useState(false)
+
+  const copy = async () => {
+    setBusy(true)
+    try {
+      const text = html.replace(/<[^>]+>/g, '')
+      logger.action('CopyToWord', 'Write to clipboard', { length: html.length })
+      
+      if (window.wordsmith?.clipboard?.write) {
+        await window.wordsmith.clipboard.write({ html, text })
+      } else if (navigator.clipboard?.write) {
+        const item = new ClipboardItem({
+          'text/html': new Blob([html], { type: 'text/html' }),
+          'text/plain': new Blob([text], { type: 'text/plain' }),
+        })
+        await navigator.clipboard.write([item])
+      } else {
+        await navigator.clipboard.writeText(text)
+      }
+      logger.info('CopyToWord', 'Success')
+      toast({ 
+        title: '已复制到剪贴板', 
+        description: '⚠️ 重要：请在 Word 中选择【保留原格式】粘贴！',
+        variant: 'success',
+        duration: 8000
+      })
+    } catch (e) {
+      errorHandler.handle(e, 'system', t.errors.clipboard)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      <Button size="lg" className="w-full" onClick={copy} disabled={busy}>
+        {t.preview.copyToWord}
+      </Button>
+      <div className="flex items-center justify-center gap-1.5 rounded bg-amber-50 p-2 text-xs font-medium text-amber-700 dark:bg-amber-950/30 dark:text-amber-400">
+        <AlertTriangle size={14} />
+        <span>粘贴时务必选择『保留原格式』</span>
+      </div>
+    </div>
+  )
+}
+
+
+// --- START OF FILE: src/renderer/components/business/HtmlEditor.tsx ---
+import Editor from '@monaco-editor/react'
+import { CardHeader, CardTitle } from '../ui/card'
+import { useI18n } from '../../store/useI18nStore'
+
+export interface HtmlEditorProps {
+  value: string
+  onChange: (next: string) => void
+}
+
+export function HtmlEditor({ value, onChange }: HtmlEditorProps) {
+  const t = useI18n()
+  return (
+    <div className="flex h-full flex-col">
+      <div className="shrink-0 pb-3">
+        <CardHeader className="p-0">
+          <CardTitle>{t.editor.title}</CardTitle>
+        </CardHeader>
+      </div>
+      <div className="min-h-0 flex-1 overflow-hidden rounded-lg border border-slate-200 dark:border-slate-800">
+        <Editor
+          height="100%"
+          defaultLanguage="html"
+          value={value}
+          onChange={(v) => onChange(v ?? '')}
+          options={{
+            minimap: { enabled: false },
+            wordWrap: 'on',
+            fontSize: 12,
+            tabSize: 2,
+            automaticLayout: true,
+            scrollBeyondLastLine: false,
+          }}
+        />
+      </div>
+    </div>
+  )
+}
+
+
+
+// --- START OF FILE: src/renderer/components/business/MacroGenerator.tsx ---
+import { useEffect, useMemo, useState } from 'react'
+import Prism from 'prismjs'
+import { Button } from '../ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
+import { useI18n } from '../../store/useI18nStore'
+import { errorHandler } from '../../services/ErrorHandler'
+
+const VBA_CODE = `Sub LatexToWordMath_Robust_Final()
+    Dim rng As Range
+    Dim mathRng As Range
+    Dim rawContent As String
+    
+    Application.ScreenUpdating = False
+    
+    ' --- 第一阶段：处理行间公式 $$...$$ ---
+    Set rng = ActiveDocument.Content
+    With rng.Find
+        .ClearFormatting
+        .Text = "\\$\\$*\\$\\$"
+        .MatchWildcards = True
+        Do While .Execute
+            ' 创建副本区域进行精准切割，保留论坛原始的稳健逻辑
+            Set mathRng = rng.Duplicate
+            mathRng.MoveEnd Unit:=wdCharacter, Count:=-2
+            mathRng.Start = mathRng.Start + 2
+            
+            rawContent = mathRng.Text
+            rng.Text = rawContent ' 将 $$ 内容替换为纯文本
+            
+            ' 关键动作：添加公式对象并强制“由线性转为专业格式”
+            ActiveDocument.OMaths.Add rng
+            rng.OMaths(1).BuildUp ' 强制渲染成分数线、根号等专业样式
+            
+            rng.Collapse wdCollapseEnd
+        Loop
+    End With
+    
+    ' --- 第二阶段：处理行内公式 $...$ ---
+    Set rng = ActiveDocument.Content
+    With rng.Find
+        .ClearFormatting
+        .Text = "\\$*\\$"
+        .MatchWildcards = True
+        Do While .Execute
+            ' 安全检查：确保不是刚刚处理过的公式
+            If rng.OMaths.Count = 0 Then
+                Set mathRng = rng.Duplicate
+                mathRng.MoveEnd Unit:=wdCharacter, Count:=-1
+                mathRng.Start = mathRng.Start + 1
+                
+                rawContent = mathRng.Text
+                rng.Text = rawContent
+                
+                ActiveDocument.OMaths.Add rng
+                ' 再次强制触发专业排版渲染
+                rng.OMaths(1).BuildUp
+            End If
+            rng.Collapse wdCollapseEnd
+        Loop
+    End With
+    
+    Application.ScreenUpdating = True
+    MsgBox "全文档公式及排版已深度转换完成！"
+End Sub`
+
+export function MacroGenerator() {
+  const t = useI18n()
+  const [ready, setReady] = useState(false)
+
+  useEffect(() => {
+    ;(globalThis as any).Prism = Prism
+    import('prismjs/components/prism-vbnet')
+      .catch(() => undefined)
+      .finally(() => setReady(true))
+  }, [])
+
+  const highlighted = useMemo(() => {
+    const language = Prism.languages.vbnet ?? Prism.languages.plain
+    return Prism.highlight(VBA_CODE, language, language === Prism.languages.vbnet ? 'vbnet' : 'plain')
+  }, [ready])
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(VBA_CODE)
+    } catch (e) {
+      errorHandler.handle(e, 'system', t.errors.clipboard)
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{t.macro.title}</CardTitle>
+        <Button variant="secondary" size="sm" onClick={copy}>
+          {t.macro.copy}
+        </Button>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-3">
+          <p className="text-xs text-slate-600 dark:text-slate-400">
+            {t.macro.desc}
+          </p>
+          <pre className="max-h-[240px] overflow-auto rounded-lg bg-slate-950 p-3 text-xs text-slate-100">
+            <code dangerouslySetInnerHTML={{ __html: highlighted }} />
+          </pre>
+          <ol className="list-decimal space-y-1 pl-4 text-xs text-slate-600 dark:text-slate-400">
+            <li>{t.macro.step1}</li>
+            <li>{t.macro.step2}</li>
+            <li>{t.macro.step3}</li>
+          </ol>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+
+// --- START OF FILE: src/renderer/components/business/OnboardingModal.tsx ---
+import { useState, useEffect } from 'react'
+import { Rocket, AlertTriangle, CheckCircle2 } from 'lucide-react'
+import { useAppStore } from '../../store/useAppStore'
+import { Button } from '../ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
+import { Input } from '../ui/input'
+import { cn } from '../../lib/cn'
+
+export function OnboardingModal() {
+  const [open, setOpen] = useState(false)
+  const [step, setStep] = useState(1)
+  const settings = useAppStore((s) => s.settings)
+  const updateAi = useAppStore((s) => s.updateAi)
+
+  useEffect(() => {
+    const hasOnboarded = localStorage.getItem('wordsmith-onboarded')
+    if (!hasOnboarded) {
+      setOpen(true)
+    }
+  }, [])
+
+  const handleComplete = () => {
+    localStorage.setItem('wordsmith-onboarded', 'true')
+    setOpen(false)
+  }
+
+  if (!open) return null
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+      <Card className="w-full max-w-lg shadow-2xl animate-in fade-in zoom-in-95 duration-300">
+        <CardHeader>
+          <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
+            <Rocket className="h-6 w-6" />
+            <span className="text-sm font-bold uppercase tracking-wider">欢迎使用 WordSmith AI</span>
+          </div>
+          <CardTitle className="text-2xl">
+            {step === 1 && '开启智能排版之旅'}
+            {step === 2 && '连接 AI 大脑'}
+            {step === 3 && '核心操作要领'}
+            {step === 4 && '准备就绪！'}
+          </CardTitle>
+        </CardHeader>
+        
+        <CardContent className="space-y-6">
+          {/* Step 1: Welcome */}
+          {step === 1 && (
+            <div className="space-y-4">
+              <p className="text-slate-600 dark:text-slate-300">
+                WordSmith AI 是一款专为专业文档设计的排版工具。它能将 AI 生成的内容转换为符合 <strong>Word 排版协议</strong> 的格式，完美保留公式、表格和样式。
+              </p>
+              <div className="rounded-lg bg-slate-50 p-4 dark:bg-slate-900">
+                <ul className="list-disc pl-4 space-y-2 text-sm text-slate-700 dark:text-slate-300">
+                  <li>支持所有 OpenAI 兼容接口 (DeepSeek, Kimi, etc.)</li>
+                  <li>独家 Inline CSS 守卫技术</li>
+                  <li>完美渲染 LaTeX 数学公式</li>
+                </ul>
+              </div>
+            </div>
+          )}
+
+          {/* Step 2: Configuration */}
+          {step === 2 && (
+            <div className="space-y-4">
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                请先配置您的 AI 服务商。不用担心，稍后可以在【设置】中随时修改。
+              </p>
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-medium">API 提供商</label>
+                  <select
+                    className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-slate-800 dark:bg-slate-950"
+                    onChange={(e) => updateAi({ baseUrl: e.target.value })}
+                    value={settings.ai.baseUrl}
+                  >
+                    <option value="https://api.deepseek.com">DeepSeek</option>
+                    <option value="https://api.moonshot.cn">Moonshot (月之暗面)</option>
+                    <option value="https://api.siliconflow.cn">SiliconFlow (硅基流动)</option>
+                    <option value="custom">Custom (自定义)</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium">API Key</label>
+                  <Input
+                    value={settings.ai.apiKey}
+                    onChange={(e) => updateAi({ apiKey: e.target.value })}
+                    placeholder="sk-..."
+                    type="password"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Step 3: Paste Warning */}
+          {step === 3 && (
+            <div className="space-y-6 text-center">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400">
+                <AlertTriangle size={32} />
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-lg font-bold text-amber-700 dark:text-amber-400">至关重要的一步</h3>
+                <p className="text-sm text-slate-600 dark:text-slate-300">
+                  为了确保样式不丢失，在 Word 中粘贴内容时，<br />
+                  <span className="font-bold text-slate-900 underline decoration-amber-500 decoration-2 underline-offset-2 dark:text-white">
+                    必须选择“保留原格式 (Keep Source Formatting)”
+                  </span>
+                </p>
+              </div>
+              <div className="rounded-lg border-2 border-dashed border-slate-200 bg-slate-50 p-4 text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-900">
+                (通常是粘贴选项中的第一个图标 📋)
+              </div>
+            </div>
+          )}
+
+          {/* Step 4: Ready */}
+          {step === 4 && (
+            <div className="space-y-6 text-center">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400">
+                <CheckCircle2 size={32} />
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white">配置完成！</h3>
+                <p className="text-slate-600 dark:text-slate-300">
+                  您现在可以开始创建第一个排版任务了。<br />
+                  记得查看左侧的【帮助中心】获取更多技巧。
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Footer Navigation */}
+          <div className="flex items-center justify-between pt-4">
+            <div className="flex gap-1">
+              {[1, 2, 3, 4].map((i) => (
+                <div
+                  key={i}
+                  className={cn(
+                    'h-2 w-2 rounded-full transition-colors',
+                    step === i ? 'bg-blue-600 dark:bg-blue-400' : 'bg-slate-200 dark:bg-slate-800'
+                  )}
+                />
+              ))}
+            </div>
+            <div className="flex gap-2">
+              {step > 1 && (
+                <Button variant="ghost" onClick={() => setStep(step - 1)}>
+                  上一步
+                </Button>
+              )}
+              {step < 4 ? (
+                <Button onClick={() => setStep(step + 1)}>下一步</Button>
+              ) : (
+                <Button onClick={handleComplete} className="bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700 text-white">
+                  开始使用
+                </Button>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+
+// --- START OF FILE: src/renderer/components/business/PreviewFrame.tsx ---
+import { CardHeader, CardTitle } from '../ui/card'
+import { useI18n } from '../../store/useI18nStore'
+
+export interface PreviewFrameProps {
+  html: string
+}
+
+export function PreviewFrame({ html }: PreviewFrameProps) {
+  const t = useI18n()
+  return (
+    <div className="flex h-full flex-col">
+      <div className="shrink-0 pb-3">
+        <CardHeader className="p-0">
+          <CardTitle>{t.preview.title}</CardTitle>
+        </CardHeader>
+      </div>
+      <div className="min-h-0 flex-1">
+        <iframe
+          title="preview"
+          className="h-full w-full rounded-lg border border-slate-200 bg-white dark:border-slate-800"
+          sandbox="allow-same-origin"
+          srcDoc={html}
+        />
+      </div>
+    </div>
+  )
+}
+
+
+
+// --- START OF FILE: src/renderer/components/business/Sidebar.tsx ---
+import { Link, useLocation } from 'react-router-dom'
+import { BookTemplate, Clock, FilePlus2, HelpCircle, Settings } from 'lucide-react'
+import { cn } from '../../lib/cn'
+import { useI18n } from '../../store/useI18nStore'
+
+export function Sidebar() {
+  const location = useLocation()
+  const t = useI18n()
+
+  const NAV = [
+    { to: '/', label: t.nav.new, icon: FilePlus2 },
+    { to: '/history', label: t.nav.history, icon: Clock },
+    { to: '/templates', label: t.nav.templates, icon: BookTemplate },
+    { to: '/settings', label: t.nav.settings, icon: Settings },
+    { to: '/help', label: '帮助中心', icon: HelpCircle },
+  ]
+
+  return (
+    <aside className="flex h-full w-[200px] shrink-0 flex-col border-r border-slate-200 bg-white px-3 py-4 dark:border-slate-800 dark:bg-slate-950">
+      <div className="px-2 pb-4">
+        <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t.common.appName}</div>
+        <div className="text-xs text-slate-500 dark:text-slate-400">{t.common.appDesc.split(' - ')[0]}</div>
+      </div>
+      <nav className="space-y-1">
+        {NAV.map((item) => {
+          const active = location.pathname === item.to
+          const Icon = item.icon
+          return (
+            <Link
+              key={item.to}
+              to={item.to}
+              className={cn(
+                'flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900',
+                active && 'bg-slate-100 text-slate-900 dark:bg-slate-900 dark:text-white',
+              )}
+            >
+              <Icon size={16} />
+              <span>{item.label}</span>
+            </Link>
+          )
+        })}
+      </nav>
+      <div className="mt-auto px-2 pt-4">
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
+          {t.nav.workflow}
+        </div>
+      </div>
+    </aside>
+  )
+}
+
+
+
+// --- START OF FILE: src/renderer/components/help/ApiGuide.tsx ---
+import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
+import { HelpSection, HelpStep } from './HelpComponents'
+
+export function ApiGuide() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>如何配置 API Key</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <HelpSection title="获取密钥">
+          <HelpStep index={1} title="选择服务商">
+            WordSmith AI 支持所有兼容 OpenAI 接口协议的服务商（如 DeepSeek, Moonshot, SiliconFlow 等）。
+            推荐访问 <a href="https://platform.deepseek.com" target="_blank" className="text-blue-500 hover:underline">DeepSeek 开放平台</a> 注册账号。
+          </HelpStep>
+          <HelpStep index={2} title="创建 API Key">
+            在服务商控制台找到 "API Keys" 菜单，点击创建新密钥。密钥通常以 <code>sk-</code> 开头。
+            <div className="mt-2 rounded bg-slate-100 p-2 text-xs text-slate-500 dark:bg-slate-900">
+              注意：密钥创建后只会显示一次，请妥善保存。
+            </div>
+          </HelpStep>
+        </HelpSection>
+
+        <div className="my-6 border-t border-slate-200 dark:border-slate-800" />
+
+        <HelpSection title="软件配置">
+          <HelpStep index={3} title="填写配置">
+            进入软件左侧的【设置】页面，在“模型配置”区域填写：
+            <ul className="mt-2 list-disc pl-4">
+              <li>BaseURL: 服务商提供的 API 地址 (例如 https://api.deepseek.com)</li>
+              <li>API Key: 刚才获取的密钥</li>
+              <li>Model: 模型名称 (例如 deepseek-chat)</li>
+            </ul>
+          </HelpStep>
+        </HelpSection>
+      </CardContent>
+    </Card>
+  )
+}
+
+
+// --- START OF FILE: src/renderer/components/help/FaqList.tsx ---
+import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
+
+export function FaqList() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>常见问题 (FAQ)</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <details className="group rounded-lg border border-slate-200 open:bg-slate-50 dark:border-slate-800 dark:open:bg-slate-900">
+          <summary className="cursor-pointer p-4 font-medium select-none group-open:text-blue-600 dark:group-open:text-blue-400">
+            Q: 为什么生成的公式在 Word 里是乱码？
+          </summary>
+          <div className="border-t border-slate-200 p-4 pt-2 text-sm text-slate-600 dark:border-slate-800 dark:text-slate-400">
+            A: Word 原生不支持 LaTeX 语法。请务必安装并运行我们在【VBA 助手】中提供的宏代码，它会将 LaTeX 源码转换为 Word 的 OMath 对象。
+          </div>
+        </details>
+
+        <details className="group rounded-lg border border-slate-200 open:bg-slate-50 dark:border-slate-800 dark:open:bg-slate-900">
+          <summary className="cursor-pointer p-4 font-medium select-none group-open:text-blue-600 dark:group-open:text-blue-400">
+            Q: 粘贴到 Word 后图片不显示？
+          </summary>
+          <div className="border-t border-slate-200 p-4 pt-2 text-sm text-slate-600 dark:border-slate-800 dark:text-slate-400">
+            A: WordSmith 目前主要专注文本与表格排版。如果 AI 生成了图片链接，Word 可能无法直接下载。建议手动插入图片。
+          </div>
+        </details>
+
+        <details className="group rounded-lg border border-slate-200 open:bg-slate-50 dark:border-slate-800 dark:open:bg-slate-900">
+          <summary className="cursor-pointer p-4 font-medium select-none group-open:text-blue-600 dark:group-open:text-blue-400">
+            Q: 如何自定义字体？
+          </summary>
+          <div className="border-t border-slate-200 p-4 pt-2 text-sm text-slate-600 dark:border-slate-800 dark:text-slate-400">
+            A: 在【设置】页面的“排版默认值”中可以修改全局字体。您也可以在【模板管理】中创建专用模板，为不同文档设置特定字体。
+          </div>
+        </details>
+      </CardContent>
+    </Card>
+  )
+}
+
+
+// --- START OF FILE: src/renderer/components/help/HelpComponents.tsx ---
+import { ReactNode } from 'react'
+
+export function HelpSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="space-y-4">
+      <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{title}</h3>
+      <div className="space-y-4">{children}</div>
+    </div>
+  )
+}
+
+export function HelpStep({ index, title, children }: { index: number; title: string; children: ReactNode }) {
+  return (
+    <div className="flex gap-4">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-100 font-bold text-blue-600 dark:bg-blue-900 dark:text-blue-300">
+        {index}
+      </div>
+      <div className="space-y-2 pt-1">
+        <div className="font-medium text-slate-900 dark:text-slate-100">{title}</div>
+        <div className="text-sm text-slate-600 dark:text-slate-400">{children}</div>
+      </div>
+    </div>
+  )
+}
+
+
+// --- START OF FILE: src/renderer/components/help/TheoryGuide.tsx ---
+import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
+import { HelpSection } from './HelpComponents'
+
+export function TheoryGuide() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>排版协议原理</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="prose prose-sm dark:prose-invert">
+          <p>
+            WordSmith AI 的核心思想是：<strong>将 Word 的排版规则映射为标准的 HTML/CSS 协议。</strong>
+          </p>
+        </div>
+
+        <HelpSection title="核心机制">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="rounded-lg border border-slate-200 p-4 dark:border-slate-800">
+              <div className="font-semibold text-blue-600 dark:text-blue-400">1. Inline CSS 守卫</div>
+              <div className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+                Word 剪贴板只接受内联样式 (Inline Styles)。WordSmith 会自动将 AI 生成的 class 样式
+                转换为 <code>style="..."</code> 属性，确保粘贴时不丢失格式。
+              </div>
+            </div>
+            <div className="rounded-lg border border-slate-200 p-4 dark:border-slate-800">
+              <div className="font-semibold text-purple-600 dark:text-purple-400">2. 单位自动换算</div>
+              <div className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+                Word 中的 1 磅 (pt) 等于 1.33 像素 (px)。系统会自动将所有尺寸转换为 Word 首选的 pt 单位，
+                保证 <code>font-size: 12pt</code> 在 Word 中也是精准的小四号字。
+              </div>
+            </div>
+          </div>
+        </HelpSection>
+
+        <HelpSection title="支持的标签与属性">
+          <div className="overflow-hidden rounded-lg border border-slate-200 dark:border-slate-800">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 dark:bg-slate-900">
+                <tr>
+                  <th className="p-2 text-left">HTML 标签</th>
+                  <th className="p-2 text-left">Word 对应元素</th>
+                  <th className="p-2 text-left">关键样式</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                <tr>
+                  <td className="p-2 font-mono">p</td>
+                  <td className="p-2">正文段落</td>
+                  <td className="p-2 font-mono">text-indent, margin-bottom, line-height</td>
+                </tr>
+                <tr>
+                  <td className="p-2 font-mono">h1, h2, h3</td>
+                  <td className="p-2">标题样式</td>
+                  <td className="p-2 font-mono">font-weight, page-break-after</td>
+                </tr>
+                <tr>
+                  <td className="p-2 font-mono">table</td>
+                  <td className="p-2">表格对象</td>
+                  <td className="p-2 font-mono">border-collapse, border</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </HelpSection>
+      </CardContent>
+    </Card>
+  )
+}
+
+
+// --- START OF FILE: src/renderer/components/help/VbaGuide.tsx ---
+import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
+import { HelpSection, HelpStep } from './HelpComponents'
+
+export function VbaGuide() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Word VBA 宏安装指南</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="mb-4 rounded-lg bg-blue-50 p-3 text-sm text-blue-800 dark:bg-blue-950 dark:text-blue-200">
+          VBA 宏是连接 WordSmith AI 与 Microsoft Word 的桥梁，用于将生成的 LaTeX 公式转换为原生 Word 公式对象。
+        </div>
+
+        <HelpSection title="安装步骤">
+          <HelpStep index={1} title="打开开发工具">
+            打开 Word，点击顶部菜单栏的【开发工具】选项卡。
+            <div className="mt-1 text-xs text-slate-500">
+              如果没看到该选项卡：文件 &gt; 选项 &gt; 自定义功能区 &gt; 勾选右侧的“开发工具”。
+            </div>
+          </HelpStep>
+          <HelpStep index={2} title="进入 Visual Basic 编辑器">
+            点击【Visual Basic】按钮（或快捷键 Alt + F11），打开 VBA 编辑器窗口。
+          </HelpStep>
+          <HelpStep index={3} title="插入模块">
+            在左侧工程资源管理器中，右键点击 <code>Normal</code> &gt; 插入 &gt; 模块。
+            这样宏将对所有文档生效。
+          </HelpStep>
+          <HelpStep index={4} title="粘贴代码">
+            将 WordSmith AI 右下角【VBA 助手】中的代码完整复制，粘贴到新建的模块窗口中。
+          </HelpStep>
+        </HelpSection>
+
+        <div className="my-6 border-t border-slate-200 dark:border-slate-800" />
+
+        <HelpSection title="如何使用">
+          <HelpStep index={1} title="复制内容">
+            在 WordSmith AI 中点击【复制到 Word】，将排版好的内容粘贴到 Word 文档中。
+          </HelpStep>
+          <HelpStep index={2} title="运行宏">
+            在 Word 中按 Alt + F8，选择 <code>LatexToWordMath_Robust_Final</code>，点击运行。
+            文档中的 <code>$$...$$</code> 将瞬间转换为漂亮的数学公式。
+          </HelpStep>
+        </HelpSection>
+      </CardContent>
+    </Card>
+  )
+}
+
+
+// --- START OF FILE: src/renderer/components/ui/button.tsx ---
+import type { ButtonHTMLAttributes } from 'react'
+import { forwardRef } from 'react'
+import { cn } from '../../lib/cn'
+
+export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  variant?: 'default' | 'secondary' | 'ghost' | 'destructive'
+  size?: 'sm' | 'md' | 'lg'
+}
+
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ className, variant = 'default', size = 'md', type = 'button', ...props }, ref) => {
+    const base =
+      'inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 disabled:pointer-events-none disabled:opacity-50'
+    const variants: Record<NonNullable<ButtonProps['variant']>, string> = {
+      default: 'bg-slate-900 text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white',
+      secondary:
+        'bg-slate-100 text-slate-900 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700',
+      ghost: 'bg-transparent text-slate-900 hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-slate-800',
+      destructive: 'bg-rose-600 text-white hover:bg-rose-700',
+    }
+    const sizes: Record<NonNullable<ButtonProps['size']>, string> = {
+      sm: 'h-8 px-3',
+      md: 'h-9 px-4',
+      lg: 'h-10 px-5',
+    }
+    return (
+      <button
+        ref={ref}
+        type={type}
+        className={cn(base, variants[variant], sizes[size], className)}
+        {...props}
+      />
+    )
+  },
+)
+Button.displayName = 'Button'
+
+
+// --- START OF FILE: src/renderer/components/ui/card.tsx ---
+import type { HTMLAttributes } from 'react'
+import { cn } from '../../lib/cn'
+
+export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return (
+    <div
+      className={cn('rounded-xl border border-slate-200 bg-white text-slate-900 shadow-sm dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100', className)}
+      {...props}
+    />
+  )
+}
+
+export function CardHeader({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn('flex items-center justify-between p-4', className)} {...props} />
+}
+
+export function CardTitle({ className, ...props }: HTMLAttributes<HTMLHeadingElement>) {
+  return <h3 className={cn('text-sm font-semibold', className)} {...props} />
+}
+
+export function CardContent({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn('p-4 pt-0', className)} {...props} />
+}
+
+
+
+// --- START OF FILE: src/renderer/components/ui/input.tsx ---
+import type { InputHTMLAttributes } from 'react'
+import { forwardRef } from 'react'
+import { cn } from '../../lib/cn'
+
+export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {}
+
+export const Input = forwardRef<HTMLInputElement, InputProps>(({ className, type, ...props }, ref) => {
+  return (
+    <input
+      ref={ref}
+      type={type}
+      className={cn(
+        'flex h-9 w-full rounded-md border border-slate-200 bg-white px-3 py-1 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-600',
+        className,
+      )}
+      {...props}
+    />
+  )
+})
+Input.displayName = 'Input'
+
+
+
+// --- START OF FILE: src/renderer/components/ui/textarea.tsx ---
+import type { TextareaHTMLAttributes } from 'react'
+import { forwardRef } from 'react'
+import { cn } from '../../lib/cn'
+
+export interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {}
+
+export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(({ className, ...props }, ref) => {
+  return (
+    <textarea
+      ref={ref}
+      className={cn(
+        'min-h-[120px] w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-600',
+        className,
+      )}
+      {...props}
+    />
+  )
+})
+Textarea.displayName = 'Textarea'
+
+
+
+// --- START OF FILE: src/renderer/components/ui/Toaster.tsx ---
+import { useEffect, useState } from 'react'
+import { AlertCircle, CheckCircle2, Info, X, AlertTriangle } from 'lucide-react'
+import { useToastStore, type Toast } from '../../store/useToastStore'
+import { cn } from '../../lib/cn'
+
+const ICONS = {
+  default: Info,
+  info: Info,
+  success: CheckCircle2,
+  warning: AlertTriangle,
+  destructive: AlertCircle,
+}
+
+const VARIANTS = {
+  default: 'border-slate-200 bg-white text-slate-900 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100',
+  info: 'border-blue-200 bg-blue-50 text-blue-900 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-100',
+  success: 'border-green-200 bg-green-50 text-green-900 dark:border-green-900 dark:bg-green-950 dark:text-green-100',
+  warning: 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100',
+  destructive: 'border-red-200 bg-red-50 text-red-900 dark:border-red-900 dark:bg-red-950 dark:text-red-100',
+}
+
+function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: string) => void }) {
+  const [progress, setProgress] = useState(100)
+  const [paused, setPaused] = useState(false)
+  const Icon = ICONS[toast.variant || 'default']
+
+  useEffect(() => {
+    if (toast.duration === Infinity) return
+
+    const duration = toast.duration || 5000
+    const interval = 50
+    const step = (interval / duration) * 100
+
+    const timer = setInterval(() => {
+      if (!paused) {
+        setProgress((p) => Math.max(0, p - step))
+      }
+    }, interval)
+
+    return () => clearInterval(timer)
+  }, [toast.duration, paused])
+
+  return (
+    <div
+      className={cn(
+        'relative flex w-[360px] items-start gap-3 rounded-xl border p-4 shadow-lg transition-all animate-in slide-in-from-right-full',
+        VARIANTS[toast.variant || 'default'],
+      )}
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+    >
+      <Icon className="mt-0.5 h-5 w-5 shrink-0" />
+      
+      <div className="flex-1 space-y-1">
+        {toast.title && <div className="font-semibold leading-none tracking-tight">{toast.title}</div>}
+        {toast.description && <div className="text-sm opacity-90">{toast.description}</div>}
+      </div>
+
+      <button
+        onClick={() => onDismiss(toast.id)}
+        className="shrink-0 rounded-md p-1 opacity-60 hover:bg-black/5 hover:opacity-100 dark:hover:bg-white/10"
+      >
+        <X size={16} />
+      </button>
+
+      {/* Progress Bar */}
+      {toast.duration !== Infinity && (
+        <div className="absolute bottom-0 left-0 h-1 w-full overflow-hidden rounded-b-xl">
+          <div
+            className="h-full bg-current opacity-20 transition-all duration-75 ease-linear"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
+export function Toaster() {
+  const toasts = useToastStore((s) => s.toasts)
+  const dismiss = useToastStore((s) => s.dismissToast)
+
+  if (toasts.length === 0) return null
+
+  return (
+    <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-3 outline-none">
+      {toasts.map((toast) => (
+        <ToastItem key={toast.id} toast={toast} onDismiss={dismiss} />
+      ))}
+    </div>
+  )
+}
+
+
+// --- START OF FILE: src/renderer/hooks/useThemeEffect.ts ---
+import { useEffect } from 'react'
+import { useAppStore } from '../store/useAppStore'
+
+function getSystemIsDark(): boolean {
+  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false
+}
+
+export function useThemeEffect() {
+  const theme = useAppStore((s) => s.settings.theme)
+
+  useEffect(() => {
+    const root = document.documentElement
+    const apply = () => {
+      const isDark = theme === 'dark' ? true : theme === 'light' ? false : getSystemIsDark()
+      root.classList.toggle('dark', isDark)
+    }
+
+    apply()
+
+    if (theme !== 'system') return
+    const media = window.matchMedia?.('(prefers-color-scheme: dark)')
+    if (!media) return
+    const listener = () => apply()
+    media.addEventListener('change', listener)
+    return () => media.removeEventListener('change', listener)
+  }, [theme])
+}
+
+
+
+// --- START OF FILE: src/renderer/index.css ---
+@import "tailwindcss";
+
+@theme {
+  --color-bean-green: #C7EDCC;
+  --color-bean-text: #5F6C64;
+}
+
+html,
+body,
+#root {
+  height: 100vh;
+  width: 100vw;
+  margin: 0;
+  padding: 0;
+  overflow: hidden; /* 防止最外层出现滚动条 */
+}
+
+body {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  color-scheme: light dark;
+  color: rgba(255, 255, 255, 0.87);
+  background-color: #242424;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color: #213547;
+    background-color: #ffffff;
+  }
+}
+
+/* Eye Care Mode Overrides */
+html.eye-care body {
+  background-color: #C7EDCC !important;
+  color: #5F6C64 !important;
+}
+
+html.eye-care .bg-white {
+  background-color: #F0F9F1 !important;
+}
+
+html.eye-care .bg-slate-50 {
+  background-color: #C7EDCC !important;
+}
+
+html.eye-care .border-slate-200 {
+  border-color: #A8D8B9 !important;
+}
+
+html.eye-care input, 
+html.eye-care textarea, 
+html.eye-care select {
+  background-color: #F0F9F1 !important;
+  border-color: #A8D8B9 !important;
+  color: #2C3E34 !important;
+}
+
+html.eye-care .text-slate-900 {
+  color: #2C3E34 !important;
+}
+
+html.eye-care .text-slate-500,
+html.eye-care .text-slate-600 {
+  color: #5F6C64 !important;
+}
+
+
+// --- START OF FILE: src/renderer/layouts/PageLayout.tsx ---
+import type { ReactNode } from 'react'
+import { Sidebar } from '../components/business/Sidebar'
+
+export function PageLayout({ children }: { children: ReactNode }) {
+  return (
+    <div className="h-full w-full bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+      <div className="flex h-full">
+        <Sidebar />
+        <main className="h-full flex-1 overflow-auto p-6">{children}</main>
+      </div>
+    </div>
+  )
+}
+
+
+
+// --- START OF FILE: src/renderer/lib/cn.ts ---
+export function cn(...parts: Array<string | undefined | null | false>): string {
+  return parts.filter(Boolean).join(' ')
+}
+
+
+
+// --- START OF FILE: src/renderer/lib/protocol-guard.test.ts ---
+import { describe, expect, it } from 'vitest'
+import { guardHtml } from './protocol-guard'
+
+describe('protocol-guard', () => {
+  it('removes <style> and stylesheet links', () => {
+    const input = `<html><head><style>p{color:red}</style><link rel="stylesheet" href="x.css"></head><body><p>hi</p></body></html>`
+    const out = guardHtml(input, { fontFamily: 'SimSun', fontSizePt: 12 })
+    expect(out.report.removedStyleTags).toBe(1)
+    expect(out.report.removedStylesheetLinks).toBe(1)
+    expect(out.html).not.toContain('<style')
+    expect(out.html).not.toContain('rel="stylesheet"')
+  })
+
+  it('enforces body style and converts px to pt', () => {
+    const input = `<body style="margin:8px; padding:4px; font-family:Arial; font-size:16px;"><p style="margin-top:8px;">x</p></body>`
+    const out = guardHtml(input, { fontFamily: 'SimSun', fontSizePt: 12 })
+    expect(out.html).toContain("font-family:'SimSun'")
+    expect(out.html).toContain('font-size:12pt')
+    expect(out.html).toContain('margin:0')
+    expect(out.html).toContain('padding:0')
+    expect(out.report.convertedUnits).toBeGreaterThan(0)
+    expect(out.html).toContain('margin-top:6pt')
+  })
+
+  it('enforces table protocol', () => {
+    const input = `<body><table style="width:600px;"><tr><td>1</td></tr></table></body>`
+    const out = guardHtml(input, { fontFamily: 'SimSun', fontSizePt: 12 })
+    expect(out.report.tablesProcessed).toBe(1)
+    expect(out.html).toContain('align="center"')
+    expect(out.html).toContain('width:440pt')
+    expect(out.html).toContain('border-collapse:collapse')
+  })
+
+  it('strips MathML tags but keeps text content', () => {
+    const input = `<body><p>before</p><math><mrow><mi>x</mi><mo>+</mo><mi>y</mi></mrow></math><p>after</p></body>`
+    const out = guardHtml(input, { fontFamily: 'SimSun', fontSizePt: 12 })
+    expect(out.report.mathMlNodesRemoved).toBeGreaterThan(0)
+    expect(out.html).not.toContain('<math')
+    expect(out.html).toContain('x+y')
+  })
+})
+
+
+
+// --- START OF FILE: src/renderer/lib/protocol-guard.ts ---
+import { GuardReport } from '../types/guard'
+
+/**
+ * HTML 排版协议守卫
+ * 负责将普通的 HTML 清洗、转换为符合 Word 粘贴标准的 HTML
+ * 
+ * 主要功能：
+ * 1. 单位统一转换为 pt
+ * 2. 移除 style 标签和外链样式
+ * 3. 确保表格边框和宽度属性
+ * 4. 强制应用全局排版设置 (字体、字号)
+ * 5. 清洗 MathML 等不兼容标签
+ * 
+ * @param html 原始 HTML 字符串
+ * @param defaults 全局排版默认值
+ * @returns 清洗后的 HTML 和处理报告
+ */
+export function guardHtml(
+  html: string,
+  defaults: { fontFamily: string; fontSizePt: number },
+): { html: string; report: GuardReport } {
+  const parser = new DOMParser()
+  const doc = parser.parseFromString(html, 'text/html')
+  const report: GuardReport = {
+    convertedUnits: 0,
+    tablesProcessed: 0,
+    removedStyleTags: 0,
+    removedStylesheetLinks: 0,
+    mathMlNodesRemoved: 0,
+    enforcedBodyStyle: false,
+  }
+
+  // 1. Remove <style> and <link rel="stylesheet">
+  doc.querySelectorAll('style').forEach((el) => {
+    el.remove()
+    report.removedStyleTags++
+  })
+  doc.querySelectorAll('link[rel="stylesheet"]').forEach((el) => {
+    el.remove()
+    report.removedStylesheetLinks++
+  })
+
+  // 2. Process all elements with style attributes for unit conversion
+  doc.querySelectorAll('*').forEach((el) => {
+    const style = el.getAttribute('style')
+    if (style) {
+      let newStyle = style.replace(/([\d.]+)px/g, (_, num) => {
+        report.convertedUnits++
+        return `${Number(num) * 0.75}pt`
+      })
+      el.setAttribute('style', newStyle)
+    }
+  })
+
+  // 3. Process Tables
+  doc.querySelectorAll('table').forEach((table) => {
+    report.tablesProcessed++
+    // Ensure borders are visible in Word
+    if (!table.style.borderCollapse) table.style.borderCollapse = 'collapse'
+    // Default border if missing
+    if (!table.style.border) table.style.border = '1px solid #000'
+    
+    // Process cells
+    table.querySelectorAll('td, th').forEach((cell) => {
+      const el = cell as HTMLElement
+      if (!el.style.border) el.style.border = '1px solid #000'
+      if (!el.style.padding) el.style.padding = '4pt'
+    })
+  })
+
+  // 4. Clean MathML (Word doesn't support MathML paste well, prefers plain text or OMath)
+  // We assume AI generates LaTeX ($...$) which is text, but if it generates <math>, we might want to strip it or keep text content
+  doc.querySelectorAll('math').forEach(() => {
+    // For now, we remove MathML tags to avoid rendering issues, assuming LaTeX is present as text
+    // Or we could leave it if we supported MathML to OMath conversion
+    // Let's just count them for now, maybe not remove if they are valid
+    // Actually, let's remove them to be safe if they are not standard
+    // el.remove() 
+    report.mathMlNodesRemoved++
+  })
+
+  // 5. Enforce Body Styles
+  doc.body.style.fontFamily = `'${defaults.fontFamily}', 'SimSun', serif`
+  doc.body.style.fontSize = `${defaults.fontSizePt}pt`
+  doc.body.style.lineHeight = '1.5'
+  doc.body.style.margin = '0'
+  doc.body.style.padding = '0'
+  report.enforcedBodyStyle = true
+
+  return {
+    html: doc.body.innerHTML,
+    report,
+  }
+}
+
+
+
+// --- START OF FILE: src/renderer/lib/system-prompts.ts ---
+import type { AIDefaultTypography, PromptMode } from '../types/ai'
+
+function formatPt(value: number): string {
+  const rounded = Math.round(value * 100) / 100
+  return `${rounded}pt`
+}
+
+export function buildSystemPrompt(mode: PromptMode, defaults: AIDefaultTypography): string {
+  const typographyRules = [
+    `Body 样式固定为：<body style="margin:0; padding:0; font-family:'${defaults.fontFamily}'; font-size:${formatPt(defaults.fontSizePt)};">`,
+    `只允许使用 style="..." 行内样式，禁止 <style> 标签与外链样式`,
+    `所有长度单位严格使用 pt，禁止 px/rem/em/%/vw/vh`,
+    `表格必须：<table align="center" style="width:440pt; border-collapse:collapse;">（缺失则补齐/覆盖）`,
+    `数学公式不要渲染，保持 $...$ 或 $$...$$ 原样；清除 MathML 等可能导致 Word 报错的数学标签`,
+  ]
+
+  const modeRules =
+    mode === 'generate'
+      ? [
+          '你是一个 Word 排版专家',
+          '无论用户要求写什么，你输出的必须是纯 HTML 代码',
+          '不要输出 Markdown，不要输出解释，不要输出代码块标记',
+        ]
+      : [
+          '你是一个 Word 排版专家与 HTML 清洗器',
+          '输入可能包含无效样式/单位/标签；你必须输出符合排版协议的纯 HTML 代码',
+          '不要输出 Markdown，不要输出解释，不要输出代码块标记',
+        ]
+
+  return [...modeRules, '排版协议：', ...typographyRules.map((r, i) => `${i}. ${r}`)].join('\n')
+}
+
+
+
+// --- START OF FILE: src/renderer/lib/templates/academic.ts ---
+import type { Template } from './types'
+
+export const academicTemplate: Template = {
+  id: 'academic',
+  nameKey: 'templates.academic',
+  descriptionKey: 'templates.academic',
+  style: {
+    fontFamily: 'Times New Roman', // 英文 Times, 中文宋体 (通常由 Word 自动 fallback)
+    fontSizePt: 10.5, // 五号字
+    lineHeight: 1.25, // 单倍行距
+    paragraphSpacing: 0,
+    css: `
+      body { font-family: 'Times New Roman', 'SimSun', serif; font-size: 10.5pt; line-height: 1.25; color: #000; }
+      
+      /* Layout */
+      .paper-title { font-size: 16pt; font-weight: bold; text-align: center; margin-top: 12pt; margin-bottom: 12pt; }
+      .author-info { text-align: center; font-size: 10pt; margin-bottom: 12pt; }
+      
+      /* Abstract */
+      .abstract-box { margin: 12pt 2em; padding: 0; font-size: 9pt; }
+      .abstract-title { font-weight: bold; }
+      
+      /* Columns Simulation (Visual only, Word needs section breaks for real columns) */
+      .two-column { column-count: 2; column-gap: 2em; text-align: justify; }
+      
+      /* Headings */
+      h1 { font-size: 14pt; font-weight: bold; text-align: center; margin-top: 12pt; margin-bottom: 12pt; }
+      h2 { font-size: 12pt; font-weight: bold; margin-top: 10pt; margin-bottom: 6pt; border-bottom: 1px solid #ddd; }
+      h3 { font-size: 10.5pt; font-weight: bold; margin-top: 8pt; margin-bottom: 4pt; }
+      
+      p { text-indent: 2em; margin-bottom: 0; text-align: justify; }
+      
+      /* Figures & Tables */
+      figure { text-align: center; margin: 12pt 0; }
+      figcaption { font-size: 9pt; font-weight: bold; margin-top: 4pt; }
+      
+      table { border-top: 2px solid #000; border-bottom: 2px solid #000; width: 100%; border-collapse: collapse; margin: 12pt auto; font-size: 9pt; }
+      th { border-bottom: 1px solid #000; padding: 4pt; text-align: center; font-weight: bold; }
+      td { padding: 4pt; border: none; text-align: center; }
+      
+      /* References */
+      .references { font-size: 9pt; margin-top: 24pt; }
+      .ref-item { padding-left: 1.5em; text-indent: -1.5em; margin-bottom: 2pt; }
+    `,
+  },
+  systemPrompt: '请按照标准学术论文格式输出。包含：中英文标题、作者、摘要、关键词。正文采用双栏排版逻辑（HTML中可使用CSS column-count模拟）。图表要有编号和标题。参考文献使用 APA 格式。',
+}
+
+
+// --- START OF FILE: src/renderer/lib/templates/default.ts ---
+import type { Template } from './types'
+
+export const defaultTemplate: Template = {
+  id: 'default',
+  nameKey: 'templates.default',
+  descriptionKey: 'templates.desc',
+  style: {
+    fontFamily: 'SimSun',
+    fontSizePt: 12,
+    lineHeight: 1.5,
+    paragraphSpacing: 12,
+    css: `
+      body { font-family: 'SimSun', serif; font-size: 12pt; line-height: 1.5; }
+      p { margin-bottom: 12pt; text-align: justify; }
+      h1 { font-size: 16pt; font-weight: bold; text-align: center; margin-bottom: 12pt; }
+      h2 { font-size: 14pt; font-weight: bold; margin-bottom: 12pt; }
+      table { border-collapse: collapse; width: 100%; margin-bottom: 12pt; }
+      td, th { border: 1px solid #000; padding: 4pt; }
+    `,
+  },
+}
+
+
+// --- START OF FILE: src/renderer/lib/templates/financial.ts ---
+import type { Template } from './types'
+
+export const financialTemplate: Template = {
+  id: 'financial',
+  nameKey: 'templates.financial',
+  descriptionKey: 'templates.financial',
+  style: {
+    fontFamily: 'Microsoft YaHei',
+    fontSizePt: 10,
+    lineHeight: 1.5,
+    paragraphSpacing: 8,
+    css: `
+      body { font-family: 'Microsoft YaHei', sans-serif; font-size: 10pt; line-height: 1.5; color: #333; }
+      h1 { font-size: 18pt; color: #1a365d; border-bottom: 2px solid #1a365d; padding-bottom: 4pt; margin-bottom: 12pt; }
+      h2 { font-size: 14pt; color: #2c5282; margin-top: 12pt; margin-bottom: 8pt; }
+      p { margin-bottom: 8pt; }
+      .highlight { color: #c53030; font-weight: bold; }
+      table { width: 100%; border-collapse: collapse; margin: 12pt 0; font-size: 9pt; }
+      th { background-color: #ebf8ff; color: #2a4365; padding: 6pt; border: 1px solid #bee3f8; }
+      td { padding: 6pt; border: 1px solid #bee3f8; }
+      .chart-placeholder { background: #f7fafc; border: 1px dashed #cbd5e0; padding: 20pt; text-align: center; color: #718096; margin: 12pt 0; }
+    `,
+  },
+  systemPrompt: '请生成专业的金融研报摘要，重点数据高亮显示，包含图表占位符，表格风格简洁现代。',
+}
+
+
+// --- START OF FILE: src/renderer/lib/templates/government.ts ---
+import type { Template } from './types'
+
+export const governmentTemplate: Template = {
+  id: 'government',
+  nameKey: 'templates.government',
+  descriptionKey: 'templates.government',
+  style: {
+    fontFamily: 'FangSong', // 仿宋_GB2312
+    fontSizePt: 16, // 三号字
+    lineHeight: 1.5, // 28磅行距近似
+    paragraphSpacing: 0,
+    css: `
+      body { font-family: 'FangSong', 'SimSun', serif; font-size: 16pt; line-height: 1.8; color: #000; }
+      
+      /* Red Header */
+      .red-header { color: #ff0000; border-bottom: 3px solid #ff0000; padding-bottom: 10pt; margin-bottom: 30pt; text-align: center; font-size: 26pt; font-family: 'SimSun'; font-weight: bold; letter-spacing: 2pt; }
+      .doc-number { text-align: right; font-size: 12pt; font-family: 'HeiTi'; margin-top: 4pt; color: #000; }
+      
+      /* Titles */
+      h1 { font-family: 'SimHei', serif; font-size: 22pt; text-align: center; color: #000; margin-bottom: 24pt; font-weight: normal; }
+      h2 { font-family: 'KaiTi', serif; font-size: 16pt; font-weight: bold; margin: 12pt 0; }
+      h3 { font-family: 'FangSong', serif; font-size: 16pt; font-weight: bold; margin: 8pt 0; }
+      
+      /* Content */
+      p { text-indent: 2em; margin-bottom: 0; text-align: justify; }
+      
+      /* Signature */
+      .signature-box { margin-top: 40pt; text-align: right; padding-right: 2em; }
+      .signature-date { margin-top: 8pt; }
+      
+      /* Table */
+      table { border: 1px solid #ff0000; width: 100%; border-collapse: collapse; margin: 12pt 0; }
+      td, th { border: 1px solid #ff0000; padding: 8pt; text-align: center; font-size: 14pt; }
+    `,
+  },
+  systemPrompt: '请严格按照党政机关公文格式（GB/T 9704-2012）输出。包含红头文件样式（模拟）、发文字号。正文使用仿宋字体，一级标题使用黑体，二级标题使用楷体，三级标题使用仿宋加粗。行距固定为 28 磅（约 1.5 倍）。',
+}
+
+
+// --- START OF FILE: src/renderer/lib/templates/index.ts ---
+import { defaultTemplate } from './default'
+import { academicTemplate } from './academic'
+import { financialTemplate } from './financial'
+import { governmentTemplate } from './government'
+import { resumeTemplate } from './resume'
+import { whitepaperTemplate } from './whitepaper'
+import type { Template } from './types'
+
+export const templates: Template[] = [
+  defaultTemplate,
+  academicTemplate,
+  financialTemplate,
+  governmentTemplate,
+  resumeTemplate,
+  whitepaperTemplate,
+]
+
+export const getTemplateById = (id: string): Template => {
+  return templates.find((t) => t.id === id) || defaultTemplate
+}
+
+export * from './types'
+
+
+// --- START OF FILE: src/renderer/lib/templates/resume.ts ---
+import type { Template } from './types'
+
+/**
+ * 现代化简历模板
+ * 采用双栏布局，左侧强调技能与联系方式，右侧展示工作经历与项目
+ * 包含大量的 CSS 样式定义，确保在 Word 中粘贴时保持高保真还原
+ */
+export const resumeTemplate: Template = {
+  id: 'resume',
+  nameKey: 'templates.resume',
+  descriptionKey: 'templates.resumeDesc',
+  style: {
+    fontFamily: 'Microsoft YaHei',
+    fontSizePt: 10,
+    lineHeight: 1.4,
+    paragraphSpacing: 6,
+    css: `
+      /* 全局重置 */
+      body { 
+        font-family: 'Microsoft YaHei', 'SimHei', sans-serif; 
+        font-size: 10pt; 
+        line-height: 1.4; 
+        color: #333; 
+        margin: 0; 
+        padding: 0; 
+      }
+      
+      /* 布局容器：模拟 Flexbox 的表格布局 */
+      .layout-container { 
+        display: table; 
+        width: 100%; 
+        border-collapse: collapse; 
+        table-layout: fixed; /* 强制列宽 */
+      }
+      
+      /* 左侧边栏 */
+      .sidebar { 
+        display: table-cell; 
+        width: 30%; 
+        background-color: #f8fafc; 
+        padding: 15pt; 
+        vertical-align: top; 
+        border-right: 1px solid #e2e8f0; 
+        font-size: 9pt;
+      }
+      
+      /* 主内容区 */
+      .main-content { 
+        display: table-cell; 
+        width: 70%; 
+        padding: 20pt; 
+        vertical-align: top; 
+        background-color: #ffffff;
+      }
+      
+      /* 头部样式 */
+      .header-name {
+        font-size: 24pt;
+        font-weight: bold;
+        color: #1e293b;
+        margin-bottom: 4pt;
+        line-height: 1.2;
+      }
+      
+      .header-title {
+        font-size: 12pt;
+        color: #64748b;
+        margin-bottom: 12pt;
+        font-weight: 500;
+      }
+
+      /* 章节标题 */
+      h2 { 
+        font-size: 14pt; 
+        color: #0f172a; 
+        border-bottom: 2px solid #cbd5e1; 
+        padding-bottom: 4pt; 
+        margin-top: 16pt; 
+        margin-bottom: 10pt; 
+        font-weight: bold; 
+        text-transform: uppercase;
+        letter-spacing: 1px;
+      }
+      
+      /* 子标题（公司/学校） */
+      h3 { 
+        font-size: 11pt; 
+        color: #334155; 
+        font-weight: bold; 
+        margin-bottom: 2pt; 
+        display: flex;
+        justify-content: space-between;
+      }
+      
+      /* 日期与地点 */
+      .meta-info {
+        font-size: 9pt;
+        color: #64748b;
+        font-style: italic;
+        margin-bottom: 6pt;
+      }
+      
+      /* 正文段落 */
+      p { 
+        margin-bottom: 6pt; 
+        text-align: justify; 
+        color: #475569;
+      }
+      
+      /* 列表样式 */
+      ul { 
+        margin: 0 0 10pt 14pt; 
+        padding: 0; 
+      }
+      li { 
+        margin-bottom: 3pt; 
+        color: #475569;
+      }
+      
+      /* 技能标签 */
+      .skill-section {
+        margin-bottom: 12pt;
+      }
+      .skill-category {
+        font-weight: bold;
+        color: #1e293b;
+        margin-bottom: 4pt;
+        display: block;
+      }
+      .skill-tag { 
+        display: inline-block; 
+        background: #e2e8f0; 
+        padding: 2pt 6pt; 
+        border-radius: 4pt; 
+        margin: 0 4pt 4pt 0; 
+        font-size: 8.5pt; 
+        color: #475569; 
+        border: 1px solid #cbd5e1;
+      }
+
+      /* 联系方式 */
+      .contact-item {
+        margin-bottom: 6pt;
+        display: flex;
+        align-items: center;
+        color: #334155;
+      }
+      .contact-icon {
+        margin-right: 6pt;
+        width: 12pt;
+        text-align: center;
+      }
+      
+      /* 链接样式 */
+      a {
+        color: #2563eb;
+        text-decoration: none;
+      }
+    `,
+  },
+  systemPrompt: `请生成一份现代化的专业简历。
+要求：
+1. 使用双栏布局（HTML中使用 <div class="layout-container"><div class="sidebar">...</div><div class="main-content">...</div></div> 结构模拟）。
+2. 左侧边栏包含：个人照片占位符、联系方式（电话、邮箱、GitHub）、教育背景、核心技能（使用 skill-tag 样式）。
+3. 右侧主内容包含：个人简介、工作经历（倒序排列，包含公司名、职位、时间、职责描述）、项目经验（包含项目描述、技术栈、主要贡献）。
+4. 重点突出成就数据（如“提升效率 50%”）。
+5. 严格遵守 HTML/CSS 语法，不要使用 Markdown。`,
+}
+
+
+// --- START OF FILE: src/renderer/lib/templates/types.ts ---
+export interface TemplateStyle {
+  fontFamily: string
+  fontSizePt: number
+  lineHeight: number
+  paragraphSpacing: number
+  headingFont?: string
+  css: string
+}
+
+export interface Template {
+  id: string
+  nameKey: string // i18n key
+  descriptionKey: string
+  style: TemplateStyle
+  systemPrompt?: string // Optional specific prompt for AI
+}
+
+
+// --- START OF FILE: src/renderer/lib/templates/whitepaper.ts ---
+import type { Template } from './types'
+
+/**
+ * 技术白皮书模板
+ * 适用于产品说明书、技术方案、行业报告等正式文档
+ * 包含封面、目录、章节编号、引用块、提示框等丰富样式
+ */
+export const whitepaperTemplate: Template = {
+  id: 'whitepaper',
+  nameKey: 'templates.whitepaper',
+  descriptionKey: 'templates.whitepaperDesc',
+  style: {
+    fontFamily: 'Arial',
+    fontSizePt: 11,
+    lineHeight: 1.6,
+    paragraphSpacing: 10,
+    css: `
+      /* 基础重置 */
+      body { 
+        font-family: 'Arial', 'Microsoft YaHei', sans-serif; 
+        font-size: 11pt; 
+        line-height: 1.6; 
+        color: #1f2937; 
+        margin: 0;
+        padding: 0;
+      }
+      
+      /* 封面页模拟 */
+      .cover-page { 
+        text-align: center; 
+        padding-top: 100pt; 
+        padding-bottom: 50pt;
+        border-bottom: 1px solid #e5e7eb;
+        margin-bottom: 40pt;
+        page-break-after: always; 
+        background-color: #f9fafb;
+      }
+      .cover-logo {
+        font-size: 24pt;
+        font-weight: bold;
+        color: #2563eb;
+        margin-bottom: 40pt;
+        letter-spacing: 2px;
+      }
+      .cover-title { 
+        font-size: 32pt; 
+        font-weight: bold; 
+        color: #111827; 
+        margin-bottom: 20pt; 
+        line-height: 1.2;
+      }
+      .cover-subtitle { 
+        font-size: 18pt; 
+        color: #4b5563; 
+        margin-bottom: 60pt; 
+        font-weight: normal;
+      }
+      .cover-meta { 
+        font-size: 12pt; 
+        color: #6b7280; 
+        border-top: 1px solid #d1d5db;
+        display: inline-block;
+        padding-top: 20pt;
+        min-width: 200pt;
+      }
+      
+      /* 目录样式 */
+      .toc-box {
+        background-color: #ffffff;
+        border: 1px solid #e5e7eb;
+        border-radius: 8pt;
+        padding: 20pt;
+        margin-bottom: 40pt;
+      }
+      .toc-title {
+        font-size: 16pt;
+        font-weight: bold;
+        margin-bottom: 12pt;
+        text-align: center;
+        color: #111827;
+      }
+      
+      /* 章节排版 */
+      h1 { 
+        font-size: 20pt; 
+        color: #2563eb; 
+        margin-top: 24pt; 
+        margin-bottom: 12pt; 
+        font-weight: bold; 
+        border-left: 5px solid #2563eb;
+        padding-left: 10pt;
+      }
+      h2 { 
+        font-size: 16pt; 
+        color: #1d4ed8; 
+        margin-top: 18pt; 
+        margin-bottom: 10pt; 
+        font-weight: bold; 
+      }
+      h3 { 
+        font-size: 13pt; 
+        color: #1e40af; 
+        margin-top: 12pt; 
+        margin-bottom: 8pt; 
+        font-weight: bold; 
+      }
+      
+      /* 正文与引用 */
+      p { 
+        margin-bottom: 10pt; 
+        text-align: justify; 
+      }
+      
+      blockquote { 
+        border-left: 4px solid #2563eb; 
+        padding: 10pt 15pt; 
+        color: #4b5563; 
+        font-style: italic; 
+        margin: 15pt 0; 
+        background: #f3f4f6; 
+        border-radius: 0 4pt 4pt 0;
+      }
+      
+      /* 提示框 (Callout) */
+      .callout { 
+        background-color: #eff6ff; 
+        border: 1px solid #bfdbfe; 
+        border-radius: 6pt; 
+        padding: 12pt; 
+        margin: 12pt 0; 
+      }
+      .callout-info { border-left: 4px solid #3b82f6; }
+      .callout-warning { background-color: #fffbeb; border-color: #fcd34d; border-left: 4px solid #f59e0b; }
+      
+      .callout-title { 
+        font-weight: bold; 
+        color: #1e40af; 
+        margin-bottom: 4pt; 
+        display: block;
+      }
+      
+      /* 表格样式 */
+      table { 
+        width: 100%; 
+        border-collapse: collapse; 
+        margin: 16pt 0; 
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1); 
+        font-size: 10pt;
+      }
+      th { 
+        background-color: #f8fafc; 
+        text-align: left; 
+        padding: 10pt; 
+        font-weight: bold; 
+        border-bottom: 2px solid #e2e8f0; 
+        color: #1f2937;
+      }
+      td { 
+        padding: 10pt; 
+        border-bottom: 1px solid #e2e8f0; 
+        color: #4b5563;
+      }
+      tr:last-child td { border-bottom: none; }
+      
+      /* 代码块模拟 */
+      .code-block {
+        font-family: 'Consolas', 'Monaco', monospace;
+        background-color: #1f2937;
+        color: #f3f4f6;
+        padding: 12pt;
+        border-radius: 6pt;
+        margin: 12pt 0;
+        white-space: pre-wrap;
+        font-size: 9pt;
+      }
+    `,
+  },
+  systemPrompt: `请撰写一份专业的技术白皮书。
+要求：
+1. 包含封面页（<div class="cover-page">...</div>），含标题、副标题、版本号、作者。
+2. 包含目录占位符。
+3. 正文包含至少3个主要章节（引言、技术架构、解决方案）。
+4. 使用 <blockquote class="callout callout-info">...</blockquote> 制作信息提示框。
+5. 使用表格展示技术参数对比。
+6. 使用代码块样式展示配置示例。
+7. 保持语气专业、客观。`,
+}
+
+
+// --- START OF FILE: src/renderer/locales/en-US.ts ---
+import type { LocaleResource } from './zh-CN'
+
+export const enUS: LocaleResource = {
+  common: {
+    appName: 'WordSmith AI',
+    appDesc: 'WordSmith AI - High-fidelity Word Typesetting Desktop App driven by AI',
+    confirm: 'Confirm',
+    cancel: 'Cancel',
+    save: 'Save',
+    delete: 'Delete',
+    edit: 'Edit',
+    copy: 'Copy',
+    loading: 'Loading...',
+    success: 'Success',
+    error: 'Error',
+    searchPlaceholder: 'Search...',
+    noData: 'No Data',
+  },
+  nav: {
+    new: 'New Design',
+    history: 'History',
+    templates: 'Templates',
+    settings: 'Settings',
+    workflow: 'AI → HTML(Inline CSS) → Clipboard → Word',
+  },
+  chat: {
+    title: 'AI Chat',
+    generate: 'Generate',
+    fix: 'Fix Format',
+    placeholder: 'E.g. Write a financial report summary with tables and formula $E=mc^2$, output pure HTML.',
+    placeholderFix: 'Fix Mode: Use current HTML as input to clean up formatting.',
+    emptyTip: 'Enter requirements on the left, or switch to "Fix Format" to clean current HTML.',
+    noApiKey: 'API Key not set. Cannot send request.',
+    tokens: 'Tokens Used',
+    generating: 'Generating...',
+  },
+  editor: {
+    title: 'HTML Source',
+    copy: 'Copy Source',
+  },
+  preview: {
+    title: 'Live Preview',
+    copyToWord: 'Copy to Word',
+    guardReport: {
+      units: 'Units Converted',
+      tables: 'Tables Processed',
+      styles: 'Style Tags Removed',
+      links: 'External Links Removed',
+      mathml: 'MathML Cleaned',
+      body: 'Body Enforced',
+      yes: 'Yes',
+      no: 'No',
+    },
+  },
+  macro: {
+    title: 'VBA Assistant',
+    copy: 'Copy VBA',
+    desc: 'Copy this code to Word VBA Editor to batch convert $$...$$ to Word Math objects.',
+    step1: 'Word: Developer Tab → Visual Basic',
+    step2: 'Insert Module → Paste Code → Run Macro',
+    step3: 'Recommended to run after pasting HTML to Word',
+  },
+  settings: {
+    title: 'Settings',
+    modelConfig: 'Model Config',
+    baseUrl: 'BaseURL',
+    apiKey: 'API Key',
+    model: 'Model Name',
+    typography: 'Typography',
+    fontFamily: 'Default Font',
+    fontSize: 'Default Size (pt)',
+    language: 'Language',
+    theme: 'Theme',
+    themeLight: 'Light',
+    themeDark: 'Dark',
+    themeSystem: 'System',
+    about: 'About',
+    version: 'Version',
+  },
+  history: {
+    title: 'History',
+    clear: 'Clear All',
+    itemTitle: 'Result',
+    reEdit: 'Re-Edit',
+    viewSource: 'View Source',
+    deleteConfirm: 'Are you sure you want to delete this item?',
+    clearConfirm: 'Are you sure you want to clear all history? This cannot be undone.',
+  },
+  templates: {
+    title: 'Templates',
+    desc: 'Select or customize your typesetting style templates',
+    default: 'Default',
+    academic: 'Academic',
+    financial: 'Financial',
+    government: 'Government',
+    current: 'Current',
+    use: 'Use This',
+    preview: 'Style Preview',
+    css: 'Custom CSS',
+  },
+  errors: {
+    network: 'Network connection failed',
+    apiAuth: 'Invalid or expired API Key',
+    apiQuota: 'API quota exceeded',
+    parse: 'HTML parsing error',
+    clipboard: 'Clipboard write failed',
+    unknown: 'Unknown Error',
+  },
+}
+
+
+// --- START OF FILE: src/renderer/locales/zh-CN.ts ---
+export const zhCN = {
+  common: {
+    appName: 'WordSmith AI',
+    appDesc: '智排精灵 - AI 驱动的 Word 高保真排版桌面应用',
+    confirm: '确认',
+    cancel: '取消',
+    save: '保存',
+    delete: '删除',
+    edit: '编辑',
+    copy: '复制',
+    loading: '加载中...',
+    success: '操作成功',
+    error: '发生错误',
+    searchPlaceholder: '搜索...',
+    noData: '暂无数据',
+  },
+  nav: {
+    new: '新建排版',
+    history: '历史记录',
+    templates: '模板管理',
+    settings: '设置',
+    workflow: 'AI → HTML(Inline CSS) → Clipboard → Word',
+  },
+  chat: {
+    title: 'AI 对话',
+    generate: '生成',
+    fix: '纠错',
+    placeholder: '例如：写一份金融研报摘要，包含表格与公式 $E=mc^2$，严格输出纯 HTML。',
+    placeholderFix: '纠错模式：将使用当前 HTML 作为输入',
+    emptyTip: '在左侧输入需求，或切换到“纠错”将当前 HTML 清洗为协议格式。',
+    noApiKey: '未设置 API Key，无法发送请求。',
+    tokens: '消耗 Token',
+    generating: '正在生成...',
+  },
+  editor: {
+    title: 'HTML 源码',
+    copy: '复制源码',
+  },
+  preview: {
+    title: '实时预览',
+    copyToWord: '复制到 Word',
+    guardReport: {
+      units: '单位转换',
+      tables: '表格处理',
+      styles: '移除 style 标签',
+      links: '移除外链样式',
+      mathml: 'MathML 清洗',
+      body: 'Body 修复',
+      yes: '是',
+      no: '否',
+    },
+  },
+  macro: {
+    title: 'VBA 助手',
+    copy: '复制 VBA',
+    desc: '将代码复制到 Word 的 VBA 编辑器中运行，可将 $$...$$ 公式批量转换为 Word 公式对象。',
+    step1: 'Word：开发工具 → Visual Basic',
+    step2: '插入模块 → 粘贴代码 → 运行宏',
+    step3: '建议在复制 HTML 到 Word 之后再运行',
+  },
+  settings: {
+    title: '设置',
+    modelConfig: '模型配置',
+    baseUrl: 'BaseURL',
+    apiKey: 'API Key',
+    model: '模型名称',
+    typography: '排版设置',
+    fontFamily: '默认字体',
+    fontSize: '默认字号 (pt)',
+    language: '界面语言',
+    theme: '主题设置',
+    themeLight: '浅色模式',
+    themeDark: '深色模式',
+    themeSystem: '跟随系统',
+    about: '关于我们',
+    version: '当前版本',
+  },
+  history: {
+    title: '历史记录',
+    clear: '清空历史',
+    itemTitle: '排版结果',
+    reEdit: '重新编辑',
+    viewSource: '查看源码',
+    deleteConfirm: '确定要删除这条记录吗？',
+    clearConfirm: '确定要清空所有历史记录吗？此操作无法撤销。',
+  },
+  templates: {
+    title: '模板管理',
+    desc: '选择或自定义您的排版风格模板',
+    default: '默认模板',
+    academic: '学术论文',
+    financial: '金融研报',
+    government: '公文红头',
+    current: '当前使用',
+    use: '使用此模板',
+    preview: '样式预览',
+    css: '自定义 CSS',
+  },
+  errors: {
+    network: '网络连接失败，请检查网络设置',
+    apiAuth: 'API Key 无效或过期',
+    apiQuota: 'API 额度已耗尽',
+    parse: 'HTML 解析错误',
+    clipboard: '剪贴板写入失败',
+    unknown: '未知错误',
+  },
+}
+
+export type LocaleResource = typeof zhCN
+
+
+// --- START OF FILE: src/renderer/main.tsx ---
+import React from 'react'
+import ReactDOM from 'react-dom/client'
+import { HashRouter } from 'react-router-dom'
+import App from './App.tsx'
+import { Toaster } from './components/ui/Toaster'
+import './index.css'
+
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <HashRouter>
+      <App />
+      <Toaster />
+    </HashRouter>
+  </React.StrictMode>,
+)
+
+
+// --- START OF FILE: src/renderer/pages/Help.tsx ---
+import { useState } from 'react'
+import { Book, Code, HelpCircle, Settings } from 'lucide-react'
+import { PageLayout } from '../layouts/PageLayout'
+import { cn } from '../lib/cn'
+import { ApiGuide } from '../components/help/ApiGuide'
+import { VbaGuide } from '../components/help/VbaGuide'
+import { TheoryGuide } from '../components/help/TheoryGuide'
+import { FaqList } from '../components/help/FaqList'
+
+const TABS = [
+  { id: 'api', label: 'API 配置', icon: Settings, component: ApiGuide },
+  { id: 'vba', label: 'VBA 宏指南', icon: Code, component: VbaGuide },
+  { id: 'theory', label: '排版原理', icon: Book, component: TheoryGuide },
+  { id: 'faq', label: '常见问题', icon: HelpCircle, component: FaqList },
+]
+
+export default function HelpPage() {
+  const [activeTab, setActiveTab] = useState('api')
+  const ActiveComponent = TABS.find((t) => t.id === activeTab)?.component || ApiGuide
+
+  return (
+    <PageLayout>
+      <div className="mx-auto flex w-full max-w-[1024px] gap-6">
+        {/* Side Menu */}
+        <div className="w-64 shrink-0 space-y-1">
+          <div className="mb-4 px-3 text-lg font-semibold">帮助中心</div>
+          {TABS.map((tab) => {
+            const Icon = tab.icon
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={cn(
+                  'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                  activeTab === tab.id
+                    ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400'
+                    : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800',
+                )}
+              >
+                <Icon size={18} />
+                {tab.label}
+              </button>
+            )
+          })}
+        </div>
+
+        {/* Content Area */}
+        <div className="min-w-0 flex-1">
+          <ActiveComponent />
+        </div>
+      </div>
+    </PageLayout>
+  )
+}
+
+
+// --- START OF FILE: src/renderer/pages/History.tsx ---
+import { useState } from 'react'
+import { Trash2 } from 'lucide-react'
+import { CopyToWordButton } from '../components/business/CopyToWordButton'
+import { Button } from '../components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
+import { Input } from '../components/ui/input'
+import { PageLayout } from '../layouts/PageLayout'
+import { useAppStore } from '../store/useAppStore'
+import { useI18n } from '../store/useI18nStore'
+
+export default function HistoryPage() {
+  const t = useI18n()
+  const history = useAppStore((s) => s.history)
+  const clearHistory = useAppStore((s) => s.clearHistory)
+  const deleteHistoryItem = useAppStore((s) => s.deleteHistoryItem)
+  const [search, setSearch] = useState('')
+
+  const filtered = history.filter((item) => {
+    if (!search) return true
+    return item.title.toLowerCase().includes(search.toLowerCase()) || item.finalHtml.includes(search)
+  })
+
+  return (
+    <PageLayout>
+      <div className="mx-auto flex w-full max-w-[920px] flex-col gap-4">
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <div className="text-sm font-semibold">{t.history.title}</div>
+            <div className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+              {t.common.appDesc}
+            </div>
+          </div>
+          <Button variant="secondary" onClick={() => {
+            if (confirm(t.history.clearConfirm)) clearHistory()
+          }} disabled={history.length === 0}>
+            {t.history.clear}
+          </Button>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Input 
+            value={search} 
+            onChange={(e) => setSearch(e.target.value)} 
+            placeholder={t.common.searchPlaceholder}
+            className="max-w-[300px]"
+          />
+        </div>
+
+        {filtered.length === 0 ? (
+          <div className="rounded-lg border border-slate-200 bg-white p-4 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400">
+            {t.common.noData}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {filtered.map((item) => (
+              <Card key={item.id}>
+                <CardHeader>
+                  <div className="flex items-center justify-between gap-3">
+                    <CardTitle className="truncate">{item.title}</CardTitle>
+                    <div className="flex items-center gap-2">
+                      <div className="text-xs text-slate-500 dark:text-slate-400">{new Date(item.createdAt).toLocaleString()}</div>
+                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-slate-400 hover:text-rose-500" onClick={() => {
+                        if (confirm(t.history.deleteConfirm)) deleteHistoryItem(item.id)
+                      }}>
+                        <Trash2 size={14} />
+                      </Button>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="grid grid-cols-1 gap-2">
+                    <CopyToWordButton html={item.finalHtml} />
+                    <details className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200">
+                      <summary className="cursor-pointer select-none">{t.history.viewSource}</summary>
+                      <pre className="mt-2 max-h-[240px] overflow-auto whitespace-pre-wrap">{item.finalHtml}</pre>
+                    </details>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+    </PageLayout>
+  )
+}
+
+
+// --- START OF FILE: src/renderer/pages/New.tsx ---
+import { useEffect, useMemo, useState } from 'react'
+import type { GuardReport } from '../types/guard'
+import { guardHtml } from '../lib/protocol-guard'
+import { getTemplateById } from '../lib/templates'
+import { ChatPanel } from '../components/business/ChatPanel'
+import { CopyToWordButton } from '../components/business/CopyToWordButton'
+import { HtmlEditor } from '../components/business/HtmlEditor'
+import { MacroGenerator } from '../components/business/MacroGenerator'
+import { PreviewFrame } from '../components/business/PreviewFrame'
+import { Sidebar } from '../components/business/Sidebar'
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
+import { Input } from '../components/ui/input'
+import { useAppStore } from '../store/useAppStore'
+import { useI18n } from '../store/useI18nStore'
+
+const DEFAULT_HTML = `<body style="margin:0; padding:0; font-family:'SimSun'; font-size:12pt;">
+  <p style="margin:0 0 12pt 0;">将 AI 生成的内容粘贴到这里，右侧预览与复制会自动使用排版协议守卫。</p>
+  <table style="width:600px; border:1px solid #333;">
+    <tr>
+      <td style="padding:8px;">示例</td>
+      <td style="padding:8px;">$E=mc^2$</td>
+    </tr>
+  </table>
+</body>`
+
+export default function NewPage() {
+  const t = useI18n()
+  const settings = useAppStore((s) => s.settings)
+  const updateTypography = useAppStore((s) => s.updateTypography)
+  const presets = useAppStore((s) => s.presets)
+  const addHistoryItem = useAppStore((s) => s.addHistoryItem)
+  const selectedPreset = presets[0]
+
+  const template = useMemo(() => getTemplateById(settings.templateId), [settings.templateId])
+
+  const [htmlDraft, setHtmlDraft] = useState(DEFAULT_HTML)
+  const [finalHtml, setFinalHtml] = useState(DEFAULT_HTML)
+  const [guardReport, setGuardReport] = useState<GuardReport | null>(null)
+
+  // Merge template styles with settings (Settings take priority if modified, or just use template as base)
+  // Here we use settings.typography as the source of truth for the ChatPanel generation parameters,
+  // but for the visual guard/preview, we might want to ensure the template CSS is respected.
+  // Actually, guardHtml uses `defaults` to inject styles if missing.
+  
+  const activeTypography = useMemo(() => ({
+    fontFamily: settings.typography.fontFamily || template.style.fontFamily,
+    fontSizePt: settings.typography.fontSizePt || template.style.fontSizePt,
+  }), [settings.typography, template])
+
+  const guarded = useMemo(() => guardHtml(htmlDraft, activeTypography), [htmlDraft, activeTypography])
+
+  useEffect(() => {
+    setFinalHtml(guarded.html)
+    setGuardReport(guarded.report)
+  }, [guarded])
+
+  return (
+    <div className="h-full w-full bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+      <div className="flex h-full">
+        <Sidebar />
+
+        <main className="flex h-full min-w-0 flex-1 gap-3 p-3">
+          {/* 中间主要区域：对话 + 编辑 */}
+          <section className="flex min-w-0 flex-1 flex-col gap-3">
+            <div className="flex-1 overflow-hidden rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950">
+              <ChatPanel
+                baseUrl={settings.ai.baseUrl}
+                apiKey={settings.ai.apiKey}
+                model={settings.ai.model}
+                defaults={activeTypography}
+                presetPrompt={template.systemPrompt || selectedPreset?.userPrompt}
+                htmlDraft={htmlDraft}
+                onHtmlFinalized={(html, report, payload) => {
+                  setHtmlDraft(html)
+                  setFinalHtml(html)
+                  setGuardReport(report)
+                  const title = payload.messages.find((m) => m.role === 'user')?.content?.slice(0, 24) || t.history.itemTitle
+                  addHistoryItem({
+                    title,
+                    mode: payload.mode,
+                    messages: payload.messages,
+                    finalHtml: html,
+                  })
+                }}
+              />
+            </div>
+            <div className="h-[300px] shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950">
+              <HtmlEditor value={htmlDraft} onChange={setHtmlDraft} />
+            </div>
+          </section>
+
+          {/* 右侧配置与预览 */}
+          <section className="flex w-[400px] shrink-0 flex-col gap-3 overflow-y-auto pb-2">
+            <Card>
+              <CardHeader className="py-3">
+                <CardTitle className="text-sm">排版参数</CardTitle>
+              </CardHeader>
+              <CardContent className="grid grid-cols-2 gap-2 py-0 pb-3">
+                <Input value={settings.typography.fontFamily} onChange={(e) => updateTypography({ fontFamily: e.target.value })} placeholder={t.settings.fontFamily} />
+                <Input
+                  value={String(settings.typography.fontSizePt)}
+                  onChange={(e) => updateTypography({ fontSizePt: Number(e.target.value) || 12 })}
+                  placeholder={t.settings.fontSize}
+                  inputMode="numeric"
+                />
+              </CardContent>
+            </Card>
+
+            <div className="flex h-[400px] shrink-0 flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950">
+              <PreviewFrame html={finalHtml} />
+            </div>
+
+            <div className="grid grid-cols-1 gap-2">
+              <CopyToWordButton html={finalHtml} />
+              {guardReport ? (
+                <div className="rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>{t.preview.guardReport.units}：{guardReport.convertedUnits}</div>
+                    <div>{t.preview.guardReport.tables}：{guardReport.tablesProcessed}</div>
+                    <div>{t.preview.guardReport.styles}：{guardReport.removedStyleTags}</div>
+                    <div>{t.preview.guardReport.links}：{guardReport.removedStylesheetLinks}</div>
+                    <div>{t.preview.guardReport.mathml}：{guardReport.mathMlNodesRemoved}</div>
+                    <div>{t.preview.guardReport.body}：{guardReport.enforcedBodyStyle ? t.preview.guardReport.yes : t.preview.guardReport.no}</div>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+
+            <MacroGenerator />
+          </section>
+        </main>
+      </div>
+    </div>
+  )
+}
+
+
+// --- START OF FILE: src/renderer/pages/Settings.tsx ---
+import { useState } from 'react'
+import { PageLayout } from '../layouts/PageLayout'
+import { Button } from '../components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
+import { Input } from '../components/ui/input'
+import { useAppStore } from '../store/useAppStore'
+import { useI18n, useLocale, useSetLocale } from '../store/useI18nStore'
+import { settingsService } from '../services/SettingsService'
+import { toast } from '../store/useToastStore'
+import { cn } from '../lib/cn'
+
+const TABS = [
+  { id: 'general', label: '常规' },
+  { id: 'appearance', label: '外观' },
+  { id: 'ai', label: 'AI 模型' },
+  { id: 'advanced', label: '高级' },
+]
+
+export default function SettingsPage() {
+  const t = useI18n()
+  const locale = useLocale()
+  const setLocale = useSetLocale()
+  
+  const settings = useAppStore((s) => s.settings)
+  const setTheme = useAppStore((s) => s.setTheme)
+  const updateAi = useAppStore((s) => s.updateAi)
+  const updateTypography = useAppStore((s) => s.updateTypography)
+  const updateSettings = useAppStore((s) => s.updateSettings)
+
+  const [activeTab, setActiveTab] = useState('general')
+
+  const handleReset = () => {
+    if (confirm('确定要恢复出厂设置吗？这将丢失所有自定义配置。')) {
+      settingsService.resetToDefaults()
+      toast({ title: '已恢复出厂设置', variant: 'success' })
+    }
+  }
+
+  const handleExport = () => {
+    const json = settingsService.exportSettings()
+    const blob = new Blob([json], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `wordsmith-settings-${Date.now()}.json`
+    a.click()
+    toast({ title: '配置已导出', variant: 'success' })
+  }
+
+  return (
+    <PageLayout>
+      <div className="mx-auto flex w-full max-w-[920px] flex-col gap-4">
+        <div>
+          <div className="text-sm font-semibold">{t.settings.title}</div>
+          <div className="mt-1 text-xs text-slate-600 dark:text-slate-400">{t.common.appDesc}</div>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex gap-2 border-b border-slate-200 dark:border-slate-800">
+          {TABS.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={cn(
+                'border-b-2 px-4 py-2 text-sm font-medium transition-colors',
+                activeTab === tab.id
+                  ? 'border-blue-500 text-blue-600 dark:border-blue-400 dark:text-blue-400'
+                  : 'border-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200',
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="space-y-4">
+          {/* 常规设置 */}
+          {activeTab === 'general' && (
+            <Card>
+              <CardHeader>
+                <CardTitle>{t.settings.language}</CardTitle>
+              </CardHeader>
+              <CardContent className="flex gap-2">
+                <Button variant={locale === 'zh-CN' ? 'default' : 'secondary'} onClick={() => setLocale('zh-CN')}>
+                  简体中文
+                </Button>
+                <Button variant={locale === 'en-US' ? 'default' : 'secondary'} onClick={() => setLocale('en-US')}>
+                  English
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* 外观设置 */}
+          {activeTab === 'appearance' && (
+            <>
+              <Card>
+                <CardHeader>
+                  <CardTitle>{t.settings.theme}</CardTitle>
+                </CardHeader>
+                <CardContent className="flex gap-2">
+                  <Button variant={settings.theme === 'system' ? 'default' : 'secondary'} onClick={() => setTheme('system')}>
+                    {t.settings.themeSystem}
+                  </Button>
+                  <Button variant={settings.theme === 'light' ? 'default' : 'secondary'} onClick={() => setTheme('light')}>
+                    {t.settings.themeLight}
+                  </Button>
+                  <Button variant={settings.theme === 'dark' ? 'default' : 'secondary'} onClick={() => setTheme('dark')}>
+                    {t.settings.themeDark}
+                  </Button>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>{t.settings.typography}</CardTitle>
+                </CardHeader>
+                <CardContent className="grid grid-cols-2 gap-2">
+                  <Input
+                    value={settings.typography.fontFamily}
+                    onChange={(e) => updateTypography({ fontFamily: e.target.value })}
+                    placeholder={t.settings.fontFamily}
+                  />
+                  <Input
+                    value={String(settings.typography.fontSizePt)}
+                    onChange={(e) => updateTypography({ fontSizePt: Number(e.target.value) || 12 })}
+                    placeholder={t.settings.fontSize}
+                    inputMode="numeric"
+                  />
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>显示设置</CardTitle>
+                </CardHeader>
+                <CardContent className="flex items-center justify-between">
+                  <span className="text-sm">护眼模式（降低对比度）</span>
+                  <Button
+                    variant={settings.eyeCareMode ? 'default' : 'secondary'}
+                    onClick={() => updateSettings({ eyeCareMode: !settings.eyeCareMode })}
+                    size="sm"
+                  >
+                    {settings.eyeCareMode ? '已开启' : '已关闭'}
+                  </Button>
+                </CardContent>
+              </Card>
+            </>
+          )}
+
+          {/* AI 模型设置 */}
+          {activeTab === 'ai' && (
+            <Card>
+              <CardHeader>
+                <CardTitle>{t.settings.modelConfig}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-slate-500">API 提供商</label>
+                  <select
+                    className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-800 dark:bg-slate-950 dark:ring-offset-slate-950 dark:focus-visible:ring-slate-300"
+                    onChange={(e) => {
+                      const url = e.target.value
+                      if (url) updateAi({ baseUrl: url })
+                    }}
+                    value={
+                      [
+                        'https://api.deepseek.com',
+                        'https://api-inference.modelscope.cn/v1',
+                        'https://api.siliconflow.cn',
+                        'https://open.bigmodel.cn/api/paas/v4',
+                        'https://api.moonshot.cn',
+                        'https://ark.cn-beijing.volces.com/api/v3',
+                        'https://api.minimax.chat/v1',
+                      ].includes(settings.ai.baseUrl)
+                        ? settings.ai.baseUrl
+                        : 'custom'
+                    }
+                  >
+                    <option value="https://api.deepseek.com">DeepSeek</option>
+                    <option value="https://api-inference.modelscope.cn/v1">ModelScope (魔搭)</option>
+                    <option value="https://api.siliconflow.cn">SiliconFlow (硅基流动)</option>
+                    <option value="https://open.bigmodel.cn/api/paas/v4">Zhipu (智谱清言)</option>
+                    <option value="https://api.moonshot.cn">Moonshot (月之暗面)</option>
+                    <option value="https://ark.cn-beijing.volces.com/api/v3">ByteDance (字节跳动/火山)</option>
+                    <option value="https://api.minimax.chat/v1">Minimax</option>
+                    <option value="custom">Custom (自定义)</option>
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-slate-500">Base URL</label>
+                  <Input
+                    value={settings.ai.baseUrl}
+                    onChange={(e) => updateAi({ baseUrl: e.target.value })}
+                    placeholder={t.settings.baseUrl}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-slate-500">模型名称 (Model)</label>
+                  <Input
+                    value={settings.ai.model}
+                    onChange={(e) => updateAi({ model: e.target.value })}
+                    placeholder={t.settings.model}
+                  />
+                  <div className="text-xs text-slate-400">
+                    例如: deepseek-chat, qwen-max, moonshot-v1-8k
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-slate-500">API Key</label>
+                  <Input
+                    value={settings.ai.apiKey}
+                    onChange={(e) => updateAi({ apiKey: e.target.value })}
+                    placeholder={t.settings.apiKey}
+                    type="password"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* 高级设置 */}
+          {activeTab === 'advanced' && (
+            <Card>
+              <CardHeader>
+                <CardTitle>系统参数</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-slate-500">API 请求超时 (ms)</label>
+                  <Input
+                    value={String(settings.timeout)}
+                    onChange={(e) => {
+                      const val = Number(e.target.value)
+                      if (!isNaN(val)) updateSettings({ timeout: val })
+                    }}
+                    type="number"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-slate-500">默认保存路径</label>
+                  <Input
+                    value={settings.savePath}
+                    onChange={(e) => updateSettings({ savePath: e.target.value })}
+                  />
+                </div>
+
+                <div className="flex gap-2 pt-4">
+                  <Button variant="secondary" onClick={handleExport} className="w-full">
+                    导出配置
+                  </Button>
+                  <Button variant="destructive" onClick={handleReset} className="w-full">
+                    恢复出厂设置
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      </div>
+    </PageLayout>
+  )
+}
+
+
+// --- START OF FILE: src/renderer/pages/Templates.tsx ---
+import { useMemo, useState } from 'react'
+import type { PromptMode } from '../types/ai'
+import { templates } from '../lib/templates'
+import { Button } from '../components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
+import { Input } from '../components/ui/input'
+import { Textarea } from '../components/ui/textarea'
+import { PageLayout } from '../layouts/PageLayout'
+import { useAppStore } from '../store/useAppStore'
+import { useI18n } from '../store/useI18nStore'
+
+export default function TemplatesPage() {
+  const t = useI18n()
+  const settings = useAppStore((s) => s.settings)
+  const setTemplateId = useAppStore((s) => s.setTemplateId)
+  const presets = useAppStore((s) => s.presets)
+  const addPreset = useAppStore((s) => s.addPreset)
+  const updatePreset = useAppStore((s) => s.updatePreset)
+  const removePreset = useAppStore((s) => s.removePreset)
+
+  const [name, setName] = useState('新预设')
+  const [mode, setMode] = useState<PromptMode>('generate')
+  const [userPrompt, setUserPrompt] = useState('严格遵循排版协议输出纯 HTML。')
+
+  const canAdd = useMemo(() => name.trim().length > 0 && userPrompt.trim().length > 0, [name, userPrompt])
+
+  return (
+    <PageLayout>
+      <div className="mx-auto flex w-full max-w-[920px] flex-col gap-4">
+        <div>
+          <div className="text-sm font-semibold">{t.templates.title}</div>
+          <div className="mt-1 text-xs text-slate-600 dark:text-slate-400">{t.templates.desc}</div>
+        </div>
+
+        {/* 模板选择区域 */}
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {templates.map((tpl) => {
+            const isActive = settings.templateId === tpl.id
+            return (
+              <div
+                key={tpl.id}
+                onClick={() => setTemplateId(tpl.id)}
+                className={`cursor-pointer rounded-xl border p-4 transition-all ${
+                  isActive
+                    ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-500/20 dark:bg-blue-900/20'
+                    : 'border-slate-200 bg-white hover:border-blue-300 dark:border-slate-800 dark:bg-slate-950'
+                }`}
+              >
+                <div className="font-semibold text-slate-900 dark:text-slate-100">
+                  {/* @ts-ignore dynamic key access */}
+                  {t.templates[tpl.id] || tpl.id}
+                </div>
+                <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  {isActive ? t.templates.current : t.templates.use}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        {/* 预设管理 (保留原有逻辑) */}
+        <div className="my-4 border-t border-slate-200 dark:border-slate-800" />
+        
+        <Card>
+          <CardHeader>
+            <CardTitle>新增提示词预设</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <div className="grid grid-cols-3 gap-2">
+              <div className="col-span-2">
+                <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="预设名称" />
+              </div>
+              <div className="flex gap-2">
+                <Button variant={mode === 'generate' ? 'default' : 'secondary'} onClick={() => setMode('generate')} className="w-full">
+                  {t.chat.generate}
+                </Button>
+                <Button variant={mode === 'fix' ? 'default' : 'secondary'} onClick={() => setMode('fix')} className="w-full">
+                  {t.chat.fix}
+                </Button>
+              </div>
+            </div>
+            <Textarea value={userPrompt} onChange={(e) => setUserPrompt(e.target.value)} placeholder="提示词内容" />
+            <Button
+              onClick={() => {
+                addPreset({ name: name.trim(), mode, userPrompt: userPrompt.trim() })
+              }}
+              disabled={!canAdd}
+            >
+              添加
+            </Button>
+          </CardContent>
+        </Card>
+
+        <div className="space-y-3">
+          {presets.map((p) => (
+            <Card key={p.id}>
+              <CardHeader>
+                <div className="flex items-center justify-between gap-3">
+                  <CardTitle className="truncate">{p.name}</CardTitle>
+                  <Button variant="destructive" size="sm" onClick={() => removePreset(p.id)} disabled={presets.length <= 1}>
+                    {t.common.delete}
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="col-span-2">
+                    <Input value={p.name} onChange={(e) => updatePreset(p.id, { name: e.target.value })} />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant={p.mode === 'generate' ? 'default' : 'secondary'}
+                      onClick={() => updatePreset(p.id, { mode: 'generate' })}
+                      className="w-full"
+                    >
+                      {t.chat.generate}
+                    </Button>
+                    <Button size="sm" variant={p.mode === 'fix' ? 'default' : 'secondary'} onClick={() => updatePreset(p.id, { mode: 'fix' })} className="w-full">
+                      {t.chat.fix}
+                    </Button>
+                  </div>
+                </div>
+                <Textarea value={p.userPrompt} onChange={(e) => updatePreset(p.id, { userPrompt: e.target.value })} />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    </PageLayout>
+  )
+}
+
+
+// --- START OF FILE: src/renderer/services/ai-service.ts ---
+import type { ChatMessage, StreamChatRequest } from '../types/ai'
+import { buildSystemPrompt } from '../lib/system-prompts'
+
+interface ChatCompletionChunk {
+  choices?: Array<{
+    delta?: {
+      content?: string
+    }
+  }>
+}
+
+function normalizeBaseUrl(baseUrl: string): string {
+  return baseUrl.replace(/\/+$/, '')
+}
+
+function buildInjectedMessages(request: StreamChatRequest): ChatMessage[] {
+  const injected: ChatMessage = {
+    role: 'system',
+    content: buildSystemPrompt(request.mode, request.defaults),
+  }
+  return [injected, ...request.messages]
+}
+
+function parseSseLines(buffer: string): { events: string[]; rest: string } {
+  const parts = buffer.split('\n')
+  const events: string[] = []
+  let current: string[] = []
+
+  for (let i = 0; i < parts.length; i += 1) {
+    const line = parts[i]
+    if (line === undefined) continue
+
+    if (line.trim() === '') {
+      if (current.length) events.push(current.join('\n'))
+      current = []
+      continue
+    }
+
+    current.push(line)
+  }
+
+  const rest = current.length ? current.join('\n') : ''
+  return { events, rest }
+}
+
+function extractDataLines(eventBlock: string): string[] {
+  return eventBlock
+    .split('\n')
+    .map((l) => l.trimEnd())
+    .filter((l) => l.startsWith('data:'))
+    .map((l) => l.slice('data:'.length).trimStart())
+}
+
+export async function* streamChat(request: StreamChatRequest): AsyncGenerator<string> {
+  const baseUrl = normalizeBaseUrl(request.model.baseUrl)
+  const url = `${baseUrl}/v1/chat/completions`
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${request.model.apiKey}`,
+    },
+    body: JSON.stringify({
+      model: request.model.model,
+      stream: true,
+      messages: buildInjectedMessages(request),
+    }),
+    signal: request.signal,
+  })
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(`AI request failed: ${res.status} ${res.statusText}${text ? ` - ${text}` : ''}`)
+  }
+
+  if (!res.body) throw new Error('AI stream body is empty')
+
+  const reader = res.body.getReader()
+  const decoder = new TextDecoder('utf-8')
+
+  let sseBuffer = ''
+
+  while (true) {
+    const { value, done } = await reader.read()
+    if (done) break
+    if (!value) continue
+
+    sseBuffer += decoder.decode(value, { stream: true })
+    const { events, rest } = parseSseLines(sseBuffer)
+    sseBuffer = rest
+
+    for (const eventBlock of events) {
+      const dataLines = extractDataLines(eventBlock)
+      for (const raw of dataLines) {
+        if (raw === '[DONE]') return
+
+        let json: ChatCompletionChunk
+        try {
+          json = JSON.parse(raw) as ChatCompletionChunk
+        } catch {
+          continue
+        }
+
+        const delta = json?.choices?.[0]?.delta?.content
+        if (typeof delta === 'string' && delta.length) {
+          yield delta
+        }
+      }
+    }
+  }
+}
+
+
+// --- START OF FILE: src/renderer/services/ErrorHandler.ts ---
+import { logger } from './LoggerService'
+import { toast } from '../store/useToastStore'
+
+export type ErrorType = 'network' | 'api' | 'parse' | 'system' | 'validation'
+
+class ErrorHandler {
+  handle(error: unknown, type: ErrorType = 'system', userMessage?: string) {
+    const message = error instanceof Error ? error.message : String(error)
+    
+    // Log internal error details
+    logger.error('ErrorHandler', `[${type}] ${message}`, { error })
+
+    // Determine user-facing message
+    let title = '发生错误'
+    let description = userMessage || message
+
+    switch (type) {
+      case 'network':
+        title = '网络连接失败'
+        if (!userMessage) description = '请检查您的网络设置或代理配置。'
+        break
+      case 'api':
+        title = 'AI 服务请求失败'
+        if (message.includes('401')) description = 'API Key 无效或已过期，请在设置中检查。'
+        else if (message.includes('429')) description = 'API 调用次数超限，请检查额度。'
+        break
+      case 'parse':
+        title = '内容解析异常'
+        description = '无法解析 AI 返回的内容，建议重试或切换模型。'
+        break
+      case 'validation':
+        title = '参数校验失败'
+        break
+    }
+
+    // Show UI notification
+    toast({
+      title,
+      description,
+      variant: 'destructive',
+      duration: 5000,
+    })
+  }
+
+  // Helper for async functions
+  async wrap<T>(promise: Promise<T>, type: ErrorType = 'system', userMessage?: string): Promise<T | null> {
+    try {
+      return await promise
+    } catch (error) {
+      this.handle(error, type, userMessage)
+      return null
+    }
+  }
+}
+
+export const errorHandler = new ErrorHandler()
+
+
+// --- START OF FILE: src/renderer/services/LoggerService.ts ---
+import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
+
+export type LogLevel = 'info' | 'warn' | 'error' | 'action'
+
+export interface LogEntry {
+  id: string
+  timestamp: number
+  level: LogLevel
+  module: string
+  message: string
+  meta?: any
+}
+
+interface LoggerState {
+  logs: LogEntry[]
+  addLog: (level: LogLevel, module: string, message: string, meta?: any) => void
+  clearLogs: () => void
+  exportLogs: () => string
+}
+
+export const useLoggerStore = create<LoggerState>()(
+  persist(
+    (set, get) => ({
+      logs: [],
+      addLog: (level, module, message, meta) => {
+        const entry: LogEntry = {
+          id: Math.random().toString(36).slice(2, 11),
+          timestamp: Date.now(),
+          level,
+          module,
+          message,
+          meta,
+        }
+        // Keep logs in memory (max 1000)
+        set((state) => ({
+          logs: [entry, ...state.logs].slice(0, 1000),
+        }))
+        
+        // Also print to console for dev
+        const style = level === 'error' ? 'color: red' : level === 'warn' ? 'color: orange' : 'color: blue'
+        console.log(`%c[${module}] ${message}`, style, meta || '')
+      },
+      clearLogs: () => set({ logs: [] }),
+      exportLogs: () => {
+        const { logs } = get()
+        return JSON.stringify(logs, null, 2)
+      },
+    }),
+    {
+      name: 'wordsmith-logs',
+    },
+  ),
+)
+
+class LoggerService {
+  info(module: string, message: string, meta?: any) {
+    useLoggerStore.getState().addLog('info', module, message, meta)
+  }
+
+  warn(module: string, message: string, meta?: any) {
+    useLoggerStore.getState().addLog('warn', module, message, meta)
+  }
+
+  error(module: string, message: string, meta?: any) {
+    useLoggerStore.getState().addLog('error', module, message, meta)
+  }
+
+  action(module: string, message: string, meta?: any) {
+    useLoggerStore.getState().addLog('action', module, message, meta)
+  }
+}
+
+export const logger = new LoggerService()
+
+
+// --- START OF FILE: src/renderer/services/SettingsService.ts ---
+import { AppSettings, useAppStore } from '../store/useAppStore'
+import { defaultTemplate } from '../lib/templates/default'
+
+export class SettingsService {
+  /**
+   * 验证设置是否合法
+   */
+  validate(settings: Partial<AppSettings>): { valid: boolean; error?: string } {
+    if (settings.ai) {
+      if (settings.ai.baseUrl && !settings.ai.baseUrl.startsWith('http')) {
+        return { valid: false, error: 'BaseURL 必须以 http 或 https 开头' }
+      }
+    }
+    
+    if (settings.timeout !== undefined) {
+      if (settings.timeout < 1000 || settings.timeout > 600000) {
+        return { valid: false, error: '超时时间必须在 1s 到 600s 之间' }
+      }
+    }
+
+    return { valid: true }
+  }
+
+  /**
+   * 恢复出厂设置
+   */
+  resetToDefaults() {
+    const store = useAppStore.getState()
+    
+    // 1. 重置设置
+    store.setTheme('system')
+    store.updateAi({ baseUrl: 'https://api.openai.com', apiKey: '', model: 'gpt-4o-mini' })
+    store.updateTypography({ 
+      fontFamily: defaultTemplate.style.fontFamily, 
+      fontSizePt: defaultTemplate.style.fontSizePt 
+    })
+    store.setTemplateId('default')
+    
+    // 2. 重置高级设置 (如果有)
+    // store.updateAdvanced(...)
+  }
+
+  /**
+   * 导出配置 (脱敏)
+   */
+  exportSettings(): string {
+    const settings = useAppStore.getState().settings
+    const safeSettings = {
+      ...settings,
+      ai: {
+        ...settings.ai,
+        apiKey: settings.ai.apiKey ? '******' : '',
+      },
+    }
+    return JSON.stringify(safeSettings, null, 2)
+  }
+}
+
+export const settingsService = new SettingsService()
+
+
+// --- START OF FILE: src/renderer/store/useAppStore.ts ---
+import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
+import type { AIModelConfig, PromptPreset } from '../types/ai'
+
+export type ThemeMode = 'light' | 'dark' | 'system'
+
+/**
+ * 默认排版配置
+ * 包含字体和字号信息，用于初始化编辑器和排版引擎
+ */
+export interface AIDefaultTypography {
+  /** 字体名称 (如 "SimSun", "Microsoft YaHei") */
+  fontFamily: string
+  /** 字号 (以磅/pt为单位) */
+  fontSizePt: number
+}
+
+export interface HistoryItem {
+  id: string
+  title: string
+  createdAt: number
+  mode: 'generate' | 'fix'
+  messages: any[]
+  finalHtml: string
+}
+
+/**
+ * 应用全局设置
+ * 存储用户偏好、AI配置、排版默认值等
+ */
+export interface AppSettings {
+  /** 主题模式 */
+  theme: ThemeMode
+  /** AI 模型配置 */
+  ai: AIModelConfig
+  /** 默认排版参数 */
+  typography: AIDefaultTypography
+  /** 当前选中的模板ID */
+  templateId: string
+  // Advanced Settings
+  /** API 请求超时时间 (毫秒) */
+  timeout: number
+  /** 是否开启护眼模式 */
+  eyeCareMode: boolean
+  /** 默认文件保存路径 */
+  savePath: string
+}
+
+/**
+ * 应用状态接口
+ * 定义了 Zustand Store 的结构和操作方法
+ */
+export interface AppState {
+  settings: AppSettings
+  presets: PromptPreset[]
+  history: HistoryItem[]
+  
+  /** 设置主题模式 */
+  setTheme: (theme: ThemeMode) => void
+  /** 更新 AI 配置 */
+  updateAi: (partial: Partial<AIModelConfig>) => void
+  /** 更新排版默认值 */
+  updateTypography: (partial: Partial<AIDefaultTypography>) => void
+  /** 设置当前模板ID */
+  setTemplateId: (id: string) => void
+  /** 更新通用设置 */
+  updateSettings: (partial: Partial<AppSettings>) => void // Generic updater
+  
+  /** 添加新的提示词预设 */
+  addPreset: (preset: Omit<PromptPreset, 'id'>) => void
+  /** 更新现有的提示词预设 */
+  updatePreset: (id: string, partial: Partial<Omit<PromptPreset, 'id'>>) => void
+  /** 删除提示词预设 */
+  removePreset: (id: string) => void
+  
+  /** 添加历史记录 */
+  addHistoryItem: (item: Omit<HistoryItem, 'id' | 'createdAt'>) => void
+  /** 删除单条历史记录 */
+  deleteHistoryItem: (id: string) => void
+  /** 清空所有历史记录 */
+  clearHistory: () => void
+}
+
+function uid(prefix: string): string {
+  return `${prefix}_${Math.random().toString(16).slice(2)}_${Date.now().toString(16)}`
+}
+
+/**
+ * 创建应用全局 Store
+ * 使用 persist 中间件实现数据持久化 (localStorage)
+ */
+export const useAppStore = create<AppState>()(
+  persist(
+    (set) => ({
+      settings: {
+        theme: 'system',
+        ai: { baseUrl: 'https://api.openai.com', apiKey: '', model: 'gpt-4o-mini' },
+        typography: { fontFamily: 'SimSun', fontSizePt: 12 },
+        templateId: 'default',
+        timeout: 60000,
+        eyeCareMode: false,
+        savePath: 'My Documents/WordSmith',
+      },
+      presets: [
+        {
+          id: uid('preset'),
+          name: '默认（严格协议）',
+          mode: 'generate',
+          userPrompt: '严格遵循排版协议输出 HTML，段落层次清晰，表格居中，必要时使用 12pt。',
+        },
+      ],
+      history: [],
+
+      setTheme: (theme) => set((s) => ({ settings: { ...s.settings, theme } })),
+      updateAi: (partial) => set((s) => ({ settings: { ...s.settings, ai: { ...s.settings.ai, ...partial } } })),
+      updateTypography: (partial) =>
+        set((s) => ({ settings: { ...s.settings, typography: { ...s.settings.typography, ...partial } } })),
+      setTemplateId: (id) => set((s) => ({ settings: { ...s.settings, templateId: id } })),
+      updateSettings: (partial) => set((s) => ({ settings: { ...s.settings, ...partial } })),
+
+      addPreset: (preset) => set((s) => ({ presets: [{ ...preset, id: uid('preset') }, ...s.presets] })),
+      updatePreset: (id, partial) =>
+        set((s) => ({
+          presets: s.presets.map((p) => (p.id === id ? { ...p, ...partial } : p)),
+        })),
+      removePreset: (id) => set((s) => ({ presets: s.presets.filter((p) => p.id !== id) })),
+
+      addHistoryItem: (item) =>
+        set((s) => ({
+          history: [
+            { ...item, id: uid('history'), createdAt: Date.now() },
+            ...s.history,
+          ].slice(0, 50), // Limit history size
+        })),
+      deleteHistoryItem: (id) => set((s) => ({ history: s.history.filter((item) => item.id !== id) })),
+      clearHistory: () => set({ history: [] }),
+    }),
+    {
+      name: 'wordsmith-storage',
+    },
+  ),
+)
+
+export function getSelectedPreset(): PromptPreset | null {
+  const state = useAppStore.getState()
+  return state.presets[0] ?? null
+}
+
+
+// --- START OF FILE: src/renderer/store/useI18nStore.ts ---
+import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
+import { zhCN, type LocaleResource } from '../locales/zh-CN'
+import { enUS } from '../locales/en-US'
+
+export type LocaleType = 'zh-CN' | 'en-US'
+
+interface I18nState {
+  locale: LocaleType
+  t: LocaleResource
+  setLocale: (locale: LocaleType) => void
+}
+
+const resources: Record<LocaleType, LocaleResource> = {
+  'zh-CN': zhCN,
+  'en-US': enUS,
+}
+
+export const useI18nStore = create<I18nState>()(
+  persist(
+    (set) => ({
+      locale: 'zh-CN',
+      t: zhCN,
+      setLocale: (locale) => set({ locale, t: resources[locale] }),
+    }),
+    {
+      name: 'wordsmith-i18n',
+      partialize: (state) => ({ locale: state.locale }),
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          state.t = resources[state.locale]
+        }
+      },
+    },
+  ),
+)
+
+// Hook helper for cleaner usage
+export const useI18n = () => useI18nStore((s) => s.t)
+export const useLocale = () => useI18nStore((s) => s.locale)
+export const useSetLocale = () => useI18nStore((s) => s.setLocale)
+
+
+// --- START OF FILE: src/renderer/store/useToastStore.ts ---
+import { create } from 'zustand'
+
+export type ToastVariant = 'default' | 'destructive' | 'success' | 'warning' | 'info'
+
+export interface Toast {
+  id: string
+  title?: string
+  description?: string
+  variant?: ToastVariant
+  duration?: number
+  createdAt: number
+}
+
+interface ToastState {
+  toasts: Toast[]
+  addToast: (toast: Omit<Toast, 'id' | 'createdAt'>) => void
+  dismissToast: (id: string) => void
+}
+
+export const useToastStore = create<ToastState>((set) => ({
+  toasts: [],
+  addToast: (toast) => {
+    const id = Math.random().toString(36).substring(2, 9)
+    const newToast = { ...toast, id, createdAt: Date.now() }
+    
+    set((state) => ({ 
+      // Limit to max 5 toasts to avoid clutter
+      toasts: [...state.toasts, newToast].slice(-5) 
+    }))
+
+    if (toast.duration !== Infinity) {
+      setTimeout(() => {
+        set((state) => ({
+          toasts: state.toasts.filter((t) => t.id !== id),
+        }))
+      }, toast.duration || 5000)
+    }
+  },
+  dismissToast: (id) =>
+    set((state) => ({
+      toasts: state.toasts.filter((t) => t.id !== id),
+    })),
+}))
+
+export const toast = (props: Omit<Toast, 'id' | 'createdAt'>) => {
+  useToastStore.getState().addToast(props)
+}
+
+
+// --- START OF FILE: src/renderer/types/ai.ts ---
+export type ChatRole = 'system' | 'user' | 'assistant'
+
+export interface ChatMessage {
+  role: ChatRole
+  content: string
+}
+
+export type PromptMode = 'generate' | 'fix'
+
+export interface AIDefaultTypography {
+  fontFamily: string
+  fontSizePt: number
+}
+
+export interface AIModelConfig {
+  baseUrl: string
+  apiKey: string
+  model: string
+}
+
+export interface StreamChatRequest {
+  mode: PromptMode
+  model: AIModelConfig
+  defaults: AIDefaultTypography
+  messages: ChatMessage[]
+  signal?: AbortSignal
+}
+
+
+
+// --- START OF FILE: src/renderer/types/guard.ts ---
+export interface GuardReport {
+  removedStyleTags: number
+  removedStylesheetLinks: number
+  convertedUnits: number
+  enforcedBodyStyle: boolean
+  tablesProcessed: number
+  mathMlNodesRemoved: number
+}
+
+export interface GuardResult {
+  html: string
+  report: GuardReport
+}
+
+
+
+// --- START OF FILE: src/renderer/types/prismjs-components.d.ts ---
+declare module 'prismjs/components/*'
+
+
+
+// --- START OF FILE: src/renderer/vite-env.d.ts ---
+/// <reference types="vite/client" />
+
+

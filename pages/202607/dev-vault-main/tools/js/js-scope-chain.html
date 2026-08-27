@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html tk="title_js_scope_chain_visualizer" lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JS Scope Chain Visualizer</title>
+<meta name="description" content="Interactive JavaScript scope chain and closure visualizer. Write code, see how variable lookup walks through scope chains. Understand closures, hoisting, and lexical scoping.">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0f1117;--surface:#1a1d27;--surface2:#242837;--border:#2e3347;--text:#e4e7f1;--dim:#8b90a5;--accent:#6c8cff;--accent2:#a78bfa;--green:#4ade80;--red:#f87171;--orange:#fbbf24;--cyan:#22d3ee}
+body{font-family:'SF Mono',Monaco,'Cascadia Code',monospace;background:var(--bg);color:var(--text);min-height:100vh}
+.header{padding:14px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px}
+.header h1{font-size:15px;font-weight:600}
+.header span{color:var(--dim);font-size:12px}
+.main{display:flex;height:calc(100vh - 49px)}
+
+.left{width:400px;border-right:1px solid var(--border);display:flex;flex-direction:column}
+.left label{padding:8px 14px;font-size:11px;color:var(--dim);background:var(--surface);border-bottom:1px solid var(--border)}
+.left textarea{flex:1;background:var(--bg);color:var(--text);border:none;padding:14px;font-family:inherit;font-size:12px;resize:none;outline:none;line-height:1.6}
+.controls{padding:10px 14px;background:var(--surface);border-top:1px solid var(--border);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.btn{padding:6px 14px;border-radius:6px;border:none;font-family:inherit;font-size:11px;cursor:pointer;transition:all .15s}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{background:#5a7aee}
+.btn-sm{padding:4px 10px;font-size:10px;background:var(--surface2);color:var(--dim);border:1px solid var(--border);border-radius:4px;cursor:pointer}
+.btn-sm:hover{color:var(--text)}
+.presets-bar{border-top:1px solid var(--border);background:var(--surface);padding:8px 14px;display:flex;gap:6px;overflow-x:auto}
+.preset-chip{padding:3px 10px;border-radius:12px;font-size:10px;border:1px solid var(--border);background:var(--surface2);color:var(--dim);cursor:pointer;white-space:nowrap;transition:all .15s}
+.preset-chip:hover{border-color:var(--accent);color:var(--text)}
+.preset-chip.active{border-color:var(--accent);color:var(--accent);background:rgba(108,140,255,.1)}
+.error-msg{color:var(--red);font-size:11px;margin-left:8px}
+
+.right{flex:1;display:flex;flex-direction:column;overflow:hidden}
+
+/* Scope visualization */
+.scope-area{flex:1;padding:20px;overflow:auto}
+.scope-box{border:2px solid;border-radius:8px;padding:12px;margin-bottom:8px;position:relative}
+.scope-box.global{border-color:#4a5080;background:rgba(74,80,128,.08)}
+.scope-box.function{border-color:var(--accent);background:rgba(108,140,255,.05)}
+.scope-box.block{border-color:var(--accent2);background:rgba(167,139,250,.05)}
+.scope-box.closure{border-color:var(--orange);background:rgba(251,191,36,.05);border-style:dashed}
+.scope-label{position:absolute;top:-9px;left:12px;font-size:10px;padding:0 6px;background:var(--bg);font-weight:600}
+.scope-label.global{color:#6b7280}
+.scope-label.function{color:var(--accent)}
+.scope-label.block{color:var(--accent2)}
+.scope-label.closure{color:var(--orange)}
+.scope-vars{margin-top:4px}
+.scope-var{display:flex;align-items:baseline;gap:8px;padding:2px 0;font-size:11px}
+.scope-var .var-kind{color:var(--dim);font-size:10px;min-width:32px}
+.scope-var .var-name{color:var(--green);min-width:60px}
+.scope-var .var-value{color:var(--text)}
+.scope-var.hoisted{opacity:.5}
+.scope-var.hoisted .var-name{color:var(--orange)}
+.scope-children{margin-top:8px;margin-left:8px}
+.no-vars{font-size:10px;color:var(--dim);font-style:italic;margin-top:4px}
+
+/* Lookup trace */
+.lookup-area{border-top:1px solid var(--border);padding:14px 20px;background:var(--surface);max-height:180px;overflow-y:auto}
+.lookup-area h3{font-size:11px;color:var(--dim);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px}
+.lookup-input{display:flex;gap:8px;margin-bottom:10px}
+.lookup-input input{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-family:inherit;font-size:12px;outline:none}
+.lookup-input input:focus{border-color:var(--accent)}
+.lookup-path{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:11px}
+.lookup-step{padding:3px 8px;border-radius:4px;background:var(--surface2);border:1px solid var(--border)}
+.lookup-step.found{background:var(--accent);color:#fff;border-color:var(--accent)}
+.lookup-step.miss{opacity:.4}
+.lookup-arrow{color:var(--dim);font-size:10px}
+.lookup-result{font-size:11px;margin-top:8px}
+
+/* Reference */
+.ref-area{border-top:1px solid var(--border);padding:14px 20px;max-height:140px;overflow-y:auto}
+.ref-area h3{font-size:11px;color:var(--dim);margin-bottom:6px}
+.ref-item{font-size:10px;color:var(--dim);line-height:1.6;margin-bottom:2px}
+.ref-item code{background:var(--surface2);padding:1px 4px;border-radius:3px;color:var(--green);font-size:10px}
+</style>
+</head>
+<body>
+
+
+
+<div class="header">
+  <h1 ti="title_js_scope_chain_visualizer" ti="h1_js_scope_chain_visualizer">JS Scope Chain Visualizer</h1>
+  <span>See how variables are looked up through scope chains & closures</span>
+</div>
+
+<div class="main">
+  <div class="left">
+    <label ti="label_javascript_code">JavaScript Code</label>
+    <textarea id="codeInput" spellcheck="false"></textarea>
+    <div class="presets-bar" id="presetsBar"></div>
+    <div class="controls">
+      <button class="btn btn-primary" onclick="analyze()" ti="btn_analyze">Analyze</button>
+      <button class="btn-sm" onclick="clearAll()" ti="btn_clear">Clear</button>
+      <span class="error-msg" id="errorMsg"></span>
+    </div>
+  </div>
+  <div class="right">
+    <div class="scope-area" id="scopeArea">
+      <div style="color:var(--dim);text-align:center;padding-top:60px;font-size:12px">Click <strong ti="strong_analyze" ti="strong_analyze_2">Analyze</strong> to visualize scope chains</div>
+    </div>
+    <div class="lookup-area">
+      <h3 ti="h3_variable_lookup">Variable Lookup</h3>
+      <div class="lookup-input">
+        <input type="text" id="lookupVar" tp="placeholder_enter_variable_name_to_tr" placeholder="Enter variable name to trace lookup" value="">
+        <select id="lookupScope" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px;color:var(--text);font-family:inherit;font-size:11px">
+          <option value="">Select scope...</option>
+        </select>
+        <button class="btn-sm" onclick="traceLookup()" ti="btn_trace">Trace</button>
+      </div>
+      <div id="lookupResult"></div>
+    </div>
+  </div>
+</div>
+
+
+<script>var _LANG={'title_js_scope_chain_visualizer':["JS Scope Chain Visualizer", "JS作用域链可视化工具"],'metadesc_interactive_javascript_sc':["Interactive JavaScript scope chain and closure visualizer. Write code, see how variable lookup walks through scope chains. Understand closures, hoisting, and lexical scoping.", "交互式 JavaScript 作用域链和闭包可视化工具。编写代码，查看变量查找如何遍历作用域链。理解闭包、变量提升和词法作用域。"],'h1_js_scope_chain_visualizer':["JS Scope Chain Visualizer", "JS作用域链可视化工具"],'h3_variable_lookup':["Variable Lookup", "变量查找"],'btn_analyze':["Analyze", "分析"],'btn_clear':["Clear", "清除"],'btn_trace':["Trace", "痕迹"],'label_esc_label':["${esc(label)}", "${esc(label)}"],'placeholder_enter_variable_name_to_tr':["Enter variable name to trace lookup", "输入要跟踪查找的变量名"],'strong_analyze':["Analyze", "分析"],'strong_esc_varname':["${esc(varName)}", "${esc(varName)}"],'strong_esc_foundscope_name':["${esc(foundScope.name)}", "${esc(foundScope.name)}"],'strong_analyze_2':["Analyze", "分析"],'label_javascript_code':["JavaScript Code", "JavaScript 代码"]};
+</script>
+
+<script>
+try{var _l=JSON.parse(localStorage.getItem('_dv_lang')||'""');if(_l!=='zh')_l='en'}catch(e){_l='en'}
+var _L=_l;
+function T(k){var a=_LANG&&_LANG[k];return a?a[_L==='zh'?1:0]:k}
+function sL(l){try{localStorage.setItem('_dv_lang',l)}catch(e){}location.reload()}
+</script>
+<script>
+const PRESETS = [
+  {
+    name: 'Basic Scope',
+    code: `const globalVar = 'global';
+
+function outer() {
+  const outerVar = 'outer';
+
+  function inner() {
+    const innerVar = 'inner';
+    console.log(globalVar);  // walks up chain
+    console.log(outerVar);   // closure!
+    console.log(innerVar);   // own scope
+  }
+
+  inner();
+}
+
+outer();`
+  },
+  {
+    name: 'Closure',
+    code: `function makeCounter() {
+  let count = 0;
+
+  return function increment() {
+    count++;        // closes over 'count'
+    return count;
+  };
+}
+
+const counter = makeCounter();
+counter(); // 1
+counter(); // 2
+
+// 'count' lives in makeCounter's scope
+// increment() has a closure reference to it`
+  },
+  {
+    name: 'var vs let',
+    code: `var x = 'global var';
+let y = 'global let';
+
+function demo() {
+  console.log(a);  // undefined (hoisted)
+  // console.log(b);  // ReferenceError (TDZ)
+
+  var a = 'function var';
+  let b = 'function let';
+
+  if (true) {
+    var c = 'block var';  // escapes to function
+    let d = 'block let';  // stays in block
+    const e = 'block const';
+  }
+
+  console.log(c);  // 'block var' ✓
+  // console.log(d); // ReferenceError
+}
+
+demo();`
+  },
+  {
+    name: 'Loop Closure',
+    code: `// Classic closure bug
+const funcs = [];
+
+for (var i = 0; i < 3; i++) {
+  funcs.push(function() {
+    return i;  // all return 3!
+  });
+}
+
+// Fix with let (block scope per iteration)
+const fixedFuncs = [];
+
+for (let j = 0; j < 3; j++) {
+  fixedFuncs.push(function() {
+    return j;  // 0, 1, 2 ✓
+  });
+}`
+  },
+  {
+    name: 'IIFE',
+    code: `const result = (function() {
+  const secret = 'hidden';
+  const api = {
+    getSecret() {
+      return secret;  // closure
+    }
+  };
+  return api;
+})();
+
+// secret is not accessible here
+// result.getSecret() returns 'hidden'`
+  },
+  {
+    name: 'Shadowing',
+    code: `const x = 'global';
+
+function outer() {
+  const x = 'outer';  // shadows global x
+
+  function inner() {
+    const x = 'inner';  // shadows outer x
+    console.log(x);     // 'inner'
+  }
+
+  inner();
+  console.log(x);  // 'outer'
+}
+
+outer();
+console.log(x);  // 'global'`
+  },
+  {
+    name: 'Module Pattern',
+    code: `const module = (function() {
+  // Private scope
+  let _private = 0;
+  const _name = 'MyModule';
+
+  function _helper() {
+    return _private * 2;
+  }
+
+  // Public API
+  return {
+    increment() {
+      _private++;
+    },
+    getValue() {
+      return _helper();
+    },
+    getName() {
+      return _name;
+    }
+  };
+})();`
+  },
+  {
+    name: 'Nested Blocks',
+    code: `function process(data) {
+  const result = [];
+
+  if (data.length > 0) {
+    let filtered = data;
+
+    {
+      const temp = filtered.map(x => x * 2);
+      // 'temp' only exists in this block
+
+      for (let i = 0; i < temp.length; i++) {
+        const item = temp[i];
+        if (item > 5) {
+          result.push(item);
+        }
+      }
+    }
+    // temp, i, item are gone here
+  }
+
+  return result;
+}
+
+process([1, 2, 3, 4, 5]);`
+  }
+];
+
+// Render presets
+const presetsBar = document.getElementById('presetsBar');
+PRESETS.forEach((p, i) => {
+  const chip = document.createElement('button');
+  chip.className = 'preset-chip' + (i === 0 ? ' active' : '');
+  chip.textContent = p.name;
+  chip.addEventListener('click', () => {
+    document.querySelectorAll('.preset-chip').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+    document.getElementById('codeInput').value = p.code;
+    analyze();
+  });
+  presetsBar.appendChild(chip);
+});
+
+document.getElementById('codeInput').value = PRESETS[0].code;
+
+// Scope analysis
+let scopeTree = null;
+
+function analyze() {
+  const code = document.getElementById('codeInput').value;
+  const errEl = document.getElementById('errorMsg');
+  errEl.textContent = '';
+
+  try {
+    scopeTree = buildScopeTree(code);
+    renderScopes(scopeTree);
+    populateScopeSelect(scopeTree);
+  } catch (e) {
+    errEl.textContent = e.message;
+  }
+}
+
+function buildScopeTree(code) {
+  const lines = code.split('\n');
+  const root = {
+    type: 'global',
+    name: 'Global Scope',
+    vars: [],
+    children: [],
+    parent: null,
+    depth: 0
+  };
+
+  let current = root;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line || line.startsWith('//')) continue;
+
+    // Variable declarations
+    const varMatch = line.match(/^(var|let|const)\s+([a-zA-Z_$][\w$]*)\s*=\s*(.+?);\s*(?:\/\/.*)?$/);
+    if (varMatch) {
+      const [, kind, name, valueExpr] = varMatch;
+      current.vars.push({
+        kind,
+        name,
+        value: truncate(valueExpr, 40),
+        hoisted: kind === 'var' && current.type !== 'global'
+      });
+    }
+
+    // Destructured or multi-var (simplified)
+    const simpleVar = line.match(/^(var|let|const)\s+([a-zA-Z_$][\w$]*)\s*;/);
+    if (simpleVar && !varMatch) {
+      current.vars.push({
+        kind: simpleVar[1],
+        name: simpleVar[2],
+        value: 'undefined',
+        hoisted: simpleVar[1] === 'var'
+      });
+    }
+
+    // Function declarations
+    const funcDecl = line.match(/^(?:async\s+)?function\s+([a-zA-Z_$][\w$]*)\s*\(([^)]*)\)/);
+    if (funcDecl) {
+      const scope = {
+        type: 'function',
+        name: funcDecl[1] + '()',
+        vars: [],
+        children: [],
+        parent: current,
+        depth: current.depth + 1
+      };
+      // Parameters as vars
+      if (funcDecl[2].trim()) {
+        funcDecl[2].split(',').forEach(p => {
+          const paramName = p.trim().replace(/\s*=.*/, '');
+          if (paramName) {
+            scope.vars.push({ kind: 'param', name: paramName, value: '(argument)', hoisted: false });
+          }
+        });
+      }
+      current.children.push(scope);
+      current = scope;
+      continue;
+    }
+
+    // Arrow functions assigned to variable
+    const arrowMatch = line.match(/^(?:const|let|var)\s+([a-zA-Z_$][\w$]*)\s*=\s*(?:async\s+)?(?:\(([^)]*)\)|([a-zA-Z_$][\w$]*))\s*=>/);
+    if (arrowMatch) {
+      const varName = arrowMatch[1];
+      // Add the variable to current scope
+      const kindMatch = line.match(/^(const|let|var)/);
+      current.vars.push({
+        kind: kindMatch ? kindMatch[1] : 'const',
+        name: varName,
+        value: '(arrow function)',
+        hoisted: false
+      });
+
+      // If it has a block body, create a scope
+      if (line.includes('{') || lines[i + 1]?.trim().startsWith('{')) {
+        const scope = {
+          type: 'function',
+          name: varName + ' =>',
+          vars: [],
+          children: [],
+          parent: current,
+          depth: current.depth + 1
+        };
+        const params = arrowMatch[2] || arrowMatch[3] || '';
+        if (params.trim()) {
+          params.split(',').forEach(p => {
+            const paramName = p.trim().replace(/\s*=.*/, '');
+            if (paramName) scope.vars.push({ kind: 'param', name: paramName, value: '(argument)', hoisted: false });
+          });
+        }
+        current.children.push(scope);
+        current = scope;
+      }
+      continue;
+    }
+
+    // IIFE
+    const iifeMatch = line.match(/(?:const|let|var)?\s*(?:\w+\s*=\s*)?\(function\s*(\w*)\s*\(/);
+    if (iifeMatch) {
+      const name = iifeMatch[1] || 'anonymous';
+      const scope = {
+        type: 'function',
+        name: `IIFE${name !== 'anonymous' ? ' ' + name : ''}()`,
+        vars: [],
+        children: [],
+        parent: current,
+        depth: current.depth + 1
+      };
+      current.children.push(scope);
+      current = scope;
+
+      // Also add the assigned variable to parent
+      const assignMatch = line.match(/^(const|let|var)\s+(\w+)\s*=/);
+      if (assignMatch) {
+        current.parent.vars.push({
+          kind: assignMatch[1],
+          name: assignMatch[2],
+          value: '(IIFE result)',
+          hoisted: false
+        });
+      }
+      continue;
+    }
+
+    // Return with function
+    const returnFunc = line.match(/return\s+function\s+(\w*)\s*\(/);
+    if (returnFunc) {
+      const scope = {
+        type: 'function',
+        name: (returnFunc[1] || 'anonymous') + '() [returned]',
+        vars: [],
+        children: [],
+        parent: current,
+        depth: current.depth + 1,
+        isClosure: true
+      };
+      current.children.push(scope);
+      current = scope;
+      continue;
+    }
+
+    // Block scopes (if, for, bare blocks)
+    const blockStart = line.match(/^(if|else|for|while|switch|try|catch|finally)\s*[\({]/);
+    if (blockStart || (line === '{' && !funcDecl)) {
+      const blockName = blockStart ? blockStart[1] : 'block';
+
+      // For loops with let/const create block scope
+      const forLetMatch = line.match(/for\s*\(\s*(let|const)\s+(\w+)/);
+
+      const scope = {
+        type: 'block',
+        name: blockName,
+        vars: [],
+        children: [],
+        parent: current,
+        depth: current.depth + 1
+      };
+
+      if (forLetMatch) {
+        scope.vars.push({
+          kind: forLetMatch[1],
+          name: forLetMatch[2],
+          value: '(loop variable)',
+          hoisted: false
+        });
+      }
+
+      current.children.push(scope);
+      current = scope;
+      continue;
+    }
+
+    // Method definitions (in returned objects)
+    const methodMatch = line.match(/^(\w+)\s*\(([^)]*)\)\s*\{/);
+    if (methodMatch && current.type !== 'global') {
+      const scope = {
+        type: 'function',
+        name: methodMatch[1] + '()',
+        vars: [],
+        children: [],
+        parent: current,
+        depth: current.depth + 1,
+        isClosure: true
+      };
+      if (methodMatch[2].trim()) {
+        methodMatch[2].split(',').forEach(p => {
+          const paramName = p.trim();
+          if (paramName) scope.vars.push({ kind: 'param', name: paramName, value: '(argument)', hoisted: false });
+        });
+      }
+      current.children.push(scope);
+      current = scope;
+      continue;
+    }
+
+    // Closing brace — move up scope
+    if (line.match(/^}\)?;?\s*(?:\/\/.*)?$/) || line === '}') {
+      if (current.parent) {
+        current = current.parent;
+      }
+    }
+  }
+
+  return root;
+}
+
+function truncate(s, n) {
+  return s.length > n ? s.slice(0, n - 3) + '...' : s;
+}
+
+function renderScopes(tree) {
+  const area = document.getElementById('scopeArea');
+  area.innerHTML = renderScopeNode(tree);
+}
+
+function renderScopeNode(scope) {
+  const typeClass = scope.isClosure ? 'closure' : scope.type;
+  const label = scope.isClosure ? `${scope.name} [closure]` : scope.name;
+
+  let varsHtml = '';
+  if (scope.vars.length === 0) {
+    varsHtml = '<div class="no-vars">No own variables</div>';
+  } else {
+    varsHtml = scope.vars.map(v => {
+      return `<div class="scope-var${v.hoisted ? ' hoisted' : ''}">
+        <span class="var-kind">${v.kind}</span>
+        <span class="var-name">${esc(v.name)}</span>
+        <span class="var-value">${esc(v.value)}</span>
+        ${v.hoisted ? '<span style="color:var(--orange);font-size:9px">(hoisted)</span>' : ''}
+      </div>`;
+    }).join('');
+  }
+
+  let childrenHtml = '';
+  if (scope.children.length > 0) {
+    childrenHtml = '<div class="scope-children">' +
+      scope.children.map(c => renderScopeNode(c)).join('') +
+      '</div>';
+  }
+
+  return `<div class="scope-box ${typeClass}">
+    <span class="scope-label ${typeClass}" ti="label_esc_label">${esc(label)}</span>
+    <div class="scope-vars">${varsHtml}</div>
+    ${childrenHtml}
+  </div>`;
+}
+
+function populateScopeSelect(tree) {
+  const select = document.getElementById('lookupScope');
+  select.innerHTML = '<option value="">Select scope...</option>';
+
+  function addOption(scope, prefix) {
+    const opt = document.createElement('option');
+    opt.value = getScopePath(scope);
+    opt.textContent = prefix + scope.name;
+    select.appendChild(opt);
+    scope.children.forEach(c => addOption(c, prefix + '  '));
+  }
+
+  addOption(tree, '');
+}
+
+function getScopePath(scope) {
+  const path = [];
+  let s = scope;
+  while (s) {
+    path.unshift(s.name);
+    s = s.parent;
+  }
+  return path.join(' > ');
+}
+
+function findScopeByPath(tree, path) {
+  function search(scope) {
+    if (getScopePath(scope) === path) return scope;
+    for (const child of scope.children) {
+      const found = search(child);
+      if (found) return found;
+    }
+    return null;
+  }
+  return search(tree);
+}
+
+function traceLookup() {
+  const varName = document.getElementById('lookupVar').value.trim();
+  const scopePath = document.getElementById('lookupScope').value;
+  const resultEl = document.getElementById('lookupResult');
+
+  if (!varName || !scopePath || !scopeTree) {
+    resultEl.innerHTML = '<div style="color:var(--dim);font-size:11px">Enter a variable name and select a scope to trace lookup.</div>';
+    return;
+  }
+
+  const startScope = findScopeByPath(scopeTree, scopePath);
+  if (!startScope) {
+    resultEl.innerHTML = '<div style="color:var(--red);font-size:11px">Scope not found.</div>';
+    return;
+  }
+
+  // Walk up the scope chain
+  const steps = [];
+  let found = false;
+  let foundScope = null;
+  let scope = startScope;
+
+  while (scope) {
+    const hasVar = scope.vars.some(v => v.name === varName);
+    steps.push({ scope, found: hasVar && !found });
+    if (hasVar && !found) {
+      found = true;
+      foundScope = scope;
+    }
+    scope = scope.parent;
+  }
+
+  let html = '<div class="lookup-path">';
+  steps.forEach((step, i) => {
+    const cls = step.found ? 'found' : (found && !step.found && steps.indexOf(steps.find(s => s.found)) < i ? 'miss' : '');
+    html += `<span class="lookup-step ${cls}">${esc(step.scope.name)}${step.found ? ' ✓' : (!found || !cls ? ' ✗' : '')}</span>`;
+    if (i < steps.length - 1) html += '<span class="lookup-arrow">→</span>';
+  });
+  html += '</div>';
+
+  if (found) {
+    const v = foundScope.vars.find(v => v.name === varName);
+    const isClosure = foundScope !== startScope && foundScope.type === 'function';
+    html += `<div class="lookup-result">
+      <p style="color:var(--green)">✓ Found "<strong ti="strong_esc_varname">${esc(varName)}</strong>" in <strong ti="strong_esc_foundscope_name">${esc(foundScope.name)}</strong></p>
+      <p style="margin-top:4px;color:var(--dim)">Kind: ${v.kind} · Value: ${esc(v.value)}</p>
+      ${isClosure ? '<p style="margin-top:4px;color:var(--orange)">⚡ This is a closure reference — the variable lives in an outer scope.</p>' : ''}
+      ${foundScope !== startScope ? `<p style="margin-top:4px;color:var(--dim)">Walked ${steps.indexOf(steps.find(s => s.found))} scope(s) up the chain.</p>` : '<p style="margin-top:4px;color:var(--dim)">Found in the current scope (own variable).</p>'}
+    </div>`;
+  } else {
+    html += `<div class="lookup-result">
+      <p style="color:var(--red)">✗ "${esc(varName)}" not found in any scope.</p>
+      <p style="margin-top:4px;color:var(--dim)">This would throw a ReferenceError at runtime.</p>
+    </div>`;
+  }
+
+  resultEl.innerHTML = html;
+}
+
+function esc(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function clearAll() {
+  document.getElementById('scopeArea').innerHTML = '<div style="color:var(--dim);text-align:center;padding-top:60px;font-size:12px">Click <strong>Analyze</strong> to visualize scope chains</div>';
+  document.getElementById('lookupResult').innerHTML = '';
+  scopeTree = null;
+}
+
+// Auto-analyze on load
+analyze();
+</script>
+
+
+<script>
+(function(){var L=_L;
+if(typeof _LANG==='undefined'){_LANG={}}
+document.documentElement.lang=L;
+var tk=document.documentElement.getAttribute('tk');if(tk&&_LANG[tk])document.title=T(tk);
+document.querySelectorAll('[ti]').forEach(function(e){
+  var k=e.getAttribute('ti');if(!k||!_LANG[k])return;
+  e.textContent=T(k);
+});
+document.querySelectorAll('[tp]').forEach(function(e){
+  var k=e.getAttribute('tp');if(!k||!_LANG[k])return;
+  e.placeholder=T(k);
+});
+document.querySelectorAll('.lb').forEach(function(b){b.classList.toggle('a',b.getAttribute('dl')===L)});
+})();
+</script>
+</body>
+</html>
