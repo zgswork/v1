@@ -24,7 +24,7 @@
   var API_PREFIXES = ["/auth", "/dxf", "/search"];
   var PYODIDE_VERSION = "0.26.4";
   // 版本号：与各 HTML 中 runtime.js?v=... 保持一致，改动本文件后一并升级以击穿浏览器缓存
-  var RUNTIME_VERSION = "20260827p";
+  var RUNTIME_VERSION = "20260827q";
   var MODE = "detecting";
   var _pyReady = null;
   var pyodide = null;
@@ -39,6 +39,58 @@
     return p.substring(0, p.lastIndexOf("/") + 1);
   }
   var BASE = computeBase();
+
+  // 部署基准路径探测：GitHub Pages / 任意子目录部署时，依赖文件(pysub/、static/)的位置可能与
+  // 当前页面 pathname 推算的不一致（例如站点根在 /v1/ 但文件实际在 /v1/htmlstars/ 下，
+  // 或 pysub 目录未随仓库提交/被 .gitignore 忽略）。这里用 runtime.js 自身 URL 反推应用根，
+  // 并对若干候选根逐一探测 pysub/__init__.py，选出第一个真实存在的位置，最大化“任意子路径部署”兼容性。
+  function resolveBase() {
+    var roots = [];
+    try {
+      var s = document.currentScript;
+      if (s && s.src) {
+        var ci = s.src.indexOf("/static/js/runtime.js");
+        if (ci !== -1) roots.push(s.src.substring(0, ci + 1)); // 含 origin 的绝对 URL
+      }
+    } catch (e) {}
+    var ap = location.pathname;
+    if (ap.indexOf("/pages/") !== -1) roots.push(location.origin + ap.substring(0, ap.indexOf("/pages/") + 1));
+    else roots.push(location.origin + ap.substring(0, ap.lastIndexOf("/") + 1));
+    // 由每个根“逐级向上”派生候选（兼容多嵌套一层的情况），全部基于同一 origin
+    var cands = [];
+    roots.forEach(function (r) {
+      var pathPart = (r.indexOf("//") !== -1) ? r.substring(r.indexOf("/", 8)) : r;
+      if (pathPart.charAt(0) !== "/") pathPart = "/" + pathPart;
+      var segs = pathPart.split("/").filter(Boolean);
+      for (var k = segs.length; k >= 0; k--) {
+        cands.push(location.origin + "/" + segs.slice(0, k).join("/") + (k > 0 ? "/" : ""));
+      }
+    });
+    var seen = {}, uniq = [];
+    cands.forEach(function (c) { if (!seen[c]) { seen[c] = 1; uniq.push(c); } });
+    cands = uniq;
+    function check(b) {
+      return ORIGINAL_FETCH(b + "pysub/__init__.py", { method: "GET", cache: "no-store" })
+        .then(function (rr) { return rr.ok; })
+        .catch(function () { return false; });
+    }
+    var seq = Promise.resolve(null);
+    cands.forEach(function (b) {
+      seq = seq.then(function (found) {
+        if (found) return found;
+        return check(b).then(function (ok) { return ok ? b : null; });
+      });
+    });
+    return seq.then(function (found) {
+      if (found) {
+        if (found !== BASE) console.warn("[runtime] 基准路径已自动校正为:", found);
+        BASE = found;
+        return found;
+      }
+      console.error("[runtime] 未能自动定位 pysub/ 目录，已尝试的基准路径：\n  " + cands.join("\n  "));
+      return BASE;
+    });
+  }
 
   function apiPath(url) {
     try { return new URL(url, location.href).pathname; }
@@ -127,6 +179,7 @@
   }
 
   function boot() {
+    return resolveBase().then(function () {
     var PYODIDE_BASE = BASE + "static/pyodide/";
     return loadScript(PYODIDE_BASE + "pyodide.js?v=" + RUNTIME_VERSION)
       .then(function () { return window.loadPyodide({ indexURL: PYODIDE_BASE }); })
@@ -188,6 +241,7 @@
         );
         // console.log("[runtime] Pyodide 就绪（前端模式）");
       });
+    });
   }
 
   /* ---------- 按需（懒）加载：仅在首次使用某功能时才拉取对应离线包/数据 ----------
@@ -336,8 +390,16 @@
     if (!_pyReady) {
       _pyReady = boot().catch(function (e) {
         console.error("[runtime] Pyodide 启动失败:", e);
-        showRuntimeError((e && e.message ? e.message : String(e)) +
-          "\n（纯前端模式需联网首次加载 Pyodide 及依赖；如环境无外网，DXF/搜索不可用，但登录应正常）");
+        var msg = (e && e.message ? e.message : String(e));
+        var hint = "\n（纯前端模式需联网首次加载 Pyodide 及依赖；如环境无外网，DXF/搜索不可用，但登录应正常）";
+        if (/pysub|static\/data|404|必需资源/.test(msg)) {
+          hint = "\n\n[部署排查] 站点未能取到 pysub/ 等静态资源（GitHub Pages 常见）。请确认：\n" +
+                 "  1) 仓库中 pysub/、static/data/、static/pyodide/ 已与 static/js/ 处于同一目录层级并提交推送；\n" +
+                 "  2) 它们未被 .gitignore 忽略（尤其 pysub/ 目录与 *.py 文件）；\n" +
+                 "  3) 在仓库根放置 .nojekyll 以关闭 Jekyll 处理；\n" +
+                 "  4) GitHub Pages 的 Source 指向正确的分支与目录。";
+        }
+        showRuntimeError(msg + hint);
         throw e;
       });
     }
