@@ -24,7 +24,7 @@
   var API_PREFIXES = ["/auth", "/dxf", "/search"];
   var PYODIDE_VERSION = "0.26.4";
   // 版本号：与各 HTML 中 runtime.js?v=... 保持一致，改动本文件后一并升级以击穿浏览器缓存
-  var RUNTIME_VERSION = "20260827q";
+  var RUNTIME_VERSION = "20260827r";
   var MODE = "detecting";
   var _pyReady = null;
   var pyodide = null;
@@ -190,7 +190,10 @@
         pyodide.runPython(
           "import os\n" +
           "for _d in ['/pysub', '/app/static/data']:\n" +
-          "    os.makedirs(_d, exist_ok=True)\n"
+          "    os.makedirs(_d, exist_ok=True)\n" +
+          // 空 __init__.py 在 GitHub Pages/Jekyll 下常被当作 0 字节文件返回 404，
+          // 而它只是 Python 包标记文件（本地即 0 字节）；故直接建空文件，避免被 404 阻断启动。
+          "open('/pysub/__init__.py','a').close()\n"
         );
       })
       .then(function () {
@@ -200,7 +203,9 @@
         // utils.py、profile_engine.py、dxf_generator.py）是 Flask 后端专用或在 browser_server
         // 内被延迟 import，不会在导入 browser_server 时触发，前端启动无需下载。
         var tasks = [
-          ["pysub/__init__.py", "/pysub/__init__.py", false, true],
+          // pysub/__init__.py 为空标记文件，已在上方直接用 Python 建好，无需 fetch；
+          // 这里保留一次“尽力获取”但不强制（404 也不中断启动），以防将来该文件含内容。
+          ["pysub/__init__.py", "/pysub/__init__.py", false, false],
           ["pysub/browser_server.py", "/pysub/browser_server.py", false, true],
           // 以下两个是前端绘图（browser_server.dxf_generate）实际会延迟导入的纯 python 源文件，
           // 体积小（几十 KB），随启动写入可保证首次绘图即能 import，避免懒加载写入被静默失败时
