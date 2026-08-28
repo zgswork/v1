@@ -287,11 +287,11 @@ function reDownload() {
 async function drawDxf() {
     const msgEl = document.getElementById('msg');
     drawBtnEl.disabled = true;
-    drawBtnEl.textContent = '生成中...';
+    drawBtnEl.textContent = '正在努力绘图，请稍等...';
     let sec = 0;
     const timer = setInterval(() => {
         sec++;
-        msgEl.innerHTML = `⏳ 生成中... 已用时 ${sec} 秒`;
+        msgEl.innerHTML = `⏳ 正在努力绘图，请稍等... 已用时 ${sec} 秒`;
         msgEl.classList.remove('hidden');
     }, 1000);
     // ✨ 核心优化：直接从 form 收集所有带 name 属性的数据
@@ -308,7 +308,7 @@ async function drawDxf() {
     try {
         const res = await fetch('/dxf/', { method: 'POST', body: fd });
         clearInterval(timer);
-        if (!res.ok) throw new Error(await res.text() || '生成失败');
+        if (!res.ok) throw new Error(await res.text() || '绘图失败');
         const cd = res.headers.get('content-disposition') || '';
         let fn = 'design.dxf';
         const m = cd.match(/filename\s*=\s*"?([^";]+)"?/i);
@@ -318,10 +318,10 @@ async function drawDxf() {
         const u = URL.createObjectURL(blob), a = document.createElement('a');
         a.href = u; a.download = fn; document.body.appendChild(a); a.click(); a.remove();
         URL.revokeObjectURL(u);
-        msgEl.innerHTML = `✅ 已生成并下载: <a href="#" onclick="reDownload();return false;">${fn}</a>`;
+        msgEl.innerHTML = `✅ 已绘图完毕并下载: <a href="#" onclick="reDownload();return false;">${fn}</a>`;
     } catch (err) {
         clearInterval(timer);
-        msgEl.textContent = '生成失败: ' + err.message;
+        msgEl.textContent = '绘图失败: ' + err.message;
         msgEl.classList.remove('hidden');
     } finally {
         drawBtnEl.disabled = false;
