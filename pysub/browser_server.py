@@ -15,6 +15,7 @@ import os
 import json
 import base64
 import traceback
+import hashlib
 
 # 应用根目录（Pyodide 虚拟文件系统里的 /app），由 runtime.js 通过
 # pyodide.globals.set('APP_ROOT', ...) 设置；默认 '/app'。
@@ -84,6 +85,10 @@ def _err(message, status=500):
 # ---------------------------------------------------------------------------
 # 鉴权 / 权限（对应 pysub/auth.py）
 # ---------------------------------------------------------------------------
+def _hash_password(pwd):
+    # 与 pysub/auth.py 完全一致：SHA-256(密码 + 盐"zgs")
+    return hashlib.sha256((pwd + "zgs").encode("utf-8")).hexdigest()
+
 def _guest_menus(users):
     return users.get("guest", {}).get("menus", [])
 
@@ -104,7 +109,7 @@ def auth_login(body):
     username = (body or {}).get("username")
     password = (body or {}).get("password")
     users = load_users()
-    if username in users and users[username].get("password") == password:
+    if username in users and users[username].get("password") == _hash_password(password):
         global SESSION_USER
         SESSION_USER = username
         return _ok({"success": True, "menus": users[username].get("menus", [])})
@@ -134,7 +139,7 @@ def auth_create_user(body):
         return _err("当前用户无权限创建用户", status=403)
     if not set(new_menus).issubset(set(current_menus)):
         return _err("新用户权限不能超过当前用户权限", status=403)
-    users[new_username] = {"password": password, "menus": new_menus}
+    users[new_username] = {"password": _hash_password(password), "menus": new_menus}
     save_users(users)
     return _ok({"success": True, "message": f"用户 {new_username} 创建成功"})
 
@@ -164,7 +169,7 @@ def auth_update_user(body):
     if target == SESSION_USER and "menus" in data:
         return _err("不能修改自己的权限", status=403)
     if "password" in data and data["password"]:
-        users[target]["password"] = data["password"]
+        users[target]["password"] = _hash_password(data["password"])
     if "menus" in data and target != SESSION_USER:
         cur = users[SESSION_USER].get("menus", [])
         if not set(data["menus"]).issubset(set(cur)):
@@ -206,9 +211,9 @@ def auth_change_password(body):
     users = load_users()
     if SESSION_USER not in users:
         return _err("用户不存在", status=404)
-    if users[SESSION_USER].get("password") != old_pwd:
+    if users[SESSION_USER].get("password") != _hash_password(old_pwd):
         return _err("旧密码错误", status=401)
-    users[SESSION_USER]["password"] = new_pwd
+    users[SESSION_USER]["password"] = _hash_password(new_pwd)
     save_users(users)
     return _ok({"success": True, "message": "密码修改成功"})
 

@@ -3,6 +3,12 @@ from flask import Blueprint, request, jsonify, session
 import json
 import os
 from functools import wraps
+import hashlib
+
+# 密码哈希：SHA-256(密码 + 盐"zgs")，登录校验与密码存储统一使用
+SALT = "zgs"
+def _hash_password(pwd):
+    return hashlib.sha256((pwd + SALT).encode("utf-8")).hexdigest()
 
 bp = Blueprint('auth', __name__, url_prefix='/auth')
 
@@ -37,7 +43,7 @@ def login():
     username = data.get('username')
     password = data.get('password')
     users = load_users()
-    if username in users and users[username].get('password') == password:
+    if username in users and users[username].get('password') == _hash_password(password):
         session['user'] = username
         return jsonify({
             'success': True,
@@ -97,7 +103,7 @@ def create_user():
         return jsonify({'success': False, 'message': '新用户权限不能超过当前用户权限'}), 403
 
     users[new_username] = {
-        'password': password,
+        'password': _hash_password(password),
         'menus': new_menus
     }
     save_users(users)
@@ -146,7 +152,7 @@ def update_user():
 
     # 更新密码
     if 'password' in data and data['password']:
-        users[target_user]['password'] = data['password']
+        users[target_user]['password'] = _hash_password(data['password'])
 
     # 更新权限（仅当不是自己）
     if 'menus' in data and target_user != current_user:
@@ -198,9 +204,9 @@ def change_password():
     users = load_users()
     if username not in users:
         return jsonify({'success': False, 'message': '用户不存在'}), 404
-    if users[username].get('password') != old_pwd:
+    if users[username].get('password') != _hash_password(old_pwd):
         return jsonify({'success': False, 'message': '旧密码错误'}), 401
 
-    users[username]['password'] = new_pwd
+    users[username]['password'] = _hash_password(new_pwd)
     save_users(users)
     return jsonify({'success': True, 'message': '密码修改成功'})
