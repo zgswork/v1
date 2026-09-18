@@ -1,0 +1,3505 @@
+<!DOCTYPE html>
+<!--
+  文档解说页 index.html  V1.0.0（2026-09-14 重构版）→ V1.2.3（2026-09-18 新增「显示点位」复选框：选中后鼠标在文件区内移动，
+    鼠标左上角实时显示相对 basePoint 的 hotspots x/y 值；该复选框可整体注释停用；
+    2026-09-16 V1.2.2 两级筛选取消「全部」选项、V1.2.1 不显示「类别/细分」文字标签；
+    V1.2.0（2026-09-16）新增「在线语音」复选框与两级联动筛选；同日 V1.1.0：
+    默认勾选 = 使用网站提供的语音文件 file/voice/（「播音」不可选）；取消 = 使用本地语音引擎（「播音」可选）；
+    未勾选「语音说明」时「在线语音」与「播音」一起隐藏；播放字幕条 captionBar 已注释停用）。
+    V1.2.0 另在「文件」下拉前新增两级联动筛选（设定在 js/narration_data.js 的 cascade 与条目 cat/sub；V1.2.1 起不显示两级文字标签、V1.2.2 起不设「全部」选项）。
+  本次重构把 css/style.css、js/loaders.js、js/main.js 全部内联进本文件：
+    · 后期改样式 / 改逻辑 → 只编辑本文件内对应的 style 段与两段内联 script（各段首都有分隔注释）
+    · 后期加 / 删解说内容 → 只动 js/narration_data.js 与 file/ 目录（必要时双击 tools/gen_voice_oneclick.pyw 重生成语音）
+    · js/lib/ 为本地离线 PDF.js 库，无需改动
+-->
+<html lang="zh-CN">
+
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+        <title>文档解说 · V1.2.3</title>
+        <style>
+            /* ============================================================
+   内容解说页样式（V1.0.0 重构：原 css/style.css 内联至此）
+   ============================================================ */
+            /* ============================================================
+ * PDF 内容解说页样式  V0.0.1
+ * 兼容电脑 + 手机（工具栏自动换行，触点支持点按）
+ * ============================================================ */
+
+            /* 【V0.2.4 主题统一】工具栏/按钮/强调色改为与 welcome.html 一致的深海军蓝 + 青蓝，
+               仅改颜色取值，交互与朗读逻辑零改动 */
+            :root {
+                --tb-bg: #0f172a;
+                --tb-fg: #e2e8f0;
+                --btn-bg: #1e293b;
+                --btn-hover: #2a3a52;
+                --accent: #38bdf8;
+                --dot: #38bdf8;
+                --popup-bg: #16213a;
+                --popup-fg: #e2e8f0;
+            }
+
+            * {
+                box-sizing: border-box;
+            }
+
+            html,
+            body {
+                margin: 0;
+                padding: 0;
+                height: 100%;
+                /* 【V0.2.5 主题统一】页面背景改为与 welcome.html 一致的深海军蓝渐变 */
+                background: #0c1220 linear-gradient(135deg, #0c1220, #1a2332) fixed;
+                font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+                -webkit-tap-highlight-color: transparent;
+            }
+
+            /* ---------- 顶部工具栏（一行；窄屏换行） ---------- */
+            .toolbar {
+                display: flex;
+                flex-wrap: wrap;
+                /* 手机窄屏自动换行 */
+                align-items: center;
+                gap: 8px 12px;
+                padding: 8px 12px;
+                background: var(--tb-bg);
+                color: var(--tb-fg);
+                position: sticky;
+                top: 0;
+                z-index: 100;
+            }
+
+            .tb-left {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                flex: 1 1 auto;
+            }
+
+            .btn {
+                border: none;
+                border-radius: 6px;
+                background: var(--btn-bg);
+                color: var(--tb-fg);
+                padding: 8px 14px;
+                font-size: 14px;
+                cursor: pointer;
+                user-select: none;
+                transition: background .15s;
+                min-height: 36px;
+                /* 手机可点区域 */
+            }
+
+            .btn:hover {
+                background: var(--btn-hover);
+            }
+
+            .btn:active {
+                transform: scale(.97);
+            }
+
+            /* V0.2.0：PDF 无法显示时，按钮与复选框全部置灰不可用 */
+            .btn:disabled,
+            .btn:disabled:hover {
+                opacity: .45;
+                cursor: not-allowed;
+                transform: none;
+                background: var(--btn-bg);
+            }
+
+            .voice-switch input:disabled {
+                cursor: not-allowed;
+                opacity: .45;
+            }
+
+            .voice-switch:has(input:disabled) {
+                cursor: not-allowed;
+                opacity: .6;
+            }
+
+            /* V0.2.0：PDF 无法显示时，工具栏左侧控件组整体提示不可操作 */
+            body.pdf-unavailable .tb-left {
+                opacity: .75;
+            }
+
+            .btn-auto.active {
+                background: var(--accent);
+                color: #fff;
+            }
+
+            .page-indicator {
+                font-size: 14px;
+                min-width: 72px;
+                text-align: center;
+                letter-spacing: 1px;
+            }
+
+            /* PDF 文件下拉（工具栏最左，位于「上一页」之前） */
+            .pdf-label {
+                opacity: .85;
+                font-size: 14px;
+            }
+
+            .pdf-select {
+                padding: 7px 8px;
+                border-radius: 6px;
+                border: 1px solid #2a3a52;
+                background: var(--btn-bg);
+                color: var(--tb-fg);
+                font-size: 14px;
+                min-height: 36px;
+                max-width: 260px;
+                cursor: pointer;
+            }
+
+            /* V0.3.0：改用离线语音文件后音色固定 → 「声音模板」下拉置灰不可选 */
+            #voiceSelect:disabled,
+            .pdf-select:disabled {
+                opacity: .5;
+                cursor: not-allowed;
+            }
+
+            .voice-switch {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                font-size: 14px;
+                cursor: pointer;
+                user-select: none;
+                min-height: 36px;
+            }
+
+            .voice-switch input {
+                width: 18px;
+                height: 18px;
+                accent-color: var(--accent);
+                cursor: pointer;
+            }
+
+            /* 声音模板（右上角） */
+            .voice-templates {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                font-size: 14px;
+                margin-left: auto;
+                /* 推到最右侧 */
+            }
+
+            .voice-templates select {
+                padding: 7px 8px;
+                border-radius: 6px;
+                border: 1px solid #2a3a52;
+                background: var(--btn-bg);
+                color: var(--tb-fg);
+                font-size: 14px;
+                min-height: 36px;
+                cursor: pointer;
+            }
+
+            .vt-label {
+                opacity: .85;
+            }
+
+            /* ---------- PDF 展示区 ---------- */
+            .pdf-stage {
+                display: flex;
+                justify-content: center;
+                padding: 14px;
+                min-height: calc(100% - 56px);
+            }
+
+            .pdf-wrap {
+                position: relative;
+                max-width: 860px;
+                width: 100%;
+                box-shadow: 0 4px 18px rgba(0, 0, 0, .25);
+                border-radius: 4px;
+                overflow: hidden;
+                background: #fff;
+                align-self: flex-start;
+            }
+
+            #pdfCanvas {
+                display: block;
+                width: 100%;
+                /* 自适应宽度 */
+                height: auto;
+            }
+
+            /* 【V0.4.0】图片文件解说：图片条目直接显示 <img>，与 #pdfCanvas 共用同一容器
+ * 和热点层（两者按条目类型二选一显示）。宽度撑满、高度按原图比例自适应，
+ * 触点用百分比定位，因此缩放后位置依然准确。 */
+            #pdfImage {
+                display: block;
+                width: 100%;
+                height: auto;
+            }
+
+            /* ---------- 热点层 ---------- */
+            .hotspot-layer {
+                position: absolute;
+                inset: 0;
+            }
+
+            /* 热点容器：包含圆点 + 弹窗，一起进出 hover */
+            .hotspot {
+                position: absolute;
+                transform: translate(-50%, -50%);
+                z-index: 10;
+            }
+
+            .hotspot .dot {
+                width: 22px;
+                height: 22px;
+                border-radius: 50%;
+                background: rgba(30, 144, 255, .85);
+                border: 3px solid #fff;
+                box-shadow: 0 0 0 4px rgba(30, 144, 255, .28), 0 2px 6px rgba(0, 0, 0, .3);
+                cursor: pointer;
+                transition: transform .15s, box-shadow .15s;
+                animation: dotPulse 2s infinite;
+            }
+
+            @keyframes dotPulse {
+
+                0%,
+                100% {
+                    box-shadow: 0 0 0 4px rgba(30, 144, 255, .28), 0 2px 6px rgba(0, 0, 0, .3);
+                }
+
+                50% {
+                    box-shadow: 0 0 0 9px rgba(30, 144, 255, .12), 0 2px 6px rgba(0, 0, 0, .3);
+                }
+            }
+
+            .hotspot:hover .dot,
+            .hotspot.active .dot {
+                transform: scale(1.25);
+                background: var(--accent);
+                animation: none;
+            }
+
+            /* ---------- 弹窗 ---------- */
+            .hotspot .popup {
+                position: absolute;
+                bottom: 32px;
+                /* 默认在触点上方（与 js/main.js 的 POPUP_OFFSET 一致） */
+                left: 50%;
+                /* 【V0.5.1】--popup-dx：贴边时的水平平移量，由 js/main.js 的 placePopup() 计算。
+     触点靠近文档左/右边缘时，弹窗整体平移回内容区内，不再被 .pdf-wrap 裁掉。 */
+                --popup-dx: 0px;
+                transform: translateX(calc(-50% + var(--popup-dx))) translateY(6px);
+                width: 300px;
+                max-width: 72vw;
+                /* 手机不超屏 */
+                background: var(--popup-bg);
+                color: var(--popup-fg);
+                border-radius: 10px;
+                padding: 12px 14px;
+                box-shadow: 0 8px 24px rgba(0, 0, 0, .3);
+                opacity: 0;
+                visibility: hidden;
+                pointer-events: none;
+                /* 隐藏时不拦截页面事件 */
+                transition: opacity .18s, transform .18s, visibility .18s;
+                z-index: 20;
+            }
+
+            .hotspot.active .popup {
+                opacity: 1;
+                visibility: visible;
+                pointer-events: auto;
+                /* 显示后可悬停弹窗本体 */
+                transform: translateX(calc(-50% + var(--popup-dx))) translateY(0);
+            }
+
+            /* 弹窗小箭头 */
+            .hotspot .popup::after {
+                content: "";
+                position: absolute;
+                top: 100%;
+                /* 【V0.5.1】弹窗平移后，箭头同步反向偏移，始终指向触点（不再固定 50%） */
+                left: calc(50% - var(--popup-dx));
+                margin-left: -7px;
+                border: 7px solid transparent;
+                border-top-color: var(--popup-bg);
+            }
+
+            .popup .popup-title {
+                font-size: 15px;
+                font-weight: bold;
+                color: #e2e8f0;
+                margin-bottom: 6px;
+                display: flex;
+                align-items: center;
+                gap: 6px;
+            }
+
+            .popup .popup-text {
+                font-size: 13.5px;
+                line-height: 1.65;
+                text-align: justify;
+            }
+
+            /* 弹窗靠近顶部时翻转到触点下方（JS 加 flip 类） */
+            .hotspot.flip .popup {
+                bottom: auto;
+                top: 32px;
+            }
+
+            .hotspot.flip .popup::after {
+                top: auto;
+                bottom: 100%;
+                border-top-color: transparent;
+                border-bottom-color: var(--popup-bg);
+            }
+
+            /* 正在朗读的触点高亮 */
+            .hotspot.speaking .dot {
+                background: #e67e22;
+                border-color: #fff;
+            }
+
+            /* ---------- 加载提示 ---------- */
+            .loading,
+            .load-error {
+                position: absolute;
+                inset: 0;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                background: #fff;
+                font-size: 16px;
+                color: #666;
+                z-index: 30;
+            }
+
+            .load-error {
+                color: #c0392b;
+            }
+
+            /* 【修复 V0.2.1】上面这条 `.loading, .load-error { display: flex; }` 是类选择器规则，
+   优先级高于浏览器默认样式表里的 `[hidden] { display: none }`，会让 HTML 上写的
+   hidden 属性彻底失效 —— 结果「加载中 / 加载失败」两个遮罩永远可见并盖住 PDF，
+   表现为不论 PDF 是否真的加载成功，页面上都显示"PDF 加载失败…"。
+   这里用 !important 强制让 hidden 生效（含手机端各内核）。 */
+            [hidden] {
+                display: none !important;
+            }
+
+            /* 【V1.2.3】点位提示浮签：跟随鼠标左上角，显示相对 basePoint 的 hotspots 坐标值。
+   pointer-events:none → 不挡鼠标，不影响触点悬停与弹窗。 */
+            .point-tip {
+                position: fixed;
+                left: 0;
+                top: 0;
+                z-index: 80;
+                transform: translate(calc(-100% - 12px), calc(-100% - 12px));
+                padding: 4px 10px;
+                background: rgba(15, 23, 42, .92);
+                border: 1px solid rgba(94, 234, 212, .35);
+                border-radius: 6px;
+                color: #38bdf8;
+                font: 13px/1.6 Consolas, "Courier New", monospace;
+                white-space: nowrap;
+                pointer-events: none;
+                box-shadow: 0 2px 10px rgba(0, 0, 0, .35);
+            }
+
+            /* 加载中的提示允许换行显示多行进度文字 */
+            .loading {
+                white-space: pre-line;
+            }
+
+            /* 错误遮罩改为纵向排版：上方提示语，下方显示具体失败原因（手机上截图即可反馈） */
+            .load-error {
+                flex-direction: column;
+                padding: 16px;
+                text-align: center;
+            }
+
+            .le-main {
+                font-size: 15px;
+                line-height: 1.6;
+            }
+
+            .le-detail {
+                margin: 10px 0 0;
+                max-width: 100%;
+                max-height: 46%;
+                overflow: auto;
+                text-align: left;
+                white-space: pre-wrap;
+                word-break: break-all;
+                font-size: 12px;
+                line-height: 1.55;
+                color: #8a5a52;
+                background: rgba(192, 57, 43, .06);
+                border: 1px dashed rgba(192, 57, 43, .35);
+                border-radius: 4px;
+                padding: 8px 10px;
+            }
+
+            .le-detail:empty {
+                display: none;
+            }
+
+            /* 无内容时不占位 */
+
+            /* 【V0.2.2】语音引擎提示条（工具栏下方）：
+   手机端没有控制台，这是唯一能告诉用户"为什么没声音、该怎么处理"的地方。
+   隐藏由全局 [hidden] 兜底规则保证（见下方）。 */
+            .voice-hint {
+                padding: 8px 12px;
+                background: #fff4e5;
+                color: #8a4b00;
+                border-bottom: 1px solid #f0c98a;
+                font-size: 13px;
+                line-height: 1.6;
+            }
+
+            /* 【V0.5.0】播放字幕条：语音播放期间固定在页面底部，
+   始终完整显示当前触点（触碰点）的标题与文字内容。
+   触点的弹窗贴着触点显示，靠近屏幕边缘时可能被 .pdf-wrap 的 overflow 裁掉；
+   这条字幕与屏幕尺寸无关，电脑 / 手机上都能看清正在播报的内容。 */
+            .caption-bar {
+                position: fixed;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                z-index: 90;
+                /* 低于工具栏(100)与加载遮罩(30→同层不冲突) */
+                max-height: 30vh;
+                overflow: auto;
+                padding: 10px 16px 12px;
+                background: rgba(12, 18, 32, .94);
+                color: #eaf0f8;
+                box-shadow: 0 -6px 18px rgba(0, 0, 0, .28);
+                border-top: 3px solid var(--accent);
+                -webkit-backdrop-filter: blur(4px);
+                backdrop-filter: blur(4px);
+            }
+
+            .cap-head {
+                display: flex;
+                align-items: baseline;
+                gap: 10px;
+                margin-bottom: 4px;
+            }
+
+            .cap-title {
+                font-size: 15px;
+                font-weight: bold;
+                color: #ffffff;
+            }
+
+            .cap-index {
+                font-size: 12px;
+                color: #9fb3cd;
+                margin-left: auto;
+                /* 推到右侧 */
+                white-space: nowrap;
+            }
+
+            .cap-text {
+                font-size: 13.5px;
+                line-height: 1.7;
+                text-align: justify;
+                color: #dde6f2;
+            }
+
+            /* 字幕显示时给内容区留出底部空间，避免盖住页面下半部分的热点 */
+            body.has-caption .pdf-stage {
+                padding-bottom: 132px;
+            }
+
+            /* ---------- 手机适配 ---------- */
+            @media (max-width: 640px) {
+                .toolbar {
+                    padding: 6px 8px;
+                }
+
+                .btn {
+                    padding: 7px 10px;
+                    font-size: 13px;
+                }
+
+                .voice-switch span {
+                    font-size: 13px;
+                }
+
+                .vt-label {
+                    display: none;
+                }
+
+                /* 窄屏隐藏标签文字，节省空间 */
+                .pdf-label {
+                    display: none;
+                }
+
+                /* 窄屏同样隐藏 PDF 标签，保留下拉本体 */
+                .pdf-select {
+                    max-width: 150px;
+                    font-size: 13px;
+                    padding: 6px;
+                }
+
+                .voice-templates select {
+                    max-width: 120px;
+                }
+
+                .page-indicator {
+                    min-width: 60px;
+                    font-size: 13px;
+                }
+
+                .hotspot .dot {
+                    width: 26px;
+                    height: 26px;
+                }
+
+                /* 手机触点更大更易点 */
+                .hotspot .popup {
+                    width: 260px;
+                }
+
+                .pdf-stage {
+                    padding: 8px;
+                }
+
+                .caption-bar {
+                    max-height: 34vh;
+                    padding: 8px 12px 10px;
+                }
+
+                .cap-title {
+                    font-size: 14px;
+                }
+
+                .cap-text {
+                    font-size: 13px;
+                    line-height: 1.65;
+                }
+
+                body.has-caption .pdf-stage {
+                    padding-bottom: 150px;
+                }
+            }
+        </style>
+    </head>
+
+    <body>
+
+        <!-- ===== 顶部工具栏：一行排布，小屏自动换行 ===== -->
+        <header class="toolbar" id="toolbar">
+            <div class="tb-left">
+                <!-- V0.2.0 新增：文件下拉（位于「上一页」按钮之前），选项由 js/narration_data.js 的 pdfs 数组生成
+         V0.4.0：下拉里既有 PDF 文件，也有图片文件（条目 type: "image"）
+         V0.5.0：再加 TXT / Word / PPT / DXF / DWG（条目 type: "text" / "docx" / "doc" / "pptx" / "ppt" / "dxf" / "dwg"） -->
+                <span class="pdf-label"></span>
+                <!-- 【V1.2.0】多级联动筛选：两级下拉在「文件」下拉之前，逐级缩小文件范围。
+                     联动设定在 js/narration_data.js 的 cascade（开关与名称）与条目 cat / sub 字段；
+                     【V1.2.1】不再显示两级文字标签（原 catLabel / subLabel 两个 span 已删除）；
+                     【V1.2.2】不设「全部」选项：两级始终按具体分类过滤，默认选中第 1 个选项，
+                     cascade.enabled=false 或条目均无分类时自动隐藏。 -->
+                <select class="pdf-select" id="catSelect" hidden title="一级筛选"></select>
+                <select class="pdf-select" id="subSelect" hidden title="二级筛选"></select>
+                <select class="pdf-select" id="pdfSelect" title="选择要解说的文件（PDF／图片／TXT／Word／PPT／DXF／DWG）"></select>
+                <!-- V0.5.0：首/末页会由 js/main.js 自动禁用对应按钮（只有一页时两个都禁用） -->
+                <button class="btn" id="btnPrev" title="前一页">◀ 上一页</button>
+                <span class="page-indicator" id="pageIndicator">- / -</span>
+                <button class="btn" id="btnNext" title="后一页">下一页 ▶</button>
+                <button class="btn btn-auto" id="btnAuto" title="自动巡讲">▶ 自动巡讲</button>
+                <!-- 【V1.2.3】「显示点位」复选框：不需要时把下面整个 label 注释掉即可（JS 判空安全，不影响其它功能）。
+                     选中后鼠标在文件区内移动，鼠标左上角实时显示该点相对条目基点 basePoint 的比例偏移，
+                     即 narration_data.js 中 hotspots 的 x / y 值（录入触点坐标用）。 -->
+                <label class="voice-switch" id="lblShowPoint" title="选中后移动鼠标显示相对基点的位置（hotspots 的 x/y 值）">
+                    <input type="checkbox" id="chkShowPoint">
+                    <span>显示点位</span>
+                </label>
+            </div>
+
+            <label class="voice-switch" title="开启后鼠标悬停触点自动朗读（V0.5.0 起默认开启）">
+                <input type="checkbox" id="chkVoice">
+                <span>🔊 </span>
+            </label>
+
+            <!-- 【V1.1.0】在线语音：勾选（默认）= 使用网站提供的语音文件（file/voice/，音色固定）；
+                 取消 = 改用本地语音引擎朗读（此时「播音」下拉可选音色）。
+                 未勾选「语音说明」时，本复选框与「播音」下拉一起隐藏（refreshVoiceUI 统一控制）。 -->
+            <label class="voice-switch" id="onlineWrap" title="勾选：使用网站提供的语音文件（音色固定）；取消：使用本地语音引擎朗读（可选播音）">
+                <input type="checkbox" id="chkOnline" checked>
+                <span>在线语音</span>
+            </label>
+
+            <!-- 右上角：声音模板选择（【V1.1.0】加 id，随「语音说明」一起显示/隐藏） -->
+            <div class="voice-templates" id="voiceTemplatesWrap">
+                <span class="vt-label">播音</span>
+                <select id="voiceSelect" title="选择播音（改用离线语音文件后不可选）"></select>
+            </div>
+        </header>
+
+        <!-- V0.2.2：语音引擎提示条 —— 手机端没有控制台，用它把"为什么没声音"和"怎么处理"直接显示给用户 -->
+        <div class="voice-hint" id="voiceHint" hidden></div>
+
+        <!-- ===== 内容展示区（PDF 画布 / 图片元素二选一；TXT·Word·PPT·DXF 也画在画布上） ===== -->
+        <main class="pdf-stage" id="pdfStage">
+            <div class="pdf-wrap" id="pdfWrap">
+                <canvas id="pdfCanvas"></canvas>
+                <!-- V0.4.0：图片类型条目的展示元素（与 canvas 二选一显示，由 js/main.js 的 showStage() 控制） -->
+                <img id="pdfImage" alt="" hidden>
+                <!-- 热点层由 JS 动态生成（触点 + 弹窗）。
+         V0.5.1：触点靠近文档边沿时，js/main.js 的 placePopup() 会把弹窗整体平移/翻转
+         回内容区之内（配合 css 的 --popup-dx），不再被 .pdf-wrap 的 overflow 裁断。 -->
+                <div class="hotspot-layer" id="hotspotLayer"></div>
+                <div class="loading" id="loading">内容加载中，请稍候…</div>
+                <div class="load-error" id="loadError" hidden>
+                    <div class="le-main">文件加载失败或无法显示，请在上方下拉切换其它文件，或确认文件路径后刷新重试。</div>
+                    <!-- V0.2.1：手机上无法查看控制台，这里直接列出具体的失败原因与尝试过的加载方案，便于截图反馈 -->
+                    <pre class="le-detail" id="loadErrorDetail"></pre>
+                </div>
+            </div>
+        </main>
+
+        <!-- 【V1.2.3】点位提示浮签：position:fixed 跟随鼠标左上角（与工具栏「显示点位」复选框配套） -->
+        <div class="point-tip" id="pointTip" hidden></div>
+
+        <!-- 【V1.1.0 起注释停用】播放字幕条（播放时显示触碰点文字内容）—— 按需求暂时不再显示。
+     原理保留：语音播放期间始终完整显示当前触点（触碰点）的标题与文字内容，
+     触点的弹窗贴着触点显示，靠近屏幕边缘时可能被容器裁掉；这条固定在底部的字幕
+     与屏幕尺寸无关，电脑/手机上都能看清正在播报的内容。
+     JS 侧 showCaption/hideCaption 已判空（captionBar 为 null 时直接跳过），恢复显示
+     只需把下面这段的注释打开即可。
+        <div class="caption-bar" id="captionBar" hidden>
+            <div class="cap-head">
+                <span class="cap-title" id="captionTitle"></span>
+                <span class="cap-index" id="captionIndex"></span>
+            </div>
+            <div class="cap-text" id="captionText"></div>
+        </div>
+        -->
+
+        <!-- 非模块脚本：解说数据 → 格式适配层 → 主逻辑（顺序加载）
+     V0.2.1 起：样式与逻辑脚本带版本参数，避免手机浏览器缓存旧文件导致修复不生效
+     V0.4.0 起：pdf.min.js 仅在选中 PDF 类型条目时才会被用到（图片条目不需要）
+     V0.5.0 起：loaders.js 负责 TXT / Word / PPT / DXF / DWG 的解析（零依赖） -->
+        <script src="js/narration_data.js?v=1.2.3"></script>
+        <script>
+            /* ============================================================
+               格式适配层（V1.0.0 重构：原 js/loaders.js 内联至此）
+               TXT / Word / PPT / DXF / DWG 零依赖解析，统一输出 CanvasDoc
+               ============================================================ */
+            /* ============================================================
+             * 文件格式适配层  file_loaders V0.5.0
+             * ------------------------------------------------------------
+             * 目标：让「内容解说」页不限于 PDF / 图片，还能解说
+             *       TXT 等纯文本、Word（docx / doc）、PPT（pptx / ppt）、
+             *       DXF / DWG 图形文件 —— 且**不引入任何第三方库**。
+             *
+             * 输出统一模型 CanvasDoc（便于 main.js 用同一套画布渲染流程处理）：
+             *   { kind, label, note, pages: [ { w, h, draw(ctx) } ] }
+             *   · w / h 为页面逻辑尺寸（像素），main.js 按容器宽度缩放后调用 draw
+             *   · 页数 = pages.length；页码 = 下标 + 1
+             *   触点仍由 main.js 用「标准基点 + 偏移」的页面比例坐标定位，
+             *   因此文本页、幻灯片页、CAD 图形页与 PDF 页的行为完全一致。
+             *
+             * 各格式的实现方式：
+             *   text  TXT/MD/CSV…  → 按版式自动分页（支持 \f 或「---」显式分页），画布绘字
+             *   docx  Word 文档    → 自写 ZIP 解包 + 自写 inflate → 解析 word/document.xml
+             *   doc   Word 97-2003 → 先按签名识别（其实是 docx 就走 docx 路径）；
+             *                        否则二进制「尽力提取」正文，质量不足时给出引导页
+             *   pptx  PPT 演示文稿 → 解包后每张幻灯片 = 一页（页数与幻灯片数一致）
+             *   ppt   PPT 97-2003  → 同上（尽力提取 / 引导页）
+             *   dxf   CAD 图形     → 解析 ENTITIES + BLOCKS，实体级绘制（线/多段线/圆/弧/
+             *                        文字/块参照…），自动按图形范围缩放居中
+             *   dwg   CAD 二进制   → 浏览器无法解析专有二进制格式 → 给出可操作的引导页
+             *                        （若该 .dwg 实际是文本 DXF，则自动按 DXF 解析）
+             * ============================================================ */
+            (function (global) {
+                "use strict";
+
+                /* ============================================================
+                 * 一、类型判定
+                 * ============================================================ */
+                const EXT_KIND = {
+                    pdf: "pdf",
+                    png: "image", jpg: "image", jpeg: "image", gif: "image", webp: "image",
+                    bmp: "image", svg: "image", avif: "image", ico: "image",
+                    txt: "text", log: "text", md: "text", markdown: "text", csv: "text",
+                    ini: "text", cfg: "text", conf: "text", json: "text", lrc: "text",
+                    srt: "text", xml: "text", html: "text", htm: "text", yml: "text", yaml: "text",
+                    docx: "docx", docm: "docx", doc: "doc",
+                    pptx: "pptx", pptm: "pptx", ppt: "ppt",
+                    dxf: "dxf"
+                };
+
+                const KIND_LABEL = { pdf: "PDF", image: "图片", text: "文本文件", docx: "Word 文档", doc: "Word 文档", pptx: "PPT 演示文稿", ppt: "PPT 演示文稿", dxf: "DXF 图形文件" };
+
+                /* 加载提示语（手机端看得见） */
+                const KIND_LOADING = {
+                    pdf: "PDF 加载中，请稍候…",
+                    image: "图片加载中，请稍候…",
+                    text: "文本文件加载中，请稍候…",
+                    docx: "Word 文档解析中，请稍候…",
+                    doc: "Word 文档解析中，请稍候…",
+                    pptx: "PPT 演示文稿解析中，请稍候…",
+                    ppt: "PPT 演示文稿解析中，请稍候…",
+                    dxf: "DXF 图形解析中，请稍候…"
+                };
+
+                /* 取文件扩展名（用于类型判定） */
+                function extOf(item) {
+                    const u = String((item && item.url) || "");
+                    const m = /\.([A-Za-z0-9]+)(?:[?#]|$)/.exec(u);
+                    return m ? m[1].toLowerCase() : "";
+                }
+
+                /* 合法的 type 取值（显式声明时优先级最高，其次才看扩展名） */
+                const TYPE_VALUES = { pdf: 1, image: 1, text: 1, docx: 1, doc: 1, pptx: 1, ppt: 1, dxf: 1, dwg: 1 };
+
+                /* 判定条目类型：优先 item.type，其次按扩展名；都没有则按 PDF 处理（兼容旧数据）。
+                 * 注意：真实格式最终还会在装载时按「文件签名」再识别一次
+                 * （如 .doc 其实是 docx、.dwg 其实是 DXF），所以这里判错也不会出错。 */
+                function detectKind(item) {
+                    const t = String((item && item.type) || "").toLowerCase().trim();
+                    if (TYPE_VALUES[t]) return t;
+                    return EXT_KIND[extOf(item)] || "pdf";
+                }
+
+                /* ============================================================
+                 * 二、基础工具：解码 / 度量 / 版式
+                 * ============================================================ */
+
+                /* ---------- 纯 JS 解码器（不依赖 TextDecoder，任何环境都能跑） ---------- */
+                function decodeUtf8(bytes) {
+                    let out = "", i = 0, n = bytes.length;
+                    while (i < n) {
+                        const b = bytes[i++];
+                        if (b < 0x80) { out += String.fromCharCode(b); continue; }
+                        let need = 0, cp = 0;
+                        if (b >= 0xc0 && b < 0xe0) { need = 1; cp = b & 0x1f; }
+                        else if (b >= 0xe0 && b < 0xf0) { need = 2; cp = b & 0x0f; }
+                        else if (b >= 0xf0 && b < 0xf8) { need = 3; cp = b & 0x07; }
+                        else { continue; }                       /* 非法字节：跳过 */
+                        if (i + need > n) break;
+                        let ok = true;
+                        for (let k = 0; k < need; k++) {
+                            const c = bytes[i + k];
+                            if ((c & 0xc0) !== 0x80) { ok = false; break; }
+                            cp = (cp << 6) | (c & 0x3f);
+                        }
+                        if (!ok) continue;
+                        i += need;
+                        if (cp > 0xffff) {
+                            cp -= 0x10000;
+                            out += String.fromCharCode(0xd800 + (cp >> 10), 0xdc00 + (cp & 0x3ff));
+                        } else {
+                            out += String.fromCharCode(cp);
+                        }
+                    }
+                    return out;
+                }
+
+                function decodeUtf16(bytes, le) {
+                    let out = "";
+                    const n = bytes.length - (bytes.length % 2);
+                    for (let i = 0; i < n; i += 2) {
+                        const u = le ? (bytes[i] | (bytes[i + 1] << 8)) : ((bytes[i] << 8) | bytes[i + 1]);
+                        out += String.fromCharCode(u);
+                    }
+                    return out;
+                }
+
+                /* GBK / GB18030：只有浏览器内置的 TextDecoder 能解，拿不到时返回 null 由上层降级 */
+                function decodeGbk(bytes) {
+                    try {
+                        if (typeof global.TextDecoder === "function") { return new global.TextDecoder("gbk").decode(bytes); }
+                    } catch (e) { /* 该内核不支持 gbk */ }
+                    return null;
+                }
+
+                /* 尽力猜编码并解码（BOM → UTF-16 → 严格 UTF-8 → GBK → Latin-1） */
+                function decodeSmart(bytes) {
+                    if (bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) {
+                        return { text: decodeUtf8(bytes.subarray(3)), enc: "utf-8(bom)" };
+                    }
+                    if (bytes.length >= 2 && bytes[0] === 0xff && bytes[1] === 0xfe) {
+                        return { text: decodeUtf16(bytes.subarray(2), true), enc: "utf-16le" };
+                    }
+                    if (bytes.length >= 2 && bytes[0] === 0xfe && bytes[1] === 0xff) {
+                        return { text: decodeUtf16(bytes.subarray(2), false), enc: "utf-16be" };
+                    }
+                    /* UTF-16LE 无 BOM：奇数位大量 0x00 */
+                    if (bytes.length > 32) {
+                        let zero = 0, total = 0;
+                        for (let i = 1; i < Math.min(bytes.length, 4096); i += 2) { total++; if (bytes[i] === 0) zero++; }
+                        if (total && zero / total > 0.6) return { text: decodeUtf16(bytes, true), enc: "utf-16le" };
+                    }
+                    const utf8 = decodeUtf8(bytes);
+                    const bad = (utf8.match(/\ufffd/g) || []).length;
+                    if (bad === 0) return { text: utf8, enc: "utf-8" };
+                    const gbk = decodeGbk(bytes);
+                    if (gbk !== null) {
+                        const gbad = (gbk.match(/\ufffd/g) || []).length;
+                        if (gbad <= bad) return { text: gbk, enc: "gbk" };
+                    }
+                    return { text: utf8, enc: "utf-8(降级)" };
+                }
+
+                /* ---------- 文本度量 ---------- */
+                let _mctx = null, _mctxTried = false;
+                function measureCtx() {
+                    if (_mctxTried) return _mctx;
+                    _mctxTried = true;
+                    try {
+                        const c = global.document.createElement("canvas");
+                        _mctx = c.getContext("2d") || null;
+                    } catch (e) { _mctx = null; }
+                    return _mctx;
+                }
+
+                /* 文本宽度：有画布就精确测量，没有（如 jsdom 环境）则按字符类型估算。
+                 * 估算规则：全角/中文 ≈ 1 个字宽，半角 ≈ 0.55 个字宽 —— 分页结果稳定可测。 */
+                function textWidth(font, str) {
+                    const size = parseFloat(/(\d+(?:\.\d+)?)px/.exec(font) ? /(\d+(?:\.\d+)?)px/.exec(font)[1] : "16");
+                    const c = measureCtx();
+                    if (c) { try { c.font = font; return c.measureText(str).width; } catch (e) { /* 落到估算 */ } }
+                    let w = 0;
+                    for (const ch of str) w += isWide(ch) ? size : size * 0.55;
+                    return w;
+                }
+
+                function isWide(ch) {
+                    const c = ch.codePointAt(0);
+                    return (c >= 0x1100 && c <= 0x115f) || (c >= 0x2e80 && c <= 0xa4cf) ||
+                        (c >= 0xac00 && c <= 0xd7a3) || (c >= 0xf900 && c <= 0xfaff) ||
+                        (c >= 0xfe30 && c <= 0xfe4f) || (c >= 0xff00 && c <= 0xff60) ||
+                        (c >= 0xffe0 && c <= 0xffe6) || (c >= 0x3000 && c <= 0x303f);
+                }
+
+                /* 逐字符换行（中文按字断，英文按词断，尽量不把长单词拆开） */
+                function wrapText(str, font, maxW) {
+                    const out = [];
+                    const paras = String(str || "").split("\n");
+                    for (const para of paras) {
+                        if (!para) { out.push(""); continue; }
+                        let line = "", w = 0, word = "";
+                        const flushWord = () => {
+                            if (!word) return;
+                            if (w + textWidth(font, word) > maxW && line) { out.push(line); line = ""; w = 0; }
+                            line += word; w += textWidth(font, word); word = "";
+                        };
+                        for (const ch of para) {
+                            if (isWide(ch) || ch === " " || ch === "\t") {
+                                flushWord();
+                                const cw = textWidth(font, ch === "\t" ? "    " : ch);
+                                if (w + cw > maxW && line) { out.push(line); line = ""; w = 0; }
+                                line += (ch === "\t" ? "    " : ch); w += cw;
+                            } else {
+                                word += ch;
+                                if (w + textWidth(font, word) > maxW && line) flushWord();
+                            }
+                        }
+                        flushWord();
+                        out.push(line);
+                    }
+                    return out;
+                }
+
+                /* ---------- 版式常量 ---------- */
+                const FONT_FAMILY = '"Microsoft YaHei","PingFang SC","Hiragino Sans GB",sans-serif';
+                const font = (size, bold) => (bold ? "bold " : "") + size + "px " + FONT_FAMILY;
+
+                const TEXT_LAYOUT = {
+                    pageW: 760, pageH: 1075,        /* A4 比例 1 : 1.414 */
+                    padX: 56, padTop: 92, padBottom: 62,
+                    styles: {
+                        title: { size: 22, line: 36, bold: true, color: "#12233d", gapBefore: 4, gapAfter: 10 },
+                        h1: { size: 19, line: 33, bold: true, color: "#16324f", gapBefore: 12, gapAfter: 6 },
+                        h2: { size: 16, line: 29, bold: true, color: "#1f4877", gapBefore: 9, gapAfter: 4 },
+                        body: { size: 15, line: 26, bold: false, color: "#20242c", gapBefore: 0, gapAfter: 0 },
+                        note: { size: 13, line: 23, bold: false, color: "#7a8494", gapBefore: 6, gapAfter: 4 }
+                    }
+                };
+
+                const SLIDE_LAYOUT = { pageW: 960, pageH: 540 };
+
+                const CAD_LAYOUT = {
+                    pageW: 1120, pageH: 792,        /* A3 横版比例 1 : 1.414 */
+                    padX: 40, padTop: 74, padBottom: 44
+                };
+
+                /* ============================================================
+                 * 三、通用页面绘制小工具
+                 * ============================================================ */
+                function pageHeader(ctx, W, title, sub) {
+                    ctx.fillStyle = "#1f2a3d";
+                    ctx.font = font(19, true);
+                    ctx.textAlign = "left";
+                    ctx.textBaseline = "alphabetic";
+                    ctx.fillText(clip(title, 44), TEXT_LAYOUT.padX, 52);
+                    if (sub) {
+                        ctx.fillStyle = "#8a94a3";
+                        ctx.font = font(12, false);
+                        ctx.textAlign = "right";
+                        ctx.fillText(sub, W - TEXT_LAYOUT.padX, 52);
+                    }
+                    ctx.strokeStyle = "#d8dee8";
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.moveTo(TEXT_LAYOUT.padX, 66);
+                    ctx.lineTo(W - TEXT_LAYOUT.padX, 66);
+                    ctx.stroke();
+                    ctx.textAlign = "left";
+                }
+
+                function pageFooter(ctx, W, H, no, total) {
+                    ctx.fillStyle = "#98a2b3";
+                    ctx.font = font(11, false);
+                    ctx.textAlign = "center";
+                    ctx.fillText("第 " + no + " / " + total + " 页", W / 2, H - 28);
+                    ctx.textAlign = "left";
+                }
+
+                function clip(s, n) {
+                    s = String(s || "");
+                    return s.length > n ? s.slice(0, n - 1) + "…" : s;
+                }
+
+                /* ============================================================
+                 * 四、文本类文档：排版 → 分页 → 画布绘制
+                 * ------------------------------------------------------------
+                 * blocks 结构：[ { text, style } , { pageBreak: true } , ... ]
+                 *   style ∈ title / h1 / h2 / body / note
+                 * 支持显式分页：blocks 里的 pageBreak 标记，或文本里的 \f 换页符。
+                 * 未显式分页时按页面可用高度自动分页。
+                 * ============================================================ */
+                function blocksToLines(blocks, layout) {
+                    const L = layout || TEXT_LAYOUT;
+                    const maxW = L.pageW - L.padX * 2;
+                    const lines = [];
+                    (blocks || []).forEach((b) => {
+                        if (b.pageBreak) { lines.push({ break: true }); return; }
+                        if (b.style === "rule") { lines.push({ rule: true, lineH: 26 }); return; }
+                        const st = L.styles[b.style] || L.styles.body;
+                        const f = font(st.size, st.bold);
+                        const wrapped = wrapText(b.text, f, maxW);
+                        wrapped.forEach((t, i) => {
+                            lines.push({
+                                text: t, font: f, lineH: st.line, color: st.color,
+                                gapBefore: i === 0 ? (st.gapBefore || 0) : 0
+                            });
+                        });
+                    });
+                    return lines;
+                }
+
+                function paginateLines(lines, layout) {
+                    const L = layout || TEXT_LAYOUT;
+                    const usable = L.pageH - L.padTop - L.padBottom;
+                    const pages = [];
+                    let cur = [], h = 0;
+                    lines.forEach((ln) => {
+                        if (ln.break) { pages.push(cur); cur = []; h = 0; return; }
+                        const need = (ln.gapBefore || 0) + (ln.lineH || L.styles.body.line);
+                        if (h + need > usable && cur.length) { pages.push(cur); cur = []; h = 0; }
+                        cur.push(ln);
+                        h += need;
+                    });
+                    if (cur.length || !pages.length) pages.push(cur);
+                    return pages;
+                }
+
+                function drawTextPage(ctx, pageLines, meta) {
+                    const L = meta.layout || TEXT_LAYOUT;
+                    const W = L.pageW, H = L.pageH;
+                    ctx.fillStyle = "#ffffff";
+                    ctx.fillRect(0, 0, W, H);
+                    pageHeader(ctx, W, meta.title, meta.sub);
+                    ctx.textBaseline = "alphabetic";
+                    let y = L.padTop;
+                    pageLines.forEach((ln) => {
+                        y += ln.gapBefore || 0;
+                        if (ln.rule) {
+                            ctx.strokeStyle = "#e3e8f0";
+                            ctx.lineWidth = 1;
+                            ctx.beginPath();
+                            ctx.moveTo(L.padX, y - ln.lineH / 2);
+                            ctx.lineTo(W - L.padX, y - ln.lineH / 2);
+                            ctx.stroke();
+                            y += ln.lineH;
+                            return;
+                        }
+                        ctx.fillStyle = ln.color || "#20242c";
+                        ctx.font = ln.font;
+                        if (ln.text) ctx.fillText(ln.text, L.padX, y + (ln.lineH - 24) / 2 + 20);
+                        y += ln.lineH;
+                    });
+                    pageFooter(ctx, W, H, meta.no, meta.total);
+                }
+
+                /* 由 blocks 直接构造 CanvasDoc（文本 / Word 共用） */
+                function buildTextCanvasDoc(blocks, meta) {
+                    const layout = Object.assign({}, TEXT_LAYOUT, meta.layout || {});
+                    const lines = blocksToLines(blocks, layout);
+                    const pageGroups = paginateLines(lines, layout);
+                    const total = pageGroups.length;
+                    const pages = pageGroups.map((group, i) => ({
+                        w: layout.pageW,
+                        h: layout.pageH,
+                        draw: (ctx) => drawTextPage(ctx, group, { layout, title: meta.title, sub: meta.sub, no: i + 1, total })
+                    }));
+                    return { kind: meta.kind, label: meta.label, note: meta.note, pages };
+                }
+
+                /* 把纯文本切分成 blocks：识别 Markdown 风格标题、空行分段 */
+                function textToBlocks(text, opt) {
+                    const o = opt || {};
+                    const blocks = [];
+                    let raw = String(text == null ? "" : text).replace(/\r\n?/g, "\n");
+                    raw = raw.replace(/^\uFEFF/, "");
+                    /* 显式分页：\f 换页符 wins；也支持单独一行的 --- 或 === */
+                    const chunks = raw.split("\f");
+                    chunks.forEach((chunk, ci) => {
+                        if (ci > 0) blocks.push({ pageBreak: true });
+                        chunk.split("\n").forEach((line) => {
+                            const s = line.replace(/\s+$/, "");
+                            if (/^\s*$/.test(s)) { blocks.push({ text: "", style: "body" }); return; }
+                            if (/^-{3,}\s*$/.test(s)) { blocks.push({ style: "rule" }); return; }
+                            let m;
+                            if ((m = /^#{1,2}\s+(.*)$/.exec(s))) { blocks.push({ text: m[1], style: "h1" }); return; }
+                            if ((m = /^#{3,}\s+(.*)$/.exec(s))) { blocks.push({ text: m[1], style: "h2" }); return; }
+                            if (/^[一二三四五六七八九十]+[、.]\s*/.test(s) || /^\d+[、.]\s*\S/.test(s)) { blocks.push({ text: s, style: "h2" }); return; }
+                            blocks.push({ text: s.replace(/^\s{0,3}/, ""), style: o.defaultStyle || "body" });
+                        });
+                    });
+                    return blocks;
+                }
+
+                /* ============================================================
+                 * 五、ZIP 解包（自写 inflate，用于 docx / pptx）
+                 * ============================================================ */
+                const LEN_BASE = [3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 17, 19, 23, 27, 31, 35, 43, 51, 59, 67, 83, 99, 115, 131, 163, 195, 227, 258];
+                const LEN_EXTRA = [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 0];
+                const DIST_BASE = [1, 2, 3, 4, 5, 7, 9, 13, 17, 25, 33, 49, 65, 97, 129, 193, 257, 385, 513, 769, 1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577];
+                const DIST_EXTRA = [0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13];
+                const CLEN_ORDER = [16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15];
+
+                function buildHuff(lens) {
+                    let maxBits = 0;
+                    for (const l of lens) if (l > maxBits) maxBits = l;
+                    const counts = new Array(maxBits + 1).fill(0);
+                    for (const l of lens) if (l > 0) counts[l]++;
+                    const nextCode = new Array(maxBits + 1).fill(0);
+                    let code = 0;
+                    for (let bits = 1; bits <= maxBits; bits++) {
+                        code = (code + counts[bits - 1]) << 1;
+                        nextCode[bits] = code;
+                    }
+                    const tables = [];
+                    for (let i = 0; i <= maxBits; i++) tables.push(new Map());
+                    for (let sym = 0; sym < lens.length; sym++) {
+                        const l = lens[sym];
+                        if (l > 0) tables[l].set(nextCode[l]++, sym);
+                    }
+                    return { tables, maxBits };
+                }
+
+                /* raw DEFLATE 解压（纯 JS 实现，任何浏览器 / Node 都能跑） */
+                function inflateRaw(input) {
+                    let pos = 0, bitBuf = 0, bitCnt = 0;
+                    const needBits = (n) => {
+                        while (bitCnt < n) {
+                            if (pos >= input.length) throw new Error("deflate 数据提前结束");
+                            bitBuf = (bitBuf | (input[pos++] << bitCnt)) >>> 0;
+                            bitCnt += 8;
+                        }
+                    };
+                    const getBits = (n) => {
+                        if (n === 0) return 0;
+                        needBits(n);
+                        const v = bitBuf & ((1 << n) - 1);
+                        bitBuf >>>= n;
+                        bitCnt -= n;
+                        return v;
+                    };
+                    const dec = (h) => {
+                        let code = 0;
+                        for (let len = 1; len <= h.maxBits; len++) {
+                            code = (code << 1) | getBits(1);
+                            const t = h.tables[len];
+                            if (t.size && t.has(code)) return t.get(code);
+                        }
+                        throw new Error("无效的 Huffman 编码");
+                    };
+
+                    let out = new Uint8Array(Math.max(1024, input.length * 4));
+                    let len = 0;
+                    const push = (b) => {
+                        if (len === out.length) {
+                            const bigger = new Uint8Array(out.length * 2);
+                            bigger.set(out);
+                            out = bigger;
+                        }
+                        out[len++] = b;
+                    };
+
+                    let fixedL = null, fixedD = null;
+                    for (; ;) {
+                        const last = getBits(1);
+                        const type = getBits(2);
+                        if (type === 0) {                          /* 存储块 */
+                            bitBuf = 0; bitCnt = 0;
+                            const l = input[pos] | (input[pos + 1] << 8);
+                            pos += 4;                                /* 跳过 LEN 与 NLEN */
+                            for (let i = 0; i < l; i++) push(input[pos++]);
+                        } else if (type === 1 || type === 2) {
+                            let hl, hd;
+                            if (type === 1) {
+                                if (!fixedL) {
+                                    const ll = new Array(288);
+                                    for (let i = 0; i < 144; i++) ll[i] = 8;
+                                    for (let i = 144; i < 256; i++) ll[i] = 9;
+                                    for (let i = 256; i < 280; i++) ll[i] = 7;
+                                    for (let i = 280; i < 288; i++) ll[i] = 8;
+                                    fixedL = buildHuff(ll);
+                                    fixedD = buildHuff(new Array(30).fill(5));
+                                }
+                                hl = fixedL; hd = fixedD;
+                            } else {
+                                const hlit = getBits(5) + 257;
+                                const hdist = getBits(5) + 1;
+                                const hclen = getBits(4) + 4;
+                                const clen = new Array(19).fill(0);
+                                for (let i = 0; i < hclen; i++) clen[CLEN_ORDER[i]] = getBits(3);
+                                const ch = buildHuff(clen);
+                                const lens = [];
+                                while (lens.length < hlit + hdist) {
+                                    const sym = dec(ch);
+                                    if (sym < 16) { lens.push(sym); continue; }
+                                    let rep, val = 0;
+                                    if (sym === 16) { rep = 3 + getBits(2); val = lens[lens.length - 1] || 0; }
+                                    else if (sym === 17) { rep = 3 + getBits(3); }
+                                    else { rep = 11 + getBits(7); }
+                                    for (let i = 0; i < rep; i++) lens.push(val);
+                                }
+                                hl = buildHuff(lens.slice(0, hlit));
+                                hd = buildHuff(lens.slice(hlit, hlit + hdist));
+                            }
+                            for (; ;) {
+                                const sym = dec(hl);
+                                if (sym === 256) break;
+                                if (sym < 256) { push(sym); continue; }
+                                const li = sym - 257;
+                                const length = LEN_BASE[li] + getBits(LEN_EXTRA[li]);
+                                const ds = dec(hd);
+                                const dist = DIST_BASE[ds] + getBits(DIST_EXTRA[ds]);
+                                const start = len - dist;
+                                if (start < 0) throw new Error("deflate 回溯距离越界");
+                                for (let i = 0; i < length; i++) push(out[start + i]);
+                            }
+                        } else {
+                            throw new Error("deflate 数据损坏（保留块类型）");
+                        }
+                        if (last) break;
+                    }
+                    return out.subarray(0, len);
+                }
+
+                /* 读取 ZIP 的中央目录 */
+                function readZip(buf) {
+                    const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+                    let eocd = -1;
+                    const minPos = Math.max(0, buf.length - 22 - 65535);
+                    for (let i = buf.length - 22; i >= minPos; i--) { if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; } }
+                    if (eocd < 0) return null;
+                    const count = dv.getUint16(eocd + 10, true);
+                    let off = dv.getUint32(eocd + 16, true);
+                    const entries = new Map();
+                    for (let i = 0; i < count && off + 46 <= buf.length; i++) {
+                        if (dv.getUint32(off, true) !== 0x02014b50) break;
+                        const method = dv.getUint16(off + 10, true);
+                        const compSize = dv.getUint32(off + 20, true);
+                        const nameLen = dv.getUint16(off + 28, true);
+                        const extraLen = dv.getUint16(off + 30, true);
+                        const cmtLen = dv.getUint16(off + 32, true);
+                        const localOff = dv.getUint32(off + 42, true);
+                        const name = decodeUtf8(buf.subarray(off + 46, off + 46 + nameLen));
+                        entries.set(name, { method, compSize, localOff });
+                        off += 46 + nameLen + extraLen + cmtLen;
+                    }
+                    return { dv, buf, entries };
+                }
+
+                /* 取出 ZIP 中某个条目的内容（已解压）；不存在返回 null */
+                function zipRead(zi, name) {
+                    const e = zi.entries.get(name);
+                    if (!e) return null;
+                    const { dv, buf } = zi;
+                    if (dv.getUint32(e.localOff, true) !== 0x04034b50) return null;
+                    const nameLen = dv.getUint16(e.localOff + 26, true);
+                    const extraLen = dv.getUint16(e.localOff + 28, true);
+                    const start = e.localOff + 30 + nameLen + extraLen;
+                    const raw = buf.subarray(start, Math.min(start + e.compSize, buf.length));
+                    if (e.method === 0) return raw;
+                    if (e.method === 8) return inflateRaw(raw);
+                    return null;
+                }
+
+                /* ============================================================
+                 * 六、Word / PPT 文本提取
+                 * ============================================================ */
+                function xmlDecode(s) {
+                    return String(s)
+                        .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"')
+                        .replace(/&apos;/g, "'")
+                        .replace(/&#x([0-9a-fA-F]+);/g, (m, h) => String.fromCodePoint(parseInt(h, 16)))
+                        .replace(/&#(\d+);/g, (m, d) => String.fromCodePoint(+d))
+                        .replace(/&amp;/g, "&");
+                }
+
+                /* docx：<w:p> 段落 → blocks；识别标题样式与「分页符」 */
+                function docxToBlocks(xml) {
+                    const blocks = [];
+                    const paras = xml.match(/<w:p\b[^>]*\/>|<w:p\b[^>]*>[\s\S]*?<\/w:p>/g) || [];
+                    paras.forEach((p) => {
+                        /* 段落内若出现「分页符」，则其后内容另起一页 */
+                        const styleM = /<w:pStyle[^>]*w:val="([^"]*)"/.exec(p);
+                        const style = styleM ? styleM[1] : "";
+                        const parts = [];
+                        const re = /<w:t[^>]*>([\s\S]*?)<\/w:t>|<w:br\b[^>]*\/?>|<w:tab\b[^>]*\/?>/g;
+                        let pageBreak = false, m;
+                        while ((m = re.exec(p))) {
+                            if (m[1] !== undefined) { parts.push(xmlDecode(m[1])); continue; }
+                            if (/^<w:tab/.test(m[0])) { parts.push("\t"); continue; }
+                            if (/w:type="page"/.test(m[0])) { pageBreak = true; continue; }
+                            parts.push("\n");
+                        }
+                        const text = parts.join("").replace(/[ \t]+$/, "");
+                        if (pageBreak) blocks.push({ pageBreak: true });
+                        if (!text.trim()) { blocks.push({ text: "", style: "body" }); return; }
+                        let st = "body";
+                        if (/^(Title|标题)$/i.test(style) || /^Heading1|^1$|^标题1$/.test(style)) st = "h1";
+                        else if (/^Heading2|^2$|^标题2$/.test(style)) st = "h2";
+                        else if (/^Subtitle$|^副标题$/i.test(style)) st = "note";
+                        /* 段内换行 → 拆成独立行 */
+                        text.split("\n").forEach((seg, i) => { if (seg.trim()) blocks.push({ text: seg, style: i === 0 ? st : "body" }); });
+                    });
+                    return blocks;
+                }
+
+                /* pptx：按 <p:sp> 形状收集段落文本，每张幻灯片 = 一段 blocks */
+                function pptxSlideParas(xml) {
+                    const paras = [];
+                    const shapeRe = /<p:sp>[\s\S]*?<\/p:sp>/g;
+                    const shapes = xml.match(shapeRe) || [xml];
+                    shapes.forEach((sp) => {
+                        const isTitle = /<p:ph\b[^>]*type="(?:ctrTitle|title)"/.test(sp);
+                        const paraRe = /<a:p\b[^>]*>([\s\S]*?)<\/a:p>|<a:p\b[^>]*\/>/g;
+                        let pm;
+                        while ((pm = paraRe.exec(sp))) {
+                            const body = pm[1] || "";
+                            const t = (body.match(/<a:t>([\s\S]*?)<\/a:t>/g) || []).map((x) => xmlDecode(/<a:t>([\s\S]*?)<\/a:t>/.exec(x)[1])).join("");
+                            const txt = t.replace(/\s+$/, "");
+                            if (!txt.trim()) continue;
+                            paras.push({ text: txt, style: isTitle ? "title" : "body" });
+                        }
+                    });
+                    return paras;
+                }
+
+                /* 旧版二进制格式（.doc / .ppt，OLE 复合文档）：无依赖可用的解析器不存在，
+                 * 这里做「尽力提取」——按编码解码后抓取连续的可读文本片段。
+                 * 质量不足时上层会给出引导页（另存为 docx / pptx / pdf）。 */
+                const RUN_RE = /[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff\u3000-\u303f\uff00-\uffef0-9A-Za-z][\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff\u3000-\u303f\uff00-\uffef0-9A-Za-z \t，。、；：？！“”‘’（）《》〈〉—…·．\-.,;:!?'"()\[\]{}%&+*/=<>@#$^_~|]{7,}/g;
+
+                function legacyExtract(buf) {
+                    const best = { text: "", enc: "" };
+                    /* 16 位与 8 位两种视图都试，取文本量更大的那个 */
+                    const cands = [];
+                    cands.push({ text: decodeUtf16(buf, true), enc: "utf-16le" });
+                    const smart = decodeSmart(buf);
+                    cands.push({ text: smart.text, enc: smart.enc });
+                    for (const c of cands) {
+                        RUN_RE.lastIndex = 0;
+                        const runs = (c.text.match(RUN_RE) || [])
+                            .map((s) => s.replace(/\s+$/, ""))
+                            .filter((s) => s.replace(/\s/g, "").length >= 8)
+                            .filter((s) => !/^(.)\1{6,}$/.test(s));
+                        const joined = runs.join("\n");
+                        if (joined.length > best.text.length) { best.text = joined; best.enc = c.enc; }
+                    }
+                    const clean = best.text.replace(/\u0000/g, "");
+                    if (clean.replace(/\s/g, "").length < 150) return null;
+                    return { text: clean, enc: best.enc };
+                }
+
+                /* ============================================================
+                 * 七、DXF 解析与绘制
+                 * ============================================================ */
+                function dxfPairs(text) {
+                    const lines = String(text).replace(/^\uFEFF/, "").split(/\r\n|\r|\n/);
+                    const items = [];
+                    for (let i = 0; i + 1 < lines.length; i += 2) {
+                        const code = parseInt(String(lines[i]).trim(), 10);
+                        if (Number.isNaN(code)) continue;
+                        items.push([code, lines[i + 1]]);
+                    }
+                    return items;
+                }
+
+                const num = (v) => {
+                    const n = parseFloat(v);
+                    return Number.isFinite(n) ? n : 0;
+                };
+
+                /* 从 (code,value) 序列里取第 1 个 / 全部同码值 */
+                function first(pairs, code) {
+                    for (const [c, v] of pairs) if (c === code) return v;
+                    return undefined;
+                }
+                function allOf(pairs, code) {
+                    const out = [];
+                    for (const [c, v] of pairs) if (c === code) out.push(v);
+                    return out;
+                }
+                function ptsOf(pairs, cx, cy) {
+                    const xs = allOf(pairs, cx).map(num);
+                    const ys = allOf(pairs, cy).map(num);
+                    const out = [];
+                    for (let i = 0; i < Math.min(xs.length, ys.length); i++) out.push([xs[i], ys[i]]);
+                    return out;
+                }
+
+                /* 扫描实体：返回 [{type, pairs, sub:[]}]，POLYLINE 的 VERTEX 归入 sub */
+                function scanEntities(items, from, to) {
+                    const out = [];
+                    let cur = null, i = from;
+                    while (i < to) {
+                        const [code, value] = items[i];
+                        if (code === 0) {
+                            const type = String(value).trim().toUpperCase();
+                            if (type === "VERTEX" && cur && cur.type === "POLYLINE") {
+                                const v = { type: "VERTEX", pairs: [], sub: [] };
+                                cur.sub.push(v);
+                                cur = v;
+                                i++;
+                                continue;
+                            }
+                            if (type === "SEQEND") { cur = null; i++; continue; }
+                            const e = { type, pairs: [], sub: [] };
+                            out.push(e);
+                            cur = e;
+                            i++;
+                            continue;
+                        }
+                        if (cur) cur.pairs.push([code, value]);
+                        i++;
+                    }
+                    return out;
+                }
+
+                function parseDxf(text) {
+                    const items = dxfPairs(text);
+                    const blocks = new Map();
+                    const entities = [];
+                    let i = 0;
+                    while (i < items.length) {
+                        const [code, value] = items[i];
+                        if (code === 0 && String(value).trim().toUpperCase() === "SECTION") {
+                            let name = "";
+                            let j = i + 1;
+                            while (j < items.length && items[j][0] !== 0) {
+                                if (items[j][0] === 2) name = String(items[j][1]).trim().toUpperCase();
+                                j++;
+                            }
+                            /* 找到该段结束位置 */
+                            let k = j;
+                            while (k < items.length && !(items[k][0] === 0 && String(items[k][1]).trim().toUpperCase() === "ENDSEC")) k++;
+                            if (name === "ENTITIES") {
+                                entities.push(...scanEntities(items, j, k));
+                            } else if (name === "BLOCKS") {
+                                let b = j;
+                                while (b < k) {
+                                    if (items[b][0] === 0 && String(items[b][1]).trim().toUpperCase() === "BLOCK") {
+                                        /* 收集 BLOCK 头（到下一个 0 码） */
+                                        let bn = b + 1;
+                                        const head = [];
+                                        while (bn < k && items[bn][0] !== 0) { head.push(items[bn]); bn++; }
+                                        const bname = String(first(head, 2) || "").trim();
+                                        const base = ptsOf(head, 10, 20)[0] || [0, 0];
+                                        /* 收集实体直到 ENDBLK */
+                                        let be = bn;
+                                        while (be < k && !(items[be][0] === 0 && String(items[be][1]).trim().toUpperCase() === "ENDBLK")) be++;
+                                        blocks.set(bname.toUpperCase(), { name: bname, base, ents: scanEntities(items, bn, be) });
+                                        b = be + 1;
+                                    } else b++;
+                                }
+                            }
+                            i = k + 1;
+                            continue;
+                        }
+                        i++;
+                    }
+                    return { entities, blocks };
+                }
+
+                const ACI = { 1: "#d32020", 2: "#c8a020", 3: "#12813f", 4: "#0f7b8a", 5: "#1f4fd8", 6: "#a020a0", 7: "#1a1a1a", 8: "#7a7a7a", 9: "#9a9a9a", 250: "#4a4a4a" };
+                const aciColor = (v) => ACI[num(v)] || "#1a1a1a";
+
+                function stripMtext(s) {
+                    return String(s == null ? "" : s)
+                        .replace(/\\P/gi, "\n")
+                        .replace(/\\[A-Za-z][^;\\]*;/g, "")
+                        .replace(/[{}]/g, "")
+                        .replace(/%%d/gi, "°").replace(/%%p/gi, "±").replace(/%%c/gi, "Ø")
+                        .replace(/\\~/g, " ");
+                }
+
+                function applyXf(p, bx, by, ang, sx, sy) {
+                    let x = p[0] - bx, y = p[1] - by;
+                    x *= sx; y *= sy;
+                    const c = Math.cos(ang), s = Math.sin(ang);
+                    return [x * c - y * s, x * s + y * c];
+                }
+
+                /* 实体 → 可绘制图元（纯数据，便于先算范围再绘制） */
+                function dxfPrims(ents, blocks, depth, keep) {
+                    const out = keep || [];
+                    if (depth > 3) return out;
+                    for (const e of ents) {
+                        const P = e.pairs;
+                        const col = () => aciColor(first(P, 62));
+                        switch (e.type) {
+                            case "LINE": {
+                                const a = ptsOf(P, 10, 20)[0], b = ptsOf(P, 11, 21)[0];
+                                if (a && b) out.push({ t: "line", pts: [a, b], c: col() });
+                                break;
+                            }
+                            case "LWPOLYLINE": {
+                                const pts = ptsOf(P, 10, 20);
+                                if (pts.length > 1) out.push({ t: "poly", pts, closed: (num(first(P, 70)) & 1) === 1, c: col() });
+                                break;
+                            }
+                            case "POLYLINE": {
+                                const pts = e.sub.filter((v) => v.type === "VERTEX").map((v) => ptsOf(v.pairs, 10, 20)[0])
+                                    .filter(Boolean);
+                                if (pts.length > 1) out.push({ t: "poly", pts, closed: (num(first(P, 70)) & 1) === 1, c: col() });
+                                break;
+                            }
+                            case "CIRCLE": {
+                                const c = ptsOf(P, 10, 20)[0];
+                                if (c) out.push({ t: "circle", c, r: num(first(P, 40)), col: col() });
+                                break;
+                            }
+                            case "ARC": {
+                                const c = ptsOf(P, 10, 20)[0];
+                                if (c) out.push({
+                                    t: "arc", c, r: num(first(P, 40)),
+                                    a0: num(first(P, 50)), a1: num(first(P, 51)), col: col()
+                                });
+                                break;
+                            }
+                            case "ELLIPSE": {
+                                const c = ptsOf(P, 10, 20)[0], ax = ptsOf(P, 11, 21)[0];
+                                if (!c || !ax) break;
+                                const ratio = num(first(P, 40)) || 1;
+                                const a0 = num(first(P, 41)), a1 = num(first(P, 42)) || Math.PI * 2;
+                                const pts = [];
+                                for (let k = 0; k <= 48; k++) {
+                                    const a = a0 + (a1 - a0) * (k / 48);
+                                    pts.push([c[0] + ax[0] * Math.cos(a) - ax[1] * ratio * Math.sin(a),
+                                    c[1] + ax[0] * Math.sin(a) + ax[1] * ratio * Math.cos(a)]);
+                                }
+                                out.push({ t: "poly", pts, closed: false, c: col() });
+                                break;
+                            }
+                            case "SPLINE": {
+                                const pts = ptsOf(P, 10, 20);
+                                if (pts.length > 1) out.push({ t: "poly", pts, closed: false, c: col() });
+                                break;
+                            }
+                            case "TEXT": {
+                                const p = ptsOf(P, 10, 20)[0];
+                                if (p) out.push({
+                                    t: "text", p, h: num(first(P, 40)) || 2.5,
+                                    s: String(first(P, 1) == null ? "" : first(P, 1)),
+                                    rot: (num(first(P, 50)) * Math.PI) / 180, col: col()
+                                });
+                                break;
+                            }
+                            case "MTEXT": {
+                                const p = ptsOf(P, 10, 20)[0];
+                                if (p) out.push({
+                                    t: "text", p, h: num(first(P, 40)) || 2.5,
+                                    s: stripMtext(first(P, 1)),
+                                    rot: (num(first(P, 50)) * Math.PI) / 180, col: col()
+                                });
+                                break;
+                            }
+                            case "POINT": {
+                                const p = ptsOf(P, 10, 20)[0];
+                                if (p) out.push({ t: "point", p, col: col() });
+                                break;
+                            }
+                            case "SOLID":
+                            case "3DFACE": {
+                                const pts = [];
+                                [[10, 20], [11, 21], [12, 22], [13, 23]].forEach(([cx, cy]) => { const p = ptsOf(P, cx, cy)[0]; if (p) pts.push(p); });
+                                if (pts.length > 2) out.push({ t: "poly", pts, closed: true, fill: e.type === "SOLID", c: col() });
+                                break;
+                            }
+                            case "INSERT": {
+                                const name = String(first(P, 2) || "").trim().toUpperCase();
+                                const blk = blocks.get(name);
+                                const p = ptsOf(P, 10, 20)[0];
+                                if (!blk || !p) break;
+                                const ang = (num(first(P, 50)) * Math.PI) / 180;
+                                const sx = num(first(P, 41)) || 1, sy = num(first(P, 42)) || 1;
+                                const sub = dxfPrims(blk.ents, blocks, depth + 1, []);
+                                const move = (q) => {
+                                    const t = applyXf(q, blk.base[0], blk.base[1], ang, sx, sy);
+                                    return [t[0] + p[0], t[1] + p[1]];
+                                };
+                                sub.forEach((pr) => {
+                                    if (pr.t === "text") {
+                                        out.push(Object.assign({}, pr, { p: move(pr.p), h: pr.h * Math.abs(sx || 1), rot: pr.rot + ang }));
+                                    } else if (pr.t === "circle" || pr.t === "arc") {
+                                        out.push(Object.assign({}, pr, { c: move(pr.c), r: pr.r * Math.abs(sx || 1) }));
+                                    } else {
+                                        out.push(Object.assign({}, pr, { pts: pr.pts.map(move) }));
+                                    }
+                                });
+                                break;
+                            }
+                            default:
+                                break;                                   /* DIMENSION / HATCH / LEADER 等暂不绘制 */
+                        }
+                    }
+                    return out;
+                }
+
+                function primsExtent(prims) {
+                    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+                    const add = (x, y) => {
+                        if (x < x0) x0 = x;
+                        if (y < y0) y0 = y;
+                        if (x > x1) x1 = x;
+                        if (y > y1) y1 = y;
+                    };
+                    prims.forEach((p) => {
+                        if (p.pts) p.pts.forEach((q) => add(q[0], q[1]));
+                        if (p.c) { add(p.c[0] - p.r, p.c[1] - p.r); add(p.c[0] + p.r, p.c[1] + p.r); }
+                        if (p.p) add(p.p[0], p.p[1]);
+                    });
+                    if (!Number.isFinite(x0)) return null;
+                    return { x0, y0, x1, y1 };
+                }
+
+                function drawDxfPage(ctx, prims, ext, meta) {
+                    const L = CAD_LAYOUT;
+                    const W = L.pageW, H = L.pageH;
+                    ctx.fillStyle = "#ffffff";
+                    ctx.fillRect(0, 0, W, H);
+
+                    /* 页眉 */
+                    ctx.fillStyle = "#1f2a3d";
+                    ctx.font = font(18, true);
+                    ctx.textAlign = "left";
+                    ctx.textBaseline = "alphabetic";
+                    ctx.fillText(clip(meta.title, 46), L.padX, 44);
+                    ctx.fillStyle = "#8a94a3";
+                    ctx.font = font(12, false);
+                    ctx.textAlign = "right";
+                    ctx.fillText(meta.sub || "", W - L.padX, 44);
+                    ctx.strokeStyle = "#d8dee8";
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.moveTo(L.padX, 56);
+                    ctx.lineTo(W - L.padX, 56);
+                    ctx.stroke();
+                    ctx.textAlign = "left";
+
+                    /* 图形区（含外框） */
+                    const bx = L.padX, by = L.padTop, bw = W - L.padX * 2, bh = H - L.padTop - L.padBottom;
+                    ctx.fillStyle = "#fbfcfe";
+                    ctx.fillRect(bx, by, bw, bh);
+                    ctx.strokeStyle = "#e0e6ef";
+                    ctx.lineWidth = 1;
+                    ctx.strokeRect(bx + 0.5, by + 0.5, bw - 1, bh - 1);
+
+                    if (!ext) {
+                        ctx.fillStyle = "#98a2b3";
+                        ctx.font = font(14, false);
+                        ctx.textAlign = "center";
+                        ctx.fillText("（未在文件中找到可绘制的图形实体）", W / 2, H / 2);
+                        ctx.textAlign = "left";
+                        return;
+                    }
+
+                    const gw = Math.max(ext.x1 - ext.x0, 1e-6);
+                    const gh = Math.max(ext.y1 - ext.y0, 1e-6);
+                    const pad = 24;
+                    const s = Math.min((bw - pad * 2) / gw, (bh - pad * 2) / gh);
+                    const offX = bx + pad + ((bw - pad * 2) - gw * s) / 2 - ext.x0 * s;
+                    const offY = by + pad + ((bh - pad * 2) - gh * s) / 2 + ext.y1 * s;   /* y 轴翻转 */
+
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.rect(bx, by, bw, bh);
+                    ctx.clip();
+                    ctx.translate(offX, offY);
+                    ctx.scale(s, -s);
+                    ctx.lineJoin = "round";
+                    ctx.lineCap = "round";
+
+                    prims.forEach((p) => {
+                        ctx.strokeStyle = p.c || "#1a1a1a";
+                        ctx.fillStyle = p.c || "#1a1a1a";
+                        ctx.lineWidth = 1.1 / s;
+                        if (p.t === "line" || p.t === "poly") {
+                            if (!p.pts || p.pts.length < 2) return;
+                            ctx.beginPath();
+                            ctx.moveTo(p.pts[0][0], p.pts[0][1]);
+                            for (let i = 1; i < p.pts.length; i++) ctx.lineTo(p.pts[i][0], p.pts[i][1]);
+                            if (p.closed) ctx.closePath();
+                            if (p.fill) ctx.fill();
+                            else ctx.stroke();
+                        } else if (p.t === "circle") {
+                            ctx.beginPath();
+                            ctx.arc(p.c[0], p.c[1], Math.max(p.r, 1e-6), 0, Math.PI * 2);
+                            ctx.stroke();
+                        } else if (p.t === "arc") {
+                            ctx.beginPath();
+                            ctx.arc(p.c[0], p.c[1], Math.max(p.r, 1e-6),
+                                (p.a0 * Math.PI) / 180, (p.a1 * Math.PI) / 180, false);
+                            ctx.stroke();
+                        } else if (p.t === "point") {
+                            ctx.beginPath();
+                            ctx.arc(p.p[0], p.p[1], 1.6 / s, 0, Math.PI * 2);
+                            ctx.fill();
+                        } else if (p.t === "text") {
+                            const h = Math.max(p.h, 1e-6);
+                            ctx.save();
+                            ctx.translate(p.p[0], p.p[1]);
+                            ctx.scale(1, -1);                       /* 抵消 y 轴翻转，否则文字上下颠倒 */
+                            if (p.rot) ctx.rotate(p.rot);
+                            ctx.font = font(h, false);
+                            ctx.textBaseline = "alphabetic";
+                            const firstLine = String(p.s || "").split("\n")[0];
+                            if (firstLine) ctx.fillText(firstLine, 0, 0);
+                            ctx.restore();
+                        }
+                    });
+                    ctx.restore();
+
+                    ctx.fillStyle = "#98a2b3";
+                    ctx.font = font(11, false);
+                    ctx.textAlign = "right";
+                    ctx.fillText(meta.footer || "", W - L.padX, H - 18);
+                    ctx.textAlign = "left";
+                }
+
+                /* ============================================================
+                 * 八、引导页（无法解析的格式 / 解析失败）
+                 * ============================================================ */
+                function guideCanvasDoc(kind, title, lines, meta) {
+                    const o = meta || {};
+                    const blocks = [{ text: title, style: "title" }, { style: "rule" }];
+                    lines.forEach((l, i) => {
+                        if (i) blocks.push({ text: "", style: "body" });     /* 条目之间空一行，便于阅读 */
+                        if (typeof l === "string") blocks.push({ text: l, style: "body" });
+                        else blocks.push(l);
+                    });
+                    if (o.note) blocks.push({ style: "rule" }, { text: o.note, style: "note" });
+                    const doc = buildTextCanvasDoc(blocks, {
+                        kind, label: KIND_LABEL[kind] || kind, title: o.header || (KIND_LABEL[kind] || "") + " · 提示"
+                    });
+                    doc.guide = true;
+                    return doc;
+                }
+
+                const DWG_STEPS = [
+                    "浏览器（含本页面）无法解析 DWG 这种专有二进制格式，因此这里不显示图形本体，只给出处理办法。",
+                    "推荐做法：在 ZWCAD / AutoCAD 里把该图另存为 DXF（命令 D X F O U T，或「另存为 → 图形交换格式 *.dxf」），再把 DXF 放进 file/ 目录，即可像本页的「DXF 图形示例」一样逐页解说。",
+                    "也可以直接另存为 PDF（推荐「打印 → 输出为 PDF」），PDF 的解说效果最好、还原度最高。",
+                    "如果只是想在课件里引用这张图，可先在 CAD 中截图/输出为 PNG 或 JPG，再按「图片文件」条目加入。",
+                    "解析提示：本页会先检查文件签名 —— 若这个 .dwg 实际上是文本型 DXF，页面会自动按 DXF 解析并绘制；确认是真正的 DWG 才会显示本提示。"
+                ];
+
+                /* ============================================================
+                 * 九、各格式装载入口
+                 * ============================================================ */
+                function fetchUrl(url, opts) {
+                    const o = opts || {};
+                    return global.fetch(url, { cache: o.noCache === false ? "default" : "no-cache" });
+                }
+
+                async function readAsText(url, diag) {
+                    const res = await fetchUrl(url);
+                    if (!res.ok) throw new Error("HTTP " + res.status + " " + (res.statusText || ""));
+                    const buf = new Uint8Array(await res.arrayBuffer());
+                    const d = decodeSmart(buf);
+                    if (diag) diag("文本编码：" + d.enc + "，共 " + d.text.length + " 字");
+                    return d.text;
+                }
+
+                async function readAsBuffer(url) {
+                    const res = await fetchUrl(url);
+                    if (!res.ok) throw new Error("HTTP " + res.status + " " + (res.statusText || ""));
+                    return new Uint8Array(await res.arrayBuffer());
+                }
+
+                /* ---- 纯文本 ---- */
+                async function loadTextDoc(item, opts) {
+                    const text = await readAsText(opts.resolveUrl(item.url || ""), opts.diag);
+                    if (!text.trim()) {
+                        return guideCanvasDoc("text", "文本文件是空的", ["文件 " + (item.url || "") + " 里没有可显示的文字内容。"], { header: (item.name || "文本文件") + " · 提示" });
+                    }
+                    const doc = buildTextCanvasDoc(textToBlocks(text), {
+                        kind: "text",
+                        label: "文本文件",
+                        title: item.name || (item.url || ""),
+                        sub: "文本文件"
+                    });
+                    opts.diag("文本已分页：" + doc.pages.length + " 页");
+                    return doc;
+                }
+
+                /* ---- Word ---- */
+                async function loadWordDoc(item, kind, opts) {
+                    const buf = await readAsBuffer(opts.resolveUrl(item.url || ""));
+                    /* 签名识别：docx/pptx 等都是 ZIP；PPT 与 Word 共用容器，用条目名区分 */
+                    const isZip = buf.length > 4 && buf[0] === 0x50 && buf[1] === 0x4b;
+                    if (isZip) {
+                        const zi = readZip(buf);
+                        if (zi && zi.entries.has("word/document.xml")) {
+                            const xml = decodeUtf8(zipRead(zi, "word/document.xml"));
+                            const blocks = docxToBlocks(xml);
+                            const doc = buildTextCanvasDoc(blocks, {
+                                kind: "docx",
+                                label: "Word 文档",
+                                title: item.name || item.url,
+                                sub: "Word 文档（docx）"
+                            });
+                            opts.diag("docx 解析完成：" + doc.pages.length + " 页");
+                            return doc;
+                        }
+                    }
+                    /* 旧版二进制 .doc：尽力提取 */
+                    const got = legacyExtract(buf);
+                    if (got) {
+                        opts.diag("旧版 .doc 尽力提取到 " + got.text.length + " 字（" + got.enc + "）");
+                        const blocks = [
+                            { text: "说明：本文件是旧版二进制 Word 格式（.doc），浏览器无法完整解析，以下文字由程序尽力提取，可能有缺漏或顺序错乱；如需完整效果请在 Word 中另存为 .docx 或 .pdf。", style: "note" },
+                            { style: "rule" }
+                        ].concat(textToBlocks(got.text));
+                        const doc = buildTextCanvasDoc(blocks, {
+                            kind: "doc", label: "Word 文档", title: item.name || item.url, sub: "旧版 .doc（尽力提取）"
+                        });
+                        return doc;
+                    }
+                    opts.diag("旧版 .doc 无法有效提取文字，改为显示引导页");
+                    return guideCanvasDoc("doc", "旧版 .doc 文件无法直接解析", [
+                        "本文件是旧版二进制 Word 格式（.doc），浏览器没有可用的解析器，且自动提取未能得到有效文字。",
+                        "请在 Word / WPS 中打开该文件，另存为 .docx（推荐）或导出为 PDF，再把新文件放入 file/ 目录即可正常解说。"
+                    ], { header: (item.name || "Word 文档") + " · 提示" });
+                }
+
+                /* ---- PPT ---- */
+                async function loadPptDoc(item, kind, opts) {
+                    const buf = await readAsBuffer(opts.resolveUrl(item.url || ""));
+                    const isZip = buf.length > 4 && buf[0] === 0x50 && buf[1] === 0x4b;
+                    if (isZip) {
+                        const zi = readZip(buf);
+                        if (zi && [...zi.entries.keys()].some((n) => /^ppt\/slides\/slide\d+\.xml$/.test(n))) {
+                            const names = [...zi.entries.keys()]
+                                .filter((n) => /^ppt\/slides\/slide\d+\.xml$/.test(n))
+                                .sort((a, b) => (parseInt(/(\d+)/.exec(a)[1], 10) - parseInt(/(\d+)/.exec(b)[1], 10)));
+                            const slides = names.map((n) => pptxSlideParas(decodeUtf8(zipRead(zi, n))));
+                            const doc = buildSlideCanvasDoc(slides, {
+                                label: "PPT 演示文稿", title: item.name || item.url, sub: "PPT 演示文稿（pptx）"
+                            });
+                            opts.diag("pptx 解析完成：" + slides.length + " 张幻灯片");
+                            return doc;
+                        }
+                    }
+                    const got = legacyExtract(buf);
+                    if (got) {
+                        opts.diag("旧版 .ppt 尽力提取到 " + got.text.length + " 字（" + got.enc + "）");
+                        const blocks = [
+                            { text: "说明：本文件是旧版二进制 PPT 格式（.ppt），浏览器无法完整解析，以下文字由程序尽力提取，可能有缺漏或乱序；如需完整效果请在 PowerPoint / WPS 中另存为 .pptx 或 PDF。", style: "note" },
+                            { style: "rule" }
+                        ].concat(textToBlocks(got.text));
+                        const doc = buildTextCanvasDoc(blocks, {
+                            kind: "ppt", label: "PPT 演示文稿", title: item.name || item.url, sub: "旧版 .ppt（尽力提取）"
+                        });
+                        return doc;
+                    }
+                    opts.diag("旧版 .ppt 无法有效提取文字，改为显示引导页");
+                    return guideCanvasDoc("ppt", "旧版 .ppt 文件无法直接解析", [
+                        "本文件是旧版二进制 PPT 格式（.ppt），浏览器没有可用的解析器，且自动提取未能得到有效文字。",
+                        "请在 PowerPoint / WPS 中打开该文件，另存为 .pptx（推荐）或导出为 PDF，再把新文件放入 file/ 目录即可正常解说。"
+                    ], { header: (item.name || "PPT 演示文稿") + " · 提示" });
+                }
+
+                /* 幻灯片页：每张幻灯片 = 一页（16:9） */
+                function buildSlideCanvasDoc(slides, meta) {
+                    const W = SLIDE_LAYOUT.pageW, H = SLIDE_LAYOUT.pageH;
+                    const total = slides.length;
+                    const pages = slides.map((paras, i) => ({
+                        w: W, h: H,
+                        draw: (ctx) => {
+                            ctx.fillStyle = "#ffffff";
+                            ctx.fillRect(0, 0, W, H);
+                            /* 顶部色条 */
+                            ctx.fillStyle = "#2f80ed";
+                            ctx.fillRect(0, 0, W, 8);
+                            let y = 62;
+                            const padX = 64;
+                            const maxW = W - padX * 2;
+                            let title = "";
+                            paras.forEach((p) => { if (!title && p.style === "title") title = p.text; });
+                            if (!title) title = paras.length ? paras[0].text : "幻灯片 " + (i + 1);
+                            ctx.fillStyle = "#12233d";
+                            ctx.font = font(30, true);
+                            wrapText(title, font(30, true), maxW).slice(0, 2).forEach((t) => {
+                                ctx.fillText(t, padX, y);
+                                y += 42;
+                            });
+                            y += 10;
+                            /* 标题与正文之间画一条细分割线 */
+                            ctx.strokeStyle = "#dfe6f0";
+                            ctx.lineWidth = 1;
+                            ctx.beginPath();
+                            ctx.moveTo(padX, y);
+                            ctx.lineTo(W - padX, y);
+                            ctx.stroke();
+                            y += 36;
+                            const bodyFont = font(19, false);
+                            paras.forEach((p, pi) => {
+                                if (p.style === "title" && p.text === title) return;
+                                const lines = wrapText(p.text, bodyFont, maxW - 22);
+                                lines.forEach((t, li) => {
+                                    if (y > H - 60) return;
+                                    ctx.fillStyle = "#243044";
+                                    ctx.font = bodyFont;
+                                    if (li === 0) {
+                                        ctx.fillStyle = "#2f80ed";
+                                        ctx.beginPath();
+                                        ctx.arc(padX + 5, y - 6, 3.5, 0, Math.PI * 2);
+                                        ctx.fill();
+                                        ctx.fillStyle = "#243044";
+                                    }
+                                    ctx.fillText(t, padX + 22, y);
+                                    y += 30;
+                                });
+                                if (y <= H - 60) y += 8;
+                                if (pi > 200) return;
+                            });
+                            ctx.fillStyle = "#a8b2c2";
+                            ctx.font = font(12, false);
+                            ctx.textAlign = "right";
+                            ctx.fillText((i + 1) + " / " + total, W - padX, H - 24);
+                            ctx.textAlign = "left";
+                        }
+                    }));
+                    if (!pages.length) {
+                        return guideCanvasDoc("pptx", "演示文稿里没有找到可显示的幻灯片", ["文件已成功解包，但 ppt/slides 下没有可解析的幻灯片内容。", "如果这是旧版 .ppt，请先另存为 .pptx 或 PDF。"], { header: (meta.title || "PPT") + " · 提示" });
+                    }
+                    return { kind: "pptx", label: meta.label, pages };
+                }
+
+                /* ---- CAD 图形（dxf / dwg） ---- */
+                async function loadCadDoc(item, kind, opts) {
+                    const buf = await readAsBuffer(opts.resolveUrl(item.url || ""));
+                    const head4 = decodeUtf8(buf.subarray(0, 4));
+                    const isZip = buf[0] === 0x50 && buf[1] === 0x4b;
+                    const isRealDwg = /^AC10/.test(head4) || /^AC2/.test(head4) || isZip;
+                    const isBinaryDxf = /^AutoCAD Binary DXF/i.test(decodeUtf8(buf.subarray(0, 22)));
+
+                    /* 真正的 DWG：给出可操作的引导页（不假装能画） */
+                    if (isRealDwg && !isBinaryDxf) {
+                        opts.diag("识别为真正的 DWG 二进制格式（" + head4 + "）→ 显示引导页");
+                        const doc = guideCanvasDoc("dwg", "DWG 文件需要先转换为 DXF 或 PDF", DWG_STEPS, {
+                            header: (item.name || "DWG 图形") + " · 提示",
+                            note: "以上为通用处理建议；本页的触点评说同样可用，可在 js/narration_data.js 中为这一页配置要点说明。"
+                        });
+                        return doc;
+                    }
+                    if (isBinaryDxf) {
+                        opts.diag("识别为二进制 DXF（不支持），显示引导页");
+                        return guideCanvasDoc("dxf", "二进制 DXF 暂不支持", ["本文件的头部标记为「AutoCAD Binary DXF」，属于二进制 DXF。", "请在 CAD 中重新另存为文本型 DXF（ASCII DXF）后再试，或直接使用 PDF / 图片。"], { header: (item.name || "DXF 图形") + " · 提示" });
+                    }
+
+                    /* 文本型 DXF（含被误命名为 .dwg 的情况） */
+                    const text = decodeSmart(buf).text;
+                    if (!/^\s*0\s*\r?\n\s*SECTION/m.test(text) && !/SECTION/.test(text.slice(0, 4000))) {
+                        opts.diag("文件内容不像 DXF，显示引导页");
+                        return guideCanvasDoc(kind, "无法识别该图形文件的内部格式", ["文件既不是文本型 DXF，也不是可解析的内容。", "请在 CAD 中另存为 DXF（ASCII）或 PDF 后再试。"], { header: (item.name || "图形文件") + " · 提示" });
+                    }
+
+                    const { entities, blocks } = parseDxf(text);
+                    const prims = dxfPrims(entities, blocks, 0, []);
+                    const ext = primsExtent(prims);
+                    opts.diag("DXF 解析完成：实体 " + entities.length + " 个 / 可绘制图元 " + prims.length + " 个");
+
+                    const title = item.name || item.url || "DXF 图形";
+                    /* 数据文件里可为每一页指定 view（图形范围 x0,y0,x1,y1）做分区放大 */
+                    const declared = (item.pages || []).filter((p) => p && p.view);
+                    const views = declared.length ? declared.map((p) => p.view) : [null];
+                    const total = views.length;
+                    const pages = views.map((v, i) => {
+                        let e = ext;
+                        if (v && ext) {
+                            const vx0 = num(v.x0), vy0 = num(v.y0), vx1 = num(v.x1), vy1 = num(v.y1);
+                            if (vx1 > vx0 && vy1 > vy0) e = { x0: vx0, y0: vy0, x1: vx1, y1: vy1 };
+                        }
+                        return {
+                            w: CAD_LAYOUT.pageW, h: CAD_LAYOUT.pageH,
+                            draw: (ctx) => drawDxfPage(ctx, prims, e, {
+                                title,
+                                sub: "DXF 图形 · 图元 " + prims.length,
+                                footer: "第 " + (i + 1) + " / " + total + " 页"
+                            })
+                        };
+                    });
+                    return { kind: "dxf", label: "DXF 图形文件", pages };
+                }
+
+                /* ============================================================
+                 * 十、对外接口
+                 * ============================================================ */
+                async function buildCanvasDoc(item, kind, opts) {
+                    const o = opts || {};
+                    const diag = o.diag || function () { };
+                    const resolveUrl = o.resolveUrl || function (u) { return u; };
+                    const full = { resolveUrl, diag };
+                    switch (kind) {
+                        case "text": return await loadTextDoc(item, full);
+                        case "docx":
+                        case "doc": return await loadWordDoc(item, kind, full);
+                        case "pptx":
+                        case "ppt": return await loadPptDoc(item, kind, full);
+                        case "dxf":
+                        case "dwg": return await loadCadDoc(item, kind, full);
+                        default:
+                            return guideCanvasDoc(kind, "暂不支持该文件格式", ["该条目声明的格式为「" + kind + "」，当前版本尚未适配。", "可改为 PDF、图片、TXT、Word、PPT、DXF 之一。"], {});
+                    }
+                }
+
+                global.FILE_LOADERS = {
+                    detectKind, extOf, KIND_LABEL, KIND_LOADING,
+                    buildCanvasDoc, buildTextCanvasDoc, buildSlideCanvasDoc, textToBlocks,
+                    /* 以下导出供测试与排查使用 */
+                    inflateRaw, readZip, zipRead, decodeSmart, wrapText, textWidth,
+                    parseDxf, dxfPrims, primsExtent, legacyExtract, docxToBlocks, pptxSlideParas,
+                    _layout: { TEXT_LAYOUT, SLIDE_LAYOUT, CAD_LAYOUT }
+                };
+            })(typeof window !== "undefined" ? window : globalThis);
+
+        </script>
+        <script src="js/lib/pdf.min.js"></script>
+        <script>
+            /* ============================================================
+               主逻辑（V1.0.0 重构：原 js/main.js 内联至此）
+               依赖：本页上方已内联的格式适配层 + js/narration_data.js（数据）
+                    + js/lib/pdf.min.js（本地离线 PDF.js，仅 PDF 条目用到）
+               ============================================================ */
+            /* ============================================================
+             * 内容解说页主逻辑  V0.5.1
+             * 依赖：js/loaders.js（各类文件格式解析，零依赖；V0.5.0 新增）
+             *       js/lib/pdf.min.js（本地离线 PDF.js 3.11.174；仅 PDF 条目会用到）
+             *       js/narration_data.js（解说数据，支持多个条目）
+             * 功能：多条目切换（PDF / 图片 / TXT / Word / PPT / DXF / DWG）
+             *       / 翻页 / 自动巡讲（逐触点解说+语音驱动翻页）/ 语音开关 / 声音模板
+             *       / 热点弹窗 + TTS / 离线语音文件兑底 / 播放时底部字幕条
+             * V0.5.1：新增 placePopup() —— 触点靠近文档边沿时把弹窗平移/翻转回内容区内，
+             *         修复"弹窗超出文档边沿被截断"（配合 css/style.css 的 --popup-dx）。
+             * 渲染分工：
+             *   · PDF 条目      → PDF.js 渲染到 #pdfCanvas
+             *   · 图片条目      → 直接显示 <img id="pdfImage">
+             *   · 其余格式      → js/loaders.js 解析成 CanvasDoc 后绘制到 #pdfCanvas
+             * 三者的触点定位、弹窗、朗读、巡讲、离线音频完全共用一套逻辑。
+             *
+             * V0.5.0 变更：
+             *   ① 新增 TXT / doc / PPT / dwg / dxf 五种格式适配；
+             *   ② 翻页按钮按边界自动禁用（首页禁"上一页"、末页禁"下一页"、仅一页则两者都禁）；
+             *   ③ 默认开启「语音说明」；
+             *   ④ 自动巡讲只在本页**最后一段语音播完**后才翻页（并修掉 TTS 出错时提前推进的隐患）；
+             *   ⑤ 语音播放期间在页面底部显示当前触点的标题与文字（字幕条）。
+             * ============================================================ */
+            "use strict";
+
+            /* ---------- 声音模板定义（右上角下拉） ----------
+             * Web Speech API 无真正的"变声"能力，模板通过
+             * ① 优先挑选系统里性别匹配的中文语音 ② 调整 pitch/rate
+             * 两种手段组合出男播音 / 女播音 / 萝莉音 / 大叔音的效果。
+             * 顺序即下拉列表顺序；默认项由 narration_data.js 的 defaultTemplate 指定
+             * （V0.2.0 起默认男播音）。
+             * hints 为常见中英文语音引擎名称关键字（命中即优先选用）。*/
+            const VOICE_TEMPLATES = [
+                {
+                    id: "male", label: "男播音", pitch: 0.85, rate: 0.95,
+                    hints: ["kangkang", "yunyang", "yunxi", "danny", "liang", "male", "男"]
+                },
+                {
+                    id: "female", label: "女播音", pitch: 1.10, rate: 1.00,
+                    hints: ["ting-ting", "tingting", "huihui", "yaoyao", "xiaoxiao", "xiaoyi", "meijia", "sinji", "female", "女"]
+                },
+                {
+                    id: "loli", label: "萝莉音", pitch: 1.70, rate: 1.15,
+                    hints: ["xiaoxiao", "huihui", "female", "女"]
+                },   /* 女声 + 高音调 */
+                {
+                    id: "uncle", label: "大叔音", pitch: 0.45, rate: 0.80,
+                    hints: ["kangkang", "yunyang", "male", "男"]
+                }     /* 男声 + 低音调慢速 */
+            ];
+
+            /* ================= 状态 ================= */
+            const state = {
+                pdfIndex: 0,                  /* 当前条目在 NARRATION_DATA.pdfs 中的下标 */
+                pdfDoc: null,                 /* PDF 条目：PDF.js 文档对象 */
+                docModel: null,               /* V0.5.0：文本/Word/PPT/DXF 条目：loaders 产出的 CanvasDoc */
+                stageOk: false,               /* 当前内容是否已成功显示（决定控件可用性，含翻页边界） */
+                pageNum: 1,
+                rendering: false,
+                autoOn: false,
+                tourTimer: null,              /* 巡讲模式：解说结束→2秒→下一触点 的计时器 */
+                speakSeq: 0,                  /* 朗读会话序号：仅当本次朗读仍是"最后一次发起"时才允许驱动巡讲 */
+                voiceOn: false,
+                onlineVoice: true,            /* 【V1.1.0】「在线语音」复选框：勾选=浏览器在线合成；取消=优先离线语音文件 */
+                voiceMode: "tts",             /* 发声方式："tts" 浏览器朗读 / "file" 离线语音文件 / "none" 都不可用 */
+                audioEl: null,                /* 离线语音播放用的 Audio 元素（全局复用一个） */
+                template: VOICE_TEMPLATES[0],
+                voiceObj: null,
+                closeTimer: null,             /* 弹窗延迟关闭计时器 */
+                ttsProbed: false              /* 是否已做过一次"有没有语音引擎"的启动体检 */
+            };
+
+            /* ================= DOM ================= */
+            const $ = (id) => document.getElementById(id);
+            const canvas = $("pdfCanvas");
+            const ctx = canvas.getContext("2d");
+            const hotspotLayer = $("hotspotLayer");
+            const pageIndicator = $("pageIndicator");
+            const pdfSelect = $("pdfSelect");
+            const catSelect = $("catSelect");        /* 【V1.2.0】一级筛选下拉 */
+            const subSelect = $("subSelect");        /* 【V1.2.0】二级筛选下拉 */
+            const catLabel = $("catLabel");
+            const subLabel = $("subLabel");
+            const btnPrev = $("btnPrev");
+            const btnNext = $("btnNext");
+            const btnAuto = $("btnAuto");
+            const chkVoice = $("chkVoice");
+            const chkOnline = $("chkOnline");                     /* 【V1.1.0】在线语音复选框 */
+            const onlineWrap = $("onlineWrap");                   /* 【V1.1.0】在线语音的显示/隐藏容器 */
+            const voiceTemplatesWrap = $("voiceTemplatesWrap");   /* 【V1.1.0】播音下拉的显示/隐藏容器 */
+            const voiceSelect = $("voiceSelect");
+            const pdfWrap = $("pdfWrap");
+            const stageImg = $("pdfImage");       /* V0.4.0：图片条目的展示元素（与 canvas 二选一显示） */
+            const captionBar = $("captionBar");   /* V0.5.0：播放时的底部字幕条 */
+
+            /* ---------- 当前条目配置 / 其热点数据 ---------- */
+            function pdfList() { return NARRATION_DATA.pdfs || []; }
+            function currentPdf() { return pdfList()[state.pdfIndex] || null; }
+            function currentPages() {
+                const pdf = currentPdf();
+                return (pdf && pdf.pages) || [];
+            }
+
+            /* ---------- 条目类型与页数（V0.5.0：多种文件格式都能解说） ----------
+             * 类型判定交给 js/loaders.js（优先 item.type，其次看扩展名）：
+             *   "pdf"           → PDF.js 渲染，页数取自 PDF 本身
+             *   "image"         → 直接用 <img> 显示 pages[].src，页数 = pages 长度
+             *   "text"/"docx"/"doc"/"pptx"/"ppt"/"dxf"/"dwg"
+             *                   → loaders 解析成 CanvasDoc 后绘制到画布，页数 = doc.pages.length
+             * 所有类型的触点定位（basePoint + 偏移）、弹窗、语音、巡讲、离线音频完全共用。 */
+            function entryKind(item) {
+                if (globalThis.FILE_LOADERS) return globalThis.FILE_LOADERS.detectKind(item);
+                return (item && item.type === "image") ? "image" : "pdf";   /* 兜底：loaders 未加载 */
+            }
+            function currentKind() { return entryKind(currentPdf()); }
+            function kindLabel(kind) {
+                const L = globalThis.FILE_LOADERS && globalThis.FILE_LOADERS.KIND_LABEL;
+                return (L && L[kind]) || "文件";
+            }
+
+            /* 当前条目总页数（内容尚未就绪时为 0） */
+            function pageTotal() {
+                const kind = currentKind();
+                if (kind === "image") return currentPages().length;
+                if (kind === "pdf") return state.pdfDoc ? state.pdfDoc.numPages : 0;
+                return state.docModel ? state.docModel.pages.length : 0;
+            }
+
+            /* 加载提示文案（按格式分别显示） */
+            function loadingText() {
+                const kind = currentKind();
+                const L = globalThis.FILE_LOADERS && globalThis.FILE_LOADERS.KIND_LOADING;
+                return (L && L[kind]) || "内容加载中，请稍候…";
+            }
+
+            /* 切换展示元素：图片用 <img>，其余（PDF / 文本 / Word / PPT / DXF）用 canvas */
+            function showStage(kind) {
+                const isImage = (kind === "image");
+                if (canvas) canvas.hidden = isImage;
+                if (stageImg) stageImg.hidden = !isImage;
+            }
+
+            /* ============================================================
+             * 一、控件可用性
+             * ------------------------------------------------------------
+             * 两条规则叠加（V0.5.0）：
+             *   ① 内容没显示出来时（加载中 / 加载失败）→ 翻页、自动翻页、语音复选框全部不可用；
+             *   ② 内容已显示时 → 按页码边界禁用：
+             *        第 1 页           → 「上一页」不可用
+             *        最后一页          → 「下一页」不可用
+             *        只有一页          → 「上一页」「下一页」都不可用
+             * 自动翻页按钮只要内容可用就保持可点（巡讲中它是「停止翻页」，末页也要能停止）。
+             * ============================================================ */
+            function refreshControls() {
+                const total = pageTotal();
+                const ready = !!state.stageOk && total > 0;
+                if (chkVoice) chkVoice.disabled = !ready;
+                if (chkOnline) chkOnline.disabled = !ready;   /* 【V1.1.0】内容未就绪时在线语音同样不可用 */
+                if (btnAuto) btnAuto.disabled = !ready;
+                if (btnPrev) btnPrev.disabled = !ready || state.pageNum <= 1;
+                if (btnNext) btnNext.disabled = !ready || state.pageNum >= total;
+                document.body.classList.toggle("pdf-unavailable", !ready);
+                refreshVoiceUI();                             /* 【V1.1.0】播音下拉可用性随此处联动刷新 */
+            }
+
+            /* 【V1.1.0】「语音说明 / 在线语音 / 播音」三者的显示与可用性统一在这里维护：
+             *   ① 未勾选「语音说明」→ 「在线语音」复选框与「播音」下拉**都不显示**；
+             *   ② 勾选「在线语音」（默认）→ 使用网站提供的语音文件（file/voice/），音色固定 → 「播音」**不可选**；
+             *   ③ 取消「在线语音」→ 改用本地语音引擎朗读，「播音」可选（作为音色模板）。
+             * 显示/隐藏用 hidden 属性（样式表有 [hidden]{display:none !important} 兜底）。 */
+            function refreshVoiceUI() {
+                const show = !!(chkVoice && chkVoice.checked);
+                if (onlineWrap) onlineWrap.hidden = !show;
+                if (voiceTemplatesWrap) voiceTemplatesWrap.hidden = !show;
+                if (voiceSelect) {
+                    const online = !!(chkOnline && chkOnline.checked);
+                    voiceSelect.disabled = !show || online;
+                    voiceSelect.title = online
+                        ? "当前使用网站提供的语音文件，音色固定，不可选择"
+                        : "选择播音（本地语音引擎的音色模板）";
+                }
+            }
+
+            /* 兼容原调用点：设置"内容是否可用"后再统一刷新各控件状态 */
+            function setControlsEnabled(ok) {
+                state.stageOk = !!ok;
+                refreshControls();
+            }
+
+            /* ============================================================
+             * 二、PDF 加载与渲染
+             * ------------------------------------------------------------
+             * 【V0.2.1 移动端加固】手机浏览器（微信/QQ 内置浏览器、部分安卓 WebView、
+             * 较旧 iOS Safari）对 Worker、流式 fetch、动态 eval 的支持差异很大，
+             * 单一加载路径在手机上容易直接抛错。这里改为「多方案自动降级」：
+             *   方案① URL 直连解析            —— 桌面/主流浏览器首选，支持分块按需加载
+             *   方案② 整包下载后再解析        —— 绕开流式读取(ReadableStream)兼容问题
+             *   方案③ 整包解析 + 关闭 eval    —— 部分移动内核/安全策略禁止动态求值
+             *   方案④ 整包解析 + 主线程解析   —— 完全不依赖 Worker，移动端兜底
+             * 任一方案成功即继续；全部失败才报错，并把每一步的具体原因显示在页面上
+             * （手机上没有控制台，必须直接可见，便于截图反馈定位）。
+             * ============================================================ */
+
+            /* 单步超时（毫秒）：弱网下适当放宽，但不至于无限"加载中" */
+            const LOAD_TIMEOUT = 20000;
+
+            /* 相对路径 → 绝对 URL（以本文档为基准解析，避免 iframe / 无 <base> 时出现歧义） */
+            function absUrl(rel) { try { return new URL(rel, document.baseURI).href; } catch (e) { return rel; } }
+
+            /* 诊断信息：同时写入 console、错误面板与加载提示（手机端唯一的可见渠道） */
+            let diagLines = [];
+            function diag(msg) {
+                diagLines.push(msg);
+                console.warn("[pdf_narrator] " + msg);
+                const box = $("loadErrorDetail");
+                if (box) box.textContent = diagLines.join("\n");
+                const ld = $("loading");
+                if (ld && !ld.hidden) ld.textContent = loadingText() + "\n" + msg;
+            }
+
+            /* 错误对象 → 一行可读描述 */
+            function describeErr(e) {
+                if (!e) return "未知错误";
+                if (typeof e === "string") return e;
+                return (e.name ? e.name + ": " : "") + (e.message || String(e));
+            }
+
+            /* 给 promise 加超时，避免移动端弱网下永久停在"加载中" */
+            function withTimeout(promise, ms, label) {
+                return new Promise((resolve, reject) => {
+                    const timer = setTimeout(() => { reject(new Error(label + "超时（" + Math.round(ms / 1000) + " 秒）")); }, ms);
+                    promise.then(
+                        (v) => { clearTimeout(timer); resolve(v); },
+                        (e) => { clearTimeout(timer); reject(e); }
+                    );
+                });
+            }
+
+            /* 以普通 <script> 方式把 worker 脚本载入主线程：
+             * 加载后全局出现 pdfjsWorker.WorkerMessageHandler，PDF.js 便会直接在主线程解析，
+             * 彻底不依赖 Worker 能力（移动端兜底方案，脚本只加载一次）。 */
+            let workerScriptPromise = null;
+            function loadWorkerScriptInMainThread() {
+                if (typeof globalThis.pdfjsWorker !== "undefined") return Promise.resolve();
+                if (workerScriptPromise) return workerScriptPromise;      /* 复用同一次加载 */
+                workerScriptPromise = new Promise((resolve, reject) => {
+                    const s = document.createElement("script");
+                    s.src = absUrl("js/lib/pdf.worker.min.js");
+                    s.onload = () => resolve();
+                    s.onerror = () => reject(new Error("主线程加载 worker 脚本失败"));
+                    document.head.appendChild(s);
+                });
+                return workerScriptPromise;
+            }
+
+            /* 整包下载 PDF 数据 */
+            async function fetchPdfBuffer(url) {
+                const res = await withTimeout(fetch(url, { cache: "no-cache" }), LOAD_TIMEOUT, "下载 PDF ");
+                if (!res.ok) throw new Error("HTTP " + res.status + " " + res.statusText);
+                const buf = await res.arrayBuffer();
+                if (!buf || buf.byteLength < 5) throw new Error("下载到的内容为空");
+                return buf;
+            }
+
+            /* 依次尝试各加载方案，全部失败时抛出最后一个错误 */
+            async function openPdfDocument(pdf) {
+                const url = absUrl(pdf.url);
+                diag("PDF：" + (pdf.name || pdf.url) + "\n地址：" + url);
+
+                if (typeof pdfjsLib === "undefined" || !pdfjsLib) { throw new Error("PDF 引擎未加载（js/lib/pdf.min.js 无法访问，或浏览器版本过旧）"); }
+                try { pdfjsLib.GlobalWorkerOptions.workerSrc = absUrl("js/lib/pdf.worker.min.js"); } catch (e) { /* 个别内核下设置失败不影响后续方案 */ }
+
+                let lastErr = null;
+
+                /* ---- 方案①：URL 直连（桌面 / 主流移动浏览器） ---- */
+                try {
+                    diag("① 尝试 URL 直连解析…"); return await withTimeout(pdfjsLib.getDocument({ url }).promise, LOAD_TIMEOUT, "方案①");
+                } catch (e) { lastErr = e; diag("① 失败 → " + describeErr(e)); }
+
+                /* ---- 先整包下载，供方案②③④ 复用 ---- */
+                let buf = null;
+                try {
+                    diag("② 整包下载 PDF 数据…");
+                    buf = await fetchPdfBuffer(url);
+                    diag("② 下载成功（" + Math.round(buf.byteLength / 1024) + " KB）");
+                } catch (e) { lastErr = e; diag("② 下载失败 → " + describeErr(e)); }
+
+                if (buf) {
+                    /* 整包模式下关闭分块/流式加载，避免移动端流式读取的兼容问题 */
+                    const packOpts = { data: buf.slice(0), disableStream: true, disableAutoFetch: true, useWorkerFetch: false };
+
+                    /* ---- 方案②：整包 + 默认解析 ---- */
+                    try {
+                        diag("③ 尝试整包解析…");
+                        return await withTimeout(pdfjsLib.getDocument(Object.assign({}, packOpts)).promise, LOAD_TIMEOUT, "方案③");
+                    } catch (e) { lastErr = e; diag("③ 失败 → " + describeErr(e)); }
+
+                    /* ---- 方案③：整包 + 关闭动态求值 ---- */
+                    try {
+                        diag("④ 尝试整包解析（关闭 eval）…");
+                        return await withTimeout(
+                            pdfjsLib.getDocument(Object.assign({ data: buf.slice(0) }, packOpts, { isEvalSupported: false })).promise,
+                            LOAD_TIMEOUT, "方案④"
+                        );
+                    } catch (e) { lastErr = e; diag("④ 失败 → " + describeErr(e)); }
+
+                    /* ---- 方案④：整包 + 主线程解析（不使用 Worker） ---- */
+                    try {
+                        diag("⑤ 尝试主线程解析（不使用 Worker）…");
+                        await loadWorkerScriptInMainThread();
+                        return await withTimeout(
+                            pdfjsLib.getDocument(Object.assign({ data: buf.slice(0) }, packOpts, { isEvalSupported: false })).promise,
+                            LOAD_TIMEOUT, "方案⑤"
+                        );
+                    } catch (e) { lastErr = e; diag("⑤ 失败 → " + describeErr(e)); }
+                }
+
+                throw lastErr || new Error("全部加载方案均失败，原因未知");
+            }
+
+            /* 内容无法显示时的统一收尾：显示提示面板 + 按钮与复选框全部不可用。
+             * V0.4.0：从 loadPdf 的失败分支抽出，供"换页时图片加载失败"复用。 */
+            function enterStageError(label) {
+                if (label) diag(label);
+                $("loading").hidden = true;
+                $("loadError").hidden = false;
+                pageIndicator.textContent = "0 / 0";
+                setControlsEnabled(false);           /* 无法显示内容 → 控件全部不可用 */
+                canvas.width = 0;
+                canvas.height = 0;
+                canvas.style.height = "220px";
+                if (stageImg) { stageImg.hidden = true; stageImg.removeAttribute("src"); }
+            }
+
+            /* 加载 / 切换条目（PDF / 图片 / TXT / Word / PPT / DXF / DWG）：
+             * index 为 NARRATION_DATA.pdfs 下标，加载后固定回到第 1 页。
+             * V0.4.0：图片条目直接显示 <img>，不解析 PDF。
+             * V0.5.0：其余格式交给 js/loaders.js 解析成 CanvasDoc（文本分页 / 幻灯片 / CAD 图形），
+             *         解析结果缓存在 state.docModel，翻页只是重绘，不再重复解析。 */
+            async function loadPdf(index) {
+                const pdf = pdfList()[index];
+                if (!pdf) return;
+                const kind = entryKind(pdf);
+
+                /* 切换前先清理：停止巡讲与朗读、关闭弹窗与字幕、清空热点 */
+                if (state.autoOn) stopTour(); else stopSpeech();
+                deactivateHotspot();
+                hotspotLayer.innerHTML = "";
+
+                state.pdfIndex = index;
+                state.pdfDoc = null;
+                state.docModel = null;               /* 换条目 → 丢弃上一份解析结果 */
+                state.pageNum = 1;
+                if (pdfSelect) pdfSelect.value = pdf.id;   /* 【V1.2.0】下拉 value=条目 id（筛选后下标会错位） */
+
+                diagLines = [];
+                const detail = $("loadErrorDetail");
+                if (detail) detail.textContent = "";
+                $("loading").textContent = loadingText();
+                $("loading").hidden = false;
+                $("loadError").hidden = true;
+                updateIndicator();
+                setControlsEnabled(false);          /* 加载期间控件不可用 */
+
+                try {
+                    if (kind === "image") {
+                        /* ---- 图片条目：每一页就是一张图片，没有"文档"概念 ---- */
+                        showStage("image");
+                        diag("图片条目：" + (pdf.name || pdf.id) + "，共 " + currentPages().length + " 页");
+                        state.rendering = false;        /* 清掉可能残留的渲染锁，避免首页渲染被跳过 */
+                        const rendered = await renderPage(1);
+                        if (!rendered) throw new Error("图片未能显示");
+                    } else if (kind === "pdf") {
+                        /* ---- PDF 条目：走 PDF.js 多方案降级解析 ---- */
+                        showStage("pdf");
+                        const doc = await openPdfDocument(pdf);
+                        state.pdfDoc = doc;
+                        state.pageNum = 1;
+                        state.rendering = false;        /* 清掉可能残留的渲染锁，避免首页渲染被跳过 */
+                        const rendered = await renderPage(1);
+                        if (!rendered) throw new Error("PDF 已解析但首页渲染失败");
+                    } else {
+                        /* ---- 文本 / Word / PPT / DXF / DWG：交格式适配层解析成画布页面 ---- */
+                        showStage("pdf");
+                        if (!globalThis.FILE_LOADERS) throw new Error("格式适配层未加载（js/loaders.js 无法访问）");
+                        const model = await globalThis.FILE_LOADERS.buildCanvasDoc(pdf, kind, { diag, resolveUrl: absUrl });
+                        if (!model || !model.pages || !model.pages.length) throw new Error("没有可显示的内容页");
+                        state.docModel = model;
+                        state.pageNum = 1;
+                        state.rendering = false;
+                        const rendered = await renderPage(1);
+                        if (!rendered) throw new Error(kindLabel(kind) + " 已解析但首页绘制失败");
+                    }
+                    $("loading").hidden = true;
+                    $("loadError").hidden = true;
+                    updateIndicator();
+                    setControlsEnabled(true);         /* 内容已成功显示 → 控件按页码边界恢复可用 */
+
+                    /* 启动体检：默认开启语音说明时，若浏览器明确不支持朗读就提前告知
+                     * （有离线音频配置时只提示会改播音频，不会取消勾选） */
+                    if (state.voiceOn && !state.ttsProbed) {
+                        state.ttsProbed = true;
+                        if (!ttsSupported()) degradeOrOff(NO_TTS_HINT);
+                    }
+                } catch (err) {
+                    diag("加载失败 → " + describeErr(err));
+                    console.error("[pdf_narrator] " + kindLabel(kind) + " 加载失败：" + (pdf.url || pdf.id), err);
+                    state.pdfDoc = null;
+                    state.docModel = null;
+                    updateIndicator();
+                    enterStageError();                /* 无法显示内容 → 提示 + 控件全部不可用 */
+                }
+            }
+
+            /* 渲染指定页（含 DPR 高清适配 + 热点重建）
+             * 返回 true = 本页渲染成功；false = 被跳过或失败（供 loadPdf 判定"是否真的显示出来了"）。
+             * V0.2.1：容器宽度测不到（手机 iframe 布局未就绪等）时用窗口宽度兜底，
+             *         避免缩放比为 0 导致"加载成功却一片空白"。
+             * V0.4.0：图片条目交给 renderImagePage()，不用 PDF.js。
+             * V0.5.0：文本 / Word / PPT / DXF 条目交给 renderCanvasDocPage()。 */
+            async function renderPage(num) {
+                const kind = currentKind();
+                if (kind === "image") {
+                    if (state.rendering) return false;
+                    state.rendering = true;
+                    try { return await renderImagePage(num); }
+                    finally { state.rendering = false; }
+                }
+                if (kind !== "pdf") {
+                    if (state.rendering) return false;
+                    state.rendering = true;
+                    try { return renderCanvasDocPage(num); }
+                    finally { state.rendering = false; }
+                }
+                if (!state.pdfDoc || state.rendering) return false;
+                const doc = state.pdfDoc;                 /* 记录本次渲染所属文档，切换 PDF 时丢弃旧结果 */
+                state.rendering = true;
+                try {
+                    const page = await doc.getPage(num);
+                    const viewport = page.getViewport({ scale: 1 });
+
+                    /* 依据容器宽度自适应缩放（含兜底，防止 scale 为 0） */
+                    let wrapWidth = pdfWrap.clientWidth || 0;
+                    if (wrapWidth < 40) wrapWidth = (window.innerWidth || 360) - 16;
+                    if (wrapWidth < 40) wrapWidth = 320;
+                    const scale = wrapWidth / viewport.width;
+                    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+                    const outputScale = scale * dpr;
+
+                    canvas.width = Math.max(1, Math.floor(viewport.width * outputScale));
+                    canvas.height = Math.max(1, Math.floor(viewport.height * outputScale));
+                    canvas.style.height = (viewport.height * scale) + "px";
+
+                    await page.render({ canvasContext: ctx, viewport: page.getViewport({ scale: outputScale }) }).promise;
+
+                    if (state.pdfDoc !== doc) return false; /* PDF 已切换，丢弃旧页结果 */
+                    buildHotspots(num);
+                    updateIndicator();
+                    return true;
+                } catch (err) {
+                    console.error("[pdf_narrator] 渲染失败：第 " + num + " 页", err);
+                    diag("渲染第 " + num + " 页失败 → " + describeErr(err));
+                    return false;
+                } finally {
+                    state.rendering = false;
+                }
+            }
+
+            /* 图片页渲染（V0.4.0）
+             * ------------------------------------------------------------
+             * 图片条目没有"页对象"，每一页就是一张图片：设置 <img> 的 src，加载完成后建热点。
+             * 图片宽度由 CSS 撑满容器、高度按原比例自适应，触点仍用页面比例坐标定位，
+             * 因此**无需测量尺寸、窗口缩放也不用重渲染**（这点与需要重绘的 PDF 画布不同）。
+             * 返回值语义与 renderPage 一致：true = 显示成功。 */
+            const IMG_TIMEOUT = 20000;                 /* 图片加载超时（毫秒），避免永久停在"加载中" */
+            function renderImagePage(num) {
+                const pageData = currentPages()[num - 1];
+                const src = pageData && pageData.src;
+                if (!src) {
+                    diag("第 " + num + " 页没有配置图片路径（pages[].src）");
+                    return Promise.resolve(false);
+                }
+                if (!stageImg) return Promise.resolve(false);
+
+                return new Promise((resolve) => {
+                    let settled = false;
+                    const finish = (ok, msg) => {
+                        if (settled) return;
+                        settled = true;
+                        clearTimeout(timer);
+                        stageImg.onload = null;
+                        stageImg.onerror = null;
+                        if (!ok) { if (msg) diag(msg); resolve(false); return; }
+                        buildHotspots(num);
+                        updateIndicator();
+                        resolve(true);
+                    };
+                    const timer = setTimeout(() => finish(false, "图片加载超时（" + Math.round(IMG_TIMEOUT / 1000) + " 秒）：" + src), IMG_TIMEOUT);
+
+                    stageImg.onload = () => {
+                        /* 期间又切了页或换了条目（加载中控件是禁用的，极少见）→ 丢弃本次结果 */
+                        if (state.pageNum !== num) { finish(false, ""); return; }
+                        finish(true);
+                    };
+                    stageImg.onerror = () => finish(false, "图片加载失败 → " + src);
+
+                    /* 页码与"图片是否加载完"无关（页数由数据决定），因此先更新，点翻页立刻有反馈 */
+                    updateIndicator();
+                    diag("图片：" + src);
+                    stageImg.src = absUrl(src);
+                });
+            }
+
+            /* 画布文档页渲染（V0.5.0）
+             * ------------------------------------------------------------
+             * 用于 TXT/Word/PPT/DXF 等由 js/loaders.js 解析出来的页面：
+             * 每一页都是固定逻辑尺寸（如文本页 760×1075、幻灯片 960×540、CAD 图 1120×792），
+             * 这里按容器宽度等比缩放后调用页面自带的 draw(ctx) 绘制。
+             * 与 PDF 画布一样需要重绘，因此窗口尺寸变化时会重新渲染（见下方 resize）。
+             * 返回值语义与 renderPage 一致：true = 绘制成功。 */
+            function renderCanvasDocPage(num) {
+                const model = state.docModel;
+                const page = model && model.pages[num - 1];
+                if (!page) {
+                    diag("第 " + num + " 页不存在");
+                    return false;
+                }
+
+                /* 依据容器宽度自适应缩放（含兜底，防止 scale 为 0） */
+                let wrapWidth = pdfWrap.clientWidth || 0;
+                if (wrapWidth < 40) wrapWidth = (window.innerWidth || 360) - 16;
+                if (wrapWidth < 40) wrapWidth = 320;
+                const scale = wrapWidth / page.w;
+                const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+                canvas.width = Math.max(1, Math.floor(page.w * scale * dpr));
+                canvas.height = Math.max(1, Math.floor(page.h * scale * dpr));
+                canvas.style.height = (page.h * scale) + "px";
+
+                if (ctx) {
+                    /* 显式重置变换：上一次可能是 PDF.js 渲染留下的状态 */
+                    try { ctx.setTransform(1, 0, 0, 1, 0, 0); } catch (e) { /* 忽略 */ }
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    ctx.save();
+                    ctx.setTransform(scale * dpr, 0, 0, scale * dpr, 0, 0);
+                    try {
+                        page.draw(ctx);
+                    } catch (e) {
+                        diag("绘制第 " + num + " 页失败 → " + describeErr(e));
+                        ctx.restore();
+                        return false;
+                    }
+                    ctx.restore();
+                }
+
+                buildHotspots(num);
+                updateIndicator();
+                return true;
+            }
+
+            /* 显示某一页（供按钮 / 自动翻页调用） */
+            function showPage(num) {
+                const total = pageTotal();
+                if (!total) return;
+                num = Math.max(1, Math.min(total, num));
+                if (num === state.pageNum && hotspotLayer.childElementCount > 0) return;
+                state.pageNum = num;
+                updateIndicator();                   /* V0.5.0：先更新页码 → 翻页按钮的边界状态立即刷新 */
+                deactivateHotspot();                 /* 换页关闭弹窗与字幕 */
+                stopSpeech();                        /* 换页停止朗读 */
+                renderPage(num).then((ok) => {
+                    /* V0.4.0/V0.5.0：换页失败（图片缺失、页面数据缺失等）同样进入"提示 + 控件不可用"状态，
+                       与"整份文件加载失败"表现一致，避免出现空白页却按钮照常可用 */
+                    if (ok === false) { enterStageError("换页失败：第 " + num + " 页无法显示"); }
+                });
+            }
+
+            function updateIndicator() {
+                const total = pageTotal() || "-";        /* V0.4.0：图片条目按 pages 长度计页 */
+                pageIndicator.textContent = state.pageNum + " / " + total;
+                refreshControls();                       /* V0.5.0：页码变化 → 同步翻页按钮的边界可用性 */
+            }
+
+            /* 窗口尺寸变化 → 防抖重渲染（图片条目自适应缩放，无需处理） */
+            let resizeTimer = null;
+            window.addEventListener("resize", () => {
+                if (currentKind() === "image") return;
+                clearTimeout(resizeTimer);
+                resizeTimer = setTimeout(() => renderPage(state.pageNum), 250);
+            });
+
+            /* ============================================================
+             * 三、热点构建（基于当前 PDF 的标准基点 + 偏移）
+             * ============================================================ */
+            function buildHotspots(pageNum) {
+                hotspotLayer.innerHTML = "";
+                const pageData = currentPages()[pageNum - 1];
+                if (!pageData || !pageData.hotspots) return;
+
+                const cur = currentPdf() || {};
+                const bp = cur.basePoint || { x: 0.5, y: 0.5 };   /* 每个 PDF 各自的标准基点 */
+
+                pageData.hotspots.forEach((hs, idx) => {
+                    /* 实际位置 = 标准基点 + 偏移量（比例坐标，钳制在页面内 3%~97%） */
+                    let px = bp.x + (hs.x || 0);
+                    let py = bp.y + (hs.y || 0);
+                    px = Math.max(0.03, Math.min(0.97, px));
+                    py = Math.max(0.03, Math.min(0.97, py));
+
+                    const el = document.createElement("div");
+                    el.className = "hotspot";
+                    el.style.left = (px * 100) + "%";
+                    el.style.top = (py * 100) + "%";
+                    el.dataset.index = idx;
+
+                    /* 弹窗靠近页面上方 28% 时翻转到触点下方，避免被裁切 */
+                    if (py < 0.28) el.classList.add("flip");
+
+                    const dot = document.createElement("div");
+                    dot.className = "dot";
+                    dot.title = hs.title || "";
+
+                    const popup = document.createElement("div");
+                    popup.className = "popup";
+                    popup.innerHTML = '<div class="popup-title">' + (hs.title || "解说") + "</div>" + '<div class="popup-text">' + (hs.text || "") + "</div>";
+
+                    el.appendChild(dot);
+                    el.appendChild(popup);
+                    hotspotLayer.appendChild(el);
+
+                    /* ---- 电脑：鼠标进出 ---- */
+                    el.addEventListener("mouseenter", () => activateHotspot(el, hs));
+                    el.addEventListener("mouseleave", scheduleClose);   /* 延迟关闭，允许鼠标滑入弹窗 */
+                    popup.addEventListener("mouseenter", cancelClose);  /* 鼠标进入弹窗 → 取消关闭 */
+                    popup.addEventListener("mouseleave", scheduleClose);/* 移离弹窗 → 延迟关闭 */
+
+                    /* ---- 手机：点按切换 ---- */
+                    dot.addEventListener("touchstart", (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (el.classList.contains("active")) { deactivateHotspot(); } else { activateHotspot(el, hs); }
+                    }, { passive: false });
+                });
+
+                /* 点按页面空白处（手机）关闭所有弹窗 */
+                if (!hotspotLayer._blankTapBound) {
+                    hotspotLayer._blankTapBound = true;
+                    hotspotLayer.addEventListener("touchstart", (e) => { if (!e.target.closest(".hotspot")) deactivateHotspot(); }, { passive: true });
+                }
+            }
+
+            /* ============================================================
+             * 三·B、播放字幕条（V0.5.0）
+             * ------------------------------------------------------------
+             * 需求：「播放的时候需要显示触碰点的文字内容」。
+             * 触点自身的弹窗在触点上/下方弹出，靠近屏幕边缘时容易被容器裁掉；
+             * 这里再给一条固定在页面底部的字幕条，把**当前正在播放**的触点标题与
+             * 全文始终完整地显示出来（电脑、手机都一样），播放结束或停止时自动收起。
+             * ============================================================ */
+            function showCaption(hs, loc) {
+                if (!captionBar || !hs) return;
+                const t = $("captionTitle"), x = $("captionText"), i = $("captionIndex");
+                if (t) t.textContent = hs.title || "解说";
+                if (x) x.textContent = hs.text || "";
+                if (i) i.textContent = loc ? ("第 " + loc.page + " 页 · 第 " + loc.index + " 条") : "";
+                captionBar.hidden = false;
+                document.body.classList.add("has-caption");
+            }
+
+            function hideCaption() {
+                if (captionBar) captionBar.hidden = true;
+                document.body.classList.remove("has-caption");
+            }
+
+            /* ============================================================
+             * 三·C、弹窗贴边自适应（V0.5.1）
+             * ------------------------------------------------------------
+             * 问题：触点靠近文档边沿时，弹窗（宽 300px 且文字较长）会超出内容区，
+             *       被 .pdf-wrap 的 overflow:hidden 裁掉，右边的文字看不到。
+             * 做法：显示弹窗前先量出弹窗自身尺寸，据此把它整体钳制在内容区之内：
+             *   ① 横向 —— 默认居中于触点；越界则整体平移，平移量通过 CSS 变量
+             *      --popup-dx 交给样式做位移，小箭头位置同步跟随，始终指向触点；
+             *   ② 纵向 —— 优先放在触点上方（贴边时上方空间往往更充裕）；上方放不下
+             *      就翻到下方（复用已有的 .flip）；两边都放不下时选空间较大的一侧，
+             *      并限高 + 弹窗内部滚动，保证既不溢出也不丢内容。
+             * 说明：PAD / POPUP_OFFSET 必须与 css/style.css 中 .popup 的 bottom/top(32px)
+             *      保持一致；弹窗用 visibility:hidden 隐藏（仍占布局），因此显示前
+             *      就能量到真实宽高，位置在"显示的那一刻"就是对的，不会先跳一下再修正。
+             * ============================================================ */
+            const POPUP_PAD = 8;        /* 弹窗与内容区边缘的最小留白 */
+            const POPUP_OFFSET = 32;    /* 与 CSS 中 .popup 的 bottom / top 值一致 */
+
+            function placePopup(el, popup) {
+                const layer = hotspotLayer;
+                if (!el || !popup || !layer) return;
+                const W = layer.clientWidth, H = layer.clientHeight;
+                if (!W || !H) return;                 /* 尚未完成排版，等真正激活时再算 */
+
+                /* 容器很窄时先收窄弹窗（宽度影响换行 → 影响高度，所以必须先设再量） */
+                popup.style.maxWidth = Math.max(160, W - POPUP_PAD * 2) + "px";
+
+                const pw = popup.offsetWidth, ph = popup.offsetHeight;
+                if (!pw || !ph) return;
+
+                /* 触点中心（layer 坐标系）。.hotspot 的 left/top 就是触点中心：
+                   transform:translate(-50%,-50%) 只做视觉居中，不改变 left/top 的值 */
+                const cx = el.offsetLeft, cy = el.offsetTop;
+                /* 弹窗边缘到触点中心的距离：触点盒半高 + CSS 间距，随手机端放大自动适配 */
+                const gap = POPUP_OFFSET - el.offsetHeight / 2;
+
+                /* ---- ① 横向：居中，越界则整体平移 ---- */
+                const wanted = cx - pw / 2;                                  /* 理想左边缘 */
+                const left = Math.max(POPUP_PAD, Math.min(W - POPUP_PAD - pw, wanted));
+                popup.style.setProperty("--popup-dx", (left - wanted).toFixed(1) + "px");
+
+                /* ---- ② 纵向：选放得下的一侧；都放不下则选空间大的一侧并限高 ---- */
+                const above = (cy - gap) - POPUP_PAD;                        /* 上方可用高度 */
+                const below = (H - POPUP_PAD) - (cy + gap);                  /* 下方可用高度 */
+                let flip = false, cap = 0;
+                if (ph <= above) { flip = false; }
+                else if (ph <= below) { flip = true; }
+                else if (above >= below) { flip = false; cap = above; }
+                else { flip = true; cap = below; }
+
+                el.classList.toggle("flip", flip);                            /* 复用已有的翻转类 */
+                if (cap > 0) {
+                    popup.style.maxHeight = Math.max(80, cap) + "px";           /* 仍放不下 → 限高后内部滚动 */
+                    popup.style.overflowY = "auto";
+                } else {
+                    popup.style.maxHeight = "";
+                    popup.style.overflowY = "";
+                }
+            }
+
+            /* 激活热点：立即显示弹窗 + 立即开始当前内容的语音
+             * onEnd：可选，语音播完后的回调（巡讲模式用它衔接下一个触点）。
+             * 巡讲模式下手动悬停触点时，也自动接管续播，保证流程不断。 */
+            function activateHotspot(el, hs, onEnd) {
+                clearTimeout(state.closeTimer);
+                deactivateHotspot(true);                 /* 先关其它弹窗（不打断将由下一步处理） */
+
+                /* V0.5.1：先按内容区边界摆正弹窗位置，再显示，避免"先溢出再被拉回来"的跳动 */
+                placePopup(el, el.querySelector(".popup"));
+
+                el.classList.add("active");
+                el._text = hs.text || "";
+
+                if (state.voiceOn) {
+                    /* 发声规则：上一个触点的声音立即停止，随即播放当前内容。
+                     * loc（页码 + 触点序号，均 1 起）用于定位离线音频文件，必须在此刻固定下来 */
+                    const idx0 = parseInt(el.dataset.index, 10) || 0;
+                    const loc = { page: state.pageNum, index: idx0 + 1 };
+                    const cb = onEnd || (state.autoOn ? tourContinue(el, idx0) : undefined);
+                    showCaption(hs, loc);                  /* V0.5.0：播放期间在底部显示本触点的文字内容 */
+                    speak(el._text, el, cb, loc);
+                } else if (onEnd) { onEnd(); }
+            }
+
+            /* 延迟关闭弹窗（180ms 缓冲，防止鼠标在触点↔弹窗间移动时闪烁） */
+            function scheduleClose() {
+                clearTimeout(state.closeTimer);
+                state.closeTimer = setTimeout(deactivateHotspot, 180);
+            }
+            function cancelClose() { clearTimeout(state.closeTimer); }
+
+            /* 关闭弹窗与字幕。注意：鼠标移开只收弹窗，语音不会马上消失 */
+            function deactivateHotspot(keepSpeech) {
+                clearTimeout(state.closeTimer);
+                document.querySelectorAll(".hotspot.active").forEach((el) => { el.classList.remove("active"); });
+                if (!keepSpeech) {
+                    /* 语音按需求继续播完（不主动停止） */
+                    document.querySelectorAll(".hotspot.speaking").forEach((el) => {
+                        /* 朗读结束后 speaking 标记由 onend 移除 */
+                    });
+                    hideCaption();                         /* V0.5.0：弹窗收起时字幕条一并收起 */
+                }
+            }
+
+            /* ============================================================
+             * 四、语音合成（Web Speech API，零依赖离线）
+             * ============================================================ */
+            let zhVoices = [];
+            let ttsUnlocked = false;      /* iOS：是否已完成首次用户手势解锁 */
+            let ttsEverWorked = false;    /* 是否至少成功发声过一次（成功过就永不判定“无法发音”） */
+            const liveUtterances = [];    /* 持有朗读对象引用，防止被 GC（iOS 无声 / 中途断读的常见原因） */
+
+            /* 语音相关提示文案：手机端看不到控制台，只能把原因与处理办法直接写在页面上 */
+            const NO_TTS_HINT = "当前浏览器没有可用的语音引擎，解说文字与弹窗仍会正常显示。安卓请在「设置→无障碍→文字转语音」中安装并启用中文语音；" + "建议改用系统浏览器（Chrome / 夸克 / Edge 等）打开，微信、QQ 等内置浏览器通常不支持语音朗读。";
+            const NO_ZH_HINT = "系统里没有找到中文语音包，朗读可能没有声音。请在手机的「文字转语音」设置中安装中文语音后重试。";
+            const NO_SOUND_HINT = "语音引擎没有发出声音：请检查手机是否处于静音（iPhone 请拨掉侧边静音开关）、媒体音量是否为 0；" + "若仍然无声，多半是系统缺少中文语音包。";
+
+            /* 【V0.3.0】离线语音文件降级提示：配置了 file/voice/ 下的预生成音频时，
+             * 浏览器不能朗读不再直接关闭语音，而是改播音频文件（音色固定 → 声音模板禁用）。 */
+            const FILE_FALLBACK_HINT = "将自动改用离线语音文件播放（音色固定，声音模板将随之禁用）。";
+            const FILE_MODE_HINT = "已自动改用离线语音文件播放。";
+            const FILE_FAIL_HINT = "离线语音文件也无法播放，已无法发出声音。";
+
+            /* 语音引擎是否真的可用（个别内置浏览器有 speechSynthesis 却没有可用引擎） */
+            function ttsSupported() { return ("speechSynthesis" in window) && (typeof SpeechSynthesisUtterance === "function"); }
+
+            /* 提示条：12 秒后自动消失，不长期占用屏幕 */
+            let voiceHintTimer = null;
+            function voiceHint(msg) {
+                const el = $("voiceHint");
+                if (!el) return;
+                if (!msg) { el.hidden = true; return; }
+                if (el.textContent !== msg) el.textContent = msg;
+                el.hidden = false;
+                clearTimeout(voiceHintTimer);
+                voiceHintTimer = setTimeout(() => { el.hidden = true; }, 12000);
+            }
+
+            /* 静音 WAV（8kHz 8bit 单声道 20ms）：仅用于在用户手势中“解锁”媒体播放 */
+            const SILENT_WAV = "data:audio/wav;base64,UklGRsQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YaAAAACA" +
+                "gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA";
+
+            /* 离线语音播放用的 Audio 元素（全局复用一个：
+             * 移动端上同一元素在手势中播放成功过，后续自动播放通常不再被拦截） */
+            function ensureAudioEl() {
+                if (!state.audioEl) {
+                    const a = new Audio();
+                    a.preload = "auto";
+                    a.setAttribute("playsinline", "");
+                    state.audioEl = a;
+                }
+                return state.audioEl;
+            }
+
+            /* 【iOS 关键】必须让“第一次发声”落在用户手势的同步调用栈内，
+             * 否则本次及之后所有朗读全部静音（电脑正常、手机无声的典型原因）。
+             * 这里在用户首次触摸 / 点击页面的那一刻同步播一个极短的空朗读完成解锁；
+             * V0.3.0 起同时顺带解锁媒体播放（离线语音文件同样受自动播放策略限制）。
+             * 监听用捕获阶段，保证先于页面上任何元素自己的处理器执行（比如直接点触点）。 */
+            function unlockTTS() {
+                if (ttsUnlocked) return;
+                ttsUnlocked = true;
+
+                /* 解锁媒体播放（静音播一下，不影响听感） */
+                try {
+                    const a = ensureAudioEl();
+                    const wasMuted = a.muted;
+                    a.muted = true;
+                    a.src = SILENT_WAV;
+                    const p = a.play();
+                    if (p && typeof p.catch === "function") p.catch(() => { /* 被拦截也无妨，真正播放时还有兜底 */ });
+                    setTimeout(() => { try { a.pause(); a.muted = wasMuted; } catch (e) { /* 忽略 */ } }, 60);
+                } catch (e) { /* 个别内核不支持，忽略 */ }
+
+                if (!ttsSupported()) return;
+                try {
+                    const u = new SpeechSynthesisUtterance(" ");
+                    u.volume = 0;
+                    u.rate = 10;
+                    liveUtterances.push(u);
+                    speechSynthesis.speak(u);              /* 必须同步调用，不能放进 setTimeout */
+                } catch (e) { /* 个别内核不支持，忽略 */ }
+            }
+            ["touchstart", "touchend", "pointerdown", "click"].forEach((ev) => { window.addEventListener(ev, unlockTTS, { capture: true, passive: true }); });
+
+            function refreshVoices() {
+                if (!ttsSupported()) return;
+                try {
+                    zhVoices = speechSynthesis.getVoices().filter((v) => /^zh/i.test(v.lang) || /中文|普通话|Chinese/i.test(v.name));
+                } catch (e) { zhVoices = []; }
+                pickVoice();
+            }
+
+            /* 按当前模板从系统中挑选最匹配的中文语音 */
+            function pickVoice() {
+                const tpl = state.template;
+                state.voiceObj = null;
+                if (!zhVoices.length) return;
+                /* ① 名称关键字命中模板 hints 的优先 */
+                for (const hint of tpl.hints) {
+                    const hit = zhVoices.find((v) => v.name.toLowerCase().includes(hint));
+                    if (hit) { state.voiceObj = hit; return; }
+                }
+                /* ② 未命中则取第一个中文语音，仅靠 pitch/rate 调出模板效果 */
+                state.voiceObj = zhVoices[0];
+            }
+
+            /* 【V0.2.3】判定“当前浏览器无法发音”后统一处理：
+             *   ① 在页面上提示原因（手机端没有控制台，必须直接可见）；
+             *   ② 自动取消「语音说明」复选框勾选，避免出现“已勾选却始终没有声音”的矛盾状态；
+             *   ③ 语音说明一旦关闭，巡讲（依赖语音结束驱动）按既有规则一并停止，
+             *      并关闭弹窗，避免无声地快速翻弹窗。
+             * 直接修改 checked 属性不会触发 change 事件，故这里手动完成全部联动。
+             * 返回 true 表示本次确实执行了关闭动作（已是关闭状态则不重复提示）。 */
+            function forceVoiceOff(msg) {
+                if (!state.voiceOn && !chkVoice.checked) return false;   /* 用户已手动关闭，不重复处理 */
+                const wasTour = state.autoOn;
+                state.voiceOn = false;
+                chkVoice.checked = false;
+                refreshVoiceUI();                      /* 【V1.1.0】语音说明已关 → 同步隐藏在线语音与播音 */
+                stopSpeech();                          /* 停掉在途朗读（speakSeq 递增使回调失效） */
+                if (wasTour) stopTour();               /* 巡讲无语音驱动 → 一并停止 */
+                document.querySelectorAll(".hotspot.speaking").forEach((n) => n.classList.remove("speaking"));
+                hideCaption();                         /* V0.5.0：不再发声 → 收起字幕条 */
+                if (msg) { voiceHint(msg + "（已自动取消「语音说明」勾选" + (wasTour ? "，并停止自动巡讲" : "") + "）"); }
+                return true;
+            }
+
+            /* ============================================================
+             * 四·B、离线语音文件（V0.3.0）—— 浏览器不能朗读时的兜底
+             * ------------------------------------------------------------
+             * 思路：解说文案由 tools/gen_voice_files.py 预先合成为 mp3（file/voice/<pdfId>/p<页>-<序>.mp3），
+             * 页面默认仍用浏览器朗读（可实时变换音色）；一旦发现浏览器根本发不出声
+             * （无引擎 / 无中文语音包 / 看门狗重发一次仍无反应），就自动改播音频文件，
+             * 而不是直接关掉语音说明，这样手机、微信内置浏览器也能听到解说。
+             * 音频文件音色是固定的，因此切到文件模式时会**自动禁用声音模板下拉**。
+             * ============================================================ */
+
+            /* 是否配置了离线语音（narration_data.js 的 offlineVoice.enabled） */
+            function offlineVoiceConfigured() {
+                const cfg = NARRATION_DATA.offlineVoice;
+                return !!(cfg && cfg.enabled !== false);
+            }
+
+            /* 某条解说对应的音频文件路径；loc = { page, index }（均 1 起）
+             * 命名规则需与 tools/export_voice_manifest.mjs / gen_voice_files.py 保持一致 */
+            function voiceFilePath(loc) {
+                if (!loc) return "";
+                const cfg = NARRATION_DATA.offlineVoice;
+                if (!cfg || cfg.enabled === false) return "";
+                const pdf = currentPdf();
+                if (!pdf) return "";
+                const dir = String(cfg.dir || "file/voice").replace(/\/+$/, "");
+                const ext = String(cfg.ext || "mp3").replace(/^\./, "");
+                return dir + "/" + pdf.id + "/p" + loc.page + "-" + loc.index + "." + ext;
+            }
+
+            /* 声音模板下拉的可用性：【V1.1.0】统一由 refreshVoiceUI() 维护（原 setVoiceTemplatesEnabled 已删除） */
+
+            /* 无任何发声手段时的兜底：按文字长度估算时长走完，保证巡讲流程不中断 */
+            function speakByEstimate(text, el, onEnd, seq) {
+                if (el) el.classList.add("speaking");
+                const ms = 2500 + text.length * 180;
+                setTimeout(() => {
+                    if (el) el.classList.remove("speaking");
+                    if (!state.autoOn) hideCaption();       /* V0.5.0：非巡讲时播完即收字幕；巡讲中留到停止 */
+                    if (state.speakSeq === seq && onEnd) onEnd();
+                }, ms);
+            }
+
+            /* 播放某条解说的离线音频。onEnd 仅在“完整播完”时触发（巡讲靠它衔接下一条）。
+             * 【V1.1.0】userChosen=true 表示“用户主动取消在线语音而选择离线文件”：
+             * 此时播放失败应降级回浏览器 TTS（而不是关闭语音说明）。 */
+            function playVoiceFile(text, el, onEnd, loc, userChosen) {
+                const url = voiceFilePath(loc);
+                if (!url) {
+                    if (userChosen) { state.voiceMode = "tts"; speak(text, el, onEnd, loc, false); return; }
+                    forceVoiceOff(FILE_FAIL_HINT + "（该触点没有对应的音频文件）"); return;
+                }
+
+                const seq = ++state.speakSeq;
+                const audio = ensureAudioEl();
+                if (el) el.classList.add("speaking");
+
+                let done = false;
+                const finish = (fireCb) => {
+                    if (done) return;
+                    done = true;
+                    if (el) el.classList.remove("speaking");
+                    if (!state.autoOn) hideCaption();       /* 播完即收字幕；巡讲中保留到停止/切换 */
+                    if (fireCb && state.speakSeq === seq && onEnd) onEnd();
+                };
+                const fail = (err) => {
+                    if (done) return;
+                    done = true;
+                    if (el) el.classList.remove("speaking");
+                    const extra = (err && err.name === "NotAllowedError")
+                        ? "（浏览器拦截了自动播放：请先点击页面任意位置再试）"
+                        : (err && err.name === "NotSupportedError" ? "（音频文件缺失或格式不支持）" : "");
+                    if (userChosen) {
+                        /* 用户勾选「在线语音」但该音频播不了 → 降级回本地语音引擎（不关闭语音说明） */
+                        state.voiceMode = "tts";
+                        speak(text, el, onEnd, loc, false);
+                        return;
+                    }
+                    state.voiceMode = "none";
+                    forceVoiceOff(FILE_FAIL_HINT + extra);
+                };
+
+                audio.onended = () => finish(true);
+                audio.onerror = () => fail({ name: "NotSupportedError" });
+                try {
+                    audio.pause();
+                    audio.currentTime = 0;
+                    audio.src = url;
+                    const p = audio.play();
+                    if (p && typeof p.catch === "function") p.catch(fail);
+                } catch (e) { fail(e); }
+            }
+
+            /* 尝试切换到离线语音文件并播放当前条目。
+             * 成功返回 true（已接管本次发声）；配置缺失或路径不可用时返回 false，
+             * 由调用方继续走“提示 + 取消勾选”的降级路径。
+             * 注意：即使模式已经切到 file，也允许再次调用（用于看门狗失败后重播当前条）。 */
+            function tryFileFallback(el, onEnd, loc, reason) {
+                if (!offlineVoiceConfigured() || !loc) return false;
+                if (!voiceFilePath(loc)) return false;
+                if (state.voiceMode !== "file") {
+                    state.voiceMode = "file";
+                    /* 【V1.1.0】不再在此处禁用声音模板 —— 「播音」可用性统一由 refreshVoiceUI()
+                     * 按「在线语音」复选框决定（用户取消在线语音时模板保持可选）。 */
+                    voiceHint(reason + FILE_MODE_HINT);
+                }
+                stopSpeech();                            /* 停掉在途 TTS，再改播音频 */
+                playVoiceFile(el ? el._text : "", el, onEnd, loc);
+                return true;
+            }
+
+            /* 开启语音 / 开始巡讲时先体检一次：语音列表是异步到达的，稍等再判断，
+             * 确实没有引擎（或没有中文语音）时提前告知用户。
+             * V0.3.0：若配置了离线语音文件，只提示“将改用音频文件播放”，不关复选框也不切模式
+             * （真正切换发生在实际朗读那一刻，有事实依据，避免误判）；
+             * 没有离线语音时才提示并取消勾选（V0.2.3 行为）。
+             * 注意：getVoices() 返回空数组也可能只是“尚未就绪”，故需重试数次；
+             * 且只要曾经成功发声过（ttsEverWorked），就永不判为“无法发音”。 */
+            let ttsProbeDelay = 1200;                /* 每次探测间隔（毫秒） */
+            let ttsProbeTries = 0;                   /* 已重试次数 */
+            const TTS_PROBE_MAX_RETRY = 3;
+
+            /* 判定无法朗读时的预处理：能降级到音频文件就只提示，否则取消勾选 */
+            function degradeOrOff(reason) {
+                if (offlineVoiceConfigured()) { voiceHint(reason + FILE_FALLBACK_HINT); return true; }
+                forceVoiceOff(reason);
+                return false;
+            }
+
+            function warnIfNoTts() {
+                ttsProbeTries = 0;
+                if (!ttsSupported()) { degradeOrOff(NO_TTS_HINT); return; }
+                probeTts();
+            }
+
+            function probeTts() {
+                setTimeout(() => {
+                    if (!state.voiceOn) return;            /* 用户已取消勾选，无需继续探测 */
+                    let all = [];
+                    try { all = speechSynthesis.getVoices() || []; } catch (e) { all = []; }
+                    if (!all.length) {
+                        if (!ttsEverWorked && ++ttsProbeTries <= TTS_PROBE_MAX_RETRY) { probeTts(); return; }
+                        if (!ttsEverWorked) degradeOrOff(NO_TTS_HINT);
+                        return;
+                    }
+                    if (!ttsEverWorked && !all.some((v) => /^zh/i.test(v.lang))) degradeOrOff(NO_ZH_HINT);
+                }, ttsProbeDelay);
+            }
+
+            /* 发声 text。onEnd 会在“本段发声正常结束/失败”后触发一次；
+             * 若本次发声被新的发声或手动停止取代，则不再触发 onEnd（由 speakSeq 判定）。
+             * loc = { page, index }（均 1 起）：用于定位该条解说对应的离线音频文件。
+             * allowFile：【V1.1.0】传 false 表示本次不许再尝试网站语音文件
+             *   （仅供“文件播放失败 → 降级本地引擎”的内部调用使用，防止来回降级死循环）。
+             * 语音来源（state.voiceMode）：
+             *   "file" 网站语音文件（file/voice/，勾选「在线语音」时优先；音色固定）
+             *   "tts"  本地语音引擎（取消「在线语音」或文件不可用时使用；「播音」下拉可选音色）
+             *   "none" 两者都不可用 → 按文字长度估算时长走完，保证巡讲不卡死 */
+            function speak(text, el, onEnd, loc, allowFile) {
+                /* 【V1.1.0】勾选「在线语音」（默认）→ 优先播网站提供的语音文件（file/voice/）；
+                 * 该触点没有对应音频文件 / 播放失败时，降级回本地语音引擎（「播音」模板生效）。 */
+                if (state.onlineVoice && allowFile !== false && loc &&
+                    offlineVoiceConfigured() && voiceFilePath(loc)) {
+                    state.voiceMode = "file";
+                    playVoiceFile(text, el, onEnd, loc, true);   /* userChosen：失败降级本地引擎 */
+                    return;
+                }
+
+                /* 已处于网站语音文件模式：直接改播音频（该触点有对应文件时） */
+                if (state.voiceMode === "file" && loc && voiceFilePath(loc)) {
+                    playVoiceFile(text, el, onEnd, loc);
+                    return;
+                }
+
+                const seq = ++state.speakSeq;            /* 本次发声会话编号 */
+
+                /* 没有语音引擎：先尝试改播离线语音文件（手机/内置浏览器的常见场景）；
+                   确实没有可用音频时才提示并取消语音说明勾选，再按估算时长走完。
+                   V0.5.0：去掉 "仅 tts 模式才尝试" 的限制 —— 否则一次音频播放失败（voiceMode="none"）
+                   之后就会永久卡死在"没有声音"，用户重新勾选也无法恢复。 */
+                if (!ttsSupported()) {
+                    if (tryFileFallback(el, onEnd, loc, NO_TTS_HINT)) return;
+                    forceVoiceOff(NO_TTS_HINT);
+                    speakByEstimate(text, el, onEnd, seq);
+                    return;
+                }
+
+                let ended = false;
+                let started = false;                     /* 引擎是否真的开始发声 */
+                let retried = false;
+                let watchdog = null;
+
+                const u = new SpeechSynthesisUtterance(text);
+                u.lang = "zh-CN";
+                u.pitch = state.template.pitch;
+                u.rate = state.template.rate;
+                if (state.voiceObj) u.voice = state.voiceObj;
+
+                const release = () => {
+                    if (el) el.classList.remove("speaking");
+                    const i = liveUtterances.indexOf(u);
+                    if (i >= 0) liveUtterances.splice(i, 1);
+                    if (!state.autoOn) hideCaption();       /* V0.5.0：非巡讲时播完即收字幕条 */
+                };
+                const finish = (fireCb) => {
+                    if (ended) return;
+                    ended = true;
+                    clearTimeout(watchdog);
+                    release();
+                    if (fireCb && state.speakSeq === seq && onEnd) onEnd();
+                };
+                const play = () => { try { speechSynthesis.speak(u); } catch (e) { failNow(); } };
+                /* 真正发不出声时统一处理：先尝试改播离线音频文件，都不可用才提示并收尾。
+                 * 注意这里**不驱动巡讲**（onEnd 不触发），避免"没声音却一路快进/提前翻页"。 */
+                const failNow = () => {
+                    if (tryFileFallback(el, onEnd, loc, NO_SOUND_HINT)) { finish(false); return; }
+                    forceVoiceOff(NO_SOUND_HINT);
+                    finish(false);
+                };
+
+                u.onstart = () => { started = true; ttsEverWorked = true; };
+                u.onend = () => finish(true);
+                /* 【V0.5.0 修正】onerror 不能一律当作"播完了"：
+                 * 引擎从未开始发声（started=false）就报错时（iOS 的 not-allowed、引擎被禁用、
+                 * 语音包缺失等），旧写法会立刻触发 onEnd，导致巡讲"抢跑"——上一段还没出声
+                 * 就冲进下一段、甚至在本页最后一段还没播完时就翻页。
+                 * 现在只有"确实发过声之后的中断"才算结束，否则按真实失败处理。 */
+                u.onerror = () => {
+                    if (state.speakSeq !== seq) { finish(false); return; }   /* 已被新发声取代 */
+                    if (started) { finish(true); return; }                   /* 发声后中断 → 视为结束 */
+                    failNow();
+                };
+
+                if (el) el.classList.add("speaking");
+                liveUtterances.push(u);                  /* 持续持有引用：iOS 上被回收会不发声 */
+
+                /* 上一个触点的语音立即停止，随即朗读当前内容 */
+                try { speechSynthesis.cancel(); } catch (e) { /* 忽略 */ }
+                play();
+
+                /* 发声看门狗：1.5 秒内引擎没有任何反应（没有 onstart），先取消重发一次；
+                   仍无反应则判定静默失败，给出可操作提示并按估算时长收尾，避免巡讲被卡死。
+                   安卓无中文 TTS 引擎、iPhone 侧边静音键、内置浏览器禁用朗读都会落到这里。 */
+                function check() {
+                    if (started || state.speakSeq !== seq) return;
+                    if (!retried) {
+                        retried = true;
+                        try { speechSynthesis.cancel(); } catch (e) { /* 忽略 */ }
+                        play();
+                        watchdog = setTimeout(check, 1500);
+                        return;
+                    }
+                    /* V0.2.3/V0.3.0：重发一次仍无任何反应 → 判定当前浏览器发不出声。
+                       先尝试改播离线语音文件（有配置时会接管本次发声）；没有才提示并取消勾选。 */
+                    if (tryFileFallback(el, onEnd, loc, NO_SOUND_HINT)) return;
+                    forceVoiceOff(NO_SOUND_HINT);
+                    watchdog = setTimeout(() => finish(false), 2500 + text.length * 180);
+                }
+                watchdog = setTimeout(check, 1500);
+            }
+
+            function stopSpeech() {
+                state.speakSeq++;                        /* 使在途回调失效 */
+                /* V0.3.0：离线音频也要一并停掉（上一个触点的声音立即停止） */
+                if (state.audioEl) { try { state.audioEl.pause(); } catch (e) { /* 忽略 */ } }
+                if (!ttsSupported()) return;
+                try { speechSynthesis.cancel(); } catch (e) { /* 忽略 */ }
+                liveUtterances.length = 0;               /* cancel 之后引用不再需要，避免累积 */
+            }
+
+            /* 系统语音列表是异步到达的（iOS / 安卓首次 getVoices() 常返回空数组） */
+            if (ttsSupported()) {
+                refreshVoices();
+                speechSynthesis.onvoiceschanged = refreshVoices;
+                /* 再轮询几次兜底：个别内核不触发 onvoiceschanged */
+                let tries = 0;
+                const poll = setInterval(() => {
+                    if (zhVoices.length || ++tries > 8) { clearInterval(poll); return; }
+                    refreshVoices();
+                }, 400);
+            }
+
+            /* ============================================================
+             * 五、工具栏事件
+             * ============================================================ */
+
+            /* ---------- 文件下拉（位于两级筛选之后；PDF 与图片条目都在这里，V0.4.0） ----------
+             * 【V1.2.0】多级联动：文件下拉只列出被两级筛选命中的条目；
+             * option 的 value 改用条目 id（不再用下标，筛选后下标会错位）。
+             * 【V1.2.2】两级筛选取消「全部」选项：两级始终选中具体分类，文件下拉只列出同时被两级命中的条目。
+             * preferId：重建后优先选中的条目 id（如当前正在看的条目），否则取 defaultPdf / 首个。 */
+
+            /* 级联筛选是否生效：cascade.enabled 且至少有一个条目配置了 cat / sub */
+            function cascadeEnabled() {
+                const cfg = NARRATION_DATA.cascade;
+                if (!cfg || cfg.enabled === false) return false;
+                return pdfList().some((p) => p.cat || p.sub);
+            }
+
+            /* 按当前两级筛选结果过滤条目（级联关闭时返回全部） */
+            function filteredPdfList() {
+                if (!cascadeEnabled()) return pdfList();
+                const c = catSelect.value, s = subSelect.value;
+                return pdfList().filter((p) =>
+                    (p.cat || "未分类") === c && (p.sub || "未分类") === s);
+            }
+
+            /* 重建二级下拉：选项 = 当前一级分类下去重的 sub（【V1.2.2】无「全部」，默认选第 1 个） */
+            function rebuildSubSelect() {
+                const c = catSelect.value;
+                const subs = [];
+                pdfList().forEach((p) => {
+                    if ((p.cat || "未分类") !== c) return;
+                    const v = p.sub || "未分类";
+                    if (!subs.includes(v)) subs.push(v);
+                });
+                subSelect.innerHTML = "";
+                subs.forEach((v) => {
+                    const opt = document.createElement("option");
+                    opt.value = v;
+                    opt.textContent = v;
+                    subSelect.appendChild(opt);
+                });
+                subSelect.value = subs.length ? subs[0] : "";
+            }
+
+            /* 建两级筛选下拉（级联关闭或无分类数据时隐藏，不影响原有流程） */
+            function buildCascadeSelects() {
+                if (!cascadeEnabled()) {
+                    [catSelect, subSelect, catLabel, subLabel].forEach((n) => { if (n) n.hidden = true; });
+                    return;
+                }
+                const labels = (NARRATION_DATA.cascade && NARRATION_DATA.cascade.labels) || ["分类", "子类"];
+                if (catLabel) catLabel.textContent = labels[0] || "";
+                if (subLabel) subLabel.textContent = labels[1] || "";
+                /* 一级选项 = 全部条目去重 cat（【V1.2.2】无「全部」，默认选第 1 个） */
+                const cats = [];
+                pdfList().forEach((p) => {
+                    const v = p.cat || "未分类";
+                    if (!cats.includes(v)) cats.push(v);
+                });
+                catSelect.innerHTML = "";
+                cats.forEach((v) => {
+                    const opt = document.createElement("option");
+                    opt.value = v;
+                    opt.textContent = v;
+                    catSelect.appendChild(opt);
+                });
+                catSelect.value = cats.length ? cats[0] : "";
+                [catSelect, subSelect, catLabel, subLabel].forEach((n) => { if (n) n.hidden = false; });
+                rebuildSubSelect();
+            }
+
+            function buildPdfSelect(preferId) {
+                const list = filteredPdfList();
+                pdfSelect.innerHTML = "";
+                list.forEach((p) => {
+                    const opt = document.createElement("option");
+                    opt.value = p.id;                        /* 【V1.2.0】value=条目 id（筛选安全） */
+                    opt.textContent = p.name || p.url || p.id;   /* 下拉只显示名称 */
+                    pdfSelect.appendChild(opt);
+                });
+                /* 默认选中：优先 preferId（当前条目），其次 defaultPdf，否则第 1 个 */
+                let id = preferId;
+                const defId = NARRATION_DATA.defaultPdf;
+                if ((!id || !list.some((p) => p.id === id)) && defId &&
+                    list.some((p) => p.id === defId)) id = defId;
+                if (!id || !list.some((p) => p.id === id)) id = list.length ? list[0].id : "";
+                if (id) pdfSelect.value = id;
+                return pdfList().findIndex((p) => p.id === id);   /* 返回全量下标（供 loadPdf） */
+            }
+
+            pdfSelect.addEventListener("change", () => {
+                const k = pdfList().findIndex((p) => p.id === pdfSelect.value);
+                if (k >= 0) loadPdf(k);   /* 选择后刷新为该条目的第 1 页（PDF / 图片通用） */
+            });
+
+            /* 【V1.2.0】两级筛选联动：改一级 → 重建二级并刷新文件下拉；改二级 → 刷新文件下拉。
+             * 若当前条目仍被筛出则保持选中，否则自动落到筛选结果的第 1 个。 */
+            catSelect.addEventListener("change", () => {
+                const cur = currentPdf();
+                rebuildSubSelect();
+                const idx = buildPdfSelect(cur ? cur.id : "");
+                if (idx >= 0) loadPdf(idx);
+            });
+            subSelect.addEventListener("change", () => {
+                const cur = currentPdf();
+                const idx = buildPdfSelect(cur ? cur.id : "");
+                if (idx >= 0) loadPdf(idx);
+            });
+
+            /* 【V1.2.3】显示点位（复选框可整体注释停用；本段判空安全）：
+             * 选中后鼠标在文件区内移动时，鼠标左上角实时显示该点相对条目基点 basePoint 的比例偏移，
+             * 即 narration_data.js 中 hotspots 的 x / y 值（录入触点坐标用）。
+             * 换算与 buildHotspots 互逆：hotspot 实际比例 = basePoint + (x, y) → x/y = 页面比例 − basePoint。 */
+            const chkShowPoint = $("chkShowPoint");
+            const pointTip = $("pointTip");
+            (function bindShowPoint() {
+                if (!chkShowPoint || !pointTip) return;   /* 复选框 / 浮签被注释停用时整段跳过 */
+                const hideTip = () => { pointTip.hidden = true; };
+                pdfWrap.addEventListener("mousemove", (e) => {
+                    if (!chkShowPoint.checked) { hideTip(); return; }
+                    /* 内容元素与 showStage 二选一逻辑一致：图片条目用 <img>，其余画在 canvas */
+                    const el = (stageImg && !stageImg.hidden) ? stageImg : canvas;
+                    if (!el || el.hidden) { hideTip(); return; }
+                    const r = el.getBoundingClientRect();
+                    if (!r.width || !r.height) { hideTip(); return; }
+                    const cur = currentPdf();
+                    const bp = (cur && cur.basePoint) || { x: 0.5, y: 0.5 };
+                    const x = (e.clientX - r.left) / r.width - bp.x;
+                    const y = (e.clientY - r.top) / r.height - bp.y;
+                    pointTip.textContent = "x=" + x.toFixed(3) + "  y=" + y.toFixed(3);
+                    pointTip.style.left = e.clientX + "px";
+                    pointTip.style.top = e.clientY + "px";
+                    pointTip.hidden = false;
+                });
+                pdfWrap.addEventListener("mouseleave", hideTip);
+                chkShowPoint.addEventListener("change", () => { if (!chkShowPoint.checked) hideTip(); });
+            })();
+
+            btnPrev.addEventListener("click", () => {
+                showPage(state.pageNum - 1);
+                /* 巡讲中手动翻页：落到新页后从该页第一个触点继续 */
+                if (state.autoOn) {
+                    clearTimeout(state.tourTimer);
+                    waitHotspotsReady().then(() => { if (state.autoOn) tourStep(0); });
+                }
+            });
+            btnNext.addEventListener("click", () => {
+                showPage(state.pageNum + 1);
+                if (state.autoOn) {
+                    clearTimeout(state.tourTimer);
+                    waitHotspotsReady().then(() => { if (state.autoOn) tourStep(0); });
+                }
+            });
+
+            chkVoice.addEventListener("change", () => {
+                state.voiceOn = chkVoice.checked;
+                refreshVoiceUI();                      /* 【V1.1.0】未勾选语音说明 → 隐藏在线语音与播音 */
+                if (state.voiceOn) {
+                    /* V0.3.0：已处于离线语音文件模式时直接告知，不再重复体检 TTS */
+                    if (state.voiceMode === "file") voiceHint(FILE_MODE_HINT);
+                    else warnIfNoTts();                    /* V0.2.2：开启语音时先体检一次语音引擎 */
+                }
+                if (!state.voiceOn) {
+                    stopSpeech();                          /* 取消勾选立即静音 */
+                    hideCaption();                         /* V0.5.0：不再发声 → 收起字幕条 */
+                    if (state.autoOn) stopTour();          /* 巡讲依赖语音结束驱动，取消语音则一并停止 */
+                }
+            });
+
+            /* 【V1.1.0】在线语音复选框（语义：是否使用网站提供的语音文件 file/voice/）：
+             *   勾选（默认）→ 优先播网站语音文件，音色固定 → 「播音」下拉不可选；
+             *   取消        → 改用本地语音引擎（浏览器朗读），「播音」下拉可选音色模板。
+             * 切换后停掉在途朗读并复位发声模式，下次触发按新方式发声。 */
+            chkOnline.addEventListener("change", () => {
+                state.onlineVoice = chkOnline.checked;
+                state.voiceMode = chkOnline.checked ? "file" : "tts";
+                stopSpeech();
+                hideCaption();                             /* 在播内容已停 → 收起字幕条 */
+                refreshVoiceUI();
+            });
+
+            /* ---------- 声音模板下拉（右上角；默认男播音） ---------- */
+            function initVoiceTemplates() {
+                VOICE_TEMPLATES.forEach((t) => {
+                    const opt = document.createElement("option");
+                    opt.value = t.id;
+                    opt.textContent = t.label;
+                    voiceSelect.appendChild(opt);
+                });
+                const defId = NARRATION_DATA.defaultTemplate || "male";
+                const tpl = VOICE_TEMPLATES.find((t) => t.id === defId) || VOICE_TEMPLATES[0];
+                state.template = tpl;
+                voiceSelect.value = tpl.id;
+            }
+
+            /* 切换后停止当前朗读，下次触发按新模板发声 */
+            voiceSelect.addEventListener("change", () => {
+                state.template = VOICE_TEMPLATES.find((t) => t.id === voiceSelect.value) || VOICE_TEMPLATES[0];
+                pickVoice();
+                stopSpeech();
+            });
+
+            /* ---------- 自动巡讲翻页（V0.1.0，V0.5.0 强化） ----------
+             * 点击后：自动勾选语音说明 → 从当前页第一个触点开始依次展示弹窗并朗读；
+             * 当前触点解说完毕 2 秒后进入下一个触点；
+             * 【关键】当前页**最后一段语音确实播放完毕**之后，才会翻到下一页
+             *   —— 翻页动作只可能由 tourContinue() 里"本段播完"的回调链路进入 tourStep(idx+1)
+             *      触发（见 tourStep 的翻页分支）。语音没播完、被取代、引擎报错抢先返回等
+             *      情况都不会翻页，避免"上一段还在播就跳到下一页"。
+             * 直至全部内容解说完毕或点击"停止翻页"。 */
+            const TOUR_GAP = 2000;                     /* 解说完毕到下一触点的间隔（毫秒） */
+
+            function startTour() {
+                if (!pageTotal()) return;                /* 内容未显示时不可开启巡讲（V0.4.0：图片条目同样适用） */
+                state.autoOn = true;
+                btnAuto.classList.add("active");
+                btnAuto.textContent = "⏹ 停止巡讲";
+                /* 自动选中语音说明 */
+                state.voiceOn = true;
+                chkVoice.checked = true;
+                warnIfNoTts();                           /* V0.2.2：巡讲前先体检一次语音引擎 */
+                stopSpeech();
+                tourStep(0);                             /* 从当前页第一个触点开始 */
+            }
+
+            function stopTour() {
+                state.autoOn = false;
+                clearTimeout(state.tourTimer);
+                btnAuto.classList.remove("active");
+                btnAuto.textContent = "▶ 自动巡讲";
+                stopSpeech();
+                deactivateHotspot();                     /* 收起弹窗与字幕条 */
+            }
+
+            /* 巡讲续播回调：本段朗读结束后 2 秒进入下一触点。
+             * 该回调只在"本段确实播完"时才被调用（speak / playVoiceFile / speakByEstimate
+             * 内部都用 speakSeq 保证被取代或被打断的朗读不会触发它），因此它同时也是
+             * "本页最后一段播完才翻页"的保证点。 */
+            function tourContinue(el, idx) {
+                return () => {
+                    if (!state.autoOn) return;
+                    state.tourTimer = setTimeout(() => tourStep(idx + 1), TOUR_GAP);
+                };
+            }
+
+            /* 等待热点层渲染完成（换页后热点层为异步重建） */
+            function waitHotspotsReady() {
+                return new Promise((resolve) => {
+                    let tries = 0;
+                    const check = () => {
+                        const data = currentPages()[state.pageNum - 1];
+                        const expect = (data && data.hotspots) ? data.hotspots.length : 0;
+                        if (hotspotLayer.childElementCount >= expect || ++tries > 100) resolve();
+                        else setTimeout(check, 100);
+                    };
+                    check();
+                });
+            }
+
+            /* 巡讲主流程：解说当前页第 idx 个触点 */
+            async function tourStep(idx) {
+                if (!state.autoOn) return;
+                const total = pageTotal();               /* V0.4.0：各类型条目共用 */
+                const pageData = currentPages()[state.pageNum - 1];
+                const hotspots = (pageData && pageData.hotspots) ? pageData.hotspots : [];
+
+                if (idx >= hotspots.length) {
+                    /* === 本页最后一段已播完 → 翻下一页继续；全部解说完毕则自动停止 ===
+                     * 该分支的正常入口只有一个：上一段的"播放结束"回调 → tourContinue → tourStep(idx+1)，
+                     * 因此天然满足"只有当前页最后一段语音播放完毕后才能翻页"。
+                     * （另两个入口 startTour / 手动翻页 只会传 idx=0，只有在本页没有任何触点时
+                     *   才会走到这里，此时确实没有语音需要等待。） */
+                    if (state.pageNum >= total) { stopTour(); return; }
+                    diag("第 " + state.pageNum + " 页最后一段解说已播完 → 翻到下一页");
+                    showPage(state.pageNum + 1);
+                    await waitHotspotsReady();
+                    if (!state.autoOn) return;
+                    tourStep(0);
+                    return;
+                }
+
+                /* 热点层.children 顺序与 narration_data.js 中 hotspots 数组顺序一致 */
+                const el = hotspotLayer.children[idx];
+                const hs = hotspots[idx];
+                if (!el) { tourStep(idx + 1); return; }   /* 兜底：触点缺失则跳过 */
+                activateHotspot(el, hs, tourContinue(el, idx));
+            }
+
+            btnAuto.addEventListener("click", () => { state.autoOn ? stopTour() : startTour(); });
+
+            /* ============================================================
+             * 启动
+             * ============================================================ */
+            initVoiceTemplates();                 /* 先建声音模板下拉并选中默认（男播音） */
+            /* V0.5.0：默认开启「语音说明」（数据文件里把 defaultVoiceOn 设为 false 可改为默认关闭）。
+             * 直接赋值 checked 不会触发 change，因此这里同步 state，避免状态不一致。 */
+            state.voiceOn = NARRATION_DATA.defaultVoiceOn !== false;
+            chkVoice.checked = state.voiceOn;
+            /* 【V1.1.0】「在线语音」默认勾选（HTML checked 属性）→ 默认使用网站提供的语音文件
+             * （file/voice/）；按 chkVoice / chkOnline 的默认状态刷新显示与可用性、同步发声模式。 */
+            state.onlineVoice = !!(chkOnline && chkOnline.checked);
+            state.voiceMode = state.onlineVoice ? "file" : "tts";
+            refreshVoiceUI();
+            setControlsEnabled(false);            /* 内容显示出来之前，按钮与复选框不可用 */
+            buildCascadeSelects();                /* 【V1.2.0】先建两级筛选下拉（联动设定在 narration_data.js） */
+            loadPdf(buildPdfSelect());            /* 再建文件下拉并加载默认条目第 1 页 */
+
+        </script>
+
+    </body>
+
+</html>
