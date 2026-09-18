@@ -1,1 +1,0 @@
-This folder contains the distributable file of https://github.com/csstree/csstree
